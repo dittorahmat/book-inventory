@@ -97,9 +97,10 @@ demoRouter.post("/seed", async (c) => {
           role: u.role,
           schoolId: u.schoolId,
         } as any,
+        headers: c.req.raw.headers,
       });
-    } catch {
-      // User might already exist in repeated seeding
+    } catch (err) {
+      console.error(`Failed to create demo user ${u.email}:`, err);
     }
   }
 

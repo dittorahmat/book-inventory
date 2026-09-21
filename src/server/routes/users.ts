@@ -73,6 +73,7 @@ usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
         role: body.role,
         schoolId: body.schoolId || undefined,
       } as any,
+      headers: c.req.raw.headers,
     });
 
     return c.json({ success: true, data: created.user }, 201);
