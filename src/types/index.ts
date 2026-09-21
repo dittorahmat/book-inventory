@@ -7,6 +7,17 @@ export interface School {
   phone?: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "central_admin" | "branch_admin";
+  schoolId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  school?: School | null;
+}
+
 export interface Book {
   id: string;
   isbn: string;

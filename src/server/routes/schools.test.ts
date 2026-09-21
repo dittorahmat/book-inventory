@@ -6,7 +6,8 @@ import { eq } from "drizzle-orm";
 
 describe("Schools API & Branch Management", () => {
   it("registers main school and branch school cleanly", async () => {
-    // Cleanup any existing test schools
+    // Cleanup any existing test schools or existing main school to test registration
+    await db.delete(schools).where(eq(schools.type, "main"));
     await db.delete(schools).where(eq(schools.code, "TEST-MAIN"));
     await db.delete(schools).where(eq(schools.code, "TEST-BR1"));
 

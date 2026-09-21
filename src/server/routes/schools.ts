@@ -58,3 +58,41 @@ schoolsRouter.post("/", zValidator("json", createSchoolSchema), async (c) => {
 
   return c.json({ success: true, data: newSchool }, 201);
 });
+
+const updateSchoolSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  code: z.string().min(2, "Code must be at least 2 characters").toUpperCase().optional(),
+  type: z.enum(["main", "branch"]).optional(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+});
+
+schoolsRouter.put("/:id", zValidator("json", updateSchoolSchema), async (c) => {
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+  const now = new Date().toISOString();
+
+  const [existing] = await db.select().from(schools).where(eq(schools.id, id));
+  if (!existing) {
+    return c.json({ success: false, message: "School not found" }, 404);
+  }
+
+  // If changing type to main, check if another main school already exists
+  if (body.type === "main" && existing.type !== "main") {
+    const existingMain = await db.select().from(schools).where(eq(schools.type, "main"));
+    if (existingMain.length > 0) {
+      return c.json({ success: false, message: "Main school already registered" }, 400);
+    }
+  }
+
+  const [updatedSchool] = await db
+    .update(schools)
+    .set({
+      ...body,
+      updatedAt: now,
+    })
+    .where(eq(schools.id, id))
+    .returning();
+
+  return c.json({ success: true, data: updatedSchool });
+});
