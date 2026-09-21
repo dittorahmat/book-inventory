@@ -8,12 +8,25 @@ All agents and developers contributing to this codebase must adhere to the follo
 
 After adding, modifying, or refactoring any feature, you **must** run and pass the following quality steps in sequence:
 
-1. **Database Schema Synchronization**
-   ```bash
-   bun run db:push
-   # or drizzle-kit push / npx drizzle-kit push
-   ```
-   Ensure any changes to the Drizzle schemas (`src/db/schema/*`) are applied and synced cleanly to the database.
+1. **Database Schema Synchronization & Remote Cloudflare D1 Migration (WAJIB)**
+   - **Sinkronisasi Database Lokal**:
+     ```bash
+     bun run db:push
+     # or drizzle-kit push
+     ```
+     Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke database SQLite lokal (`data/inventory.db`).
+   - **Migrasi Database Remote Cloudflare D1**:
+     Setiap kali ada penambahan atau perubahan skema tabel/fitur baru, Anda **WAJIB** membuat dan menerapkan migrasi ke database remote Cloudflare D1 agar deployment Cloudflare Workers tidak mengalami error tabel hilang:
+     ```bash
+     bun run db:generate
+     # Generate SQL migration file di direktori drizzle/
+     
+     # Terapkan langsung file SQL migrasi ke remote D1:
+     bun x wrangler d1 execute book-inventory-db --remote --file=./<path-to-migration-file>.sql
+     # atau jika menggunakan migrations folder:
+     # bun run db:d1:migrate
+     ```
+     Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push.
 
 2. **Type Safety Verification**
    ```bash

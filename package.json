@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "test": "bun test",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:d1:migrate": "wrangler d1 migrations apply book-inventory-db --remote"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.3",
