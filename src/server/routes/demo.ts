@@ -96,7 +96,7 @@ demoRouter.post("/seed", async (c) => {
           password: u.password,
           role: u.role,
           schoolId: u.schoolId,
-        },
+        } as any,
       });
     } catch {
       // User might already exist in repeated seeding

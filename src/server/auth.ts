@@ -4,8 +4,14 @@ import { db } from "../db";
 import * as schema from "../db/schema";
 
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5173",
   secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-book-inventory-1234567890",
+  trustedOrigins: [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://book-inventory.tech1solusi.workers.dev",
+    /^https:\/\/.*\.workers\.dev$/ as any,
+    /^https:\/\/.*\.pages\.dev$/ as any,
+  ],
   database: drizzleAdapter(db, {
     provider: "sqlite",
     schema: {

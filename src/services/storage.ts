@@ -83,11 +83,27 @@ export class S3CompatibleStorageService implements StorageService {
 }
 
 // Runtime Agnostic Storage Factory
-export function getStorageService(env?: any): StorageService {
-  if (env && env.BUCKET) {
-    return new CloudflareR2StorageService(env.BUCKET, env.R2_PUBLIC_URL || "/api/media");
-  }
-  return defaultStorage;
+let activeStorage: StorageService | null = null;
+
+export function setStorageService(storage: StorageService) {
+  activeStorage = storage;
 }
 
-export const defaultStorage: StorageService = new MemoryStorageService();
+export function getStorageService(env?: any): StorageService {
+  if (env && env.BUCKET) {
+    const r2 = new CloudflareR2StorageService(env.BUCKET, env.R2_PUBLIC_URL || "/api/media");
+    activeStorage = r2;
+    return r2;
+  }
+  return activeStorage || memoryStorage;
+}
+
+const memoryStorage = new MemoryStorageService();
+
+export const defaultStorage: StorageService = new Proxy({} as any, {
+  get(_target, prop) {
+    const target = activeStorage || memoryStorage;
+    const val = (target as any)[prop];
+    return typeof val === "function" ? val.bind(target) : val;
+  },
+});
