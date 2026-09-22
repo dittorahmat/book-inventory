@@ -75,9 +75,9 @@ export function App() {
       <header className="border-b border-[#E4E6EB] bg-white sticky top-0 z-40 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            {/* FB-style Blue Brand Icon */}
-            <div className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
-              f
+            {/* Al Wildan Logistics Crest Icon */}
+            <div className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center text-white shadow-sm shrink-0">
+              <BookOpen className="w-5 h-5 text-white" />
             </div>
             <div className="truncate">
               <span className="text-base sm:text-lg tracking-tight font-bold text-[#050505] truncate block sm:inline">
