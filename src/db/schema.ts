@@ -96,6 +96,7 @@ export const transferShipments = sqliteTable("transfer_shipments", {
   dispatchedAt: text("dispatched_at"),
   receivedAt: text("received_at"),
   notes: text("notes"),
+  reason: text("reason"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

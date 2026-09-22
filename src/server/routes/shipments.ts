@@ -12,6 +12,7 @@ const createShipmentSchema = z.object({
   toSchoolId: z.string().uuid(),
   bookItemIds: z.array(z.string().uuid()).min(1, "At least one book item required"),
   notes: z.string().optional(),
+  reason: z.string().optional(),
 });
 
 const receiveShipmentSchema = z.object({
@@ -37,6 +38,7 @@ shipmentsRouter.get("/", async (c) => {
     dispatchedAt: transferShipments.dispatchedAt,
     receivedAt: transferShipments.receivedAt,
     notes: transferShipments.notes,
+    reason: transferShipments.reason,
     createdAt: transferShipments.createdAt,
   })
   .from(transferShipments);
@@ -63,6 +65,7 @@ shipmentsRouter.get("/:id", async (c) => {
       bookItemId: transferShipmentItems.bookItemId,
       receivedCondition: transferShipmentItems.receivedCondition,
       barcode: bookItems.barcode,
+      condition: bookItems.condition,
       bookTitle: books.title,
     })
     .from(transferShipmentItems)
@@ -120,6 +123,7 @@ shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) =>
       toSchoolId: body.toSchoolId,
       status: "draft",
       notes: body.notes,
+      reason: body.reason,
       createdAt: now,
       updatedAt: now,
     })

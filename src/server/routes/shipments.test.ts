@@ -44,12 +44,22 @@ describe("Inter-School Transfer Shipments API", () => {
         toSchoolId: branchSchoolId,
         bookItemIds: [copy1Id, copy2Id],
         notes: "Transfer for Semester 1",
+        reason: "Distribusi buku baru",
       }),
     });
     const draftJson = await draftRes.json();
     expect(draftRes.status).toBe(201);
     expect(draftJson.data.status).toBe("draft");
+    expect(draftJson.data.reason).toBe("Distribusi buku baru");
     const shipmentId = draftJson.data.id;
+
+    // Verify detail endpoint returns reason and item condition
+    const detailRes = await shipmentsRouter.request(`/${shipmentId}`);
+    const detailJson = await detailRes.json();
+    expect(detailRes.status).toBe(200);
+    expect(detailJson.data.reason).toBe("Distribusi buku baru");
+    expect(detailJson.data.items.length).toBe(2);
+    expect(detailJson.data.items[0].condition).toBe("new");
 
     // 4. Dispatch Shipment
     const dispatchRes = await shipmentsRouter.request(`/${shipmentId}/dispatch`, { method: "POST" });

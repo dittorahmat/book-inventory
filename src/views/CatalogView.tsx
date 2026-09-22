@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { School, Book } from "../types";
-import { Plus, Image as ImageIcon, BookOpen } from "lucide-react";
+import { Plus, Image as ImageIcon, BookOpen, Search } from "lucide-react";
 
 export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   const [books, setBooks] = useState<Book[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
     isbn: "",
@@ -74,24 +75,47 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     }
   };
 
+  const filteredBooks = books.filter((book) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      book.title.toLowerCase().includes(q) ||
+      book.isbn.toLowerCase().includes(q) ||
+      book.author.toLowerCase().includes(q) ||
+      (book.publisher && book.publisher.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-[#E5E5E0] pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E5E0] pb-4">
         <div>
           <h2 className="text-xl font-editorial font-semibold text-[#1A1A1A]">
             Central Book Catalog
           </h2>
           <p className="text-xs text-[#737373]">
-            Global book master records and physical copy printing.
+            Global book master records and physical copy printing ({books.length} titles).
           </p>
         </div>
-        <button
-          onClick={() => setIsAdding(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Title
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#737373]" />
+            <input
+              type="text"
+              placeholder="Search title, ISBN, author, publisher..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-72 focus:outline-none focus:border-[#1A1A1A]"
+            />
+          </div>
+          <button
+            onClick={() => setIsAdding(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Title
+          </button>
+        </div>
       </div>
 
       {isAdding && (
@@ -170,14 +194,16 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#F0F0EC]">
-            {books.length === 0 ? (
+            {filteredBooks.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-[#737373]">
-                  No catalog items found. Click "Add Title" to create one.
+                  {books.length === 0
+                    ? 'No catalog items found. Click "Add Title" to create one.'
+                    : 'No catalog items match your search.'}
                 </td>
               </tr>
             ) : (
-              books.map((book) => (
+              filteredBooks.map((book) => (
                 <tr key={book.id} className="hover:bg-[#FAFAF8] transition-colors">
                   <td className="py-3 px-4">
                     {book.coverUrl ? (

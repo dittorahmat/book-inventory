@@ -1,0 +1,1 @@
+ALTER TABLE `transfer_shipments` ADD `reason` text;

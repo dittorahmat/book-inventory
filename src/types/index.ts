@@ -50,6 +50,7 @@ export interface TransferShipment {
   dispatchedAt?: string;
   receivedAt?: string;
   notes?: string;
+  reason?: string;
   createdAt: string;
   fromSchool?: School;
   toSchool?: School;
@@ -58,6 +59,7 @@ export interface TransferShipment {
     bookItemId: string;
     receivedCondition?: string;
     barcode?: string;
+    condition?: string;
     bookTitle?: string;
   }>;
 }

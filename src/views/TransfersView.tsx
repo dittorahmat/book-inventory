@@ -8,6 +8,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
   const [availableItems, setAvailableItems] = useState<BookItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [destinationSchoolId, setDestinationSchoolId] = useState("");
+  const [transferReason, setTransferReason] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
 
@@ -46,6 +47,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
         fromSchoolId: activeSchool.id,
         toSchoolId: destinationSchoolId,
         bookItemIds: selectedItems,
+        reason: transferReason.trim() || undefined,
         notes: "Scheduled distribution",
       }),
     });
@@ -53,6 +55,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
     if (data.success) {
       setIsCreating(false);
       setSelectedItems([]);
+      setTransferReason("");
       fetchShipments();
     } else {
       alert(data.message || "Failed to create shipment");
@@ -126,7 +129,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
             <select
               value={destinationSchoolId}
               onChange={(e) => setDestinationSchoolId(e.target.value)}
-              className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs"
+              className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs bg-white"
             >
               <option value="">Select Destination School</option>
               {allSchools
@@ -140,6 +143,17 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
           </div>
 
           <div>
+            <label className="block text-xs text-[#737373] mb-1">Transfer Reason / Category (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Return damaged books, New stock distribution..."
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs"
+            />
+          </div>
+
+          <div>
             <label className="block text-xs text-[#737373] mb-1">
               Select Book Copies to Dispatch ({availableItems.length} available in stock)
             </label>
@@ -148,17 +162,30 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
                 <div className="text-[#737373] py-2">No copies in stock to send.</div>
               ) : (
                 availableItems.map((item) => (
-                  <label key={item.id} className="flex items-center gap-2 py-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.includes(item.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedItems([...selectedItems, item.id]);
-                        else setSelectedItems(selectedItems.filter((id) => id !== item.id));
-                      }}
-                    />
-                    <span className="font-mono">{item.barcode}</span>
-                    <span className="text-[#737373]">({item.book?.title})</span>
+                  <label key={item.id} className="flex items-center justify-between py-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(item.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedItems([...selectedItems, item.id]);
+                          else setSelectedItems(selectedItems.filter((id) => id !== item.id));
+                        }}
+                      />
+                      <span className="font-mono">{item.barcode}</span>
+                      <span className="text-[#737373]">({item.book?.title})</span>
+                    </div>
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-mono uppercase ${
+                        item.condition === "damaged"
+                          ? "bg-red-50 text-red-700 border border-red-200"
+                          : item.condition === "new"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {item.condition}
+                    </span>
                   </label>
                 ))
               )}
@@ -212,6 +239,12 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
               <span>{allSchools.find((sch) => sch.id === s.toSchoolId)?.name || s.toSchoolId}</span>
             </div>
 
+            {s.reason && (
+              <div className="text-[11px] font-mono text-[#1A1A1A] bg-[#FAFAF8] px-2 py-1 rounded border border-[#E5E5E0]">
+                <span className="text-[#737373]">Alasan:</span> {s.reason}
+              </div>
+            )}
+
             <div className="pt-2 flex justify-between items-center text-[11px] font-mono text-[#737373] border-t border-[#F4F4F0]">
               <span>Created {new Date(s.createdAt).toLocaleDateString()}</span>
               <span className="text-[#1A1A1A]">Click to view details</span>
@@ -230,6 +263,11 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
                 <div className="text-xs text-[#737373]">
                   {selectedShipment.fromSchool?.name} &rarr; {selectedShipment.toSchool?.name}
                 </div>
+                {selectedShipment.reason && (
+                  <div className="text-xs text-[#1A1A1A] mt-1 font-mono">
+                    <span className="text-[#737373]">Alasan:</span> {selectedShipment.reason}
+                  </div>
+                )}
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#F4F4F0] uppercase">
                 {selectedShipment.status}
@@ -242,12 +280,27 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
                 {selectedShipment.items?.map((item) => (
                   <div key={item.id} className="p-2 flex justify-between items-center">
                     <div>
-                      <div className="font-mono font-medium text-[#1A1A1A]">{item.barcode}</div>
+                      <div className="font-mono font-medium text-[#1A1A1A] flex items-center gap-1.5">
+                        <span>{item.barcode}</span>
+                        {item.condition && (
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-mono uppercase ${
+                              item.condition === "damaged"
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : item.condition === "new"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {item.condition}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[#737373] text-[11px]">{item.bookTitle}</div>
                     </div>
                     {item.receivedCondition && (
                       <span className="text-[10px] font-mono text-[#555555]">
-                        Condition: {item.receivedCondition}
+                        Received: {item.receivedCondition}
                       </span>
                     )}
                   </div>
