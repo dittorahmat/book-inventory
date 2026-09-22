@@ -14,8 +14,8 @@ export class MemoryStorageService implements StorageService {
   private files = new Map<string, { data: Uint8Array; contentType: string }>();
   private baseUrl: string;
 
-  constructor(baseUrl = "/uploads") {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl = "/api/media") {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   async upload(key: string, file: Uint8Array | ArrayBuffer | Buffer, contentType: string): Promise<string> {

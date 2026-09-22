@@ -43,5 +43,13 @@ describe("Books Catalog API", () => {
     const getRes = await booksRouter.request(`/${bookId}`, { method: "GET" });
     const getJson = await getRes.json();
     expect(getJson.data.coverUrl).toBe(uploadJson.data.coverUrl);
+
+    // Verify round-trip media serving: fetch the actual image URL via the main app
+    const { app } = await import("../index");
+    const mediaRes = await app.request(uploadJson.data.coverUrl, { method: "GET" });
+    expect(mediaRes.status).toBe(200);
+    expect(mediaRes.headers.get("Content-Type")).toBe("image/jpeg");
+    const imageBytes = await mediaRes.text();
+    expect(imageBytes).toBe("test-image-bytes");
   });
 });

@@ -61,6 +61,10 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
      - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
      - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
+   - **Media & R2 Asset Serving Verification (Round-Trip Test)**:
+     - Setiap ada endpoint upload file / media yang menghasilkan URL (contoh: `/api/media/covers/...` atau R2 / S3 storage):
+       - **WAJIB** ada route handler penyaji file (contoh: `GET /api/media/*`) yang mengembalikan stream data dengan header `Content-Type` yang tepat dan `Cache-Control`.
+       - **WAJIB** memiliki integration test round-trip di `src/server/routes/*.test.ts`: test harus mengunggah file, mengambil URL hasil upload, lalu melakukan request `GET` ke URL tersebut dan memverifikasi status 200 serta kecocokan `Content-Type` dan payload. Dilarang hanya mengetes proses upload tanpa memverifikasi aksesibilitas URL yang dikembalikan ke browser.
    - **Regression Test Updates**:
      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
 
