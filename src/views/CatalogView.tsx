@@ -14,8 +14,11 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     publishYear: 2024,
     category: "General",
   });
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [generatingForBook, setGeneratingForBook] = useState<Book | null>(null);
   const [generateCount, setGenerateCount] = useState(5);
+  const [isSubmittingBook, setIsSubmittingBook] = useState(false);
 
   const fetchBooks = () => {
     fetch("/api/books")
@@ -29,20 +32,48 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     fetchBooks();
   }, []);
 
+  const handleCoverChange = (file: File | null) => {
+    setCoverFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setCoverPreviewUrl(url);
+    } else {
+      setCoverPreviewUrl(null);
+    }
+  };
+
   const handleCreateBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("/api/books", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setIsAdding(false);
-      setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General" });
-      fetchBooks();
-    } else {
-      alert(data.message || "Failed to create book");
+    setIsSubmittingBook(true);
+    try {
+      const res = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const newBookId = data.data.id;
+        if (coverFile) {
+          const coverFormData = new FormData();
+          coverFormData.append("cover", coverFile);
+          await fetch(`/api/books/${newBookId}/cover`, {
+            method: "POST",
+            body: coverFormData,
+          });
+        }
+        setIsAdding(false);
+        setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General" });
+        setCoverFile(null);
+        setCoverPreviewUrl(null);
+        fetchBooks();
+      } else {
+        alert(data.message || "Failed to create book");
+      }
+    } catch {
+      alert("Failed to create book record");
+    } finally {
+      setIsSubmittingBook(false);
     }
   };
 
@@ -119,63 +150,119 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
       </div>
 
       {isAdding && (
-        <form onSubmit={handleCreateBook} className="p-4 border border-[#E5E5E0] bg-white rounded space-y-4 max-w-xl">
-          <div className="font-editorial font-medium text-sm">Register New Catalog Title</div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <label className="block text-[#737373] mb-1">ISBN</label>
-              <input
-                required
-                className="w-full border border-[#E5E5E0] p-1.5 rounded font-mono text-xs"
-                placeholder="978-..."
-                value={formData.isbn}
-                onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-              />
+        <form onSubmit={handleCreateBook} className="p-4 border border-[#E5E5E0] bg-white rounded space-y-4 max-w-2xl shadow-sm">
+          <div className="font-editorial font-medium text-sm text-[#1A1A1A]">Register New Catalog Title</div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Cover Upload Dropzone / Preview */}
+            <div className="sm:w-36 flex flex-col items-center justify-start shrink-0">
+              <label className="block text-[11px] font-mono text-[#737373] mb-1.5 self-start">Book Cover</label>
+              <label
+                className={`w-28 h-36 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden ${
+                  coverPreviewUrl
+                    ? "border-[#1A1A1A] bg-black/5"
+                    : "border-[#D4D4CE] hover:border-[#1A1A1A] bg-[#FAFAF8]"
+                }`}
+              >
+                {coverPreviewUrl ? (
+                  <>
+                    <img
+                      src={coverPreviewUrl}
+                      alt="Cover Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-mono transition-opacity">
+                      Change Cover
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center text-center p-2 text-[#737373]">
+                    <ImageIcon className="w-5 h-5 mb-1 text-[#888888]" />
+                    <span className="text-[10px] font-mono leading-tight">Upload Cover</span>
+                    <span className="text-[9px] text-[#A0A09C] mt-0.5">PNG, JPG, WebP</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleCoverChange(e.target.files?.[0] || null)}
+                />
+              </label>
+              {coverFile && (
+                <button
+                  type="button"
+                  onClick={() => handleCoverChange(null)}
+                  className="text-[10px] text-red-600 hover:underline mt-1 font-mono"
+                >
+                  Hapus Cover
+                </button>
+              )}
             </div>
-            <div>
-              <label className="block text-[#737373] mb-1">Title</label>
-              <input
-                required
-                className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs"
-                placeholder="Book title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-[#737373] mb-1">Author</label>
-              <input
-                required
-                className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs"
-                placeholder="Author name"
-                value={formData.author}
-                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-[#737373] mb-1">Publisher</label>
-              <input
-                required
-                className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs"
-                placeholder="Publisher"
-                value={formData.publisher}
-                onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
-              />
+
+            {/* Form Fields */}
+            <div className="flex-1 grid grid-cols-2 gap-3 text-xs">
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[#737373] mb-1">ISBN</label>
+                <input
+                  required
+                  className="w-full border border-[#E5E5E0] p-1.5 rounded font-mono text-xs focus:outline-none focus:border-[#1A1A1A]"
+                  placeholder="978-..."
+                  value={formData.isbn}
+                  onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[#737373] mb-1">Title</label>
+                <input
+                  required
+                  className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs focus:outline-none focus:border-[#1A1A1A]"
+                  placeholder="Book title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[#737373] mb-1">Author</label>
+                <input
+                  required
+                  className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs focus:outline-none focus:border-[#1A1A1A]"
+                  placeholder="Author name"
+                  value={formData.author}
+                  onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[#737373] mb-1">Publisher</label>
+                <input
+                  required
+                  className="w-full border border-[#E5E5E0] p-1.5 rounded text-xs focus:outline-none focus:border-[#1A1A1A]"
+                  placeholder="Publisher"
+                  value={formData.publisher}
+                  onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
+                />
+              </div>
             </div>
           </div>
-          <div className="flex gap-2 justify-end pt-2">
+
+          <div className="flex gap-2 justify-end pt-2 border-t border-[#F0F0EC]">
             <button
               type="button"
-              onClick={() => setIsAdding(false)}
-              className="px-3 py-1 text-xs border border-[#E5E5E0] rounded text-[#737373]"
+              onClick={() => {
+                setIsAdding(false);
+                setCoverFile(null);
+                setCoverPreviewUrl(null);
+              }}
+              className="px-3 py-1 text-xs border border-[#E5E5E0] rounded text-[#737373] hover:bg-[#FAFAF8]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded font-mono"
+              disabled={isSubmittingBook}
+              className="px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded font-mono hover:bg-[#333333] disabled:opacity-50"
             >
-              Save Book
+              {isSubmittingBook ? "Saving..." : "Save Book"}
             </button>
           </div>
         </form>
