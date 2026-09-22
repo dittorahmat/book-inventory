@@ -94,7 +94,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-[#E5E5E0] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E5E0] pb-4">
         <div>
           <h2 className="text-xl font-editorial font-semibold text-[#1A1A1A]">
             Inter-School Stock Transfers
@@ -109,7 +109,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
             setIsCreating(true);
             loadAvailableItemsForTransfer();
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors w-full sm:w-auto"
         >
           <Plus className="w-3.5 h-3.5" />
           Create Shipment

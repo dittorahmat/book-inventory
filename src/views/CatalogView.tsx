@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { School, Book } from "../types";
-import { Plus, Image as ImageIcon, BookOpen, Search } from "lucide-react";
+import { Plus, Image as ImageIcon, BookOpen, Search, Upload } from "lucide-react";
 
 export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   const [books, setBooks] = useState<Book[]>([]);
@@ -128,20 +128,20 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
             Global book master records and physical copy printing ({books.length} titles).
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#737373]" />
             <input
               type="text"
-              placeholder="Search title, ISBN, author, publisher..."
+              placeholder="Search title, ISBN, author..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-72 focus:outline-none focus:border-[#1A1A1A]"
+              className="pl-8 pr-3 py-2 sm:py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-full sm:w-72 focus:outline-none focus:border-[#1A1A1A]"
             />
           </div>
           <button
             onClick={() => setIsAdding(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-mono bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Title
@@ -158,61 +158,52 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
             <div className="sm:w-36 flex flex-col items-center justify-start shrink-0">
               <label className="block text-[11px] font-mono text-[#737373] mb-1.5 self-start">Book Cover</label>
               <label
-                className={`w-28 h-36 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden ${
+                className={`w-full aspect-[3/4] border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group ${
                   coverPreviewUrl
-                    ? "border-[#1A1A1A] bg-black/5"
-                    : "border-[#D4D4CE] hover:border-[#1A1A1A] bg-[#FAFAF8]"
+                    ? "border-emerald-500 bg-emerald-50/20"
+                    : "border-[#D4D4CE] bg-[#FAFAF8] hover:border-[#1A1A1A] hover:bg-[#F4F4F0]"
                 }`}
               >
                 {coverPreviewUrl ? (
                   <>
                     <img
                       src={coverPreviewUrl}
-                      alt="Cover Preview"
-                      className="w-full h-full object-cover"
+                      alt="Preview"
+                      className="w-full h-full object-cover rounded"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-mono transition-opacity">
-                      Change Cover
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[11px] font-mono">
+                      Change
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center text-center p-2 text-[#737373]">
-                    <ImageIcon className="w-5 h-5 mb-1 text-[#888888]" />
-                    <span className="text-[10px] font-mono leading-tight">Upload Cover</span>
-                    <span className="text-[9px] text-[#A0A09C] mt-0.5">PNG, JPG, WebP</span>
+                  <div className="flex flex-col items-center p-3 text-center">
+                    <Upload className="w-5 h-5 text-[#737373] mb-1.5" />
+                    <span className="text-[11px] font-medium text-[#1A1A1A]">Upload Cover</span>
+                    <span className="text-[9px] text-[#737373] mt-0.5">PNG, JPG to R2</span>
                   </div>
                 )}
                 <input
                   type="file"
                   accept="image/*"
-                  className="hidden"
                   onChange={(e) => handleCoverChange(e.target.files?.[0] || null)}
+                  className="hidden"
                 />
               </label>
-              {coverFile && (
-                <button
-                  type="button"
-                  onClick={() => handleCoverChange(null)}
-                  className="text-[10px] text-red-600 hover:underline mt-1 font-mono"
-                >
-                  Hapus Cover
-                </button>
-              )}
             </div>
 
             {/* Form Fields */}
             <div className="flex-1 grid grid-cols-2 gap-3 text-xs">
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-2">
                 <label className="block text-[#737373] mb-1">ISBN</label>
                 <input
                   required
-                  className="w-full border border-[#E5E5E0] p-1.5 rounded font-mono text-xs focus:outline-none focus:border-[#1A1A1A]"
-                  placeholder="978-..."
+                  className="w-full font-mono border border-[#E5E5E0] p-1.5 rounded text-xs focus:outline-none focus:border-[#1A1A1A]"
+                  placeholder="978-3-16-148410-0"
                   value={formData.isbn}
                   onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
                 />
               </div>
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-2">
                 <label className="block text-[#737373] mb-1">Title</label>
                 <input
                   required
@@ -253,14 +244,14 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                 setCoverFile(null);
                 setCoverPreviewUrl(null);
               }}
-              className="px-3 py-1 text-xs border border-[#E5E5E0] rounded text-[#737373] hover:bg-[#FAFAF8]"
+              className="px-3 py-1.5 text-xs border border-[#E5E5E0] rounded text-[#737373] hover:bg-[#FAFAF8]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmittingBook}
-              className="px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded font-mono hover:bg-[#333333] disabled:opacity-50"
+              className="px-3 py-1.5 text-xs bg-[#1A1A1A] text-white rounded font-mono hover:bg-[#333333] disabled:opacity-50"
             >
               {isSubmittingBook ? "Saving..." : "Save Book"}
             </button>
@@ -268,8 +259,70 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
         </form>
       )}
 
-      {/* Catalog Table */}
-      <div className="border border-[#E5E5E0] bg-white rounded overflow-hidden">
+      {/* Mobile Card List (< md) */}
+      <div className="md:hidden space-y-3">
+        {filteredBooks.length === 0 ? (
+          <div className="border border-[#E5E5E0] bg-white rounded p-8 text-center text-xs text-[#737373]">
+            {books.length === 0
+              ? 'No catalog items found. Click "Add Title" to create one.'
+              : 'No catalog items match your search.'}
+          </div>
+        ) : (
+          filteredBooks.map((book) => (
+            <div key={book.id} className="border border-[#E5E5E0] bg-white rounded-lg p-3.5 flex gap-3 items-start">
+              {/* Cover thumbnail */}
+              <div className="shrink-0">
+                {book.coverUrl ? (
+                  <img src={book.coverUrl} alt={book.title} className="w-12 h-16 object-cover rounded border border-[#E5E5E0]" />
+                ) : (
+                  <label className="w-12 h-16 flex flex-col items-center justify-center border border-dashed border-[#D4D4CE] rounded cursor-pointer hover:border-[#1A1A1A] text-[#737373] bg-[#FAFAF8]">
+                    <ImageIcon className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleUploadCover(book.id, e.target.files[0]);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Book Details */}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-xs text-[#1A1A1A] leading-snug line-clamp-2">
+                  {book.title}
+                </div>
+                <div className="text-[11px] text-[#737373] mt-0.5">
+                  {book.author}
+                </div>
+                <div className="text-[10px] font-mono text-[#555555] mt-1">
+                  ISBN: {book.isbn}
+                </div>
+                {book.publisher && (
+                  <div className="text-[10px] text-[#737373]">
+                    Pub: {book.publisher}
+                  </div>
+                )}
+
+                <div className="mt-2.5 pt-2 border-t border-[#F0F0EC] flex justify-end">
+                  <button
+                    onClick={() => setGeneratingForBook(book)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-[#E5E5E0] rounded hover:border-[#1A1A1A] text-[#1A1A1A] bg-[#FAFAF8]"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Add Physical Copies
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Catalog Table (>= md) */}
+      <div className="hidden md:block border border-[#E5E5E0] bg-white rounded overflow-hidden">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#E5E5E0] bg-[#FAFAF8] text-[#737373] font-mono text-[11px]">

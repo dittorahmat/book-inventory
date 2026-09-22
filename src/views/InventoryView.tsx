@@ -146,22 +146,22 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
         </div>
 
         {/* Filter / Search Bar */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#737373]" />
             <input
               type="text"
               placeholder="Scan or search barcode / title..."
               value={searchBarcode}
               onChange={(e) => setSearchBarcode(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-64 focus:outline-none focus:border-[#1A1A1A]"
+              className="pl-8 pr-3 py-2 sm:py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-full sm:w-64 focus:outline-none focus:border-[#1A1A1A]"
             />
           </div>
 
           <select
             value={conditionFilter}
             onChange={(e) => setConditionFilter(e.target.value)}
-            className="text-xs font-mono border border-[#E5E5E0] py-1.5 px-2 rounded bg-white text-[#555555]"
+            className="text-xs font-mono border border-[#E5E5E0] py-2 sm:py-1.5 px-2 rounded bg-white text-[#555555] w-full sm:w-auto"
           >
             <option value="all">All Conditions</option>
             <option value="new">New</option>
@@ -172,35 +172,153 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
         </div>
       </div>
 
-      {/* Floating / Top Multi-Select Action Bar */}
+      {/* Floating Multi-Select Action Bar: Positioned above mobile bottom bar */}
       {selectedItemIds.length > 0 && (
-        <div className="flex items-center justify-between p-3 bg-[#1A1A1A] text-white rounded shadow-sm">
+        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-8 md:max-w-md z-20 flex items-center justify-between p-3 bg-[#1A1A1A] text-white rounded-lg shadow-xl border border-neutral-700">
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="bg-white/20 px-2 py-0.5 rounded text-white font-semibold">
               {selectedItemIds.length}
             </span>
-            <span>buku dipilih untuk mutasi/retur</span>
+            <span className="truncate max-w-[130px] sm:max-w-none">buku dipilih</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedItemIds([])}
-              className="px-2.5 py-1 text-xs border border-white/30 rounded text-white/80 hover:text-white hover:border-white transition-colors"
+              className="px-2.5 py-1.5 text-xs border border-white/30 rounded text-white/80 hover:text-white hover:border-white transition-colors"
             >
-              Batal Pilih
+              Batal
             </button>
             <button
               onClick={handleOpenTransferModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-mono bg-white text-[#1A1A1A] rounded hover:bg-neutral-200 transition-colors font-medium"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-white text-[#1A1A1A] rounded hover:bg-neutral-200 transition-colors font-medium shadow-sm"
             >
-              <span>Transfer / Retur Buku</span>
+              <span>Transfer</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Item List */}
-      <div className="border border-[#E5E5E0] bg-white rounded overflow-hidden">
+      {/* Select all bar for Mobile */}
+      <div className="md:hidden flex items-center justify-between bg-[#FAFAF8] border border-[#E5E5E0] rounded p-2.5 text-xs font-mono">
+        <button
+          type="button"
+          onClick={handleToggleSelectAll}
+          disabled={availableInStockItems.length === 0}
+          className="flex items-center gap-2 text-[#1A1A1A] disabled:opacity-40"
+        >
+          {isAllSelected ? (
+            <CheckSquare className="w-4 h-4 text-[#1A1A1A]" />
+          ) : (
+            <Square className="w-4 h-4 text-[#737373]" />
+          )}
+          <span>Pilih Semua Tersedia ({availableInStockItems.length})</span>
+        </button>
+        <span className="text-[11px] text-[#737373]">
+          Total: {filteredItems.length}
+        </span>
+      </div>
+
+      {/* Mobile Card List View (< md) */}
+      <div className="md:hidden space-y-3">
+        {filteredItems.length === 0 ? (
+          <div className="border border-[#E5E5E0] bg-white rounded p-8 text-center text-xs text-[#737373]">
+            No physical copies found at this branch.
+          </div>
+        ) : (
+          filteredItems.map((item) => {
+            const isSelected = selectedItemIds.includes(item.id);
+            const canSelect = item.status === "in_stock";
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => canSelect && handleToggleSelectItem(item.id)}
+                className={`border rounded-lg p-3.5 bg-white transition-all ${
+                  isSelected
+                    ? "border-[#1A1A1A] ring-1 ring-[#1A1A1A] bg-neutral-50/70"
+                    : "border-[#E5E5E0] hover:border-[#1A1A1A]/40"
+                } ${canSelect ? "cursor-pointer" : "opacity-80"}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="p-1 -ml-1 text-[#1A1A1A]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canSelect) handleToggleSelectItem(item.id);
+                      }}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-5 h-5 text-[#1A1A1A]" />
+                      ) : (
+                        <Square className={`w-5 h-5 ${canSelect ? "text-[#737373]" : "text-neutral-300"}`} />
+                      )}
+                    </div>
+                    <div className="font-mono text-xs font-semibold text-[#1A1A1A] flex items-center gap-1">
+                      <Tag className="w-3.5 h-3.5 text-[#737373]" />
+                      {item.barcode}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                        item.condition === "new"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : item.condition === "damaged"
+                          ? "bg-red-50 text-red-700 border border-red-200"
+                          : "bg-gray-100 text-gray-700 border border-gray-200"
+                      }`}
+                    >
+                      {item.condition}
+                    </span>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                        item.status === "in_stock"
+                          ? "bg-slate-100 text-slate-700"
+                          : item.status === "in_transit"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {item.status.replace("_", " ")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="font-medium text-xs text-[#1A1A1A] leading-snug mb-1">
+                  {item.book?.title || "Untitled Book"}
+                </div>
+                <div className="text-[11px] font-mono text-[#737373] mb-3">
+                  ISBN: {item.book?.isbn || "-"}
+                </div>
+
+                <div
+                  className="flex items-center justify-between pt-2 border-t border-[#F0F0EC] text-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-[11px] font-mono text-[#737373]">Update Kondisi:</span>
+                  <select
+                    value={item.condition}
+                    disabled={item.status !== "in_stock"}
+                    onChange={(e) => handleUpdateCondition(item.id, e.target.value as any)}
+                    className="text-xs font-mono border border-[#E5E5E0] rounded px-2.5 py-1.5 bg-white text-[#555555] disabled:opacity-50 min-h-[36px]"
+                  >
+                    <option value="new">New</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="damaged">Damaged</option>
+                  </select>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Item List Table (>= md) */}
+      <div className="hidden md:block border border-[#E5E5E0] bg-white rounded overflow-hidden">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#E5E5E0] bg-[#FAFAF8] text-[#737373] font-mono text-[11px]">

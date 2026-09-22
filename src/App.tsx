@@ -73,36 +73,38 @@ export function App() {
     <div className="min-h-screen bg-[#FBFBFA] text-[#1A1A1A] flex flex-col font-sans">
       {/* Header */}
       <header className="border-b border-[#E5E5E0] bg-white sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#1A1A1A]"></span>
-            <div>
-              <span className="font-serif text-lg tracking-tight font-bold">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1A1A1A] shrink-0"></span>
+            <div className="truncate">
+              <span className="font-serif text-base sm:text-lg tracking-tight font-bold truncate block sm:inline">
                 School Book Logistics
               </span>
-              <span className="ml-2 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+              <span className="hidden sm:inline-block ml-2 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                 Al Wildan
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Branch Selector: enabled for Central Admin, or locked for Branch Admin */}
             {isCentralAdmin ? (
-              <BranchSelector
-                selectedSchool={selectedSchool}
-                onSelectSchool={(school) => setSelectedSchool(school)}
-              />
+              <div className="max-w-[150px] sm:max-w-none">
+                <BranchSelector
+                  selectedSchool={selectedSchool}
+                  onSelectSchool={(school) => setSelectedSchool(school)}
+                />
+              </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-[#F4F4F0] rounded text-xs font-mono text-[#404040]">
-                <SchoolIcon className="w-3.5 h-3.5 text-blue-600" />
-                <span>{selectedSchool?.name || "Assigned Branch"}</span>
+              <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 bg-[#F4F4F0] rounded text-xs font-mono text-[#404040]">
+                <SchoolIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="truncate max-w-[100px] sm:max-w-none">{selectedSchool?.name || "Assigned Branch"}</span>
               </div>
             )}
 
             {/* User Badge & Logout */}
-            <div className="flex items-center gap-3 pl-3 border-l border-[#E5E5E0]">
-              <div className="text-right hidden sm:block">
+            <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-[#E5E5E0]">
+              <div className="text-right hidden md:block">
                 <div className="text-xs font-medium text-[#1A1A1A]">{currentUser.name}</div>
                 <div className="text-[10px] font-mono text-[#737373] flex items-center justify-end gap-1">
                   {isCentralAdmin ? (
@@ -118,7 +120,8 @@ export function App() {
               <button
                 onClick={() => signOut()}
                 title="Sign Out"
-                className="p-1.5 text-[#737373] hover:text-[#1A1A1A] hover:bg-[#F4F4F0] rounded transition-colors"
+                className="p-2 sm:p-1.5 text-[#737373] hover:text-[#1A1A1A] hover:bg-[#F4F4F0] rounded transition-colors"
+                aria-label="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -126,8 +129,8 @@ export function App() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="max-w-6xl mx-auto px-6 flex gap-6 text-xs font-mono border-t border-[#F4F4F0]">
+        {/* Tab Navigation for Desktop (md and above) */}
+        <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-6 text-xs font-mono border-t border-[#F4F4F0]">
           <button
             onClick={() => setActiveTab("inventory")}
             className={`py-2.5 flex items-center gap-1.5 border-b-2 transition-colors ${
@@ -177,8 +180,8 @@ export function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-8">
+      {/* Main Content Area: pb-24 on mobile so content isn't covered by bottom nav */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView activeSchool={selectedSchool} />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
@@ -189,6 +192,61 @@ export function App() {
           />
         )}
       </main>
+
+      {/* Bottom Navigation Bar for Mobile (< md) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E5E0] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1 px-2">
+        <div className="grid grid-cols-3 auto-cols-fr sm:grid-cols-4 gap-1">
+          <button
+            onClick={() => setActiveTab("inventory")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-md transition-colors ${
+              activeTab === "inventory"
+                ? "text-[#1A1A1A] font-semibold bg-[#F4F4F0]"
+                : "text-[#737373] hover:text-[#1A1A1A]"
+            }`}
+          >
+            <Layers className="w-5 h-5 mb-1" />
+            <span className="text-[10px] tracking-tight">Inventory</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("catalog")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-md transition-colors ${
+              activeTab === "catalog"
+                ? "text-[#1A1A1A] font-semibold bg-[#F4F4F0]"
+                : "text-[#737373] hover:text-[#1A1A1A]"
+            }`}
+          >
+            <BookOpen className="w-5 h-5 mb-1" />
+            <span className="text-[10px] tracking-tight">Catalog</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("transfers")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-md transition-colors ${
+              activeTab === "transfers"
+                ? "text-[#1A1A1A] font-semibold bg-[#F4F4F0]"
+                : "text-[#737373] hover:text-[#1A1A1A]"
+            }`}
+          >
+            <Truck className="w-5 h-5 mb-1" />
+            <span className="text-[10px] tracking-tight">Transfers</span>
+          </button>
+
+          {isCentralAdmin && (
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`col-span-3 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-md transition-colors ${
+                activeTab === "settings"
+                  ? "text-[#1A1A1A] font-semibold bg-[#F4F4F0]"
+                  : "text-[#737373] hover:text-[#1A1A1A]"
+              }`}
+            >
+              <Settings className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight">Settings</span>
+            </button>
+          )}
+        </div>
+      </nav>
     </div>
   );
 }
