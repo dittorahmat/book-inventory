@@ -134,36 +134,36 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E5E0] pb-4">
+    <div className="space-y-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-xl border border-[#E4E6EB] shadow-xs">
         <div>
-          <h2 className="text-xl font-editorial font-semibold text-[#1A1A1A]">
+          <h2 className="text-xl font-bold text-[#050505]">
             Branch Stock Inventory
           </h2>
-          <p className="text-xs text-[#737373]">
-            Physical copies stationed at {activeSchool ? activeSchool.name : "..."} ({items.length} units total).
+          <p className="text-xs text-[#65676B] mt-0.5">
+            Physical copies stationed at <span className="font-semibold text-[#050505]">{activeSchool ? activeSchool.name : "..."}</span> ({items.length} units total).
           </p>
         </div>
 
         {/* Filter / Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
           <div className="relative flex-1 sm:flex-initial">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#737373]" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#65676B]" />
             <input
               type="text"
-              placeholder="Scan or search barcode / title..."
+              placeholder="Cari barcode atau judul buku..."
               value={searchBarcode}
               onChange={(e) => setSearchBarcode(e.target.value)}
-              className="pl-8 pr-3 py-2 sm:py-1.5 text-xs font-mono border border-[#E5E5E0] rounded bg-white w-full sm:w-64 focus:outline-none focus:border-[#1A1A1A]"
+              className="pl-9 pr-3 py-2 text-xs font-medium border border-[#CED0D4] rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] focus:bg-white w-full sm:w-64 focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2] transition-all placeholder-[#8A8D91]"
             />
           </div>
 
           <select
             value={conditionFilter}
             onChange={(e) => setConditionFilter(e.target.value)}
-            className="text-xs font-mono border border-[#E5E5E0] py-2 sm:py-1.5 px-2 rounded bg-white text-[#555555] w-full sm:w-auto"
+            className="text-xs font-semibold border border-[#CED0D4] py-2 px-3 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] w-full sm:w-auto focus:outline-none focus:border-[#1877F2] cursor-pointer"
           >
-            <option value="all">All Conditions</option>
+            <option value="all">Semua Kondisi</option>
             <option value="new">New</option>
             <option value="good">Good</option>
             <option value="fair">Fair</option>
@@ -172,49 +172,49 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
         </div>
       </div>
 
-      {/* Floating Multi-Select Action Bar: Positioned above mobile bottom bar */}
+      {/* Floating Multi-Select Action Bar */}
       {selectedItemIds.length > 0 && (
-        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-8 md:max-w-md z-20 flex items-center justify-between p-3 bg-[#1A1A1A] text-white rounded-lg shadow-xl border border-neutral-700">
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="bg-white/20 px-2 py-0.5 rounded text-white font-semibold">
+        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-8 md:max-w-md z-20 flex items-center justify-between p-3.5 bg-white text-[#050505] rounded-2xl shadow-xl border border-[#CED0D4]">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="bg-[#E7F3FF] text-[#1877F2] px-2.5 py-0.5 rounded-full font-bold">
               {selectedItemIds.length}
             </span>
-            <span className="truncate max-w-[130px] sm:max-w-none">buku dipilih</span>
+            <span className="truncate max-w-[130px] sm:max-w-none text-[#050505]">buku dipilih</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedItemIds([])}
-              className="px-2.5 py-1.5 text-xs border border-white/30 rounded text-white/80 hover:text-white hover:border-white transition-colors"
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] transition-colors"
             >
               Batal
             </button>
             <button
               onClick={handleOpenTransferModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-white text-[#1A1A1A] rounded hover:bg-neutral-200 transition-colors font-medium shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm"
             >
               <span>Transfer</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       )}
 
       {/* Select all bar for Mobile */}
-      <div className="md:hidden flex items-center justify-between bg-[#FAFAF8] border border-[#E5E5E0] rounded p-2.5 text-xs font-mono">
+      <div className="md:hidden flex items-center justify-between bg-white border border-[#E4E6EB] rounded-xl p-3 text-xs font-semibold shadow-xs">
         <button
           type="button"
           onClick={handleToggleSelectAll}
           disabled={availableInStockItems.length === 0}
-          className="flex items-center gap-2 text-[#1A1A1A] disabled:opacity-40"
+          className="flex items-center gap-2 text-[#050505] disabled:opacity-40"
         >
           {isAllSelected ? (
-            <CheckSquare className="w-4 h-4 text-[#1A1A1A]" />
+            <CheckSquare className="w-4 h-4 text-[#1877F2]" />
           ) : (
-            <Square className="w-4 h-4 text-[#737373]" />
+            <Square className="w-4 h-4 text-[#65676B]" />
           )}
           <span>Pilih Semua Tersedia ({availableInStockItems.length})</span>
         </button>
-        <span className="text-[11px] text-[#737373]">
+        <span className="text-[11px] text-[#65676B]">
           Total: {filteredItems.length}
         </span>
       </div>
@@ -222,8 +222,8 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
       {/* Mobile Card List View (< md) */}
       <div className="md:hidden space-y-3">
         {filteredItems.length === 0 ? (
-          <div className="border border-[#E5E5E0] bg-white rounded p-8 text-center text-xs text-[#737373]">
-            No physical copies found at this branch.
+          <div className="border border-[#E4E6EB] bg-white rounded-xl p-8 text-center text-xs text-[#65676B] shadow-xs">
+            Tidak ada fisik buku ditemukan di cabang ini.
           </div>
         ) : (
           filteredItems.map((item) => {
@@ -234,52 +234,52 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
               <div
                 key={item.id}
                 onClick={() => canSelect && handleToggleSelectItem(item.id)}
-                className={`border rounded-lg p-3.5 bg-white transition-all ${
+                className={`border rounded-xl p-4 bg-white transition-all shadow-xs ${
                   isSelected
-                    ? "border-[#1A1A1A] ring-1 ring-[#1A1A1A] bg-neutral-50/70"
-                    : "border-[#E5E5E0] hover:border-[#1A1A1A]/40"
+                    ? "border-[#1877F2] ring-2 ring-[#1877F2]/20 bg-[#E7F3FF]/30"
+                    : "border-[#E4E6EB] hover:border-[#CED0D4]"
                 } ${canSelect ? "cursor-pointer" : "opacity-80"}`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
                     <div
-                      className="p-1 -ml-1 text-[#1A1A1A]"
+                      className="p-1 -ml-1 text-[#050505]"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (canSelect) handleToggleSelectItem(item.id);
                       }}
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-5 h-5 text-[#1A1A1A]" />
+                        <CheckSquare className="w-5 h-5 text-[#1877F2]" />
                       ) : (
-                        <Square className={`w-5 h-5 ${canSelect ? "text-[#737373]" : "text-neutral-300"}`} />
+                        <Square className={`w-5 h-5 ${canSelect ? "text-[#65676B]" : "text-neutral-300"}`} />
                       )}
                     </div>
-                    <div className="font-mono text-xs font-semibold text-[#1A1A1A] flex items-center gap-1">
-                      <Tag className="w-3.5 h-3.5 text-[#737373]" />
+                    <div className="font-mono text-xs font-bold text-[#050505] flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#1877F2]" />
                       {item.barcode}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                         item.condition === "new"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          ? "bg-emerald-50 text-[#31A24C] border border-emerald-200"
                           : item.condition === "damaged"
-                          ? "bg-red-50 text-red-700 border border-red-200"
-                          : "bg-gray-100 text-gray-700 border border-gray-200"
+                          ? "bg-red-50 text-[#FA383E] border border-red-200"
+                          : "bg-[#F0F2F5] text-[#65676B] border border-[#CED0D4]"
                       }`}
                     >
                       {item.condition}
                     </span>
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                         item.status === "in_stock"
-                          ? "bg-slate-100 text-slate-700"
+                          ? "bg-[#E7F3FF] text-[#1877F2]"
                           : item.status === "in_transit"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-800"
+                          ? "bg-amber-50 text-amber-700 border border-amber-200"
+                          : "bg-red-50 text-[#FA383E] border border-red-200"
                       }`}
                     >
                       {item.status.replace("_", " ")}
@@ -287,23 +287,23 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                   </div>
                 </div>
 
-                <div className="font-medium text-xs text-[#1A1A1A] leading-snug mb-1">
+                <div className="font-semibold text-sm text-[#050505] leading-snug mb-1">
                   {item.book?.title || "Untitled Book"}
                 </div>
-                <div className="text-[11px] font-mono text-[#737373] mb-3">
+                <div className="text-xs text-[#65676B] mb-3">
                   ISBN: {item.book?.isbn || "-"}
                 </div>
 
                 <div
-                  className="flex items-center justify-between pt-2 border-t border-[#F0F0EC] text-xs"
+                  className="flex items-center justify-between pt-2.5 border-t border-[#E4E6EB] text-xs"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <span className="text-[11px] font-mono text-[#737373]">Update Kondisi:</span>
+                  <span className="text-xs font-medium text-[#65676B]">Audit Kondisi:</span>
                   <select
                     value={item.condition}
                     disabled={item.status !== "in_stock"}
                     onChange={(e) => handleUpdateCondition(item.id, e.target.value as any)}
-                    className="text-xs font-mono border border-[#E5E5E0] rounded px-2.5 py-1.5 bg-white text-[#555555] disabled:opacity-50 min-h-[36px]"
+                    className="text-xs font-semibold border border-[#CED0D4] rounded-lg px-2.5 py-1 bg-[#F0F2F5] text-[#050505] disabled:opacity-50 min-h-[34px]"
                   >
                     <option value="new">New</option>
                     <option value="good">Good</option>
@@ -318,37 +318,37 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
       </div>
 
       {/* Desktop Item List Table (>= md) */}
-      <div className="hidden md:block border border-[#E5E5E0] bg-white rounded overflow-hidden">
+      <div className="hidden md:block border border-[#E4E6EB] bg-white rounded-xl shadow-xs overflow-hidden">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-[#E5E5E0] bg-[#FAFAF8] text-[#737373] font-mono text-[11px]">
-              <th className="py-2.5 px-3 w-8 text-center">
+            <tr className="border-b border-[#E4E6EB] bg-[#F0F2F5] text-[#65676B] text-[11px] font-bold uppercase tracking-wider">
+              <th className="py-3 px-3 w-10 text-center">
                 <button
                   type="button"
                   onClick={handleToggleSelectAll}
                   disabled={availableInStockItems.length === 0}
-                  className="text-[#737373] hover:text-[#1A1A1A] disabled:opacity-30 inline-flex items-center"
+                  className="text-[#65676B] hover:text-[#1877F2] disabled:opacity-30 inline-flex items-center"
                 >
                   {isAllSelected ? (
-                    <CheckSquare className="w-3.5 h-3.5 text-[#1A1A1A]" />
+                    <CheckSquare className="w-4 h-4 text-[#1877F2]" />
                   ) : (
-                    <Square className="w-3.5 h-3.5" />
+                    <Square className="w-4 h-4" />
                   )}
                 </button>
               </th>
-              <th className="py-2.5 px-4 font-normal">Barcode Tag</th>
-              <th className="py-2.5 px-4 font-normal">Book Title</th>
-              <th className="py-2.5 px-4 font-normal">ISBN</th>
-              <th className="py-2.5 px-4 font-normal">Condition</th>
-              <th className="py-2.5 px-4 font-normal">Status</th>
-              <th className="py-2.5 px-4 font-normal text-right">Audit Condition</th>
+              <th className="py-3 px-4">Barcode Tag</th>
+              <th className="py-3 px-4">Judul Buku</th>
+              <th className="py-3 px-4">ISBN</th>
+              <th className="py-3 px-4">Kondisi</th>
+              <th className="py-3 px-4">Status</th>
+              <th className="py-3 px-4 text-right">Audit Kondisi</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#F0F0EC]">
+          <tbody className="divide-y divide-[#E4E6EB]">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-[#737373]">
-                  No physical copies found at this branch.
+                <td colSpan={7} className="py-10 text-center text-[#65676B]">
+                  Tidak ada fisik buku ditemukan di cabang ini.
                 </td>
               </tr>
             ) : (
@@ -360,7 +360,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                   <tr
                     key={item.id}
                     className={`transition-colors ${
-                      isSelected ? "bg-neutral-50 font-medium" : "hover:bg-[#FAFAF8]"
+                      isSelected ? "bg-[#E7F3FF]/40 font-semibold" : "hover:bg-[#F0F2F5]/60"
                     }`}
                   >
                     <td className="py-3 px-3 text-center">
@@ -369,23 +369,23 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                         checked={isSelected}
                         disabled={!canSelect}
                         onChange={() => handleToggleSelectItem(item.id)}
-                        className="rounded border-[#E5E5E0] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="rounded border-[#CED0D4] text-[#1877F2] focus:ring-[#1877F2] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed w-4 h-4"
                       />
                     </td>
-                    <td className="py-3 px-4 font-mono font-medium text-[#1A1A1A] flex items-center gap-1.5">
-                      <Tag className="w-3 h-3 text-[#737373]" />
+                    <td className="py-3 px-4 font-mono font-bold text-[#050505] flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#1877F2]" />
                       {item.barcode}
                     </td>
-                    <td className="py-3 px-4 font-medium text-[#1A1A1A]">{item.book?.title || "Untitled"}</td>
-                    <td className="py-3 px-4 font-mono text-[#737373]">{item.book?.isbn}</td>
+                    <td className="py-3 px-4 font-semibold text-[#050505]">{item.book?.title || "Untitled"}</td>
+                    <td className="py-3 px-4 text-[#65676B] font-mono text-[11px]">{item.book?.isbn}</td>
                     <td className="py-3 px-4">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                           item.condition === "new"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            ? "bg-emerald-50 text-[#31A24C] border border-emerald-200"
                             : item.condition === "damaged"
-                            ? "bg-red-50 text-red-700 border border-red-200"
-                            : "bg-gray-100 text-gray-700 border border-gray-200"
+                            ? "bg-red-50 text-[#FA383E] border border-red-200"
+                            : "bg-[#F0F2F5] text-[#65676B] border border-[#CED0D4]"
                         }`}
                       >
                         {item.condition}
@@ -393,12 +393,12 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                           item.status === "in_stock"
-                            ? "bg-slate-100 text-slate-700"
+                            ? "bg-[#E7F3FF] text-[#1877F2]"
                             : item.status === "in_transit"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-red-100 text-red-800"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-red-50 text-[#FA383E] border border-red-200"
                         }`}
                       >
                         {item.status.replace("_", " ")}
@@ -409,7 +409,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                         value={item.condition}
                         disabled={item.status !== "in_stock"}
                         onChange={(e) => handleUpdateCondition(item.id, e.target.value as any)}
-                        className="text-[11px] font-mono border border-[#E5E5E0] rounded px-1.5 py-0.5 bg-white text-[#555555] disabled:opacity-50"
+                        className="text-xs font-semibold border border-[#CED0D4] rounded-lg px-2.5 py-1 bg-[#F0F2F5] text-[#050505] disabled:opacity-50 hover:bg-[#E4E6EB] cursor-pointer"
                       >
                         <option value="new">New</option>
                         <option value="good">Good</option>
@@ -427,37 +427,37 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
 
       {/* Quick Transfer Modal */}
       {isTransferModalOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[#E5E5E0] rounded p-5 max-w-lg w-full space-y-4 shadow-lg">
-            <div className="flex items-center justify-between border-b border-[#E5E5E0] pb-3">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#CED0D4] rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3.5">
               <div>
-                <div className="font-editorial font-semibold text-base text-[#1A1A1A]">
+                <div className="font-bold text-lg text-[#050505]">
                   Buat Pengiriman Transfer / Retur
                 </div>
-                <div className="text-xs text-[#737373]">
+                <div className="text-xs text-[#65676B] mt-0.5">
                   Kirim {selectedItemIds.length} eksemplar buku dari{" "}
-                  <span className="font-semibold text-[#1A1A1A]">{activeSchool?.name}</span>
+                  <span className="font-bold text-[#1877F2]">{activeSchool?.name}</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsTransferModalOpen(false)}
-                className="text-[#737373] hover:text-[#1A1A1A]"
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#65676B] hover:text-[#050505] transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateQuickTransfer} className="space-y-3">
+            <form onSubmit={handleCreateQuickTransfer} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-mono text-[#737373] mb-1">
+                <label className="block text-xs font-semibold text-[#050505] mb-1">
                   Sekolah / Cabang Tujuan
                 </label>
                 <select
                   required
                   value={destinationSchoolId}
                   onChange={(e) => setDestinationSchoolId(e.target.value)}
-                  className="w-full border border-[#E5E5E0] p-2 rounded text-xs bg-white font-medium"
+                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs bg-white font-medium focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
                 >
                   <option value="">Pilih tujuan transfer...</option>
                   {allSchools
@@ -471,7 +471,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
               </div>
 
               <div>
-                <label className="block text-xs font-mono text-[#737373] mb-1">
+                <label className="block text-xs font-semibold text-[#050505] mb-1">
                   Alasan / Keterangan Transfer (Opsional)
                 </label>
                 <input
@@ -479,12 +479,12 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                   placeholder="Contoh: Retur buku rusak, Pemindahan stok, dsb."
                   value={transferReason}
                   onChange={(e) => setTransferReason(e.target.value)}
-                  className="w-full border border-[#E5E5E0] p-2 rounded text-xs"
+                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono text-[#737373] mb-1">
+                <label className="block text-xs font-semibold text-[#050505] mb-1">
                   Catatan Tambahan (Opsional)
                 </label>
                 <textarea
@@ -492,33 +492,33 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                   placeholder="Catatan untuk ekspedisi atau staf penerima..."
                   value={transferNotes}
                   onChange={(e) => setTransferNotes(e.target.value)}
-                  className="w-full border border-[#E5E5E0] p-2 rounded text-xs resize-none"
+                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs resize-none focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
                 />
               </div>
 
               {/* Selected Items Summary List */}
-              <div className="border border-[#E5E5E0] rounded p-2.5 bg-[#FAFAF8] max-h-36 overflow-y-auto space-y-1.5">
-                <div className="text-[11px] font-mono text-[#737373] mb-1">
+              <div className="border border-[#E4E6EB] rounded-xl p-3 bg-[#F0F2F5] max-h-36 overflow-y-auto space-y-1.5">
+                <div className="text-xs font-bold text-[#65676B] mb-1">
                   Daftar Buku Terpilih ({selectedItemsData.length} items):
                 </div>
                 {selectedItemsData.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between text-xs py-1 border-b border-[#F0F0EC] last:border-none"
+                    className="flex items-center justify-between text-xs py-1 border-b border-[#E4E6EB] last:border-none"
                   >
                     <div className="truncate pr-2">
-                      <span className="font-mono text-[11px] text-[#555555] mr-1.5">
+                      <span className="font-mono text-xs font-bold text-[#1877F2] mr-2">
                         {item.barcode}
                       </span>
-                      <span className="text-[#1A1A1A]">{item.book?.title}</span>
+                      <span className="text-[#050505] font-medium">{item.book?.title}</span>
                     </div>
                     <span
-                      className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono uppercase ${
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                         item.condition === "damaged"
-                          ? "bg-red-100 text-red-700"
+                          ? "bg-red-100 text-[#FA383E]"
                           : item.condition === "new"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-200 text-gray-700"
+                          ? "bg-emerald-100 text-[#31A24C]"
+                          : "bg-white text-[#65676B] border border-[#CED0D4]"
                       }`}
                     >
                       {item.condition}
@@ -527,18 +527,18 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                 ))}
               </div>
 
-              <div className="flex gap-2 justify-end pt-2 border-t border-[#E5E5E0]">
+              <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">
                 <button
                   type="button"
                   onClick={() => setIsTransferModalOpen(false)}
-                  className="px-3 py-1.5 text-xs border border-[#E5E5E0] rounded text-[#737373] hover:bg-neutral-50"
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingTransfer}
-                  className="px-3 py-1.5 text-xs bg-[#1A1A1A] text-white rounded font-mono hover:bg-[#333333] disabled:opacity-50"
+                  className="px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm disabled:opacity-50"
                 >
                   {isSubmittingTransfer ? "Membuat Draf..." : "Buat Draf Transfer"}
                 </button>
