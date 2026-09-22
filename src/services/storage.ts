@@ -1,7 +1,13 @@
+export interface StorageFile {
+  data: ReadableStream | ArrayBuffer | Uint8Array;
+  contentType: string;
+}
+
 export interface StorageService {
   upload(key: string, file: Uint8Array | ArrayBuffer | Buffer, contentType: string): Promise<string>;
   getUrl(key: string): string;
   delete(key: string): Promise<void>;
+  getFile(key: string): Promise<StorageFile | null>;
 }
 
 export class MemoryStorageService implements StorageService {
@@ -26,8 +32,10 @@ export class MemoryStorageService implements StorageService {
     this.files.delete(key);
   }
 
-  getFile(key: string) {
-    return this.files.get(key);
+  async getFile(key: string): Promise<StorageFile | null> {
+    const file = this.files.get(key);
+    if (!file) return null;
+    return { data: file.data, contentType: file.contentType };
   }
 }
 
@@ -54,6 +62,15 @@ export class CloudflareR2StorageService implements StorageService {
   async delete(key: string): Promise<void> {
     await this.bucket.delete(key);
   }
+
+  async getFile(key: string): Promise<StorageFile | null> {
+    const object = await this.bucket.get(key);
+    if (!object) return null;
+    return {
+      data: object.body,
+      contentType: object.httpMetadata?.contentType || "image/jpeg",
+    };
+  }
 }
 
 export class S3CompatibleStorageService implements StorageService {
@@ -75,6 +92,10 @@ export class S3CompatibleStorageService implements StorageService {
 
   getUrl(key: string): string {
     return `${this.publicUrl}/${key}`;
+  }
+
+  async getFile(_key: string): Promise<StorageFile | null> {
+    return null;
   }
 
   async delete(_key: string): Promise<void> {

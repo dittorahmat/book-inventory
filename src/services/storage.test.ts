@@ -10,12 +10,13 @@ describe("Storage Service Abstraction", () => {
     expect(url).toBe("/media/covers/test.jpg");
     expect(storage.getUrl("covers/test.jpg")).toBe("/media/covers/test.jpg");
 
-    const file = storage.getFile("covers/test.jpg");
+    const file = await storage.getFile("covers/test.jpg");
     expect(file).toBeDefined();
     expect(file?.contentType).toBe("image/jpeg");
 
     await storage.delete("covers/test.jpg");
-    expect(storage.getFile("covers/test.jpg")).toBeUndefined();
+    const deleted = await storage.getFile("covers/test.jpg");
+    expect(deleted).toBeNull();
   });
 
   it("formats URLs correctly for S3/R2 storage service", async () => {
