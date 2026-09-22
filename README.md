@@ -12,14 +12,22 @@ Aplikasi ini dirancang dengan **arsitektur runtime-agnostik**, memungkinkan depl
    - Setiap buku fisik memiliki **Barcode / Asset Tag unik**.
    - Pelacakan kondisi fisik (`new`, `good`, `fair`, `damaged`).
    - Pelacakan status pergerakan (`in_stock`, `in_transit`, `disposed`, `lost`).
-2. **Katalog Buku & Upload Cover**:
+   - Filter cepat berdasarkan kondisi fisik (`All`, `New`, `Good`, `Fair`, `Damaged`) di Branch Inventory.
+2. **Katalog Buku & Manajemen Cover**:
    - Master data katalog buku (ISBN, Judul, Pengarang, Penerbit).
-   - Upload gambar cover buku dengan abstraksi penyimpanan (Cloudflare R2 atau S3-compatible storage).
+   - **Search Bar instan**: Pencarian cepat judul, ISBN, pengarang, dan penerbit.
+   - **Upload & Preview Cover Langsung**: Upload gambar cover buku langsung di formulir tambah judul baru (*Add Title*) maupun update via tabel dengan live preview.
+   - Penyimpanan gambar cover terintegrasi (Cloudflare R2 atau S3-compatible storage).
 3. **Logistik Distribusi Antar Sekolah (`transfer_shipments`)**:
-   - Pembuatan surat jalan pengiriman (*draft*).
+   - Pembuatan surat jalan pengiriman (*draft*) dilengkapi field **Alasan/Kategori Transfer** (`reason`, misal: "Retur buku rusak", "Distribusi buku baru").
+   - **Flag Kondisi Fisik Item**: Menampilkan indikator kondisi fisik asli buku saat dikirim dan verifikasi kondisi fisik saat diterima di cabang.
    - Pengiriman (*dispatch*) yang secara otomatis mengunci status buku menjadi `in_transit`.
    - Penerimaan barang di cabang (*receive*) dengan verifikasi barcode fisik serta pelaporan *discrepancy* (jika barang rusak/hilang di jalan).
-4. **Isolasi Konteks Cabang**:
+4. **Quick Transfer & Sortir Retur di Branch Inventory**:
+   - Staf cabang dapat menyaring buku rusak (`damaged`) dengan filter kondisi.
+   - **Multi-select Checkbox**: Pilih satu atau banyak buku sekaligus.
+   - **Quick Transfer Modal**: Tombol langsung untuk membuat draf mutasi/retur ke Kantor Pusat (HQ) atau cabang lain tanpa perlu input barcode manual.
+5. **Isolasi Konteks Cabang**:
    - Admin cabang hanya mengelola dan melihat stok yang berada di sekolahnya (`current_school_id = branch_id`).
 
 ---
@@ -109,3 +117,14 @@ bun run build
 # 5. Test suite
 bun run test
 ```
+
+---
+
+## 📖 Buku Panduan Pengguna (User Manual)
+
+Dokumen panduan operasional lengkap untuk staf perpustakaan dan admin cabang tersedia dalam format PDF:
+- 📄 **[Buku Panduan Pengguna (USER_MANUAL.pdf)](file:///D:/development/book-inventory/docs/USER_MANUAL.pdf)**
+- 📝 Sumber Markdown: [`docs/USER_MANUAL.md`](file:///D:/development/book-inventory/docs/USER_MANUAL.md)
+
+Panduan mencakup tata cara pendaftaran judul katalog dan upload cover, pencetakan barcode fisik, filter dan sortir stok rusak, pembuatan mutasi retur massal, hingga verifikasi penerimaan barang antar cabang.
+

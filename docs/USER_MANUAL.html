@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Panduan Pengguna - Sistem Manajemen Inventaris & Logistik Buku Sekolah</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm 20mm 15mm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.55;
+      color: #1a1a1a;
+      background: #ffffff;
+      padding: 0;
+      margin: 0;
+      font-size: 11pt;
+    }
+    .header {
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 8.5pt;
+      font-family: monospace;
+      font-weight: 600;
+      text-transform: uppercase;
+      border-radius: 4px;
+      background-color: #f0f0ec;
+      color: #555555;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 22pt;
+      margin: 0 0 6px 0;
+      color: #111111;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      font-size: 12pt;
+      color: #555555;
+      margin: 0;
+    }
+    h2 {
+      font-size: 14pt;
+      border-bottom: 1px solid #e5e5e0;
+      padding-bottom: 6px;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      color: #1a1a1a;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11.5pt;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      color: #262626;
+      page-break-after: avoid;
+    }
+    p, ul, ol {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    ul, ol {
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 9.5pt;
+      background: #f4f4f2;
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: #111111;
+      border: 1px solid #e5e5e0;
+    }
+    .callout {
+      background: #fafaf8;
+      border-left: 3px solid #1a1a1a;
+      padding: 10px 14px;
+      margin: 12px 0;
+      border-radius: 0 4px 4px 0;
+      font-size: 10.5pt;
+    }
+    .callout-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #111111;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid #e5e5e0;
+      padding: 7px 10px;
+      text-align: left;
+    }
+    th {
+      background: #f9f9f8;
+      font-weight: 600;
+      font-size: 9.5pt;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .pill-status {
+      font-family: monospace;
+      font-size: 8.5pt;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .status-draft { background: #f0f0ec; color: #444; }
+    .status-transit { background: #fef3c7; color: #92400e; }
+    .status-completed { background: #dcfce7; color: #166534; }
+    .status-discrepancy { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="badge">Official Documentation</div>
+    <h1>Buku Panduan Pengguna (User Manual)</h1>
+    <p class="subtitle">Sistem Manajemen Inventaris & Logistik Buku Sekolah Multi-Cabang</p>
+  </div>
+
+  <h2>1. Pendahuluan & Gambaran Umum</h2>
+  <p>
+    <strong>School Book Inventory & Logistics System</strong> dirancang untuk mengelola sirkulasi dan pelacakan fisik eksemplar buku secara komprehensif antara Kantor Pusat (HQ / Gudang Utama) dan sekolah anak cabang (Branch Schools).
+  </p>
+  <div class="callout">
+    <div class="callout-title">Prinsip Kerja Utama Sistem:</div>
+    <ul>
+      <li><strong>Unit-Level Tracking:</strong> Setiap eksemplar buku memiliki kode Barcode / Asset Tag unik tersendiri.</li>
+      <li><strong>Status Kondisi Terbuka:</strong> Kondisi fisik buku dipantau secara berkala (<code>New</code>, <code>Good</code>, <code>Fair</code>, <code>Damaged</code>).</li>
+      <li><strong>Alur Mutasi Formal:</strong> Pengiriman fisik antar sekolah wajib melalui surat jalan transfer dengan status terlacak (Draft &rarr; In Transit &rarr; Completed).</li>
+    </ul>
+  </div>
+
+  <h2>2. Hak Akses & Konteks Cabang</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Peran (Role)</th>
+        <th style="width: 35%;">Cakupan Akses</th>
+        <th style="width: 40%;">Kemampuan Operasional</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Central Admin (Kantor Pusat)</strong></td>
+        <td>Seluruh Cabang Sekolah</td>
+        <td>Membuat master katalog buku, generate barcode massal, memantau semua stok cabang, dan mengirim distribusi buku ke seluruh cabang.</td>
+      </tr>
+      <tr>
+        <td><strong>Branch Admin (Admin Cabang)</strong></td>
+        <td>Terisolasi pada Cabang Terdaftar</td>
+        <td>Melihat stok fisik buku di sekolahnya, mengaudit kondisi fisik, melakukan sortir buku rusak, dan meretur/memindahkan buku ke pusat atau cabang lain.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Modul Book Catalog (Katalog Master Buku)</h2>
+  <p>Digunakan untuk mengelola informasi bibliografi judul buku sebelum dicetak menjadi barcode fisik.</p>
+
+  <h3>3.1 Pencarian Cepat (Instant Search Bar)</h3>
+  <ul>
+    <li>Ketik kata kunci pada kolom pencarian di bagian atas kanan halaman.</li>
+    <li>Pencarian mencakup <strong>Judul Buku</strong>, nomor <strong>ISBN</strong>, nama <strong>Pengarang</strong>, dan nama <strong>Penerbit</strong> secara instan (real-time).</li>
+  </ul>
+
+  <h3>3.2 Mendaftarkan Judul Baru & Upload Cover Terpadu</h3>
+  <ol>
+    <li>Klik tombol <strong><code>+ Add Title</code></strong> di pojok kanan atas.</li>
+    <li><strong>Upload Cover Langsung:</strong> Klik kotak preview cover bertanda putus-putus untuk memilih gambar sampul (format PNG, JPG, atau WebP). Sistem menampilkan live thumbnail secara langsung.</li>
+    <li>Lengkapi data: <strong>ISBN</strong>, <strong>Title</strong> (Judul), <strong>Author</strong> (Pengarang), dan <strong>Publisher</strong> (Penerbit).</li>
+    <li>Klik <strong><code>Save Book</code></strong>. Sistem menyimpan metadata dan mengupload cover buku dalam satu langkah terpadu.</li>
+  </ol>
+
+  <h3>3.3 Men-generate Barcode Fisik (Physical Copies)</h3>
+  <ol>
+    <li>Pada baris buku di tabel katalog, klik tombol <strong><code>Add Physical Copies</code></strong>.</li>
+    <li>Tentukan jumlah eksemplar yang ingin dicetak (misal: 25 eksemplar) untuk sekolah aktif.</li>
+    <li>Klik <strong><code>Generate & Barcode</code></strong>. Unit buku akan teregistrasi otomatis dengan barcode aset unik dan status <code>in_stock</code>.</li>
+  </ol>
+
+  <div class="page-break"></div>
+
+  <h2>4. Modul Branch Stock Inventory (Inventaris Cabang)</h2>
+  <p>Menampilkan semua unit buku fisik yang saat ini bertempat di sekolah cabang yang dipilih.</p>
+
+  <h3>4.1 Filter Kondisi & Pencarian Barcode</h3>
+  <ul>
+    <li><strong>Pencarian:</strong> Scan atau ketik barcode/judul di kotak pencarian.</li>
+    <li><strong>Filter Kondisi:</strong> Gunakan dropdown untuk menyaring unit berdasarkan status fisiknya:
+      <ul>
+        <li><code>All Conditions</code>: Menampilkan seluruh buku di cabang.</li>
+        <li><code>New</code>: Buku kondisi baru.</li>
+        <li><code>Good</code>: Buku kondisi baik / siap pakai.</li>
+        <li><code>Fair</code>: Buku dengan bekas pakai wajar.</li>
+        <li><code>Damaged</code>: Buku rusak (sobek, basah, dsb.) yang perlu disortir.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>4.2 Mengaudit Kondisi Fisik Buku</h3>
+  <p>
+    Staf dapat memperbarui kondisi fisik buku kapan saja melalui dropdown pada kolom <strong>Audit Condition</strong> di baris yang bersangkutan.
+  </p>
+
+  <h3>4.3 Alur Retur & Quick Transfer Massal</h3>
+  <div class="callout">
+    <div class="callout-title">Skenario Operasional Cabang: Retur Buku Rusak ke Pusat</div>
+    <ol>
+      <li>Pilih filter kondisi <strong><code>Damaged</code></strong> untuk mengisolasi semua buku rusak.</li>
+      <li>Centang checkbox pada buku-buku yang ingin dikembalikan, atau centang kotak di header tabel untuk memilih semua.</li>
+      <li>Bilah aksi mengambang (floating bar) berwarna hitam akan muncul di bagian atas tabel: <em>"X buku dipilih untuk mutasi/retur"</em>.</li>
+      <li>Klik tombol <strong><code>Transfer / Retur Buku</code></strong>.</li>
+      <li>Pada modal pengiriman:
+        <ul>
+          <li><strong>Sekolah Tujuan:</strong> Pilih <em>Kantor Pusat / HQ</em> atau cabang lain.</li>
+          <li><strong>Alasan Transfer:</strong> Terisi otomatis dengan <em>"Retur buku rusak"</em> jika buku yang dipilih rusak, atau isi alasan lain secara bebas.</li>
+          <li><strong>Catatan:</strong> Tambahkan instruksi ekspedisi bila diperlukan.</li>
+        </ul>
+      </li>
+      <li>Klik <strong><code>Buat Draf Transfer</code></strong>. Surat jalan transfer baru akan langsung tercipta.</li>
+    </ol>
+  </div>
+
+  <h2>5. Modul Inter-School Stock Transfers (Logistik Mutasi)</h2>
+  <p>Memantau dokumen manifes pengiriman barang antar sekolah dari pembuatan hingga barang sampai.</p>
+
+  <h3>5.1 Siklus Status Pengiriman</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Arti Status</th>
+        <th>Dampak pada Stok Fisik</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="pill-status status-draft">DRAFT</span></td>
+        <td>Dokumen dibuat, belum berangkat</td>
+        <td>Buku masih berada di cabang asal dengan status <code>in_stock</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-status status-transit">IN_TRANSIT</span></td>
+        <td>Pengiriman telah diberangkatkan (Dispatch)</td>
+        <td>Unit buku terkunci menjadi <code>in_transit</code>. Tidak dapat dipinjam atau dipindahkan.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-status status-completed">COMPLETED</span></td>
+        <td>Barang telah diterima di cabang tujuan</td>
+        <td>Lokasi buku otomatis berpindah ke cabang tujuan dengan status <code>in_stock</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-status status-discrepancy">DISCREPANCY</span></td>
+        <td>Diterima dengan selisih/kerusakan</td>
+        <td>Buku yang hilang ditandai <code>lost</code>, buku rusak diperbarui kondisinya menjadi <code>damaged</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>5.2 Memberangkatkan Barang (Dispatch)</h3>
+  <p>Klik kartu pengiriman berstatus <code>draft</code> &rarr; Tinjau manifes &rarr; Klik <strong><code>Dispatch Shipment</code></strong>.</p>
+
+  <h3>5.3 Menerima Barang (Receive)</h3>
+  <p>Staf cabang tujuan membuka pengiriman berstatus <code>in_transit</code> &rarr; Cek fisik buku &rarr; Klik <strong><code>Receive Shipment</code></strong>.</p>
+
+</body>
+</html>
