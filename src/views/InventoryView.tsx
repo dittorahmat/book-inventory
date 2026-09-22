@@ -124,10 +124,11 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
         setTransferNotes("");
         fetchItems();
       } else {
-        alert(data.message || "Gagal membuat transfer");
+        const errorMsg = data.message || (data.error && typeof data.error === "string" ? data.error : JSON.stringify(data.error)) || "Gagal membuat transfer";
+        alert(errorMsg);
       }
-    } catch {
-      alert("Terjadi kesalahan sistem saat membuat transfer");
+    } catch (err: any) {
+      alert(`Terjadi kesalahan sistem saat membuat transfer: ${err?.message || "Koneksi terputus"}`);
     } finally {
       setIsSubmittingTransfer(false);
     }

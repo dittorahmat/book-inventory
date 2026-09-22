@@ -68,41 +68,57 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
         setCoverPreviewUrl(null);
         fetchBooks();
       } else {
-        alert(data.message || "Failed to create book");
+        const errorMsg = data.message || (data.error && typeof data.error === "string" ? data.error : JSON.stringify(data.error)) || "Failed to create book";
+        alert(errorMsg);
       }
-    } catch {
-      alert("Failed to create book record");
+    } catch (err: any) {
+      alert(`Gagal mendaftarkan buku: ${err?.message || "Terjadi kesalahan koneksi"}`);
     } finally {
       setIsSubmittingBook(false);
     }
   };
 
   const handleUploadCover = async (bookId: string, file: File) => {
-    const data = new FormData();
-    data.append("cover", file);
-    await fetch(`/api/books/${bookId}/cover`, {
-      method: "POST",
-      body: data,
-    });
-    fetchBooks();
+    try {
+      const data = new FormData();
+      data.append("cover", file);
+      const res = await fetch(`/api/books/${bookId}/cover`, {
+        method: "POST",
+        body: data,
+      });
+      const resData = await res.json();
+      if (!resData.success) {
+        alert(resData.message || "Gagal mengunggah cover buku");
+      }
+      fetchBooks();
+    } catch {
+      alert("Gagal mengunggah cover buku");
+    }
   };
 
   const handleBatchGenerate = async () => {
     if (!generatingForBook || !activeSchool) return;
-    const res = await fetch("/api/book-items/batch-generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bookId: generatingForBook.id,
-        schoolId: activeSchool.id,
-        count: Number(generateCount),
-        barcodePrefix: generatingForBook.title.slice(0, 3).toUpperCase(),
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      alert(`Successfully generated ${data.count} physical copies for ${activeSchool.name}!`);
-      setGeneratingForBook(null);
+    try {
+      const res = await fetch("/api/book-items/batch-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId: generatingForBook.id,
+          schoolId: activeSchool.id,
+          count: Number(generateCount),
+          barcodePrefix: generatingForBook.title.slice(0, 3).toUpperCase(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Berhasil membuat ${data.count} eksemplar fisik untuk ${activeSchool.name}!`);
+        setGeneratingForBook(null);
+      } else {
+        const errMsg = data.message || (data.error && typeof data.error === "string" ? data.error : "Gagal generate eksemplar fisik");
+        alert(`Gagal: ${errMsg}`);
+      }
+    } catch (err: any) {
+      alert(`Terjadi kesalahan sistem: ${err?.message || "Koneksi terputus"}`);
     }
   };
 

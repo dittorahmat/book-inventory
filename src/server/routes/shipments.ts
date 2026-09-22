@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { db } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, schools, books } from "../../db/schema";
 
 export const shipmentsRouter = new Hono();
 
 const createShipmentSchema = z.object({
-  fromSchoolId: z.string().uuid(),
-  toSchoolId: z.string().uuid(),
-  bookItemIds: z.array(z.string().uuid()).min(1, "At least one book item required"),
+  fromSchoolId: z.string().min(1, "Origin school ID required"),
+  toSchoolId: z.string().min(1, "Destination school ID required"),
+  bookItemIds: z.array(z.string().min(1)).min(1, "At least one book item required"),
   notes: z.string().optional(),
   reason: z.string().optional(),
 });
@@ -18,7 +18,7 @@ const createShipmentSchema = z.object({
 const receiveShipmentSchema = z.object({
   itemReceipts: z.array(
     z.object({
-      bookItemId: z.string().uuid(),
+      bookItemId: z.string().min(1, "Book item ID required"),
       condition: z.enum(["good", "damaged", "missing"]),
       notes: z.string().optional(),
     })
@@ -198,12 +198,9 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
       .update(transferShipmentItems)
       .set({ receivedCondition: receipt.condition, notes: receipt.notes })
       .where(
-        inArray(
-          transferShipmentItems.id,
-          db
-            .select({ id: transferShipmentItems.id })
-            .from(transferShipmentItems)
-            .where(eq(transferShipmentItems.bookItemId, receipt.bookItemId))
+        and(
+          eq(transferShipmentItems.shipmentId, id),
+          eq(transferShipmentItems.bookItemId, receipt.bookItemId)
         )
       );
 

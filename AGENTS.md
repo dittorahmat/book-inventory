@@ -47,11 +47,22 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    ```
    Ensure both frontend assets (Vite) and backend server/worker bundles compile cleanly without bundling or unresolved module errors.
 
-5. **Test Suite & New Tests Enforcement**
+5. **Test Suite & Cloudflare Worker API Enforcement (WAJIB)**
    ```bash
    npm run test
+   # or bun test
    ```
-   **Requirement**: Every time a new feature is introduced or an existing behavior is modified, you **must write or update corresponding tests** to verify the behavior and prevent regressions.
+   **Requirement**: Setiap kali ada penambahan fitur atau modifikasi backend & API endpoints, Anda **WAJIB** mematuhi aturan pengujian dan kompatibilitas berikut:
+   - **Kompatibilitas Validasi ID (Flexible Identifier Validation)**:
+     - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `z.string().min(1)` agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4.
+     - Setiap endpoint mutasi (POST, PATCH, PUT) **wajib memiliki unit/integration test** yang memverifikasi payload dengan custom seeded string IDs maupun UUID.
+   - **Sinkronisasi Skema Remote D1 vs Lokal**:
+     - Setiap ada kolom atau tabel baru di `src/db/schema.ts`, migrasi remote D1 **wajib dieksekusi** dan diverifikasi (`PRAGMA table_info`) agar endpoint API di Cloudflare Worker tidak gagal dengan error SQLite `no such column` atau `no such table`.
+   - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
+     - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
+     - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
+   - **Regression Test Updates**:
+     - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
 
 6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend`)**
    - Jalankan skill `design-taste-frontend` untuk mencegah AI slop, layout generik, atau card-inside-card template yang murahan.

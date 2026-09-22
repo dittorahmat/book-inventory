@@ -63,25 +63,48 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
   };
 
   const handleDispatch = async (id: string) => {
-    await fetch(`/api/shipments/${id}/dispatch`, { method: "POST" });
-    fetchShipments();
-    if (selectedShipment?.id === id) openShipmentDetail(id);
+    try {
+      const res = await fetch(`/api/shipments/${id}/dispatch`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        alert("Pengiriman transfer berhasil di-dispatch!");
+        fetchShipments();
+        if (selectedShipment?.id === id) openShipmentDetail(id);
+      } else {
+        alert(data.message || "Gagal melakukan dispatch pengiriman");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan saat dispatch pengiriman");
+    }
   };
 
   const handleReceive = async (shipment: TransferShipment) => {
-    if (!shipment.items) return;
+    if (!shipment.items || shipment.items.length === 0) {
+      alert("Tidak ada item manifest buku pada transfer ini");
+      return;
+    }
     const receipts = shipment.items.map((item) => ({
       bookItemId: item.bookItemId,
       condition: "good" as const,
     }));
 
-    await fetch(`/api/shipments/${shipment.id}/receive`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemReceipts: receipts }),
-    });
-    fetchShipments();
-    openShipmentDetail(shipment.id);
+    try {
+      const res = await fetch(`/api/shipments/${shipment.id}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemReceipts: receipts }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Penerimaan transfer berhasil dikonfirmasi! Stok buku telah dialokasikan ke cabang ini.");
+        fetchShipments();
+        openShipmentDetail(shipment.id);
+      } else {
+        alert(data.message || (data.error && typeof data.error === "string" ? data.error : "Gagal mengonfirmasi penerimaan transfer"));
+      }
+    } catch (err: any) {
+      alert(`Terjadi kesalahan sistem saat konfirmasi: ${err?.message || "Koneksi terputus"}`);
+    }
   };
 
   const openShipmentDetail = async (id: string) => {

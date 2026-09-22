@@ -8,8 +8,8 @@ import { bookItems, books, schools } from "../../db/schema";
 export const bookItemsRouter = new Hono();
 
 const batchGenerateCopiesSchema = z.object({
-  bookId: z.string().uuid(),
-  schoolId: z.string().uuid(),
+  bookId: z.string().min(1, "Book ID is required"),
+  schoolId: z.string().min(1, "School ID is required"),
   count: z.number().int().min(1).max(200),
   barcodePrefix: z.string().min(2).max(10).default("BK"),
   condition: z.enum(["new", "good", "fair", "damaged"]).default("new"),
