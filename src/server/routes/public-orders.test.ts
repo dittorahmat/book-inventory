@@ -5,7 +5,7 @@ import { schools, students, bookPackages } from "../../db/schema";
 
 describe("Public Orders & Student Search API", () => {
   it("searches student with promotion detection and submits order with payment or scholarship", async () => {
-    const schoolId = "test-po-school";
+    const schoolId = `test-po-school-${Date.now()}`;
     const now = new Date().toISOString();
 
     // 1. Setup school
@@ -50,8 +50,8 @@ describe("Public Orders & Student Search API", () => {
       updatedAt: now,
     });
 
-    // 4. Test Search by partial name "hendra"
-    const searchRes = await publicOrdersRouter.request("/search-students?query=hendra", {
+    // 4. Test Search by partial name "hendra" with specific schoolId
+    const searchRes = await publicOrdersRouter.request(`/search-students?query=hendra&schoolId=${schoolId}`, {
       method: "GET",
     });
     expect(searchRes.status).toBe(200);

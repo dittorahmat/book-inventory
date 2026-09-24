@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and } from "drizzle-orm";
+import { eq, or, like, and, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, orderPayments, bookPackages, schools } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
@@ -49,14 +49,20 @@ const submitOrderSchema = z.object({
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
 publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSchema), async (c) => {
   const { query, schoolId } = c.req.valid("query");
-  const cleanQ = `%${query.trim()}%`;
+  const cleanQ = `%${query.trim().toLowerCase()}%`;
 
   const whereCondition = schoolId
     ? and(
         eq(students.schoolId, schoolId),
-        or(like(students.name, cleanQ), like(students.nis, cleanQ))
+        or(
+          like(sql`lower(${students.name})`, cleanQ),
+          like(sql`lower(${students.nis})`, cleanQ)
+        )
       )
-    : or(like(students.name, cleanQ), like(students.nis, cleanQ));
+    : or(
+        like(sql`lower(${students.name})`, cleanQ),
+        like(sql`lower(${students.nis})`, cleanQ)
+      );
 
   const foundStudents = await db
     .select({
