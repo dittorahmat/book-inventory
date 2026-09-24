@@ -18,7 +18,12 @@ export function App() {
   const { data: session, isPending } = useSession();
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
-  const [activeTab, setActiveTab] = useState<"catalog" | "packages" | "inventory" | "student_orders" | "procurement" | "returns" | "public_form" | "transfers" | "settings">("student_orders");
+  const [activeTab, setActiveTab] = useState<"catalog" | "packages" | "inventory" | "student_orders" | "procurement" | "returns" | "transfers" | "settings">("student_orders");
+  
+  // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
+  const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
+  const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
+  const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
   const loadSchools = useCallback(() => {
     fetch("/api/schools")
@@ -67,8 +72,39 @@ export function App() {
     );
   }
 
+  // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)
+  if (!session && !showStaffLogin) {
+    return (
+      <PublicOrderView 
+        onNavigateToStaffLogin={() => setShowStaffLogin(true)} 
+      />
+    );
+  }
+
+  // 2. If unauthenticated but wants staff login
   if (!session) {
-    return <LoginView onLoginSuccess={() => loadSchools()} />;
+    return (
+      <LoginView 
+        onLoginSuccess={() => {
+          setShowStaffLogin(false);
+          setIsPublicMode(false);
+          loadSchools();
+        }} 
+        onNavigateToPublicPortal={() => {
+          setShowStaffLogin(false);
+          setIsPublicMode(true);
+        }}
+      />
+    );
+  }
+
+  // 3. If authenticated staff wants to view the public portal
+  if (isPublicMode) {
+    return (
+      <PublicOrderView 
+        onNavigateToStaffLogin={() => setIsPublicMode(false)} 
+      />
+    );
   }
 
   const currentUser = session.user as any;
@@ -110,123 +146,122 @@ export function App() {
               </div>
             )}
 
-            {/* User Badge & Logout */}
-            <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-[#E4E6EB]">
-              <div className="text-right hidden md:block">
-                <div className="text-xs font-semibold text-[#050505]">{currentUser.name}</div>
-                <div className="text-[11px] text-[#65676B] flex items-center justify-end gap-1">
-                  {isCentralAdmin ? (
-                    <span className="text-[#1877F2] flex items-center gap-1 font-semibold">
-                      <Shield className="w-3 h-3 text-[#1877F2]" /> HQ Central Admin
-                    </span>
-                  ) : (
-                    <span>Branch Admin</span>
-                  )}
-                </div>
-              </div>
+              {/* User Badge & Logout */}
+              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-[#E4E6EB]">
+                <button
+                  type="button"
+                  onClick={() => setIsPublicMode(true)}
+                  title="Lihat Portal Orang Tua"
+                  className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1 border border-emerald-200"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Portal Ortu</span>
+                </button>
 
-              <button
-                onClick={() => signOut()}
-                title="Sign Out"
-                className="w-9 h-9 flex items-center justify-center text-[#050505] hover:bg-[#E4E6EB] rounded-full transition-colors bg-[#F0F2F5]"
-                aria-label="Sign Out"
-              >
-                <LogOut className="w-4 h-4 text-[#65676B]" />
-              </button>
+                <div className="text-right hidden md:block">
+                  <div className="text-xs font-semibold text-[#050505]">{currentUser.name}</div>
+                  <div className="text-[11px] text-[#65676B] flex items-center justify-end gap-1">
+                    {isCentralAdmin ? (
+                      <span className="text-[#1877F2] flex items-center gap-1 font-semibold">
+                        <Shield className="w-3 h-3 text-[#1877F2]" /> HQ Central Admin
+                      </span>
+                    ) : (
+                      <span>Branch Admin</span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => signOut()}
+                  title="Sign Out"
+                  className="w-9 h-9 flex items-center justify-center text-[#050505] hover:bg-[#E4E6EB] rounded-full transition-colors bg-[#F0F2F5]"
+                  aria-label="Sign Out"
+                >
+                  <LogOut className="w-4 h-4 text-[#65676B]" />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Navigation Tabs for Desktop */}
-        <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm border-t border-[#E4E6EB]/60 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab("student_orders")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "student_orders"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Pesanan Siswa
-          </button>
-          <button
-            onClick={() => setActiveTab("packages")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "packages"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            Paket & Bundling
-          </button>
-          <button
-            onClick={() => setActiveTab("procurement")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "procurement"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            Pengadaan PO
-          </button>
-          <button
-            onClick={() => setActiveTab("returns")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "returns"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <RotateCcw className="w-4 h-4" />
-            Retur Buku
-          </button>
-          <button
-            onClick={() => setActiveTab("inventory")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "inventory"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            Stok Satuan
-          </button>
-          <button
-            onClick={() => setActiveTab("catalog")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "catalog"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            Katalog
-          </button>
-          <button
-            onClick={() => setActiveTab("public_form")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "public_form"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <Globe className="w-4 h-4 text-emerald-600" />
-            Portal Form Publik
-          </button>
-          <button
-            onClick={() => setActiveTab("transfers")}
-            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-              activeTab === "transfers"
-                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            Transfer
-          </button>
+          {/* Navigation Tabs for Desktop */}
+          <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm border-t border-[#E4E6EB]/60 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("student_orders")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "student_orders"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Pesanan Siswa
+            </button>
+            <button
+              onClick={() => setActiveTab("packages")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "packages"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              Paket & Bundling
+            </button>
+            <button
+              onClick={() => setActiveTab("procurement")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "procurement"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              Pengadaan PO
+            </button>
+            <button
+              onClick={() => setActiveTab("returns")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "returns"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Retur Buku
+            </button>
+            <button
+              onClick={() => setActiveTab("inventory")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "inventory"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              Stok Satuan
+            </button>
+            <button
+              onClick={() => setActiveTab("catalog")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "catalog"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              Katalog
+            </button>
+            <button
+              onClick={() => setActiveTab("transfers")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "transfers"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              Transfer
+            </button>
           {isCentralAdmin && (
             <button
               onClick={() => setActiveTab("settings")}
@@ -249,7 +284,6 @@ export function App() {
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
-        {activeTab === "public_form" && <PublicOrderView />}
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView activeSchool={selectedSchool} />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}

@@ -34,9 +34,15 @@ const unbundleActionSchema = z.object({
   reason: z.string().min(1, "Reason is required"),
 });
 
+import { runIdempotentSeed } from "../seed";
+
 // GET all packages with BOM components
 packagesRouter.get("/", async (c) => {
-  const allPackages = await db.select().from(bookPackages);
+  let allPackages = await db.select().from(bookPackages);
+  if (allPackages.length === 0) {
+    await runIdempotentSeed();
+    allPackages = await db.select().from(bookPackages);
+  }
   
   const results = await Promise.all(
     allPackages.map(async (pkg: any) => {

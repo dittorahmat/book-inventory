@@ -4,9 +4,10 @@ import { Shield, Sparkles, School, ArrowRight, Loader2 } from "lucide-react";
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
+  onNavigateToPublicPortal?: () => void;
 }
 
-export function LoginView({ onLoginSuccess }: LoginViewProps) {
+export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginViewProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -132,6 +133,16 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
                   </>
                 )}
               </button>
+
+              {onNavigateToPublicPortal && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPublicPortal}
+                  className="w-full mt-2 py-2.5 px-4 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <span>&larr; Buka Portal Orang Tua (Pemesanan & Retur)</span>
+                </button>
+              )}
             </form>
 
             {/* Quick Demo Access Switcher */}

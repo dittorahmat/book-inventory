@@ -116,5 +116,31 @@ describe("Public Orders & Student Search API", () => {
     const schJson = await schRes.json();
     expect(schJson.data.totalAmount).toBe(0); // 100% discount
     expect(schJson.data.paymentStatus).toBe("scholarship_pending");
+
+    // 7. Test Public Order Lookup by NIS or OrderNumber
+    const lookupRes = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent("20241001")}`, {
+      method: "GET",
+    });
+    expect(lookupRes.status).toBe(200);
+    const lookupJson = await lookupRes.json();
+    expect(lookupJson.data.length).toBeGreaterThan(0);
+    expect(lookupJson.data[0].studentName).toBe("Hendra Wahyudi");
+
+    // 8. Test Public Return Submission for Defective Book
+    const returnSubmitRes = await publicOrdersRouter.request("/submit-return", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: orderJson.data.order.id,
+        studentId: hendraId,
+        defectiveBookId: "b-math-1",
+        reason: "Halaman 15 sampai 22 sobek dan tidak tercetak",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr",
+      }),
+    });
+    expect(returnSubmitRes.status).toBe(201);
+    const returnJson = await returnSubmitRes.json();
+    expect(returnJson.success).toBe(true);
+    expect(returnJson.data.status).toBe("reported");
   });
 });

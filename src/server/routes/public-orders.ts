@@ -220,3 +220,106 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     },
   }, 201);
 });
+
+// 4. Public Lookup Order for Defect Return (by Order Number or Student NIS)
+publicOrdersRouter.get("/lookup-order", async (c) => {
+  const query = c.req.query("query")?.trim();
+  if (!query || query.length < 3) {
+    return c.json({ success: false, message: "Masukkan minimal 3 karakter No. Pesanan atau NIS" }, 400);
+  }
+
+  // Find order by orderNumber or student NIS
+  const matchedOrders = await db
+    .select({
+      id: studentBookOrders.id,
+      orderNumber: studentBookOrders.orderNumber,
+      studentId: studentBookOrders.studentId,
+      studentName: students.name,
+      nis: students.nis,
+      schoolId: studentBookOrders.schoolId,
+      schoolName: schools.name,
+      packageId: studentBookOrders.packageId,
+      packageName: bookPackages.name,
+      fulfillmentStatus: studentBookOrders.fulfillmentStatus,
+      paymentStatus: studentBookOrders.paymentStatus,
+      handoverDate: studentBookOrders.handoverDate,
+      handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
+      handoverRecipient: studentBookOrders.handoverRecipient,
+    })
+    .from(studentBookOrders)
+    .innerJoin(students, eq(studentBookOrders.studentId, students.id))
+    .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
+    .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
+    .where(
+      or(
+        like(studentBookOrders.orderNumber, `%${query}%`),
+        like(students.nis, `%${query}%`),
+        like(students.name, `%${query}%`)
+      )
+    )
+    .limit(5);
+
+  if (matchedOrders.length === 0) {
+    return c.json({ success: false, message: "Pesanan buku tidak ditemukan dengan kata kunci tersebut" }, 404);
+  }
+
+  return c.json({ success: true, data: matchedOrders });
+});
+
+// 5. Public Submit Return (for parents/students reporting defect)
+const publicReturnSchema = z.object({
+  orderId: z.string().min(1, "ID pesanan wajib diisi"),
+  studentId: z.string().min(1, "ID murid wajib diisi"),
+  defectiveBookId: z.string().min(1, "Buku yang rusak wajib dipilih"),
+  reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
+  photoProofBase64: z.string().min(1, "Foto bukti fisik buku rusak wajib dilampirkan"),
+});
+
+publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
+  const body = c.req.valid("json");
+  const now = new Date().toISOString();
+  const returnId = crypto.randomUUID();
+
+  // Validate order existence
+  const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, body.orderId));
+  if (!order) {
+    return c.json({ success: false, message: "Data pesanan tidak ditemukan" }, 404);
+  }
+
+  let photoProofUrl: string | null = null;
+  if (body.photoProofBase64) {
+    const key = `returns/public_${returnId}_${Date.now()}.jpg`;
+    const buffer = Buffer.from(body.photoProofBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    photoProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
+  }
+
+  // Import bookReturns schema
+  const { bookReturns } = await import("../../db/schema");
+  await db.insert(bookReturns).values({
+    id: returnId,
+    orderId: body.orderId,
+    studentId: body.studentId,
+    defectiveBookId: body.defectiveBookId,
+    reason: body.reason,
+    photoProofUrl,
+    status: "reported",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Flag order fulfillment status
+  await db
+    .update(studentBookOrders)
+    .set({ fulfillmentStatus: "return_in_progress", updatedAt: now })
+    .where(eq(studentBookOrders.id, body.orderId));
+
+  return c.json({
+    success: true,
+    message: "Laporan retur buku rusak berhasil dikirimkan. Tim logistik sekolah akan segera memproses penggantian fisik buku Anda.",
+    data: {
+      returnId,
+      orderNumber: order.orderNumber,
+      status: "reported",
+    },
+  }, 201);
+});
