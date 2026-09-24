@@ -528,16 +528,16 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
 
             {/* STEP 1: PENCARIAN SISWA ATAU PENDAFTARAN SISWA BARU */}
             {step === 1 && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E4E6EB] shadow-xs space-y-6">
+              <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-6">
                 {!isNewStudentMode ? (
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-[#1877F2] uppercase tracking-wider">Cari Murid</span>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Cari Murid</span>
                     </div>
-                    <h2 className="text-lg font-bold text-[#050505]">
+                    <h2 className="text-base sm:text-lg font-bold text-[#050505]">
                       Masukkan NIS atau Nama Lengkap / Panggilan Murid
                     </h2>
-                    <p className="text-xs text-[#65676B] mt-1">
+                    <p className="text-xs text-[#65676B] mt-1 leading-relaxed">
                       Ketik nama (misal: "Hendra" atau "Wahyudi") atau NIS siswa untuk memuat data kelas secara otomatis.
                     </p>
 
@@ -550,29 +550,29 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                           placeholder="Ketik NIS atau potongan nama siswa..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-2xl text-xs sm:text-sm text-[#050505] transition-colors"
+                          className="w-full pl-10 pr-4 py-2.5 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-xl text-xs sm:text-sm text-[#050505] transition-colors"
                         />
                       </div>
                       <button
                         type="submit"
                         disabled={isSearching}
-                        className="px-5 py-3 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-2xl text-xs sm:text-sm font-semibold shadow-xs transition-colors shrink-0 disabled:opacity-50"
+                        className="px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
                       >
                         {isSearching ? "Mencari..." : "Cari Data"}
                       </button>
                     </form>
 
-                    {/* Search Results */}
+                    {/* Search Results - Clean flat divider layout */}
                     {searchResults.length > 0 && (
-                      <div className="mt-6 space-y-3">
+                      <div className="mt-5 space-y-2.5">
                         <div className="text-xs font-semibold text-[#65676B]">
                           Ditemukan {searchResults.length} murid:
                         </div>
-                        <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-2xl overflow-hidden">
+                        <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl overflow-hidden">
                           {searchResults.map((st) => (
                             <div
                               key={st.id}
-                              className="p-4 hover:bg-[#F7F8FA] transition-colors flex items-center justify-between gap-3"
+                              className="p-3.5 hover:bg-[#F7F8FA] transition-colors flex items-center justify-between gap-3"
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -602,7 +602,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                               <button
                                 type="button"
                                 onClick={() => handleSelectStudent(st)}
-                                className="px-4 py-2 bg-[#E7F3FF] hover:bg-[#D8ECFF] text-[#1877F2] font-semibold text-xs rounded-xl transition-colors shrink-0 flex items-center gap-1.5"
+                                className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5"
                               >
                                 <UserCheck className="w-4 h-4" />
                                 <span>Pilih</span>
@@ -613,18 +613,18 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                       </div>
                     )}
 
-                    {/* Prompt to register new student */}
-                    <div className="mt-8 pt-6 border-t border-[#E4E6EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F7F8FA] p-4 rounded-2xl">
+                    {/* Prompt to register new student - Flat border styling */}
+                    <div className="mt-6 pt-5 border-t border-[#E4E6EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h4 className="text-xs font-bold text-[#050505]">Murid Baru atau Data Tidak Ditemukan?</h4>
                         <p className="text-xs text-[#65676B] mt-0.5">
-                          Jika putra/putri Anda adalah murid baru, isi data pendaftaran mandiri berikut.
+                          Jika putra/putri Anda adalah murid baru, isi formulir registrasi mandiri.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setIsNewStudentMode(true)}
-                        className="px-4 py-2 bg-white border border-[#CED0D4] hover:bg-white/80 text-[#050505] text-xs font-semibold rounded-xl transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs"
+                        className="px-4 py-2 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all shrink-0 flex items-center gap-1.5 shadow-2xs"
                       >
                         <UserPlus className="w-4 h-4 text-[#1877F2]" />
                         <span>Daftar Murid Baru</span>
@@ -634,10 +634,10 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                 ) : (
                   /* NEW STUDENT FORM */
                   <div>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#E4E6EB]">
                       <div>
-                        <span className="text-xs font-bold text-[#1877F2] uppercase tracking-wider">Formulir Murid Baru</span>
-                        <h2 className="text-lg font-bold text-[#050505]">Pendaftaran Data Murid Baru</h2>
+                        <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Formulir Murid Baru</span>
+                        <h2 className="text-base font-bold text-[#050505]">Pendaftaran Data Murid Baru</h2>
                       </div>
                       <button
                         type="button"
@@ -1068,14 +1068,14 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="px-5 py-2.5 bg-[#F0F2F5] text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] transition-colors"
+                    className="px-5 py-2.5 bg-[#F0F2F5] text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98] transition-all"
                   >
                     Kembali
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     <span>{isSubmitting ? "Mengirimkan Pesanan..." : "Konfirmasi & Kirim Pesanan"}</span>
                     <CheckCircle2 className="w-4 h-4" />
@@ -1086,17 +1086,17 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
 
             {/* STEP 4: SUCCESS CONFIRMATION */}
             {step === 4 && submittedOrder && (
-              <div className="bg-white rounded-3xl p-8 border border-[#E4E6EB] shadow-xs text-center space-y-4">
-                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8" />
+              <div className="bg-white rounded-2xl p-7 border border-[#E4E6EB] shadow-xs text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6" />
                 </div>
 
-                <h2 className="text-xl font-bold text-[#050505]">Pemesanan Buku Berhasil Didaftarkan!</h2>
+                <h2 className="text-lg font-bold text-[#050505]">Pemesanan Buku Berhasil Didaftarkan!</h2>
                 <p className="text-xs text-[#65676B] max-w-md mx-auto">
                   Data pemesanan telah tersimpan di sistem sekolah. Konfirmasi dan petunjuk pengambilan fisik telah dicatat.
                 </p>
 
-                <div className="bg-[#F7F8FA] p-5 rounded-2xl max-w-md mx-auto text-left text-xs space-y-2 border border-[#E4E6EB]">
+                <div className="bg-[#F7F8FA] p-4 rounded-xl max-w-md mx-auto text-left text-xs space-y-2 border border-[#E4E6EB]">
                   <div className="flex justify-between">
                     <span className="text-[#65676B]">Nomor Pesanan:</span>
                     <span className="font-mono font-bold text-[#050505]">{submittedOrder.order.orderNumber}</span>
@@ -1121,7 +1121,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-center gap-3">
+                <div className="pt-3 flex justify-center gap-3">
                   <button
                     onClick={() => {
                       setStep(1);
@@ -1129,7 +1129,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                       setSearchQuery("");
                       setSearchResults([]);
                     }}
-                    className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#166FE5] transition-colors"
+                    className="px-5 py-2.5 bg-[#1877F2] active:scale-[0.98] text-white rounded-xl text-xs font-semibold hover:bg-[#166FE5] transition-all"
                   >
                     Pesan untuk Siswa Lain
                   </button>
@@ -1268,10 +1268,10 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
 
                 {/* Selected Order & Defect Form */}
                 {selectedReturnOrder && (
-                  <form onSubmit={handleSubmitReturnReport} className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E4E6EB] shadow-xs space-y-5">
-                    <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-4">
+                  <form onSubmit={handleSubmitReturnReport} className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-5">
+                    <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3.5">
                       <div>
-                        <span className="text-xs font-bold text-[#1877F2] uppercase tracking-wider">Langkah 2: Data Kerusakan Buku</span>
+                        <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Langkah 2: Data Kerusakan Buku</span>
                         <h3 className="text-base font-bold text-[#050505] mt-0.5">
                           Pesanan {selectedReturnOrder.orderNumber} ({selectedReturnOrder.studentName})
                         </h3>
@@ -1325,7 +1325,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                         <label className="block text-xs font-semibold text-[#050505] mb-1.5">
                           Foto Bukti Buku Rusak (Wajib Diunggah)
                         </label>
-                        <div className="border border-dashed border-[#CED0D4] rounded-2xl p-4 text-center bg-[#F7F8FA]">
+                        <div className="border border-dashed border-[#CED0D4] rounded-xl p-4 text-center bg-[#F7F8FA]">
                           <UploadCloud className="w-6 h-6 text-[#65676B] mx-auto mb-1.5" />
                           <input
                             type="file"
@@ -1356,14 +1356,14 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                       <button
                         type="button"
                         onClick={() => setSelectedReturnOrder(null)}
-                        className="px-5 py-2.5 bg-[#F0F2F5] text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB]"
+                        className="px-5 py-2.5 bg-[#F0F2F5] text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98] transition-all"
                       >
                         Batal
                       </button>
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-2 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
                       >
                         <span>{isSubmitting ? "Mengirimkan Laporan..." : "Kirim Pengaduan Retur"}</span>
                         <CheckCircle2 className="w-4 h-4" />

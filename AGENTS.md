@@ -64,9 +64,22 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Regression Test Updates**:
      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
 
-6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend`)**
-   - Jalankan skill `design-taste-frontend` untuk mencegah AI slop, layout generik, atau card-inside-card template yang murahan.
-   - Pertahankan estetika editorial/minimalis yang fungsional, tipografi tegas, hierarki visual jelas, dan micro-interaction yang halus.
+6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend` Enforcement)**
+   Setiap developer dan AI agent yang membuat atau memodifikasi UI/UX di codebase ini **WAJIB** mematuhi pedoman anti-slop dari skill `design-taste-frontend`:
+   - **Brief Inference & Design Read**:
+     - Perlakukan UI sebagai aplikasi logistik pendidikan B2B yang bersih, editorial, fungsional, dan ramah orang tua.
+     - Dials Baseline: `DESIGN_VARIANCE: 5`, `MOTION_INTENSITY: 3`, `VISUAL_DENSITY: 5`.
+   - **Anti-Default Discipline (Banned Patterns)**:
+     - ❌ **Dilarang keras memakai AI-purple / blue glow gradient background** atau generic dark mesh. Gunakan neutral base (`Zinc` / `Slate` / `#F0F2F5`) dengan aksen solid berbobot (`#1877F2` dan Emerald untuk status beasiswa/sukses).
+     - ❌ **Dilarang memakai pola Card-inside-Card-inside-Card** (template card bertumpuk di dalam card). Gunakan flat rows yang dipisahkan garis pembagi `divide-y divide-[#E4E6EB]`, soft border, atau whitespace hierarkis.
+     - ❌ **Dilarang membulatkan sudut secara ekstrem dan tidak konsisten** (misal campuran acak `rounded-3xl` dengan `rounded-sm`). Kunci skala radius konsisten: `rounded-2xl` untuk container utama, `rounded-xl` untuk form card/input, dan `rounded-lg`/`rounded-xl` untuk tombol interaktif (*Shape Consistency Lock*).
+     - ❌ **Dilarang membuat CTA label membungkus baris (CTA Button Wrap Ban)**. Label tombol harus ringkas (1–3 kata) dan tetap dalam satu baris di desktop.
+   - **Tactile Feedback & Micro-Interactions**:
+     - Setiap tombol aksi dan CTA wajib memiliki state `:active:scale-[0.98]` atau `:active:translate-y-[1px]` untuk menyimulasikan feedback fisik tombol nyata.
+   - **Form & Typography Standards**:
+     - Label input **wajib** selalu berada di atas kolom input (*Label ABOVE input*). Dilarang menjadikan placeholder sebagai label.
+     - Pastikan kontras teks memenuhi standar aksesibilitas WCAG AA (minimal rasio 4.5:1 untuk teks normal). Dilarang teks abu-abu pudar di atas background abu-abu terang.
+     - Terapkan full interactive UI states di setiap formulir: Loading spinner/skeleton, status kosong (*empty state*) yang edukatif, dan pesan error inline yang eksplisit.
 
 7. **Code Maintainability & Refactor Trigger**
    - Jika ukuran file kode melebihi ~250–300 baris atau komponen memikul terlalu banyak tanggung jawab, segera pertimbangkan untuk refactor ke modul, utility, atau sub-komponen terpisah.
