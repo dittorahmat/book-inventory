@@ -53,12 +53,6 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    # or bun test
    ```
    **Requirement**: Setiap kali ada penambahan fitur atau modifikasi backend & API endpoints, Anda **WAJIB** mematuhi aturan pengujian dan kompatibilitas berikut:
-   - **Universal API Contract & Coverage (WAJIB Setiap Route Baru/Modifikasi)**:
-     - **No Untested Routes**: Dilarang menambahkan atau memodifikasi route handler (GET, POST, PATCH, PUT, DELETE) di `src/server/routes/` tanpa unit/integration test di `src/server/routes/*.test.ts`.
-     - **Dual-Path Testing (Happy & Unhappy Path)**: Setiap endpoint wajib menguji minimal 2 kondisi:
-       1. *Success Case*: Payload valid menghasilkan HTTP 200/201 dengan struktur `{ success: true, data: ... }`.
-       2. *Error / Boundary Case*: Payload invalid / resource hilang menghasilkan HTTP 400/404 dengan struktur `{ success: false, message: string }`.
-     - **Response Envelope Consistency**: Semua endpoint wajib mematuhi format envelope JSON standar (`success`, `data`/`message`) agar penanganan error di sisi frontend seragam dan bebas dari parsing error.
    - **Kompatibilitas Validasi ID (Flexible Identifier Validation)**:
      - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `z.string().min(1)` agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4.
      - Setiap endpoint mutasi (POST, PATCH, PUT) **wajib memiliki unit/integration test** yang memverifikasi payload dengan custom seeded string IDs maupun UUID.
@@ -67,10 +61,6 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
      - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
      - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
-   - **Media & R2 Asset Serving Verification (Round-Trip Test)**:
-     - Setiap ada endpoint upload file / media yang menghasilkan URL (contoh: `/api/media/covers/...` atau R2 / S3 storage):
-       - **WAJIB** ada route handler penyaji file (contoh: `GET /api/media/*`) yang mengembalikan stream data dengan header `Content-Type` yang tepat dan `Cache-Control`.
-       - **WAJIB** memiliki integration test round-trip di `src/server/routes/*.test.ts`: test harus mengunggah file, mengambil URL hasil upload, lalu melakukan request `GET` ke URL tersebut dan memverifikasi status 200 serta kecocokan `Content-Type` dan payload. Dilarang hanya mengetes proses upload tanpa memverifikasi aksesibilitas URL yang dikembalikan ke browser.
    - **Regression Test Updates**:
      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
 

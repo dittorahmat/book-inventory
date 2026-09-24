@@ -3,17 +3,22 @@ import { School } from "./types";
 import { BranchSelector } from "./components/BranchSelector";
 import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
+import { PackagesView } from "./views/PackagesView";
+import { StudentOrdersView } from "./views/StudentOrdersView";
+import { BookReturnsView } from "./views/BookReturnsView";
+import { ProcurementView } from "./views/ProcurementView";
+import { PublicOrderView } from "./views/PublicOrderView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
 import { LoginView } from "./views/LoginView";
 import { useSession, signOut } from "./lib/auth-client";
-import { BookOpen, Layers, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2 } from "lucide-react";
+import { BookOpen, Layers, Package, Users, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2 } from "lucide-react";
 
 export function App() {
   const { data: session, isPending } = useSession();
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
-  const [activeTab, setActiveTab] = useState<"catalog" | "inventory" | "transfers" | "settings">("inventory");
+  const [activeTab, setActiveTab] = useState<"catalog" | "packages" | "inventory" | "student_orders" | "procurement" | "returns" | "public_form" | "transfers" | "settings">("student_orders");
 
   const loadSchools = useCallback(() => {
     fetch("/api/schools")
@@ -132,52 +137,107 @@ export function App() {
           </div>
         </div>
 
-        {/* Facebook Centered/Left Navigation Tabs for Desktop */}
-        <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-2 text-sm border-t border-[#E4E6EB]/60">
+        {/* Navigation Tabs for Desktop */}
+        <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm border-t border-[#E4E6EB]/60 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab("student_orders")}
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+              activeTab === "student_orders"
+                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Pesanan Siswa
+          </button>
+          <button
+            onClick={() => setActiveTab("packages")}
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+              activeTab === "packages"
+                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Paket & Bundling
+          </button>
+          <button
+            onClick={() => setActiveTab("procurement")}
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+              activeTab === "procurement"
+                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4" />
+            Pengadaan PO
+          </button>
+          <button
+            onClick={() => setActiveTab("returns")}
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+              activeTab === "returns"
+                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+            }`}
+          >
+            <RotateCcw className="w-4 h-4" />
+            Retur Buku
+          </button>
           <button
             onClick={() => setActiveTab("inventory")}
-            className={`py-3 px-4 flex items-center gap-2 font-semibold transition-all relative ${
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
               activeTab === "inventory"
                 ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
                 : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
             }`}
           >
             <Layers className="w-4 h-4" />
-            Branch Inventory
+            Stok Satuan
           </button>
           <button
             onClick={() => setActiveTab("catalog")}
-            className={`py-3 px-4 flex items-center gap-2 font-semibold transition-all relative ${
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
               activeTab === "catalog"
                 ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
                 : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            Book Catalog
+            Katalog
+          </button>
+          <button
+            onClick={() => setActiveTab("public_form")}
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+              activeTab === "public_form"
+                ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+            }`}
+          >
+            <Globe className="w-4 h-4 text-emerald-600" />
+            Portal Form Publik
           </button>
           <button
             onClick={() => setActiveTab("transfers")}
-            className={`py-3 px-4 flex items-center gap-2 font-semibold transition-all relative ${
+            className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
               activeTab === "transfers"
                 ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
                 : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
             }`}
           >
             <Truck className="w-4 h-4" />
-            Inter-School Transfers
+            Transfer
           </button>
           {isCentralAdmin && (
             <button
               onClick={() => setActiveTab("settings")}
-              className={`py-3 px-4 flex items-center gap-2 font-semibold transition-all relative ${
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
                 activeTab === "settings"
                   ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
                   : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
               }`}
             >
               <Settings className="w-4 h-4" />
-              Settings & Hierarchy
+              Pengaturan
             </button>
           )}
         </div>
@@ -185,6 +245,11 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">
+        {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
+        {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
+        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
+        {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
+        {activeTab === "public_form" && <PublicOrderView />}
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView activeSchool={selectedSchool} />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
@@ -198,7 +263,7 @@ export function App() {
 
       {/* Bottom Navigation Bar for Mobile (< md) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-        <div className="grid grid-cols-3 auto-cols-fr sm:grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 auto-cols-fr gap-1.5">
           <button
             onClick={() => setActiveTab("inventory")}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
@@ -209,6 +274,18 @@ export function App() {
           >
             <Layers className="w-5 h-5 mb-1" />
             <span className="text-[11px] font-semibold">Inventory</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("packages")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
+              activeTab === "packages"
+                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Package className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold">Paket</span>
           </button>
 
           <button

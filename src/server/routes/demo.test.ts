@@ -1,47 +1,46 @@
 import { describe, expect, it } from "bun:test";
 import { demoRouter } from "./demo";
 import { db } from "../../db";
-import { schools, books, bookItems, transferShipments } from "../../db/schema";
+import { schools, bookPackages, students, studentBookOrders, suppliers, purchaseOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
-describe("Demo Seeding API", () => {
-  it("seeds 4 Al Wildan schools, Cambridge books, physical barcodes, and sample transfer", async () => {
+describe("Revamped Demo Seeding API", () => {
+  it("seeds full operational school environment with students, packages, suppliers, and order scenarios", async () => {
     const res = await demoRouter.request("/seed", {
       method: "POST",
     });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.schools).toBe(4);
-    expect(json.data.books).toBe(5);
-    expect(json.data.bookItems).toBeGreaterThan(50);
+    expect(json.data.schoolsSeeded).toBe(4);
+    expect(json.data.booksSeeded).toBe(12);
+    expect(json.data.packagesSeeded).toBe(3);
+    expect(json.data.studentsSeeded).toBe(4);
 
-    // Verify Al Wildan 1 HQ exists
+    // 1. Verify Al Wildan HQ
     const [hq] = await db.select().from(schools).where(eq(schools.id, "school-alw-1"));
     expect(hq).toBeDefined();
     expect(hq.type).toBe("main");
-    expect(hq.code).toBe("ALW-01-HQ");
 
-    // Verify Al Wildan 2 Branch exists
-    const [br2] = await db.select().from(schools).where(eq(schools.id, "school-alw-2"));
-    expect(br2).toBeDefined();
-    expect(br2.type).toBe("branch");
+    // 2. Verify Hendra Wahyudi (promoted to grade 2)
+    const [hendra] = await db.select().from(students).where(eq(students.name, "Hendra Wahyudi"));
+    expect(hendra).toBeDefined();
+    expect(hendra.status).toBe("promoted");
 
-    // Verify Cambridge book catalog
-    const [cambMath] = await db.select().from(books).where(eq(books.isbn, "978-1108437189"));
-    expect(cambMath).toBeDefined();
-    expect(cambMath.title).toContain("Cambridge IGCSE Mathematics");
+    // 3. Verify packages exist
+    const pkgs = await db.select().from(bookPackages);
+    expect(pkgs.length).toBeGreaterThanOrEqual(3);
 
-    // Verify physical book items exist
-    const alwItems = await db.select().from(bookItems).where(eq(bookItems.currentSchoolId, "school-alw-1"));
-    expect(alwItems.length).toBeGreaterThan(0);
-    expect(alwItems[0].barcode).toStartWith("ALW1-");
+    // 4. Verify realistic orders
+    const orders = await db.select().from(studentBookOrders);
+    expect(orders.length).toBeGreaterThanOrEqual(4);
 
-    // Verify transfer shipment sample
-    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, "ship-demo-alw-01"));
-    expect(shipment).toBeDefined();
-    expect(shipment.fromSchoolId).toBe("school-alw-1");
-    expect(shipment.toSchoolId).toBe("school-alw-2");
-    expect(shipment.status).toBe("in_transit");
+    // 5. Verify supplier and purchase order
+    const [sup] = await db.select().from(suppliers).where(eq(suppliers.code, "SUP-ERL"));
+    expect(sup).toBeDefined();
+
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.poNumber, "PO-202609-0088"));
+    expect(po).toBeDefined();
+    expect(po.status).toBe("partially_received");
   });
 });

@@ -1,7 +1,21 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, books, bookItems, transferShipments, transferShipmentItems } from "../../db/schema";
+import { 
+  schools, 
+  books, 
+  bookItems, 
+  students, 
+  suppliers, 
+  purchaseOrders, 
+  purchaseOrderItems, 
+  bookPackages, 
+  bookPackageItems, 
+  packageItems, 
+  studentBookOrders, 
+  orderPayments, 
+  bookReturns, 
+  systemSettings 
+} from "../../db/schema";
 import { auth } from "../auth";
 
 export const demoRouter = new Hono();
@@ -9,7 +23,7 @@ export const demoRouter = new Hono();
 demoRouter.post("/seed", async (c) => {
   const now = new Date().toISOString();
 
-  // 1. Schools (4 Al Wildan Schools)
+  // 1. Schools (4 Al Wildan Campuses)
   const schoolData = [
     {
       id: "school-alw-1",
@@ -55,7 +69,7 @@ demoRouter.post("/seed", async (c) => {
       });
   }
 
-  // 2. Demo Users (Central Admin & Branch Admins)
+  // 2. Demo Users
   const demoUsers = [
     {
       name: "Super Admin Al Wildan Pusat",
@@ -99,195 +113,410 @@ demoRouter.post("/seed", async (c) => {
         } as any,
         headers: c.req.raw.headers,
       });
-    } catch (err) {
-      console.error(`Failed to create demo user ${u.email}:`, err);
+    } catch {
+      // Ignored if user already exists
     }
   }
 
-  // 3. Cambridge Books Catalog
-  const cambridgeBooks = [
-    {
-      id: "book-camb-01",
-      isbn: "978-1108746281",
-      title: "Cambridge Primary English Learner's Book 3 with Digital Access",
-      author: "Katharine Baker, Joyce Vallar",
-      publisher: "Cambridge University Press",
-      publishYear: 2021,
-      category: "English",
-      description: "Comprehensive Cambridge Primary curriculum book developing reading, writing, and communication skills.",
-      coverUrl: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400",
-    },
-    {
-      id: "book-camb-02",
-      isbn: "978-1108746311",
-      title: "Cambridge Primary Mathematics Learner's Book 4",
-      author: "Emma Low, Mary Wood",
-      publisher: "Cambridge University Press",
-      publishYear: 2021,
-      category: "Mathematics",
-      description: "Active mathematics learning with engaging problems, investigations, and mathematical reasoning.",
-      coverUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400",
-    },
-    {
-      id: "book-camb-03",
-      isbn: "978-1108742788",
-      title: "Cambridge Lower Secondary Science Learner's Book 7",
-      author: "Mary Jones, Diane Fellowes-Freeman",
-      publisher: "Cambridge University Press",
-      publishYear: 2021,
-      category: "Science",
-      description: "Enquiry-based science course covering Biology, Chemistry, Physics, and Earth and Space.",
-      coverUrl: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=400",
-    },
-    {
-      id: "book-camb-04",
-      isbn: "978-1108437189",
-      title: "Cambridge IGCSE Mathematics Core and Extended Coursebook",
-      author: "Karen Morrison, Nick Hamshaw",
-      publisher: "Cambridge University Press",
-      publishYear: 2022,
-      category: "Mathematics",
-      description: "Revised edition covering the complete Cambridge IGCSE Mathematics (0580/0980) syllabus.",
-      coverUrl: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400",
-    },
-    {
-      id: "book-camb-05",
-      isbn: "978-1108936767",
-      title: "Cambridge IGCSE Biology Coursebook with Digital Access",
-      author: "Mary Jones, Geoff Jones",
-      publisher: "Cambridge University Press",
-      publishYear: 2022,
-      category: "Biology",
-      description: "Engaging coverage of cell biology, human physiology, ecology, and biotechnology for IGCSE candidates.",
-      coverUrl: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=400",
-    },
+  // 3. Master Books (International Cambridge + Local Indonesian & Religious Curriculum)
+  const bookList = [
+    { id: "b-math-1", isbn: "978-1108746489", title: "Cambridge Primary Mathematics Learner's Book 1", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-sci-1", isbn: "978-1108742726", title: "Cambridge Primary Science Learner's Book 1", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-eng-1", isbn: "978-1108719292", title: "Cambridge Global English Learner's Book 1", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-pai-1", isbn: "978-6022444985", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 1", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022 },
+    { id: "b-bindo-1", isbn: "978-6022444992", title: "Bahasa Indonesia: Aku Bisa! Kelas 1", author: "Sofie Dewayani", publisher: "Pusat Kurikulum dan Perbukuan", category: "Nasional", publishYear: 2022 },
+    { id: "b-ppkn-1", isbn: "978-6022445005", title: "Pendidikan Pancasila Kelas 1", author: "Elisa Seftriyana", publisher: "Kemendikbudristek", category: "Nasional", publishYear: 2022 },
+    { id: "b-arab-1", isbn: "978-6022445012", title: "Bahasa Arab Dasar untuk Anak Shalih Kelas 1", author: "Tim Asatidzah Al Wildan", publisher: "Pustaka Al Wildan", category: "Diniyyah", publishYear: 2023 },
+    { id: "b-tahfidz-1", isbn: "978-6022445029", title: "Buku Panduan Mutaba'ah Tahfidz Al-Qur'an Juz 30", author: "Lembaga Tahfidz Al Wildan", publisher: "Pustaka Al Wildan", category: "Tahfidz", publishYear: 2023 },
+    { id: "b-math-2", isbn: "978-1108746496", title: "Cambridge Primary Mathematics Learner's Book 2", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-sci-2", isbn: "978-1108742733", title: "Cambridge Primary Science Learner's Book 2", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-eng-2", isbn: "978-1108719308", title: "Cambridge Global English Learner's Book 2", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
+    { id: "b-pai-2", isbn: "978-6022445036", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 2", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022 },
   ];
 
-  for (const b of cambridgeBooks) {
+  for (const b of bookList) {
     await db
       .insert(books)
       .values({ ...b, createdAt: now, updatedAt: now })
       .onConflictDoUpdate({
         target: books.id,
-        set: {
-          title: b.title,
-          author: b.author,
-          publisher: b.publisher,
-          publishYear: b.publishYear,
-          category: b.category,
-          description: b.description,
-          coverUrl: b.coverUrl,
-          updatedAt: now,
-        },
+        set: { title: b.title, isbn: b.isbn, author: b.author, publisher: b.publisher, category: b.category, updatedAt: now },
       });
   }
 
-  // 4. Physical Book Items (Distributed across Al Wildan 1, 2, 3, 4)
-  const itemsToCreate: Array<{
-    id: string;
-    bookId: string;
-    currentSchoolId: string;
-    barcode: string;
-    condition: "new" | "good" | "fair";
-    status: "in_stock" | "in_transit";
-    notes?: string;
-  }> = [];
-
-  // Generate barcodes per school and book
-  const distribution = [
-    { schoolId: "school-alw-1", prefix: "ALW1", countPerBook: 8 },
-    { schoolId: "school-alw-2", prefix: "ALW2", countPerBook: 5 },
-    { schoolId: "school-alw-3", prefix: "ALW3", countPerBook: 4 },
-    { schoolId: "school-alw-4", prefix: "ALW4", countPerBook: 3 },
+  // 4. Book Packages (Bundles)
+  const packageData = [
+    {
+      id: "pkg-sd1-int",
+      code: "PKG-SD1-INT",
+      name: "Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)",
+      gradeLevel: "1",
+      curriculumType: "international" as const,
+      academicYear: "2026/2027",
+      price: 1850000,
+      description: "Paket lengkap 8 buku mata pelajaran inti Cambridge, Bahasa Indonesia, Pendidikan Agama Islam, Bahasa Arab, dan Tahfidz.",
+    },
+    {
+      id: "pkg-sd1-nas",
+      code: "PKG-SD1-NAS",
+      name: "Paket Kelas 1 SD Nasional Plus",
+      gradeLevel: "1",
+      curriculumType: "national" as const,
+      academicYear: "2026/2027",
+      price: 950000,
+      description: "Paket kurikulum nasional terpadu dengan penguatan PAI dan Tahfidz Quran.",
+    },
+    {
+      id: "pkg-sd2-int",
+      code: "PKG-SD2-INT",
+      name: "Paket Kelas 2 SD Internasional (Cambridge)",
+      gradeLevel: "2",
+      curriculumType: "international" as const,
+      academicYear: "2026/2027",
+      price: 1950000,
+      description: "Paket lanjutan Cambridge Mathematics, Science, English, dan PAI Kelas 2.",
+    },
   ];
 
-  for (const dist of distribution) {
-    for (let bIdx = 0; bIdx < cambridgeBooks.length; bIdx++) {
-      const book = cambridgeBooks[bIdx];
-      for (let i = 1; i <= dist.countPerBook; i++) {
-        const paddedIndex = String(i).padStart(3, "0");
-        const bookNum = String(bIdx + 1).padStart(2, "0");
-        const categoryCode = book.category.substring(0, 3).toUpperCase();
-        itemsToCreate.push({
-          id: `item-${dist.prefix.toLowerCase()}-${bIdx + 1}-${paddedIndex}`,
-          bookId: book.id,
-          currentSchoolId: dist.schoolId,
-          barcode: `${dist.prefix}-${categoryCode}${bookNum}-${paddedIndex}`,
-          condition: i === 1 ? "fair" : i % 2 === 0 ? "new" : "good",
-          status: "in_stock",
-          notes: `Batch kurikulum 2026/2027 - ${dist.prefix}`,
-        });
-      }
+  for (const p of packageData) {
+    await db
+      .insert(bookPackages)
+      .values({ ...p, createdAt: now, updatedAt: now })
+      .onConflictDoUpdate({
+        target: bookPackages.id,
+        set: { name: p.name, price: p.price, description: p.description, updatedAt: now },
+      });
+  }
+
+  // BOM Components for PKG-SD1-INT (8 books)
+  const bomSd1Int = ["b-math-1", "b-sci-1", "b-eng-1", "b-pai-1", "b-bindo-1", "b-ppkn-1", "b-arab-1", "b-tahfidz-1"];
+  for (const bId of bomSd1Int) {
+    await db.insert(bookPackageItems).values({
+      id: `bom-sd1int-${bId}`,
+      packageId: "pkg-sd1-int",
+      bookId: bId,
+      quantity: 1,
+      createdAt: now,
+    }).onConflictDoNothing();
+  }
+
+  // BOM Components for PKG-SD1-NAS (4 books overlapping PAI & Tahfidz)
+  const bomSd1Nas = ["b-pai-1", "b-bindo-1", "b-ppkn-1", "b-tahfidz-1"];
+  for (const bId of bomSd1Nas) {
+    await db.insert(bookPackageItems).values({
+      id: `bom-sd1nas-${bId}`,
+      packageId: "pkg-sd1-nas",
+      bookId: bId,
+      quantity: 1,
+      createdAt: now,
+    }).onConflictDoNothing();
+  }
+
+  // 5. Seed Loose Items in school-alw-1 (Stok Satuan)
+  for (const b of bookList) {
+    for (let i = 0; i < 25; i++) {
+      await db.insert(bookItems).values({
+        id: `bi-loose-${b.id}-${i}`,
+        bookId: b.id,
+        currentSchoolId: "school-alw-1",
+        barcode: `LSE-${b.isbn.slice(-4)}-${(i + 1).toString().padStart(3, "0")}`,
+        condition: "new",
+        status: "in_stock",
+        notes: "Loose stock inventory",
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing();
     }
   }
 
-  // Insert physical copies
-  for (const item of itemsToCreate) {
+  // 6. Pre-Assembled Package Items (Stok Bundle Jadi)
+  for (let i = 0; i < 15; i++) {
+    await db.insert(packageItems).values({
+      id: `pki-sd1int-${i}`,
+      packageId: "pkg-sd1-int",
+      currentSchoolId: "school-alw-1",
+      barcode: `PKG-ALW1-2026-${(i + 1).toString().padStart(4, "0")}`,
+      status: "in_stock",
+      notes: "Pre-assembled ready bundle",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+  }
+
+  // 7. Students (Lama naik kelas, reguler, dan beasiswa)
+  const studentData = [
+    {
+      id: "std-hendra-1",
+      schoolId: "school-alw-1",
+      nis: "2024101001",
+      name: "Hendra Wahyudi",
+      gender: "male" as const,
+      gradeLevel: "1",
+      curriculumType: "international" as const,
+      academicYear: "2025/2026",
+      parentName: "Drs. Wahyudi Pratama",
+      parentEmail: "wahyudi.pratama@gmail.com",
+      parentPhone: "+6281234567890",
+      status: "promoted" as const, // Naik ke kelas 2
+      isScholarship: false,
+    },
+    {
+      id: "std-aisyah-2",
+      schoolId: "school-alw-1",
+      nis: "2024101002",
+      name: "Aisyah Nur Salsabila",
+      gender: "female" as const,
+      gradeLevel: "1",
+      curriculumType: "international" as const,
+      academicYear: "2026/2027",
+      parentName: "Ir. Bambang Trihatmojo",
+      parentEmail: "bambang.tri@gmail.com",
+      parentPhone: "+6281298765432",
+      status: "active" as const,
+      isScholarship: false,
+    },
+    {
+      id: "std-farhan-3",
+      schoolId: "school-alw-1",
+      nis: "2024101003",
+      name: "Muhammad Farhan Al-Ghifari",
+      gender: "male" as const,
+      gradeLevel: "1",
+      curriculumType: "international" as const,
+      academicYear: "2026/2027",
+      parentName: "Ustadz Ghifari",
+      parentEmail: "ghifari.al@gmail.com",
+      parentPhone: "+6281311223344",
+      status: "active" as const,
+      isScholarship: true, // Beasiswa 100%
+    },
+    {
+      id: "std-nathan-4",
+      schoolId: "school-alw-1",
+      nis: "2024101004",
+      name: "Nathaniel Arya",
+      gender: "male" as const,
+      gradeLevel: "1",
+      curriculumType: "national" as const,
+      academicYear: "2026/2027",
+      parentName: "Dewi Sartika",
+      parentEmail: "dewi.sartika@gmail.com",
+      parentPhone: "+6281555667788",
+      status: "active" as const,
+      isScholarship: false,
+    },
+  ];
+
+  for (const st of studentData) {
     await db
-      .insert(bookItems)
-      .values({ ...item, createdAt: now, updatedAt: now })
+      .insert(students)
+      .values({ ...st, createdAt: now, updatedAt: now })
       .onConflictDoUpdate({
-        target: bookItems.id,
-        set: {
-          currentSchoolId: item.currentSchoolId,
-          barcode: item.barcode,
-          condition: item.condition,
-          status: item.status,
-          updatedAt: now,
-        },
+        target: students.id,
+        set: { name: st.name, nis: st.nis, status: st.status, isScholarship: st.isScholarship, updatedAt: now },
       });
   }
 
-  // 5. Transfer Shipment Samples (HQ -> Branch 2, and Branch 2 -> Branch 3 direct transfer)
-  const shipment1Id = "ship-demo-alw-01";
-  const itemInTransit1 = itemsToCreate.find(
-    (it) => it.currentSchoolId === "school-alw-1" && it.bookId === "book-camb-01"
-  );
+  // 8. Orders with realistic business scenario states
+  // Skenario 1: Aisyah (Lunas & Sudah Ambil dengan Surat Jalan)
+  await db.insert(studentBookOrders).values({
+    id: "ord-aisyah-done",
+    orderNumber: "ORD-202609-001",
+    studentId: "std-aisyah-2",
+    schoolId: "school-alw-1",
+    packageId: "pkg-sd1-int",
+    orderType: "regular",
+    paymentStatus: "paid",
+    fulfillmentStatus: "picked_up",
+    totalAmount: 1850000,
+    paidAmount: 1850000,
+    handoverDeliveryNumber: "SJ-SERAH-202609-0012",
+    handoverDate: now,
+    handoverRecipient: "Ir. Bambang Trihatmojo (Ayah)",
+    notes: "Lunas transfer BCA, diserahkan di loket logistik sekolah",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
 
-  if (itemInTransit1) {
-    // Set item status to in_transit
-    await db
-      .update(bookItems)
-      .set({ status: "in_transit", updatedAt: now })
-      .where(eq(bookItems.id, itemInTransit1.id));
+  await db.insert(orderPayments).values({
+    id: "pay-aisyah-1",
+    orderId: "ord-aisyah-done",
+    transferAmount: 1850000,
+    bookAllocationAmount: 1850000,
+    bankName: "BCA",
+    referenceNumber: "BCA-TRX-881920",
+    notes: "Pembayaran lunas buku",
+    createdAt: now,
+  }).onConflictDoNothing();
 
+  // Skenario 2: Nathaniel (Cicilan / Partial Payment - Transfer gabungan SPP + Buku)
+  await db.insert(studentBookOrders).values({
+    id: "ord-nathan-partial",
+    orderNumber: "ORD-202609-002",
+    studentId: "std-nathan-4",
+    schoolId: "school-alw-1",
+    packageId: "pkg-sd1-nas",
+    orderType: "regular",
+    paymentStatus: "partial",
+    fulfillmentStatus: "waiting_preparation",
+    totalAmount: 950000,
+    paidAmount: 500000,
+    notes: "Ortu transfer gabungan SPP Rp 2.500.000 + Buku Rp 500.000 (Sisa Rp 450.000)",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
+
+  await db.insert(orderPayments).values({
+    id: "pay-nathan-1",
+    orderId: "ord-nathan-partial",
+    transferAmount: 3000000, // Total struk mutasi bank
+    bookAllocationAmount: 500000, // Khusus buku
+    bankName: "Mandiri",
+    referenceNumber: "MND-TRX-551299",
+    notes: "Transfer gabungan SPP bulan Juli dan cicilan ke-1 buku paket",
+    createdAt: now,
+  }).onConflictDoNothing();
+
+  // Skenario 3: Farhan (Beasiswa 100% - Pending Approval)
+  await db.insert(studentBookOrders).values({
+    id: "ord-farhan-sch",
+    orderNumber: "ORD-202609-003",
+    studentId: "std-farhan-3",
+    schoolId: "school-alw-1",
+    packageId: "pkg-sd1-int",
+    orderType: "scholarship",
+    paymentStatus: "scholarship_pending",
+    fulfillmentStatus: "waiting_preparation",
+    totalAmount: 0,
+    paidAmount: 0,
+    scholarshipProofUrl: "/api/media/scholarships/demo-surat-beasiswa.jpg",
+    notes: "Melampirkan surat rekomendasi beasiswa tahfidz Al-Qur'an 30 Juz",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
+
+  // Skenario 4: Hendra Wahyudi (Naik Kelas 2 - Belum Bayar)
+  await db.insert(studentBookOrders).values({
+    id: "ord-hendra-unpaid",
+    orderNumber: "ORD-202609-004",
+    studentId: "std-hendra-1",
+    schoolId: "school-alw-1",
+    packageId: "pkg-sd2-int",
+    orderType: "regular",
+    paymentStatus: "unpaid",
+    fulfillmentStatus: "waiting_preparation",
+    totalAmount: 1950000,
+    paidAmount: 0,
+    notes: "Siswa naik kelas, menunggu konfirmasi pembayaran orang tua",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
+
+  // Skenario 5: Retur Buku Rusak / Cacat Fisik
+  await db.insert(bookReturns).values({
+    id: "ret-demo-1",
+    orderId: "ord-aisyah-done",
+    studentId: "std-aisyah-2",
+    defectiveBookId: "b-math-1",
+    reason: "Halaman 20 sampai 35 robek dan cetakan matematika buram tidak terbaca",
+    photoProofUrl: "/api/media/returns/demo-buku-rusak.jpg",
+    status: "reported",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
+
+  // 9. Suppliers & Purchase Orders
+  const supplierData = [
+    {
+      id: "sup-erlangga",
+      code: "SUP-ERL",
+      name: "PT Penerbit Erlangga Mahameru",
+      contactPerson: "Drs. Hendro Wibowo",
+      email: "order@erlangga.co.id",
+      phone: "+62 21 8717888",
+      address: "Jl. H. Baping Raya No. 100, Ciracas, Jakarta Timur",
+    },
+    {
+      id: "sup-cambridge-mentari",
+      code: "SUP-MEN",
+      name: "PT Mentari Books Utama (Cambridge Official Distributor)",
+      contactPerson: "Lina Marlina, M.Ed",
+      email: "cambridge@mentaribooks.com",
+      phone: "+62 21 5890888",
+      address: "Rukan Puri Mutiara Blok A No. 15, Kembangan, Jakarta Barat",
+    },
+  ];
+
+  for (const sup of supplierData) {
     await db
-      .insert(transferShipments)
-      .values({
-        id: shipment1Id,
-        shipmentNumber: "TRF-ALW-2026-001",
-        fromSchoolId: "school-alw-1",
-        toSchoolId: "school-alw-2",
-        status: "in_transit",
-        dispatchedAt: now,
-        notes: "Distribusi buku Cambridge English Al Wildan 1 Pusat ke Al Wildan 2",
-        createdAt: now,
-        updatedAt: now,
-      })
+      .insert(suppliers)
+      .values({ ...sup, createdAt: now, updatedAt: now })
       .onConflictDoUpdate({
-        target: transferShipments.id,
-        set: { status: "in_transit", updatedAt: now },
+        target: suppliers.id,
+        set: { name: sup.name, contactPerson: sup.contactPerson, email: sup.email, phone: sup.phone, updatedAt: now },
       });
-
-    await db
-      .insert(transferShipmentItems)
-      .values({
-        id: "ship-item-demo-01",
-        shipmentId: shipment1Id,
-        bookItemId: itemInTransit1.id,
-        createdAt: now,
-      })
-      .onConflictDoNothing();
   }
+
+  // Sample Purchase Order
+  await db.insert(purchaseOrders).values({
+    id: "po-demo-001",
+    poNumber: "PO-202609-0088",
+    supplierId: "sup-cambridge-mentari",
+    targetSchoolId: "school-alw-1",
+    status: "partially_received",
+    orderDate: "2026-09-20",
+    expectedArrivalDate: "2026-09-28",
+    totalAmount: 18500000,
+    notes: "Pengadaan awal buku Cambridge Mathematics & Science Semester 1",
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoNothing();
+
+  await db.insert(purchaseOrderItems).values([
+    {
+      id: "poi-demo-1",
+      purchaseOrderId: "po-demo-001",
+      bookId: "b-math-1",
+      quantityOrdered: 100,
+      quantityReceived: 40,
+      unitPrice: 95000,
+      createdAt: now,
+    },
+    {
+      id: "poi-demo-2",
+      purchaseOrderId: "po-demo-001",
+      bookId: "b-sci-1",
+      quantityOrdered: 100,
+      quantityReceived: 40,
+      unitPrice: 90000,
+      createdAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  // 10. Default SMTP Settings for Email Simulation
+  await db.insert(systemSettings).values({
+    key: "smtp_host",
+    value: "smtp.gmail.com",
+    description: "Default SMTP Host",
+    updatedAt: now,
+  }).onConflictDoNothing();
 
   return c.json({
     success: true,
-    message: "Al Wildan 4 campuses & Cambridge curriculum demo data seeded successfully",
+    message: "Data demo operasional Al Wildan berhasil dirombak total dan diperbarui secara komprehensif!",
     data: {
-      schools: schoolData.length,
-      demoUsers: demoUsers.length,
-      books: cambridgeBooks.length,
-      bookItems: itemsToCreate.length,
+      schoolsSeeded: schoolData.length,
+      usersSeeded: demoUsers.length,
+      booksSeeded: bookList.length,
+      packagesSeeded: packageData.length,
+      studentsSeeded: studentData.length,
+      scenariosSeeded: [
+        "Aisyah (Paid & Picked Up + Retur Cacat)",
+        "Nathaniel (Cicilan / Partial dari Transfer Gabungan)",
+        "Farhan (Beasiswa 100% Pending Approval)",
+        "Hendra Wahyudi (Naik Kelas 2 Unpaid)",
+        "Supplier PO Inbound In Progress",
+      ],
     },
   });
 });

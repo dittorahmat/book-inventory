@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { School, User } from "../types";
-import { Building2, Users, Plus } from "lucide-react";
+import { Building2, Users, Plus, Mail, CheckCircle2, RefreshCw } from "lucide-react";
 
 interface SettingsViewProps {
   currentUser?: any;
@@ -8,7 +8,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<"schools" | "users">("schools");
+  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp">("schools");
   const [schoolsList, setSchoolsList] = useState<School[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
 
@@ -146,6 +146,17 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
           >
             <Users className="w-4 h-4" />
             Akun Staf ({usersList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("smtp")}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all ${
+              activeTab === "smtp"
+                ? "bg-white text-[#1877F2] font-bold shadow-xs"
+                : "text-[#65676B] hover:text-[#050505]"
+            }`}
+          >
+            <Mail className="w-4 h-4" />
+            Email SMTP
           </button>
         </div>
       </div>
@@ -422,6 +433,237 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
           </div>
         </div>
       )}
+
+      {/* 3. SMTP Settings Tab */}
+      {activeTab === "smtp" && (
+        <SmtpSettingsSection />
+      )}
+    </div>
+  );
+}
+
+function SmtpSettingsSection() {
+  const [host, setHost] = useState("smtp.gmail.com");
+  const [port, setPort] = useState(587);
+  const [secure, setSecure] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [fromName, setFromName] = useState("Al Wildan School Logistics");
+  const [fromEmail, setFromEmail] = useState("logistics@alwildan.sch.id");
+  const [testRecipient, setTestRecipient] = useState("");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/smtp")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setHost(data.data.host || "smtp.gmail.com");
+          setPort(data.data.port || 587);
+          setSecure(data.data.secure || false);
+          setUsername(data.data.username || "");
+          setFromName(data.data.fromName || "Al Wildan School Logistics");
+          setFromEmail(data.data.fromEmail || "logistics@alwildan.sch.id");
+        }
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/settings/smtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          host,
+          port,
+          secure,
+          username,
+          password: password || undefined,
+          fromName,
+          fromEmail,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Gagal menyimpan");
+      setMessage("Konfigurasi server SMTP berhasil disimpan.");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSendTest = async () => {
+    if (!testRecipient) {
+      alert("Masukkan alamat email tujuan uji coba");
+      return;
+    }
+    setIsTesting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/settings/smtp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientEmail: testRecipient }),
+      });
+      const data = await res.json();
+      setMessage(data.message);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center bg-white rounded-xl border border-[#E4E6EB] text-xs text-[#65676B]">
+        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-1 text-[#1877F2]" />
+        Memuat konfigurasi SMTP...
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-[#E4E6EB] p-6 shadow-xs space-y-6">
+      <div>
+        <h3 className="text-base font-bold text-[#050505]">Pengaturan Server Email SMTP</h3>
+        <p className="text-xs text-[#65676B] mt-0.5">
+          Digunakan untuk pengiriman otomatis notifikasi pesanan, konfirmasi pembayaran, dan serah terima buku ke orang tua murid.
+        </p>
+      </div>
+
+      {message && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-[#1877F2]" />
+          <span>{message}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSave} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label className="block font-semibold mb-1">Host Server SMTP</label>
+          <input
+            type="text"
+            required
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+            placeholder="smtp.gmail.com"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Port SMTP</label>
+          <input
+            type="number"
+            required
+            value={port}
+            onChange={(e) => setPort(parseInt(e.target.value) || 587)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Username / Email Akun</label>
+          <input
+            type="text"
+            required
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+            placeholder="admin@alwildan.sch.id"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Password SMTP / App Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+            placeholder="Kosongkan jika tidak ingin mengubah"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Nama Pengirim (From Name)</label>
+          <input
+            type="text"
+            required
+            value={fromName}
+            onChange={(e) => setFromName(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Email Pengirim (From Email)</label>
+          <input
+            type="email"
+            required
+            value={fromEmail}
+            onChange={(e) => setFromEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+          />
+        </div>
+
+        <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+          <input
+            type="checkbox"
+            id="secure"
+            checked={secure}
+            onChange={(e) => setSecure(e.target.checked)}
+            className="w-4 h-4 rounded text-[#1877F2]"
+          />
+          <label htmlFor="secure" className="font-semibold text-[#050505] cursor-pointer">
+            Gunakan Enkripsi TLS/SSL Aman (Biasanya untuk port 465)
+          </label>
+        </div>
+
+        <div className="sm:col-span-2 pt-2 flex justify-end">
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl font-semibold shadow-xs hover:bg-[#166FE5]"
+          >
+            {isSaving ? "Menyimpan..." : "Simpan Konfigurasi SMTP"}
+          </button>
+        </div>
+      </form>
+
+      {/* Test Email Section */}
+      <div className="border-t border-[#E4E6EB] pt-5">
+        <h4 className="text-xs font-bold text-[#050505] uppercase tracking-wider mb-2">
+          Uji Coba Pengiriman Email
+        </h4>
+        <div className="flex gap-2 max-w-md">
+          <input
+            type="email"
+            placeholder="Masukkan email penerima tes..."
+            value={testRecipient}
+            onChange={(e) => setTestRecipient(e.target.value)}
+            className="flex-1 px-3 py-2 border border-[#CED0D4] rounded-xl text-xs"
+          />
+          <button
+            type="button"
+            disabled={isTesting}
+            onClick={handleSendTest}
+            className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] font-semibold text-xs text-[#050505] rounded-xl"
+          >
+            {isTesting ? "Mengirim..." : "Kirim Email Tes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

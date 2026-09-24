@@ -7,6 +7,12 @@ import { bookItemsRouter } from "./routes/bookItems";
 import { shipmentsRouter } from "./routes/shipments";
 import { usersRouter } from "./routes/users";
 import { demoRouter } from "./routes/demo";
+import { packagesRouter } from "./routes/packages";
+import { publicOrdersRouter } from "./routes/public-orders";
+import { paymentsRouter } from "./routes/payments";
+import { studentOrdersRouter } from "./routes/student-orders";
+import { procurementRouter } from "./routes/procurement";
+import { settingsRouter } from "./routes/settings";
 import { auth } from "./auth";
 
 import { defaultStorage } from "../services/storage";
@@ -36,9 +42,15 @@ app.get("/api/media/*", async (c) => {
   return c.body(file.data as any);
 });
 
+app.route("/api/public/orders", publicOrdersRouter);
+app.route("/api/student-orders", studentOrdersRouter);
+app.route("/api/procurement", procurementRouter);
+app.route("/api/payments", paymentsRouter);
+app.route("/api/settings", settingsRouter);
 app.route("/api/schools", schoolsRouter);
 app.route("/api/books", booksRouter);
 app.route("/api/book-items", bookItemsRouter);
+app.route("/api/packages", packagesRouter);
 app.route("/api/shipments", shipmentsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/demo", demoRouter);
