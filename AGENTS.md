@@ -86,11 +86,12 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      - View besar → sub-komponen di `src/components/<fitur>/` + custom hook (`use<Fitur>`) + API layer (`<fitur>-api.ts`) + tipe bersama di `src/lib/<fitur>-types.ts`.
      - Route Hono besar → pindahkan logika bisnis ke `src/server/services/`, sisakan validasi + routing.
    - Pengecualian (tidak dihitung): `*.test.ts(x)`, `src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`.
+   - Utang lama: file yang sudah >300 baris sebelum gate ini ada terdaftar di `GRANDFATHERED` dalam `scripts/check-file-size.ts` (daftar ini hanya boleh menyusut). File tersebut boleh disentuh untuk wiring kecil, tetapi kode fitur **BARU** wajib tinggal di file baru yang patuh batas — contoh: tombol/badge baru di view lama wajib jadi sub-komponen di `src/components/<fitur>/`, bukan JSX inline tambahan.
    - Verifikasi otomatis (gagal = belum boleh selesai):
      ```bash
      bun run check:file-size
      ```
-     Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`). File lama yang tidak disentuh tidak memblokir, tapi sekali Anda menyentuhnya, file tersebut wajib ikut memenuhi batas.
+     Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`).
 
 ---
 

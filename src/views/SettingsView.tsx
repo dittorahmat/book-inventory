@@ -450,6 +450,14 @@ function SmtpSettingsSection() {
   const [password, setPassword] = useState("");
   const [fromName, setFromName] = useState("Al Wildan School Logistics");
   const [fromEmail, setFromEmail] = useState("logistics@alwildan.sch.id");
+  const [emailProvider, setEmailProvider] = useState<"auto" | "brevo" | "smtp">("auto");
+  const [brevoApiKey, setBrevoApiKey] = useState("");
+  const [transportBadge, setTransportBadge] = useState<{
+    provider: string;
+    smtpConfigured: boolean;
+    brevoConfigured: boolean;
+  } | null>(null);
+  const [lastTest, setLastTest] = useState<{ provider: string; simulated: boolean } | null>(null);
   const [testRecipient, setTestRecipient] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
@@ -460,15 +468,27 @@ function SmtpSettingsSection() {
   useEffect(() => {
     fetch("/api/settings/smtp")
       .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
+      .then((data) => {        if (data.success) {
           setHost(data.data.host || "smtp.gmail.com");
           setPort(data.data.port || 587);
           setSecure(data.data.secure || false);
           setUsername(data.data.username || "");
           setFromName(data.data.fromName || "Al Wildan School Logistics");
           setFromEmail(data.data.fromEmail || "logistics@alwildan.sch.id");
+          if (data.data.provider === "brevo" || data.data.provider === "smtp" || data.data.provider === "auto") {
+            setEmailProvider(data.data.provider);
+          }
+          setTransportBadge({
+            provider: data.data.provider || "auto",
+            smtpConfigured: Boolean(data.data.smtpConfigured),
+            brevoConfigured: Boolean(data.data.brevoConfigured),
+          });
+        } else {
+          setMessage(data.message || "Gagal memuat konfigurasi email.");
         }
+      })
+      .catch(() => {
+        setMessage("Gagal memuat konfigurasi email. Periksa koneksi Anda.");
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -489,13 +509,16 @@ function SmtpSettingsSection() {
           password: password || undefined,
           fromName,
           fromEmail,
+          emailProvider,
+          brevoApiKey: brevoApiKey || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || "Gagal menyimpan");
-      setMessage("Konfigurasi server SMTP berhasil disimpan.");
+      setBrevoApiKey("");
+      setMessage("Konfigurasi server email berhasil disimpan.");
     } catch (err: any) {
-      alert(err.message);
+      setMessage(err.message);
     } finally {
       setIsSaving(false);
     }
@@ -503,11 +526,12 @@ function SmtpSettingsSection() {
 
   const handleSendTest = async () => {
     if (!testRecipient) {
-      alert("Masukkan alamat email tujuan uji coba");
+      setMessage("Masukkan alamat email tujuan uji coba.");
       return;
     }
     setIsTesting(true);
     setMessage(null);
+    setLastTest(null);
     try {
       const res = await fetch("/api/settings/smtp/test", {
         method: "POST",
@@ -515,9 +539,14 @@ function SmtpSettingsSection() {
         body: JSON.stringify({ recipientEmail: testRecipient }),
       });
       const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Uji email gagal");
+      setLastTest({
+        provider: data.data?.provider || "?",
+        simulated: Boolean(data.data?.simulated),
+      });
       setMessage(data.message);
     } catch (err: any) {
-      alert(err.message);
+      setMessage(err.message);
     } finally {
       setIsTesting(false);
     }
@@ -539,6 +568,23 @@ function SmtpSettingsSection() {
         <p className="text-xs text-[#65676B] mt-0.5">
           Digunakan untuk pengiriman otomatis notifikasi pesanan, konfirmasi pembayaran, dan serah terima buku ke orang tua murid.
         </p>
+        {transportBadge && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+            <span className="text-[10px] font-bold text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-full uppercase tracking-wider">
+              {transportBadge.provider === "brevo"
+                ? "API HTTP (Brevo)"
+                : transportBadge.provider === "smtp"
+                  ? "SMTP"
+                  : "Otomatis"}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${transportBadge.smtpConfigured ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-[#65676B] bg-[#F0F2F5]"}`}>
+              SMTP {transportBadge.smtpConfigured ? "Terisi" : "Kosong"}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${transportBadge.brevoConfigured ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-[#65676B] bg-[#F0F2F5]"}`}>
+              Brevo {transportBadge.brevoConfigured ? "Terisi" : "Kosong"}
+            </span>
+          </div>
+        )}
       </div>
 
       {message && (
@@ -617,6 +663,30 @@ function SmtpSettingsSection() {
           />
         </div>
 
+        <div>
+          <label className="block font-semibold mb-1">Provider Pengiriman</label>
+          <select
+            value={emailProvider}
+            onChange={(e) => setEmailProvider(e.target.value as "auto" | "brevo" | "smtp")}
+            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl"
+          >
+            <option value="auto">Otomatis (SMTP di lokal, API di Workers)</option>
+            <option value="brevo">API HTTP (Brevo)</option>
+            <option value="smtp">SMTP</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">Brevo API Key</label>
+          <input
+            type="password"
+            value={brevoApiKey}
+            onChange={(e) => setBrevoApiKey(e.target.value)}
+            className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+            placeholder="xkeysib-... (kosongkan bila tidak diubah)"
+          />
+        </div>
+
         <div className="sm:col-span-2 flex items-center gap-2 pt-1">
           <input
             type="checkbox"
@@ -634,9 +704,9 @@ function SmtpSettingsSection() {
           <button
             type="submit"
             disabled={isSaving}
-            className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl font-semibold shadow-xs hover:bg-[#166FE5]"
+            className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl font-semibold shadow-xs hover:bg-[#166FE5] active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            {isSaving ? "Menyimpan..." : "Simpan Konfigurasi SMTP"}
+            {isSaving ? "Menyimpan..." : "Simpan Konfigurasi"}
           </button>
         </div>
       </form>
@@ -646,6 +716,13 @@ function SmtpSettingsSection() {
         <h4 className="text-xs font-bold text-[#050505] uppercase tracking-wider mb-2">
           Uji Coba Pengiriman Email
         </h4>
+        {lastTest && (
+          <div className="mb-2">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${lastTest.simulated ? "text-amber-700 bg-amber-50 border border-amber-200" : "text-emerald-700 bg-emerald-50 border border-emerald-200"}`}>
+              Uji via {lastTest.provider} — {lastTest.simulated ? "Simulasi" : "Terkirim"}
+            </span>
+          </div>
+        )}
         <div className="flex gap-2 max-w-md">
           <input
             type="email"
@@ -658,9 +735,9 @@ function SmtpSettingsSection() {
             type="button"
             disabled={isTesting}
             onClick={handleSendTest}
-            className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] font-semibold text-xs text-[#050505] rounded-xl"
+            className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] transition-all font-semibold text-xs text-[#050505] rounded-xl disabled:opacity-50"
           >
-            {isTesting ? "Mengirim..." : "Kirim Email Tes"}
+            {isTesting ? "Mengirim..." : "Kirim Tes"}
           </button>
         </div>
       </div>

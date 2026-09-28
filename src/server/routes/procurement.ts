@@ -4,7 +4,8 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, bookItems, schools } from "../../db/schema";
-
+import { sendPurchaseOrderEmail } from "../services/po-delivery";
+import type { EmailRuntimeEnv } from "../services/email";
 export const procurementRouter = new Hono();
 
 const createSupplierSchema = z.object({
@@ -80,6 +81,7 @@ procurementRouter.get("/purchase-orders", async (c) => {
       poNumber: purchaseOrders.poNumber,
       supplierId: purchaseOrders.supplierId,
       supplierName: suppliers.name,
+      supplierEmail: suppliers.email,
       targetSchoolId: purchaseOrders.targetSchoolId,
       schoolName: schools.name,
       status: purchaseOrders.status,
@@ -87,6 +89,8 @@ procurementRouter.get("/purchase-orders", async (c) => {
       expectedArrivalDate: purchaseOrders.expectedArrivalDate,
       totalAmount: purchaseOrders.totalAmount,
       notes: purchaseOrders.notes,
+      sentAt: purchaseOrders.sentAt,
+      sentTo: purchaseOrders.sentTo,
       createdAt: purchaseOrders.createdAt,
     })
     .from(purchaseOrders)
@@ -227,5 +231,35 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
       status: newStatus,
       totalReceivedThisBatch,
     },
+  });
+});
+
+// 5. POST Send Purchase Order to supplier email (with delivery trail)
+procurementRouter.post("/purchase-orders/:id/send", async (c) => {
+  const outcome = await sendPurchaseOrderEmail(
+    c.req.param("id"),
+    c.env as unknown as EmailRuntimeEnv | undefined
+  );
+
+  if (outcome.kind === "error") {
+    return c.json(
+      { success: false, message: outcome.message, data: { provider: outcome.provider } },
+      outcome.httpStatus
+    );
+  }
+
+  if (outcome.kind === "simulated") {
+    return c.json({
+      success: true,
+      simulated: true,
+      message: `PO ${outcome.poNumber} hanya disimulasikan ke ${outcome.sentTo} dan TIDAK benar-benar terkirim. ${outcome.detail}`,
+      data: outcome,
+    });
+  }
+
+  return c.json({
+    success: true,
+    message: `PO ${outcome.poNumber} terkirim via ${outcome.provider} ke ${outcome.sentTo}`,
+    data: outcome,
   });
 });

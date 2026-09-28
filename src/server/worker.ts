@@ -8,6 +8,17 @@ type Bindings = {
   DB: any;
   BUCKET: any;
   ASSETS: { fetch: typeof fetch };
+  // Email transport secrets (dibaca layer email via c.env, lihat services/email/*)
+  EMAIL_PROVIDER?: string;
+  BREVO_API_KEY?: string;
+  BREVO_API_URL?: string;
+  SMTP_HOST?: string;
+  SMTP_PORT?: string;
+  SMTP_SECURE?: string;
+  SMTP_USER?: string;
+  SMTP_PASS?: string;
+  SMTP_FROM_NAME?: string;
+  SMTP_FROM_EMAIL?: string;
 };
 
 const worker = new Hono<{ Bindings: Bindings }>();

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { School, Book } from "../types";
+import { PoSendAction } from "../components/procurement/PoSendAction";
 import { 
   Search, 
   RefreshCw, 
@@ -42,11 +43,14 @@ interface PurchaseOrder {
   supplierName: string;
   targetSchoolId: string;
   schoolName: string;
-  status: "draft" | "ordered" | "partially_received" | "received" | "cancelled";
+  status: "draft" | "ordered" | "sent" | "partially_received" | "received" | "cancelled";
   orderDate: string;
   expectedArrivalDate?: string;
   totalAmount: number;
   notes?: string;
+  supplierEmail?: string;
+  sentAt?: string;
+  sentTo?: string;
   items: PurchaseOrderItem[];
 }
 
@@ -420,10 +424,11 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           <span className="text-[11px] font-semibold text-[#65676B] mr-1 hidden sm:inline">Status:</span>
-          {(["all", "ordered", "partially_received", "received"] as const).map((st) => {
+          {(["all", "ordered", "sent", "partially_received", "received"] as const).map((st) => {
             const labels: Record<string, string> = {
               all: "Semua Status",
               ordered: "Dipesan",
+              sent: "Terkirim",
               partially_received: "Sebagian",
               received: "Selesai",
             };
@@ -526,6 +531,11 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                               ORDERED (DIPESAN)
                             </span>
                           )}
+                          {po.status === "sent" && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
+                              TERKIRIM KE SUPPLIER
+                            </span>
+                          )}
                           {po.status === "partially_received" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-block">
                               SEBAGIAN MASUK
@@ -551,19 +561,22 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        {!isFullyReceived ? (
-                          <button
-                            onClick={() => handleOpenReceive(po)}
-                            className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
-                          >
-                            <PackageCheck className="w-3.5 h-3.5" />
-                            <span>Terima Inbound</span>
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Masuk Stok
-                          </span>
-                        )}
+                        <div className="flex flex-col items-end gap-2">
+                          <PoSendAction po={po} onSent={loadData} />
+                          {!isFullyReceived ? (
+                            <button
+                              onClick={() => handleOpenReceive(po)}
+                              className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            >
+                              <PackageCheck className="w-3.5 h-3.5" />
+                              <span>Terima Inbound</span>
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Masuk Stok
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
