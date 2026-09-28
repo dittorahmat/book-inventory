@@ -41,15 +41,18 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
 
 ---
 
-### Skenario 1: Portal Orang Tua — Pemesanan Murid Naik Kelas & Pembayaran Cicilan
+### Skenario 1: Portal Orang Tua — Pemesanan Terkunci & Pembayaran Cicilan
+
+*Flow baru: paket buku terkunci otomatis mengikuti Kelas + Kurikulum siswa. Orang tua tidak memilih paket manual — layar paket menampilkan rincian isi buku.*
 
 1. Buka halaman utama aplikasi (Portal Publik).
 2. Di formulir pencarian murid:
-   - Ketik nama: `Hendra` atau `Wahyudi` (atau NIS `2024101001`).
+   - Ketik nama: `Hendra` (atau NIS `2024101001`).
    - Klik **Cari Data**.
-   - Sistem mendeteksi otomatis: **Hendra Wahyudi &bull; Naik ke Kelas 2**.
+   - Hasil langsung menampilkan: **Hendra Wahyudi &bull; NIS 2024101001 &bull; Kelas 1 &rarr; Naik ke Kelas 2 &bull; Internasional**.
 3. Klik tombol **Pilih**:
-   - Sistem otomatis memilih **Paket Kelas 2 SD Internasional (Cambridge)** seharga **Rp 1.950.000**.
+   - Sistem langsung mengunci **1 paket**: **Paket Kelas 2 SD Internasional (Cambridge)** seharga **Rp 1.950.000**. Tidak ada daftar paket lain yang bisa diklik.
+   - Layar menampilkan rincian isi paket (8 buku: Cambridge Mathematics 2, Science 2, English 2, PAI 2, Bahasa Indonesia, PPKN, Bahasa Arab, Tahfidz + qty masing-masing).
 4. Klik **Lanjut ke Pembayaran**:
    - Pilih tab **Jalur Reguler**.
    - Pilih opsi pembayaran: **Cicilan (Parsial)**.
@@ -59,6 +62,22 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
    - Unggah foto struk transfer.
 5. Klik **Konfirmasi & Kirim Pesanan**:
    - Sistem menampilkan halaman sukses dengan **Nomor Pesanan** (contoh: `ORD-xxxxxx`).
+
+### Skenario 1b: Portal Orang Tua — Jalur Nasional & Empty State Paket
+
+*Menunjukkan matriks demo Kelas x Kurikulum dan kasus paket belum tersedia.*
+
+1. Di Portal Publik, cari murid nasional naik kelas:
+   - Ketik nama: `Bimo` (atau NIS `2024101006`).
+   - Hasil menampilkan: **Bimo Aditya Saputra &bull; Kelas 1 &rarr; Naik ke Kelas 2 &bull; Nasional**.
+   - Klik **Pilih** &rarr; paket terkunci: **Paket Kelas 2 SD Nasional Plus** seharga **Rp 1.050.000** beserta rincian 4 bukunya.
+2. Kembali (klik **Ubah Murid**), cari murid aktif Kelas 2:
+   - Ketik `Kayla` (Internasional, NIS `2024101005`) &rarr; terkunci Paket Kelas 2 Internasional.
+   - Ketik `Salsa` (Nasional, NIS `2024101007`) &rarr; terkunci Paket Kelas 2 Nasional.
+3. Demo empty state (paket belum diterbitkan):
+   - Ketik nama: `Raka` (atau NIS `2024101008`).
+   - Hasil menampilkan: **Raka Pradipta &bull; Kelas 2 &rarr; Naik ke Kelas 3 &bull; Internasional**.
+   - Klik **Pilih** &rarr; layar menampilkan **"Paket Belum Tersedia — Silakan hubungi admin sekolah"** tanpa tombol lanjut pembayaran. Hanya ada tombol **Ubah Murid**.
 
 ---
 
@@ -74,7 +93,7 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
    - Kurikulum: `Internasional (Cambridge)`.
    - Nama Orang Tua: `Faris Abdullah`, Email: `faris@example.com`, No. WA: `081234567890`.
    - Klik **Lanjutkan Pilih Paket**.
-3. Pilih **Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)** (Normal: Rp 1.850.000).
+3. Sistem langsung mengunci **Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)** (Normal: Rp 1.850.000) beserta rincian 8 bukunya — tanpa perlu memilih manual.
 4. Klik **Lanjut ke Pembayaran**:
    - Pilih opsi: **Jalur Beasiswa (Diskon 100%)**.
    - Total tagihan menjadi **Rp 0**.

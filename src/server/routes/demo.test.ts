@@ -14,8 +14,8 @@ describe("Revamped Demo Seeding API", () => {
     expect(json.success).toBe(true);
     expect(json.data.schoolsSeeded).toBe(4);
     expect(json.data.booksSeeded).toBe(12);
-    expect(json.data.packagesSeeded).toBe(3);
-    expect(json.data.studentsSeeded).toBe(4);
+    expect(json.data.packagesSeeded).toBe(4);
+    expect(json.data.studentsSeeded).toBe(8);
 
     // 1. Verify Al Wildan HQ
     const [hq] = await db.select().from(schools).where(eq(schools.id, "school-alw-1"));

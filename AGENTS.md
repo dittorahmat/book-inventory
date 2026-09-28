@@ -81,8 +81,16 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      - Pastikan kontras teks memenuhi standar aksesibilitas WCAG AA (minimal rasio 4.5:1 untuk teks normal). Dilarang teks abu-abu pudar di atas background abu-abu terang.
      - Terapkan full interactive UI states di setiap formulir: Loading spinner/skeleton, status kosong (*empty state*) yang edukatif, dan pesan error inline yang eksplisit.
 
-7. **Code Maintainability & Refactor Trigger**
-   - Jika ukuran file kode melebihi ~250–300 baris atau komponen memikul terlalu banyak tanggung jawab, segera pertimbangkan untuk refactor ke modul, utility, atau sub-komponen terpisah.
+7. **Code Maintainability & File-Size Gate (WAJIB)**
+   - Setiap file sumber di `src/**/*.ts(x)` **WAJIB** maksimal **300 baris**. Jika file yang Anda ubah melebihi batas, Anda **WAJIB** memecahnya sebelum lapor selesai:
+     - View besar → sub-komponen di `src/components/<fitur>/` + custom hook (`use<Fitur>`) + API layer (`<fitur>-api.ts`) + tipe bersama di `src/lib/<fitur>-types.ts`.
+     - Route Hono besar → pindahkan logika bisnis ke `src/server/services/`, sisakan validasi + routing.
+   - Pengecualian (tidak dihitung): `*.test.ts(x)`, `src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`.
+   - Verifikasi otomatis (gagal = belum boleh selesai):
+     ```bash
+     bun run check:file-size
+     ```
+     Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`). File lama yang tidak disentuh tidak memblokir, tapi sekali Anda menyentuhnya, file tersebut wajib ikut memenuhi batas.
 
 ---
 

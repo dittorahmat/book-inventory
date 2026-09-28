@@ -1,3 +1,10 @@
+-- 0. Schools (4 Al Wildan Campuses, required for student search JOIN)
+INSERT OR IGNORE INTO schools (id, name, code, type, address, phone, created_at, updated_at) VALUES
+('school-alw-1', 'Al Wildan 1 (Islamic School Pusat)', 'ALW-01-HQ', 'main', 'Jl. Boulevard Al Wildan No. 1, Tangerang Selatan', '+62 21 5550101', datetime('now'), datetime('now')),
+('school-alw-2', 'Al Wildan 2 (Islamic School)', 'ALW-02', 'branch', 'Jl. Pendidikan Barat No. 12, Bekasi', '+62 21 5550102', datetime('now'), datetime('now')),
+('school-alw-3', 'Al Wildan 3 (Islamic School)', 'ALW-03', 'branch', 'Jl. KH. Hasyim Asyari No. 88, Tangerang', '+62 21 5550103', datetime('now'), datetime('now')),
+('school-alw-4', 'Al Wildan 4 (Islamic School)', 'ALW-04', 'branch', 'Jl. Raya Ciater No. 45, BSD City', '+62 21 5550104', datetime('now'), datetime('now'));
+
 -- 1. Master Books
 INSERT OR IGNORE INTO books (id, isbn, title, author, publisher, category, publish_year, created_at, updated_at) VALUES
 ('b-math-1', '978-1108746489', 'Cambridge Primary Mathematics Learner''s Book 1', 'Cherri Moseley', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
@@ -17,7 +24,8 @@ INSERT OR IGNORE INTO books (id, isbn, title, author, publisher, category, publi
 INSERT OR IGNORE INTO book_packages (id, code, name, grade_level, curriculum_type, academic_year, price, description, created_at, updated_at) VALUES
 ('pkg-sd1-int', 'PKG-SD1-INT', 'Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)', '1', 'international', '2026/2027', 1850000, 'Paket lengkap 8 buku Cambridge + PAI + Bahasa Arab + Tahfidz.', datetime('now'), datetime('now')),
 ('pkg-sd1-nas', 'PKG-SD1-NAS', 'Paket Kelas 1 SD Nasional Plus', '1', 'national', '2026/2027', 950000, 'Paket kurikulum nasional terpadu dengan penguatan PAI dan Tahfidz.', datetime('now'), datetime('now')),
-('pkg-sd2-int', 'PKG-SD2-INT', 'Paket Kelas 2 SD Internasional (Cambridge)', '2', 'international', '2026/2027', 1950000, 'Paket lanjutan Cambridge Mathematics, Science, English, dan PAI Kelas 2.', datetime('now'), datetime('now'));
+('pkg-sd2-int', 'PKG-SD2-INT', 'Paket Kelas 2 SD Internasional (Cambridge)', '2', 'international', '2026/2027', 1950000, 'Paket lanjutan Cambridge Mathematics, Science, English, dan PAI Kelas 2.', datetime('now'), datetime('now')),
+('pkg-sd2-nas', 'PKG-SD2-NAS', 'Paket Kelas 2 SD Nasional Plus', '2', 'national', '2026/2027', 1050000, 'Paket lanjutan kurikulum nasional Kelas 2 dengan penguatan PAI dan Tahfidz.', datetime('now'), datetime('now'));
 
 -- 3. Package BOM Components
 INSERT OR IGNORE INTO book_package_items (id, package_id, book_id, quantity, created_at) VALUES
@@ -32,7 +40,19 @@ INSERT OR IGNORE INTO book_package_items (id, package_id, book_id, quantity, cre
 ('bom-sd1nas-b-pai-1', 'pkg-sd1-nas', 'b-pai-1', 1, datetime('now')),
 ('bom-sd1nas-b-bindo-1', 'pkg-sd1-nas', 'b-bindo-1', 1, datetime('now')),
 ('bom-sd1nas-b-ppkn-1', 'pkg-sd1-nas', 'b-ppkn-1', 1, datetime('now')),
-('bom-sd1nas-b-tahfidz-1', 'pkg-sd1-nas', 'b-tahfidz-1', 1, datetime('now'));
+('bom-sd1nas-b-tahfidz-1', 'pkg-sd1-nas', 'b-tahfidz-1', 1, datetime('now')),
+('bom-sd2int-b-math-2', 'pkg-sd2-int', 'b-math-2', 1, datetime('now')),
+('bom-sd2int-b-sci-2', 'pkg-sd2-int', 'b-sci-2', 1, datetime('now')),
+('bom-sd2int-b-eng-2', 'pkg-sd2-int', 'b-eng-2', 1, datetime('now')),
+('bom-sd2int-b-pai-2', 'pkg-sd2-int', 'b-pai-2', 1, datetime('now')),
+('bom-sd2int-b-bindo-1', 'pkg-sd2-int', 'b-bindo-1', 1, datetime('now')),
+('bom-sd2int-b-ppkn-1', 'pkg-sd2-int', 'b-ppkn-1', 1, datetime('now')),
+('bom-sd2int-b-arab-1', 'pkg-sd2-int', 'b-arab-1', 1, datetime('now')),
+('bom-sd2int-b-tahfidz-1', 'pkg-sd2-int', 'b-tahfidz-1', 1, datetime('now')),
+('bom-sd2nas-b-pai-2', 'pkg-sd2-nas', 'b-pai-2', 1, datetime('now')),
+('bom-sd2nas-b-bindo-1', 'pkg-sd2-nas', 'b-bindo-1', 1, datetime('now')),
+('bom-sd2nas-b-ppkn-1', 'pkg-sd2-nas', 'b-ppkn-1', 1, datetime('now')),
+('bom-sd2nas-b-tahfidz-1', 'pkg-sd2-nas', 'b-tahfidz-1', 1, datetime('now'));
 
 -- 4. Ready Package Items (Bundles in Stock)
 INSERT OR IGNORE INTO package_items (id, package_id, current_school_id, barcode, status, notes, created_at, updated_at) VALUES
@@ -47,7 +67,11 @@ INSERT OR IGNORE INTO students (id, school_id, nis, name, gender, grade_level, c
 ('std-hendra-1', 'school-alw-1', '2024101001', 'Hendra Wahyudi', 'male', '1', 'international', '2025/2026', 'Drs. Wahyudi Pratama', 'wahyudi.pratama@gmail.com', '+6281234567890', 'promoted', 0, datetime('now'), datetime('now')),
 ('std-aisyah-2', 'school-alw-1', '2024101002', 'Aisyah Nur Salsabila', 'female', '1', 'international', '2026/2027', 'Ir. Bambang Trihatmojo', 'bambang.tri@gmail.com', '+6281298765432', 'active', 0, datetime('now'), datetime('now')),
 ('std-farhan-3', 'school-alw-1', '2024101003', 'Muhammad Farhan Al-Ghifari', 'male', '1', 'international', '2026/2027', 'Ustadz Ghifari', 'ghifari.al@gmail.com', '+6281311223344', 'active', 1, datetime('now'), datetime('now')),
-('std-nathan-4', 'school-alw-1', '2024101004', 'Nathaniel Arya', 'male', '1', 'national', '2026/2027', 'Dewi Sartika', 'dewi.sartika@gmail.com', '+6281555667788', 'active', 0, datetime('now'), datetime('now'));
+('std-nathan-4', 'school-alw-1', '2024101004', 'Nathaniel Arya', 'male', '1', 'national', '2026/2027', 'Dewi Sartika', 'dewi.sartika@gmail.com', '+6281555667788', 'active', 0, datetime('now'), datetime('now')),
+('std-kayla-5', 'school-alw-1', '2024101005', 'Kayla Putri Ramadhani', 'female', '2', 'international', '2026/2027', 'Hj. Ramadhani', 'ramadhani.ibu@gmail.com', '+6281777888999', 'active', 0, datetime('now'), datetime('now')),
+('std-bimo-6', 'school-alw-1', '2024101006', 'Bimo Aditya Saputra', 'male', '1', 'national', '2025/2026', 'Aditya Saputra', 'aditya.saputra@gmail.com', '+6281888999000', 'promoted', 0, datetime('now'), datetime('now')),
+('std-salsa-7', 'school-alw-1', '2024101007', 'Salsabila Zahra', 'female', '2', 'national', '2026/2027', 'Fatimah Zahra', 'fatimah.zahra@gmail.com', '+6281999000111', 'active', 0, datetime('now'), datetime('now')),
+('std-raka-8', 'school-alw-1', '2024101008', 'Raka Pradipta', 'male', '2', 'international', '2025/2026', 'Pradipta Wijaya', 'pradipta.w@gmail.com', '+6281000111222', 'promoted', 0, datetime('now'), datetime('now'));
 
 -- 6. Student Book Orders & Payments & Returns
 INSERT OR IGNORE INTO student_book_orders (id, order_number, student_id, school_id, package_id, order_type, payment_status, fulfillment_status, total_amount, paid_amount, handover_delivery_number, handover_date, handover_recipient, notes, created_at, updated_at) VALUES

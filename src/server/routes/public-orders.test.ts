@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { publicOrdersRouter } from "./public-orders";
 import { db } from "../../db";
 import { schools, students, bookPackages } from "../../db/schema";
@@ -142,5 +143,100 @@ describe("Public Orders & Student Search API", () => {
     const returnJson = await returnSubmitRes.json();
     expect(returnJson.success).toBe(true);
     expect(returnJson.data.status).toBe("reported");
+  });
+
+  it("search exposes grade+curriculum for locked package matching with seeded string IDs", async () => {
+    const stamp = Date.now();
+    // Custom seeded string IDs (slug style, NOT uuid) must be accepted everywhere
+    const schoolId = `school-lock-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Lock Test",
+      code: `ALW-LOCK-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const promotedNasId = `std-lock-bimo-${stamp}`;
+    await db.insert(students).values({
+      id: promotedNasId,
+      schoolId,
+      nis: `LOCK${String(stamp).slice(-6)}`,
+      name: `Bimo Lock ${stamp}`,
+      gradeLevel: "1",
+      curriculumType: "national",
+      academicYear: "2025/2026",
+      status: "promoted", // Naik ke Kelas 2 Nasional -> kunci paket NAS
+      parentName: "Ortu Bimo",
+      parentEmail: "bimo.lock@example.com",
+      parentPhone: "+628100000001",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const searchRes = await publicOrdersRouter.request(
+      `/search-students?query=${encodeURIComponent(`Bimo Lock ${stamp}`)}&schoolId=${schoolId}`,
+      { method: "GET" }
+    );
+    expect(searchRes.status).toBe(200);
+    const searchJson = await searchRes.json();
+    const found = searchJson.data.find((s: any) => s.id === promotedNasId);
+    expect(found).toBeDefined();
+    // Fields required by the locked-package UI
+    expect(found.gradeLevel).toBe("1");
+    expect(found.curriculumType).toBe("national");
+    expect(found.currentGradeLevel).toBe("1");
+    expect(found.targetGradeLevel).toBe("2");
+    expect(found.detectedStatus).toBe("naik_kelas");
+  });
+
+  it("empty-state precondition: promoted student may target a grade with no package", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-empty-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Empty Test",
+      code: `ALW-EMPTY-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const rakaId = `std-lock-raka-${stamp}`;
+    await db.insert(students).values({
+      id: rakaId,
+      schoolId,
+      nis: `EMPTY${String(stamp).slice(-6)}`,
+      name: `Raka Empty ${stamp}`,
+      gradeLevel: "98",
+      curriculumType: "international",
+      academicYear: "2025/2026",
+      status: "promoted", // Target Kelas 99 -> tidak ada paket
+      parentName: "Ortu Raka",
+      parentEmail: "raka.empty@example.com",
+      parentPhone: "+628100000002",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const searchRes = await publicOrdersRouter.request(
+      `/search-students?query=${encodeURIComponent(`Raka Empty ${stamp}`)}&schoolId=${schoolId}`,
+      { method: "GET" }
+    );
+    expect(searchRes.status).toBe(200);
+    const searchJson = await searchRes.json();
+    const found = searchJson.data.find((s: any) => s.id === rakaId);
+    expect(found?.targetGradeLevel).toBe("99");
+
+    const pkgs = await db
+      .select()
+      .from(bookPackages)
+      .where(eq(bookPackages.gradeLevel, "99"));
+    expect(pkgs.length).toBe(0);
   });
 });

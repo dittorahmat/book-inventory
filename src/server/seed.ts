@@ -132,8 +132,7 @@ export async function runIdempotentSeed(customDb?: any) {
     }
   }
 
-  // 3. Check if books already exist
-  const existingBooks = await targetDb.select().from(books);
+  // 3. Master Books (upsert idempotent, lihat blok di bawah)
   const bookList = [
     { id: "b-math-1", isbn: "978-1108746489", title: "Cambridge Primary Mathematics Learner's Book 1", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
     { id: "b-sci-1", isbn: "978-1108742726", title: "Cambridge Primary Science Learner's Book 1", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
@@ -149,17 +148,15 @@ export async function runIdempotentSeed(customDb?: any) {
     { id: "b-pai-2", isbn: "978-6022445036", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 2", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022 },
   ];
 
-  if (existingBooks.length === 0) {
-    for (const b of bookList) {
-      await targetDb
-        .insert(books)
-        .values({ ...b, createdAt: now, updatedAt: now })
-        .onConflictDoNothing();
-    }
+  // Upsert idempotent agar buku demo baru (mis. Kelas 2) masuk ke DB lama juga
+  for (const b of bookList) {
+    await targetDb
+      .insert(books)
+      .values({ ...b, createdAt: now, updatedAt: now })
+      .onConflictDoNothing();
   }
 
-  // 4. Check if Packages already exist
-  const existingPackages = await targetDb.select().from(bookPackages);
+  // 4. Packages (upsert idempotent agar paket demo baru masuk ke DB lama juga)
   const packageData = [
     {
       id: "pkg-sd1-int",
@@ -191,16 +188,26 @@ export async function runIdempotentSeed(customDb?: any) {
       price: 1950000,
       description: "Paket lanjutan Cambridge Mathematics, Science, English, dan PAI Kelas 2.",
     },
+    {
+      id: "pkg-sd2-nas",
+      code: "PKG-SD2-NAS",
+      name: "Paket Kelas 2 SD Nasional Plus",
+      gradeLevel: "2",
+      curriculumType: "national" as const,
+      academicYear: "2026/2027",
+      price: 1050000,
+      description: "Paket lanjutan kurikulum nasional Kelas 2 dengan penguatan PAI dan Tahfidz Quran.",
+    },
   ];
 
-  if (existingPackages.length === 0) {
-    for (const p of packageData) {
-      await targetDb
-        .insert(bookPackages)
-        .values({ ...p, createdAt: now, updatedAt: now })
-        .onConflictDoNothing();
-    }
+  for (const p of packageData) {
+    await targetDb
+      .insert(bookPackages)
+      .values({ ...p, createdAt: now, updatedAt: now })
+      .onConflictDoNothing();
+  }
 
+  {
     // BOM Components for PKG-SD1-INT (8 books)
     const bomSd1Int = ["b-math-1", "b-sci-1", "b-eng-1", "b-pai-1", "b-bindo-1", "b-ppkn-1", "b-arab-1", "b-tahfidz-1"];
     for (const bId of bomSd1Int) {
@@ -219,6 +226,30 @@ export async function runIdempotentSeed(customDb?: any) {
       await targetDb.insert(bookPackageItems).values({
         id: `bom-sd1nas-${bId}`,
         packageId: "pkg-sd1-nas",
+        bookId: bId,
+        quantity: 1,
+        createdAt: now,
+      }).onConflictDoNothing();
+    }
+
+    // BOM Components for PKG-SD2-INT (8 books)
+    const bomSd2Int = ["b-math-2", "b-sci-2", "b-eng-2", "b-pai-2", "b-bindo-1", "b-ppkn-1", "b-arab-1", "b-tahfidz-1"];
+    for (const bId of bomSd2Int) {
+      await targetDb.insert(bookPackageItems).values({
+        id: `bom-sd2int-${bId}`,
+        packageId: "pkg-sd2-int",
+        bookId: bId,
+        quantity: 1,
+        createdAt: now,
+      }).onConflictDoNothing();
+    }
+
+    // BOM Components for PKG-SD2-NAS (4 books)
+    const bomSd2Nas = ["b-pai-2", "b-bindo-1", "b-ppkn-1", "b-tahfidz-1"];
+    for (const bId of bomSd2Nas) {
+      await targetDb.insert(bookPackageItems).values({
+        id: `bom-sd2nas-${bId}`,
+        packageId: "pkg-sd2-nas",
         bookId: bId,
         quantity: 1,
         createdAt: now,
@@ -263,9 +294,8 @@ export async function runIdempotentSeed(customDb?: any) {
     }
   }
 
-  // 7. Students (Lama naik kelas, reguler, dan beasiswa)
-  const existingStudents = await targetDb.select().from(students);
-  if (existingStudents.length === 0) {
+  // 7. Students (upsert idempotent agar siswa demo baru masuk ke DB lama juga)
+  {
     const studentData = [
       {
         id: "std-hendra-1",
@@ -325,6 +355,66 @@ export async function runIdempotentSeed(customDb?: any) {
         parentEmail: "dewi.sartika@gmail.com",
         parentPhone: "+6281555667788",
         status: "active" as const,
+        isScholarship: false,
+      },
+      {
+        id: "std-kayla-5",
+        schoolId: "school-alw-1",
+        nis: "2024101005",
+        name: "Kayla Putri Ramadhani",
+        gender: "female" as const,
+        gradeLevel: "2",
+        curriculumType: "international" as const,
+        academicYear: "2026/2027",
+        parentName: "Hj. Ramadhani",
+        parentEmail: "ramadhani.ibu@gmail.com",
+        parentPhone: "+6281777888999",
+        status: "active" as const, // Tetap Kelas 2 Internasional
+        isScholarship: false,
+      },
+      {
+        id: "std-bimo-6",
+        schoolId: "school-alw-1",
+        nis: "2024101006",
+        name: "Bimo Aditya Saputra",
+        gender: "male" as const,
+        gradeLevel: "1",
+        curriculumType: "national" as const,
+        academicYear: "2025/2026",
+        parentName: "Aditya Saputra",
+        parentEmail: "aditya.saputra@gmail.com",
+        parentPhone: "+6281888999000",
+        status: "promoted" as const, // Naik ke Kelas 2 Nasional
+        isScholarship: false,
+      },
+      {
+        id: "std-salsa-7",
+        schoolId: "school-alw-1",
+        nis: "2024101007",
+        name: "Salsabila Zahra",
+        gender: "female" as const,
+        gradeLevel: "2",
+        curriculumType: "national" as const,
+        academicYear: "2026/2027",
+        parentName: "Fatimah Zahra",
+        parentEmail: "fatimah.zahra@gmail.com",
+        parentPhone: "+6281999000111",
+        status: "active" as const, // Tetap Kelas 2 Nasional
+        isScholarship: false,
+      },
+      {
+        id: "std-raka-8",
+        schoolId: "school-alw-1",
+        nis: "2024101008",
+        name: "Raka Pradipta",
+        gender: "male" as const,
+        gradeLevel: "2",
+        curriculumType: "international" as const,
+        academicYear: "2025/2026",
+        parentName: "Pradipta Wijaya",
+        parentEmail: "pradipta.w@gmail.com",
+        parentPhone: "+6281000111222",
+        status: "promoted" as const, // Naik ke Kelas 3 (paket belum ada -> empty state)
         isScholarship: false,
       },
     ];
@@ -527,7 +617,7 @@ export async function runIdempotentSeed(customDb?: any) {
       usersSeeded: demoUsers.length,
       booksSeeded: bookList.length,
       packagesSeeded: packageData.length,
-      studentsSeeded: 4,
+      studentsSeeded: 8,
     },
   };
 }
