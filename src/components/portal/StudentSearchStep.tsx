@@ -1,4 +1,5 @@
 import { Search, UserCheck, UserPlus, ArrowRight } from "lucide-react";
+import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -56,6 +57,7 @@ export function StudentSearchStep({
               <input
                 type="text"
                 required
+                id={PORTAL_STUDENT_SEARCH_INPUT_ID}
                 placeholder="Ketik NIS atau potongan nama siswa..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

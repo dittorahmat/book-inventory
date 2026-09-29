@@ -2,6 +2,7 @@ import { BookOpen, RotateCcw, AlertCircle, Clock } from "lucide-react";
 import { usePublicOrder } from "../components/portal/usePublicOrder";
 import { useReturnFlow } from "../components/portal/useReturnFlow";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
+import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal";
 import { LockedPackageStep } from "../components/portal/LockedPackageStep";
 import { PaymentStep } from "../components/portal/PaymentStep";
 import { OrderSuccessStep } from "../components/portal/OrderSuccessStep";
@@ -59,6 +60,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
               onClick={() => {
                 setActivePortalTab("order");
                 setErrorMessage(null);
+                order.cancelNoResult();
               }}
               className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                 activePortalTab === "order"
@@ -74,6 +76,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
               onClick={() => {
                 setActivePortalTab("return");
                 setErrorMessage(null);
+                order.cancelNoResult();
               }}
               className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                 activePortalTab === "return"
@@ -170,6 +173,14 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                 onSearch={order.handleSearch}
                 onSelectStudent={order.handleSelectStudent}
                 onRegister={order.handleRegisterNewStudent}
+              />
+            )}
+            {step === 1 && !order.verificationPending && order.pendingNoResult && (
+              <NoResultConfirmModal
+                query={order.pendingNoResult}
+                onConfirm={order.confirmCreateNewStudent}
+                onEditKeyword={order.editNoResultKeyword}
+                onCancel={order.cancelNoResult}
               />
             )}
 

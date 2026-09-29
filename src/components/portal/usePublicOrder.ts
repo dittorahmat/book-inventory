@@ -18,6 +18,22 @@ import type {
 export type OrderStep = 1 | 2 | 3 | 4;
 export type PortalTab = "order" | "return";
 
+export const PORTAL_STUDENT_SEARCH_INPUT_ID = "portal-student-search-input";
+
+// Keputusan murni hasil-kosong -> dialog (bukan auto-form), agar bisa di-test tanpa DOM.
+export function getPendingNoResultQuery(searchQuery: string, resultsLength: number): string | null {
+  const trimmed = searchQuery.trim();
+  if (trimmed.length < 2 || resultsLength > 0) return null;
+  return trimmed;
+}
+
+function focusStudentSearchInput() {
+  if (typeof document === "undefined") return;
+  const focus = () => document.getElementById(PORTAL_STUDENT_SEARCH_INPUT_ID)?.focus();
+  if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(() => focus());
+  else focus();
+}
+
 const EMPTY_NEW_STUDENT: NewStudentForm = {
   schoolId: "",
   name: "",
@@ -46,6 +62,9 @@ export function usePublicOrder() {
   const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<StudentSearchResult | null>(null);
   const [isNewStudentMode, setIsNewStudentMode] = useState(false);
+
+  // Dialog konfirmasi saat hasil kosong: menunda masuk form sampai user memilih.
+  const [pendingNoResult, setPendingNoResult] = useState<string | null>(null);
 
   // New Student form
   const [newStudent, setNewStudent] = useState<NewStudentForm>(EMPTY_NEW_STUDENT);
@@ -131,17 +150,30 @@ export function usePublicOrder() {
     try {
       const results = await searchStudents(searchQuery);
       setSearchResults(results);
-      if (results.length === 0) {
-        setIsNewStudentMode(true);
-        setNewStudent((prev) => ({ ...prev, name: searchQuery.trim() }));
-      } else {
-        setIsNewStudentMode(false);
-      }
+      setIsNewStudentMode(false);
+      setPendingNoResult(getPendingNoResultQuery(searchQuery, results.length));
     } catch (err: any) {
       setErrorMessage(err.message || "Gagal melakukan pencarian siswa. Silakan coba lagi.");
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const confirmCreateNewStudent = () => {
+    if (!pendingNoResult) return;
+    const name = pendingNoResult;
+    setPendingNoResult(null);
+    setIsNewStudentMode(true);
+    setNewStudent((prev) => ({ ...prev, name }));
+  };
+
+  const cancelNoResult = () => {
+    setPendingNoResult(null);
+  };
+
+  const editNoResultKeyword = () => {
+    setPendingNoResult(null);
+    focusStudentSearchInput();
   };
 
   const handleSelectStudent = (st: StudentSearchResult) => {
@@ -232,6 +264,7 @@ export function usePublicOrder() {
     setSelectedStudent(null);
     setVerificationPending(null);
     setIsNewStudentMode(false);
+    setPendingNoResult(null);
     setSearchQuery("");
     setSearchResults([]);
   };
@@ -241,6 +274,7 @@ export function usePublicOrder() {
     schools, packages, step, setStep, goToStep,
     searchQuery, setSearchQuery, isSearching, searchResults,
     selectedStudent, isNewStudentMode, setIsNewStudentMode,
+    pendingNoResult, confirmCreateNewStudent, cancelNoResult, editNoResultKeyword,
     verificationPending, setVerificationPending,
     newStudent, setNewStudent,
     selectedPackageId, selectedPackage,
