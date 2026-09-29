@@ -17,6 +17,18 @@ const createBookSchema = z.object({
   category: z.string().optional(),
   description: z.string().optional(),
   coverUrl: z.string().optional(),
+  price: z.number().int().min(0, "Price must be >= 0").default(0),
+});
+
+const updateBookSchema = z.object({
+  title: z.string().min(1).optional(),
+  author: z.string().min(1).optional(),
+  publisher: z.string().min(1).optional(),
+  publishYear: z.number().int().optional(),
+  category: z.string().optional(),
+  description: z.string().optional(),
+  coverUrl: z.string().optional(),
+  price: z.number().int().min(0, "Price must be >= 0").optional(),
 });
 
 booksRouter.get("/", async (c) => {
@@ -55,12 +67,30 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
       category: body.category,
       description: body.description,
       coverUrl: body.coverUrl,
+      price: body.price ?? 0,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
 
   return c.json({ success: true, data: newBook }, 201);
+});
+
+// Update book catalog fields (incl. manual unit price)
+booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+
+  const [updated] = await db
+    .update(books)
+    .set({ ...body, updatedAt: new Date().toISOString() })
+    .where(eq(books.id, id))
+    .returning();
+
+  if (!updated) {
+    return c.json({ success: false, message: "Book not found" }, 404);
+  }
+  return c.json({ success: true, data: updated });
 });
 
 // Upload book cover endpoint

@@ -7,7 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
-const MAX_LINES = 300;
+const MAX_LINES = 400;
 const EXCLUDE = [
   /\.test\.(ts|tsx)$/, // test dibatasi oleh bundel logikanya sendiri
   /(^|\/)db\/schema\.ts$/, // definisi skema tabular

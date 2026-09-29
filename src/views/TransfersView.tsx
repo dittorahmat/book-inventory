@@ -1,23 +1,45 @@
 import { useState, useEffect } from "react";
 import { School, BookItem, TransferShipment } from "../types";
 import { Send, CheckCircle, Plus, ArrowRight } from "lucide-react";
+import { LoosePicker } from "../components/transfers/LoosePicker";
+import { PackagePicker, type ReadyBundle } from "../components/transfers/PackagePicker";
+import { TransferTotalBar } from "../components/transfers/TransferTotalBar";
+import { formatRupiah, calcHeaderTotal } from "../lib/transfer-pricing";
 
 export function TransfersView({ activeSchool }: { activeSchool: School | null }) {
   const [shipments, setShipments] = useState<TransferShipment[]>([]);
   const [allSchools, setAllSchools] = useState<School[]>([]);
   const [availableItems, setAvailableItems] = useState<BookItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [bundles, setBundles] = useState<ReadyBundle[]>([]);
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  const [transferTab, setTransferTab] = useState<"loose" | "package">("loose");
   const [destinationSchoolId, setDestinationSchoolId] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
+
+  const looseTotal = calcHeaderTotal(
+    selectedItems.map((id) => {
+      const item = availableItems.find((i) => i.id === id);
+      return { unitPriceSnapshot: item?.book?.price || 0, quantity: 1 };
+    })
+  );
+  const packageTotal = calcHeaderTotal(
+    selectedPackages.map((id) => {
+      const b = bundles.find((x) => x.id === id);
+      return { unitPriceSnapshot: b?.packagePrice || 0, quantity: 1 };
+    })
+  );
 
   const fetchShipments = () => {
     fetch("/api/shipments")
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setShipments(data.data);
-      });
+        else alert(data.message || "Gagal memuat daftar transfer");
+      })
+      .catch(() => alert("Terjadi kesalahan jaringan saat memuat transfer"));
   };
 
   useEffect(() => {
@@ -35,30 +57,58 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setAvailableItems(data.data);
-      });
+        else alert(data.message || "Gagal memuat stok satuan");
+      })
+      .catch(() => alert("Terjadi kesalahan jaringan saat memuat stok"));
+    fetch(`/api/packages/items/ready?schoolId=${activeSchool.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setBundles(data.data);
+        else alert(data.message || "Gagal memuat bundel ready");
+      })
+      .catch(() => alert("Terjadi kesalahan jaringan saat memuat bundel"));
+  };
+
+  const toggleLooseItem = (id: string) => {
+    setSelectedItems((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const togglePackageItem = (id: string) => {
+    setSelectedPackages((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const handleCreateShipment = async () => {
-    if (!activeSchool || !destinationSchoolId || selectedItems.length === 0) return;
-    const res = await fetch("/api/shipments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fromSchoolId: activeSchool.id,
-        toSchoolId: destinationSchoolId,
-        bookItemIds: selectedItems,
-        reason: transferReason.trim() || undefined,
-        notes: "Scheduled distribution",
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setIsCreating(false);
-      setSelectedItems([]);
-      setTransferReason("");
-      fetchShipments();
-    } else {
-      alert(data.message || "Failed to create shipment");
+    if (!activeSchool || !destinationSchoolId) return;
+    if (selectedItems.length === 0 && selectedPackages.length === 0) {
+      alert("Pilih minimal 1 buku satuan atau 1 bundel paketan");
+      return;
+    }
+    try {
+      const res = await fetch("/api/shipments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: activeSchool.id,
+          toSchoolId: destinationSchoolId,
+          bookItemIds: selectedItems,
+          packageItemIds: selectedPackages,
+          reason: transferReason.trim() || undefined,
+          notes: "Scheduled distribution",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Draf ${data.data.shipmentNumber} tersimpan! Nilai: ${formatRupiah(data.data.totalDeclaredValue || 0)}`);
+        setIsCreating(false);
+        setSelectedItems([]);
+        setSelectedPackages([]);
+        setTransferReason("");
+        fetchShipments();
+      } else {
+        alert(data.message || "Failed to create shipment");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan saat menyimpan draf transfer");
     }
   };
 
@@ -79,12 +129,18 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
   };
 
   const handleReceive = async (shipment: TransferShipment) => {
-    if (!shipment.items || shipment.items.length === 0) {
-      alert("Tidak ada item manifest buku pada transfer ini");
+    const looseItems = (shipment.items || []).filter((item) => item.itemType !== "package" && item.bookItemId);
+    const bundleItems = (shipment.items || []).filter((item) => item.itemType === "package" && item.packageItemId);
+    if (looseItems.length === 0 && bundleItems.length === 0) {
+      alert("Tidak ada item manifest pada transfer ini");
       return;
     }
-    const receipts = shipment.items.map((item) => ({
-      bookItemId: item.bookItemId,
+    const receipts = looseItems.map((item) => ({
+      bookItemId: item.bookItemId as string,
+      condition: "good" as const,
+    }));
+    const bundleReceipts = bundleItems.map((item) => ({
+      packageItemId: item.packageItemId as string,
       condition: "good" as const,
     }));
 
@@ -92,7 +148,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
       const res = await fetch(`/api/shipments/${shipment.id}/receive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemReceipts: receipts }),
+        body: JSON.stringify({ itemReceipts: receipts, packageReceipts: bundleReceipts }),
       });
       const data = await res.json();
       if (data.success) {
@@ -108,10 +164,16 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
   };
 
   const openShipmentDetail = async (id: string) => {
-    const res = await fetch(`/api/shipments/${id}`);
-    const data = await res.json();
-    if (data.success) {
-      setSelectedShipment(data.data);
+    try {
+      const res = await fetch(`/api/shipments/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setSelectedShipment(data.data);
+      } else {
+        alert(data.message || "Gagal memuat rincian transfer");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan saat memuat rincian transfer");
     }
   };
 
@@ -179,44 +241,40 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">
-              Pilih Eksemplar Buku ({availableItems.length} tersedia di stok)
-            </label>
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setTransferTab("loose")}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors active:scale-[0.98] ${
+                  transferTab === "loose" ? "bg-[#1877F2] text-white" : "bg-[#F0F2F5] text-[#65676B]"
+                }`}
+              >
+                Satuan ({availableItems.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransferTab("package")}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors active:scale-[0.98] ${
+                  transferTab === "package" ? "bg-[#1877F2] text-white" : "bg-[#F0F2F5] text-[#65676B]"
+                }`}
+              >
+                Paketan ({selectedPackages.length})
+              </button>
+            </div>
             <div className="border border-[#E4E6EB] rounded-xl max-h-48 overflow-y-auto divide-y divide-[#E4E6EB] p-2 text-xs bg-[#F0F2F5]">
-              {availableItems.length === 0 ? (
-                <div className="text-[#65676B] py-3 text-center">Tidak ada buku siap kirim di cabang ini.</div>
+              {transferTab === "loose" ? (
+                <LoosePicker items={availableItems} selectedIds={selectedItems} onToggle={toggleLooseItem} />
               ) : (
-                availableItems.map((item) => (
-                  <label key={item.id} className="flex items-center justify-between py-1.5 px-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(item.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedItems([...selectedItems, item.id]);
-                          else setSelectedItems(selectedItems.filter((id) => id !== item.id));
-                        }}
-                        className="rounded border-[#CED0D4] text-[#1877F2] focus:ring-[#1877F2] w-4 h-4"
-                      />
-                      <span className="font-mono text-xs font-bold text-[#1877F2]">{item.barcode}</span>
-                      <span className="text-[#050505] font-medium">({item.book?.title})</span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        item.condition === "damaged"
-                          ? "bg-red-100 text-[#FA383E]"
-                          : item.condition === "new"
-                          ? "bg-emerald-100 text-[#31A24C]"
-                          : "bg-white text-[#65676B] border border-[#CED0D4]"
-                      }`}
-                    >
-                      {item.condition}
-                    </span>
-                  </label>
-                ))
+                <PackagePicker
+                  bundles={bundles}
+                  selectedIds={selectedPackages}
+                  onToggle={togglePackageItem}
+                />
               )}
             </div>
           </div>
+
+          <TransferTotalBar looseTotal={looseTotal} packageTotal={packageTotal} />
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">
             <button
@@ -227,7 +285,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
             </button>
             <button
               onClick={handleCreateShipment}
-              disabled={!destinationSchoolId || selectedItems.length === 0}
+              disabled={!destinationSchoolId || (selectedItems.length === 0 && selectedPackages.length === 0)}
               className="px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm disabled:opacity-50"
             >
               Simpan Draf
@@ -271,6 +329,15 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
               </div>
             )}
 
+            <div className="flex items-center justify-between text-xs bg-[#E7F3FF] px-3 py-1.5 rounded-lg border border-[#1877F2]/20">
+              <span className="text-[#65676B] font-semibold">
+                Nilai: {(s.looseCount || 0) > 0 || (s.packageCount || 0) > 0
+                  ? `${s.looseCount || 0} satuan${(s.packageCount || 0) > 0 ? ` + ${s.packageCount} paket` : ""}`
+                  : "Menunggu rincian"}
+              </span>
+              <span className="font-bold text-[#1877F2]">{formatRupiah(s.totalDeclaredValue || 0)}</span>
+            </div>
+
             <div className="pt-2.5 flex justify-between items-center text-xs text-[#65676B] border-t border-[#E4E6EB]">
               <span>Dibuat {new Date(s.createdAt).toLocaleDateString()}</span>
               <span className="text-[#1877F2] font-semibold hover:underline">Lihat Rincian</span>
@@ -301,13 +368,20 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
             </div>
 
             <div>
-              <div className="text-xs font-bold text-[#65676B] mb-1.5">Manifest Items ({selectedShipment.items?.length || 0})</div>
+              <div className="text-xs font-bold text-[#65676B] mb-1.5">
+                Manifest Items ({selectedShipment.items?.length || 0}) - harga saat kirim
+              </div>
               <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl max-h-48 overflow-y-auto text-xs bg-[#F0F2F5]">
                 {selectedShipment.items?.map((item) => (
-                  <div key={item.id} className="p-2.5 flex justify-between items-center bg-white first:rounded-t-xl last:rounded-b-xl">
-                    <div>
-                      <div className="font-mono font-bold text-xs text-[#1877F2] flex items-center gap-1.5">
+                  <div key={item.id} className="p-2.5 flex justify-between items-center gap-2 bg-white first:rounded-t-xl last:rounded-b-xl">
+                    <div className="min-w-0">
+                      <div className="font-mono font-bold text-xs text-[#1877F2] flex items-center gap-1.5 flex-wrap">
                         <span>{item.barcode}</span>
+                        {item.itemType === "package" && (
+                          <span className="px-2 py-0.2 rounded-full text-[9px] font-bold uppercase bg-purple-50 text-purple-700 border border-purple-200">
+                            Paket
+                          </span>
+                        )}
                         {item.condition && (
                           <span
                             className={`px-2 py-0.2 rounded-full text-[9px] font-bold uppercase ${
@@ -323,14 +397,22 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
                         )}
                       </div>
                       <div className="text-[#050505] font-medium text-xs">{item.bookTitle}</div>
+                      <div className="text-[11px] font-bold text-[#1877F2]">
+                        {formatRupiah(item.unitPriceSnapshot || 0)}
+                        {(item.quantity || 1) > 1 ? ` x ${item.quantity} = ${formatRupiah(item.lineTotal || 0)}` : ""}
+                      </div>
                     </div>
                     {item.receivedCondition && (
-                      <span className="text-[10px] font-bold text-[#65676B] bg-[#F0F2F5] px-2 py-0.5 rounded-full border border-[#CED0D4]">
+                      <span className="text-[10px] font-bold text-[#65676B] bg-[#F0F2F5] px-2 py-0.5 rounded-full border border-[#CED0D4] shrink-0">
                         Diterima: {item.receivedCondition}
                       </span>
                     )}
                   </div>
                 ))}
+              </div>
+              <div className="flex items-center justify-between mt-2 bg-[#E7F3FF] px-3 py-2 rounded-xl border border-[#1877F2]/20 text-xs">
+                <span className="font-bold text-[#050505]">Total Nilai</span>
+                <span className="font-bold text-[#1877F2]">{formatRupiah(selectedShipment.totalDeclaredValue || 0)}</span>
               </div>
             </div>
 

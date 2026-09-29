@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { School, Book } from "../types";
 import { BundlingModal } from "../components/BundlingModal";
+import { PackageTransferModal } from "../components/packages/PackageTransferModal";
 import { 
   Package, 
   Layers, 
@@ -12,7 +13,8 @@ import {
   BookOpen,
   Plus,
   X,
-  Trash2
+  Trash2,
+  Send
 } from "lucide-react";
 
 interface BookPackage {
@@ -72,6 +74,9 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
   // Bundling / Unbundling Modal State
   const [modalPkg, setModalPkg] = useState<BookPackage | null>(null);
   const [modalMode, setModalMode] = useState<"bundle" | "unbundle">("bundle");
+
+  // Direct Package Transfer Modal State
+  const [transferPkg, setTransferPkg] = useState<BookPackage | null>(null);
 
   // Create Package Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -418,6 +423,16 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                       </button>
 
                       <button
+                        onClick={() => setTransferPkg(pkg)}
+                        disabled={readyCount <= 0}
+                        title="Transfer bundel ready ke cabang lain"
+                        className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-40 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        Transfer
+                      </button>
+
+                      <button
                         onClick={() => setExpandedPackageId(isExpanded ? null : pkg.id)}
                         className="p-2 rounded-xl text-[#65676B] hover:bg-[#F0F2F5] transition-colors"
                         title="Lihat Rincian Buku Satuan (BOM)"
@@ -460,6 +475,9 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                               </div>
                               <div className="text-[11px] text-[#65676B] mt-0.5">
                                 {item.author}
+                              </div>
+                              <div className="text-[11px] font-bold text-[#1877F2] mt-0.5">
+                                Rp {(catalogBooks.find((b) => b.id === item.bookId)?.price || 0).toLocaleString("id-ID")}
                               </div>
                             </div>
 
@@ -714,6 +732,19 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
           stockPotential={stockMap[modalPkg.id] || null}
           mode={modalMode}
           onClose={() => setModalPkg(null)}
+          onSuccess={() => loadPackagesData()}
+        />
+      )}
+
+      {/* Direct Package Transfer Modal */}
+      {transferPkg && (
+        <PackageTransferModal
+          packageId={transferPkg.id}
+          packageCode={transferPkg.code}
+          packageName={transferPkg.name}
+          packagePrice={transferPkg.price}
+          activeSchool={activeSchool}
+          onClose={() => setTransferPkg(null)}
           onSuccess={() => loadPackagesData()}
         />
       )}

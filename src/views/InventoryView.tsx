@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { School, BookItem } from "../types";
 import { Search, Tag, ArrowRight, CheckSquare, Square, X } from "lucide-react";
+import { formatRupiah, calcHeaderTotal } from "../lib/transfer-pricing";
 
 export function InventoryView({ activeSchool }: { activeSchool: School | null }) {
   const [items, setItems] = useState<BookItem[]>([]);
@@ -87,6 +88,9 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
   };
 
   const selectedItemsData = items.filter((item) => selectedItemIds.includes(item.id));
+  const selectedTotal = calcHeaderTotal(
+    selectedItemsData.map((i) => ({ unitPriceSnapshot: i.book?.price || 0, quantity: 1 }))
+  );
 
   const handleOpenTransferModal = () => {
     if (selectedItemIds.length === 0) return;
@@ -117,7 +121,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Draf transfer berhasil dibuat dengan nomor ${data.data.shipmentNumber}!`);
+        alert(`Draf transfer berhasil dibuat dengan nomor ${data.data.shipmentNumber}! Nilai: ${formatRupiah(data.data.totalDeclaredValue || 0)}`);
         setIsTransferModalOpen(false);
         setSelectedItemIds([]);
         setTransferReason("");
@@ -291,8 +295,11 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                 <div className="font-semibold text-sm text-[#050505] leading-snug mb-1">
                   {item.book?.title || "Untitled Book"}
                 </div>
-                <div className="text-xs text-[#65676B] mb-3">
+                <div className="text-xs text-[#65676B] mb-0.5">
                   ISBN: {item.book?.isbn || "-"}
+                </div>
+                <div className="text-xs font-bold text-[#1877F2] mb-3">
+                  {formatRupiah(item.book?.price || 0)}
                 </div>
 
                 <div
@@ -340,6 +347,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
               <th className="py-3 px-4">Barcode Tag</th>
               <th className="py-3 px-4">Judul Buku</th>
               <th className="py-3 px-4">ISBN</th>
+              <th className="py-3 px-4 text-right">Harga</th>
               <th className="py-3 px-4">Kondisi</th>
               <th className="py-3 px-4">Status</th>
               <th className="py-3 px-4 text-right">Audit Kondisi</th>
@@ -348,7 +356,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
           <tbody className="divide-y divide-[#E4E6EB]">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-[#65676B]">
+                <td colSpan={8} className="py-10 text-center text-[#65676B]">
                   Tidak ada fisik buku ditemukan di cabang ini.
                 </td>
               </tr>
@@ -379,6 +387,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                     </td>
                     <td className="py-3 px-4 font-semibold text-[#050505]">{item.book?.title || "Untitled"}</td>
                     <td className="py-3 px-4 text-[#65676B] font-mono text-[11px]">{item.book?.isbn}</td>
+                    <td className="py-3 px-4 text-right font-bold text-[#1877F2]">{formatRupiah(item.book?.price || 0)}</td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
@@ -512,6 +521,7 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                         {item.barcode}
                       </span>
                       <span className="text-[#050505] font-medium">{item.book?.title}</span>
+                      <span className="text-[#1877F2] font-bold ml-2">{formatRupiah(item.book?.price || 0)}</span>
                     </div>
                     <span
                       className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -526,6 +536,11 @@ export function InventoryView({ activeSchool }: { activeSchool: School | null })
                     </span>
                   </div>
                 ))}
+              </div>
+
+              <div className="flex items-center justify-between bg-[#E7F3FF] border border-[#1877F2]/20 rounded-xl px-3.5 py-2.5">
+                <span className="text-xs font-semibold text-[#050505]">Total Nilai (harga saat kirim)</span>
+                <span className="text-sm font-bold text-[#1877F2]">{formatRupiah(selectedTotal)}</span>
               </div>
 
               <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">

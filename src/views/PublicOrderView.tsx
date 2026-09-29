@@ -115,7 +115,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                 <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
                   step === 3 ? "bg-[#1877F2] text-white" : "bg-[#E4E6EB] text-[#65676B]"
                 }`}>
-                  <span>3</span> Pembayaran & Beasiswa
+                  <span>3</span> Cek Pembayaran & Beasiswa
                 </div>
               </div>
             </div>

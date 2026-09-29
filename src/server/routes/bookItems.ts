@@ -39,6 +39,7 @@ bookItemsRouter.get("/", async (c) => {
       isbn: books.isbn,
       author: books.author,
       coverUrl: books.coverUrl,
+      price: books.price,
     },
     school: {
       id: schools.id,
@@ -79,6 +80,7 @@ bookItemsRouter.get("/barcode/:barcode", async (c) => {
         id: books.id,
         title: books.title,
         isbn: books.isbn,
+        price: books.price,
       },
     })
     .from(bookItems)

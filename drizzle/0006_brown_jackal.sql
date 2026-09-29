@@ -1,0 +1,1 @@
+ALTER TABLE `transfer_shipment_items` ADD `package_item_id` text;

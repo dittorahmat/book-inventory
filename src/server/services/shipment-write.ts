@@ -1,123 +1,86 @@
-import { Hono } from "hono";
-import { z } from "zod";
-import { zValidator } from "@hono/zod-validator";
 import { eq, inArray, and } from "drizzle-orm";
-import { db } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
-import { calcHeaderTotal } from "../services/transfer-valuation";
-import { listShipmentsWithCounts, getShipmentDetail } from "../services/shipment-read";
+import { calcHeaderTotal } from "./transfer-valuation";
 
-export const shipmentsRouter = new Hono();
+export interface CreateShipmentInput {
+  fromSchoolId: string;
+  toSchoolId: string;
+  bookItemIds: string[];
+  packageItemIds: string[];
+  notes?: string;
+  reason?: string;
+}
 
-const createShipmentSchema = z.object({
-  fromSchoolId: z.string().min(1, "Origin school ID required"),
-  toSchoolId: z.string().min(1, "Destination school ID required"),
-  bookItemIds: z.array(z.string().min(1)).default([]),
-  packageItemIds: z.array(z.string().min(1)).default([]),
-  notes: z.string().optional(),
-  reason: z.string().optional(),
-}).refine((v) => v.bookItemIds.length > 0 || v.packageItemIds.length > 0, {
-  message: "At least one book item or package item required",
-});
+export interface LooseReceipt {
+  bookItemId: string;
+  condition: "good" | "damaged" | "missing";
+  notes?: string;
+}
 
-const receiptSchema = z.object({
-  condition: z.enum(["good", "damaged", "missing"]),
-  notes: z.string().optional(),
-});
+export interface BundleReceipt {
+  packageItemId: string;
+  condition: "good" | "damaged" | "missing";
+  notes?: string;
+}
 
-const receiveShipmentSchema = z.object({
-  itemReceipts: z.array(
-    z.object({
-      bookItemId: z.string().min(1, "Book item ID required"),
-      condition: z.enum(["good", "damaged", "missing"]),
-      notes: z.string().optional(),
-    })
-  ).default([]),
-  packageReceipts: z.array(
-    receiptSchema.extend({ packageItemId: z.string().min(1, "Package item ID required") })
-  ).default([]),
-});
+export type ServiceError = { ok: false; status: number; message: string };
 
-// List shipments (with filter for from/to school)
-shipmentsRouter.get("/", async (c) => {
-  const schoolId = c.req.query("schoolId");
-  const data = await listShipmentsWithCounts(db, schoolId);
-  return c.json({ success: true, data });
-});
-
-// Get shipment detail with items
-shipmentsRouter.get("/:id", async (c) => {
-  const id = c.req.param("id");
-  const detail = await getShipmentDetail(db, id);
-  if (!detail) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
-  }
-  return c.json({ success: true, data: detail });
-});
-
-// Create shipment draft (mixed loose + physical packages)
-shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) => {
-  const body = c.req.valid("json");
+export async function createShipment(
+  database: any,
+  input: CreateShipmentInput
+): Promise<{ ok: true; shipment: any } | ServiceError> {
   const now = new Date().toISOString();
   const shipmentId = crypto.randomUUID();
   const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
-  const looseIds = body.bookItemIds || [];
-  const bundleIds = [...new Set(body.packageItemIds || [])];
+  const looseIds = input.bookItemIds || [];
+  const bundleIds = [...new Set(input.packageItemIds || [])];
 
-  // Verify loose book items belong to fromSchool and are in_stock
   const looseSnapshots = new Map<string, number>();
   if (looseIds.length > 0) {
-    const selectedItems = await db
+    const selectedItems = await database
       .select()
       .from(bookItems)
       .where(inArray(bookItems.id, looseIds));
 
     if (selectedItems.length !== looseIds.length) {
-      return c.json({ success: false, message: "Some book items do not exist" }, 400);
+      return { ok: false, status: 400, message: "Some book items do not exist" };
     }
 
     const invalid = selectedItems.find(
-      (item: any) => item.currentSchoolId !== body.fromSchoolId || item.status !== "in_stock"
+      (item: any) => item.currentSchoolId !== input.fromSchoolId || item.status !== "in_stock"
     );
     if (invalid) {
-      return c.json(
-        { success: false, message: `Item ${invalid.barcode} is not in stock at origin school` },
-        400
-      );
+      return { ok: false, status: 400, message: `Item ${invalid.barcode} is not in stock at origin school` };
     }
 
     const bookIds = [...new Set(selectedItems.map((i: any) => i.bookId as string))] as string[];
-    const priceRows = await db.select({ id: books.id, price: books.price }).from(books).where(inArray(books.id, bookIds));
+    const priceRows = await database.select({ id: books.id, price: books.price }).from(books).where(inArray(books.id, bookIds));
     const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
     for (const item of selectedItems) {
       looseSnapshots.set(item.id, priceMap.get((item as any).bookId) || 0);
     }
   }
 
-  // Verify physical bundles belong to fromSchool and are ready (in_stock)
   const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
   if (bundleIds.length > 0) {
-    const selectedBundles = await db
+    const selectedBundles = await database
       .select()
       .from(packageItems)
       .where(inArray(packageItems.id, bundleIds));
 
     if (selectedBundles.length !== bundleIds.length) {
-      return c.json({ success: false, message: "Some packages do not exist" }, 400);
+      return { ok: false, status: 400, message: "Some packages do not exist" };
     }
 
     const invalidBundle = selectedBundles.find(
-      (b: any) => b.currentSchoolId !== body.fromSchoolId || b.status !== "in_stock"
+      (b: any) => b.currentSchoolId !== input.fromSchoolId || b.status !== "in_stock"
     );
     if (invalidBundle) {
-      return c.json(
-        { success: false, message: `Package ${(invalidBundle as any).barcode} is not ready (in_stock) at origin school` },
-        400
-      );
+      return { ok: false, status: 400, message: `Package ${(invalidBundle as any).barcode} is not ready (in_stock) at origin school` };
     }
 
     const masterIds = [...new Set(selectedBundles.map((b: any) => b.packageId as string))] as string[];
-    const masterRows = await db.select().from(bookPackages).where(inArray(bookPackages.id, masterIds));
+    const masterRows = await database.select().from(bookPackages).where(inArray(bookPackages.id, masterIds));
     const masterMap = new Map<string, number>(masterRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
     for (const b of selectedBundles) {
       bundleSnapshots.set((b as any).id, {
@@ -127,31 +90,30 @@ shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) =>
     }
   }
 
-  await db
-    .insert(transferShipments)
-    .values({
-      id: shipmentId,
-      shipmentNumber,
-      fromSchoolId: body.fromSchoolId,
-      toSchoolId: body.toSchoolId,
-      status: "draft",
-      totalDeclaredValue: 0,
-      notes: body.notes,
-      reason: body.reason,
-      createdAt: now,
-      updatedAt: now,
-    });
+  await database.insert(transferShipments).values({
+    id: shipmentId,
+    shipmentNumber,
+    fromSchoolId: input.fromSchoolId,
+    toSchoolId: input.toSchoolId,
+    status: "draft",
+    totalDeclaredValue: 0,
+    notes: input.notes,
+    reason: input.reason,
+    createdAt: now,
+    updatedAt: now,
+  });
 
   const valuedLines: Array<{ unitPriceSnapshot: number; quantity: number }> = [];
   for (const bookItemId of looseIds) {
     const snapshot = looseSnapshots.get(bookItemId) || 0;
     valuedLines.push({ unitPriceSnapshot: snapshot, quantity: 1 });
-    await db.insert(transferShipmentItems).values({
+    await database.insert(transferShipmentItems).values({
       id: crypto.randomUUID(),
       shipmentId,
       itemType: "loose",
       bookItemId,
       packageId: null,
+      packageItemId: null,
       quantity: 1,
       unitPriceSnapshot: snapshot,
       createdAt: now,
@@ -162,7 +124,7 @@ shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) =>
     const meta = bundleSnapshots.get(packageItemId);
     if (!meta) continue;
     valuedLines.push({ unitPriceSnapshot: meta.snapshot, quantity: 1 });
-    await db.insert(transferShipmentItems).values({
+    await database.insert(transferShipmentItems).values({
       id: crypto.randomUUID(),
       shipmentId,
       itemType: "package",
@@ -176,29 +138,30 @@ shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) =>
   }
 
   const total = calcHeaderTotal(valuedLines);
-  const [withTotal] = await db
+  const [withTotal] = await database
     .update(transferShipments)
     .set({ totalDeclaredValue: total, updatedAt: now })
     .where(eq(transferShipments.id, shipmentId))
     .returning();
 
-  return c.json({ success: true, data: withTotal }, 201);
-});
+  return { ok: true, shipment: withTotal };
+}
 
-// Dispatch shipment (Pusat sends to Branch)
-shipmentsRouter.post("/:id/dispatch", async (c) => {
-  const id = c.req.param("id");
-  const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
+export async function dispatchShipment(
+  database: any,
+  id: string
+): Promise<{ ok: true; shipment: any } | ServiceError> {
+  const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
 
   if (!shipment) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
+    return { ok: false, status: 404, message: "Shipment not found" };
   }
   if (shipment.status !== "draft" && shipment.status !== "pending_dispatch") {
-    return c.json({ success: false, message: "Shipment cannot be dispatched from current state" }, 400);
+    return { ok: false, status: 400, message: "Shipment cannot be dispatched from current state" };
   }
 
   const now = new Date().toISOString();
-  const items = await db
+  const items = await database
     .select()
     .from(transferShipmentItems)
     .where(eq(transferShipmentItems.shipmentId, id));
@@ -206,52 +169,49 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
   const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId);
   const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId);
 
-  // Update loose book items to in_transit
   if (looseIds.length > 0) {
-    await db
+    await database
       .update(bookItems)
       .set({ status: "in_transit", updatedAt: now })
       .where(inArray(bookItems.id, looseIds));
   }
 
-  // Lock physical bundles as dispatched (ready stock leaves origin monitoring)
   if (bundleIds.length > 0) {
-    await db
+    await database
       .update(packageItems)
       .set({ status: "dispatched", updatedAt: now })
       .where(inArray(packageItems.id, bundleIds));
   }
 
-  // Update shipment status to in_transit
-  const [updated] = await db
+  const [updated] = await database
     .update(transferShipments)
     .set({ status: "in_transit", dispatchedAt: now, updatedAt: now })
     .where(eq(transferShipments.id, id))
     .returning();
 
-  return c.json({ success: true, data: updated });
-});
+  return { ok: true, shipment: updated };
+}
 
-// Receive shipment (Branch receives from Pusat)
-shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), async (c) => {
-  const id = c.req.param("id");
-  const body = c.req.valid("json");
-  const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
+export async function receiveShipment(
+  database: any,
+  id: string,
+  looseReceipts: LooseReceipt[],
+  bundleReceipts: BundleReceipt[]
+): Promise<{ ok: true; shipment: any } | ServiceError> {
+  const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
 
   if (!shipment) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
+    return { ok: false, status: 404, message: "Shipment not found" };
   }
   if (shipment.status !== "in_transit") {
-    return c.json({ success: false, message: "Only in_transit shipments can be received" }, 400);
+    return { ok: false, status: 400, message: "Only in_transit shipments can be received" };
   }
 
   const now = new Date().toISOString();
   let hasDiscrepancy = false;
-  const looseReceipts = body.itemReceipts || [];
-  const bundleReceipts = (body as any).packageReceipts || [];
 
   for (const receipt of looseReceipts) {
-    await db
+    await database
       .update(transferShipmentItems)
       .set({ receivedCondition: receipt.condition, notes: receipt.notes })
       .where(
@@ -263,13 +223,13 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
 
     if (receipt.condition === "missing") {
       hasDiscrepancy = true;
-      await db
+      await database
         .update(bookItems)
         .set({ status: "lost", updatedAt: now })
         .where(eq(bookItems.id, receipt.bookItemId));
     } else if (receipt.condition === "damaged") {
       hasDiscrepancy = true;
-      await db
+      await database
         .update(bookItems)
         .set({
           currentSchoolId: shipment.toSchoolId,
@@ -279,7 +239,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
         })
         .where(eq(bookItems.id, receipt.bookItemId));
     } else {
-      await db
+      await database
         .update(bookItems)
         .set({
           currentSchoolId: shipment.toSchoolId,
@@ -291,7 +251,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
   }
 
   for (const receipt of bundleReceipts) {
-    await db
+    await database
       .update(transferShipmentItems)
       .set({ receivedCondition: receipt.condition, notes: receipt.notes })
       .where(
@@ -303,10 +263,10 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
 
     if (receipt.condition === "missing") {
       hasDiscrepancy = true;
-      await db.delete(packageItems).where(eq(packageItems.id, receipt.packageItemId));
+      await database.delete(packageItems).where(eq(packageItems.id, receipt.packageItemId));
     } else if (receipt.condition === "damaged") {
       hasDiscrepancy = true;
-      await db
+      await database
         .update(packageItems)
         .set({
           currentSchoolId: shipment.toSchoolId,
@@ -316,7 +276,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
         })
         .where(eq(packageItems.id, receipt.packageItemId));
     } else {
-      await db
+      await database
         .update(packageItems)
         .set({
           currentSchoolId: shipment.toSchoolId,
@@ -329,7 +289,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
 
   const finalStatus = hasDiscrepancy ? "completed_with_discrepancy" : "completed";
 
-  const [completed] = await db
+  const [completed] = await database
     .update(transferShipments)
     .set({
       status: finalStatus,
@@ -339,5 +299,5 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     .where(eq(transferShipments.id, id))
     .returning();
 
-  return c.json({ success: true, data: completed });
-});
+  return { ok: true, shipment: completed };
+}

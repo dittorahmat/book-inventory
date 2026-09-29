@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { eq, and } from "drizzle-orm";
 import { 
   schools, 
   books, 
@@ -134,26 +135,31 @@ export async function runIdempotentSeed(customDb?: any) {
 
   // 3. Master Books (upsert idempotent, lihat blok di bawah)
   const bookList = [
-    { id: "b-math-1", isbn: "978-1108746489", title: "Cambridge Primary Mathematics Learner's Book 1", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-sci-1", isbn: "978-1108742726", title: "Cambridge Primary Science Learner's Book 1", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-eng-1", isbn: "978-1108719292", title: "Cambridge Global English Learner's Book 1", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-pai-1", isbn: "978-6022444985", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 1", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022 },
-    { id: "b-bindo-1", isbn: "978-6022444992", title: "Bahasa Indonesia: Aku Bisa! Kelas 1", author: "Sofie Dewayani", publisher: "Pusat Kurikulum dan Perbukuan", category: "Nasional", publishYear: 2022 },
-    { id: "b-ppkn-1", isbn: "978-6022445005", title: "Pendidikan Pancasila Kelas 1", author: "Elisa Seftriyana", publisher: "Kemendikbudristek", category: "Nasional", publishYear: 2022 },
-    { id: "b-arab-1", isbn: "978-6022445012", title: "Bahasa Arab Dasar untuk Anak Shalih Kelas 1", author: "Tim Asatidzah Al Wildan", publisher: "Pustaka Al Wildan", category: "Diniyyah", publishYear: 2023 },
-    { id: "b-tahfidz-1", isbn: "978-6022445029", title: "Buku Panduan Mutaba'ah Tahfidz Al-Qur'an Juz 30", author: "Lembaga Tahfidz Al Wildan", publisher: "Pustaka Al Wildan", category: "Tahfidz", publishYear: 2023 },
-    { id: "b-math-2", isbn: "978-1108746496", title: "Cambridge Primary Mathematics Learner's Book 2", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-sci-2", isbn: "978-1108742733", title: "Cambridge Primary Science Learner's Book 2", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-eng-2", isbn: "978-1108719308", title: "Cambridge Global English Learner's Book 2", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021 },
-    { id: "b-pai-2", isbn: "978-6022445036", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 2", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022 },
+    { id: "b-math-1", isbn: "978-1108746489", title: "Cambridge Primary Mathematics Learner's Book 1", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 120000 },
+    { id: "b-sci-1", isbn: "978-1108742726", title: "Cambridge Primary Science Learner's Book 1", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 115000 },
+    { id: "b-eng-1", isbn: "978-1108719292", title: "Cambridge Global English Learner's Book 1", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 130000 },
+    { id: "b-pai-1", isbn: "978-6022444985", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 1", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022, price: 55000 },
+    { id: "b-bindo-1", isbn: "978-6022444992", title: "Bahasa Indonesia: Aku Bisa! Kelas 1", author: "Sofie Dewayani", publisher: "Pusat Kurikulum dan Perbukuan", category: "Nasional", publishYear: 2022, price: 60000 },
+    { id: "b-ppkn-1", isbn: "978-6022445005", title: "Pendidikan Pancasila Kelas 1", author: "Elisa Seftriyana", publisher: "Kemendikbudristek", category: "Nasional", publishYear: 2022, price: 50000 },
+    { id: "b-arab-1", isbn: "978-6022445012", title: "Bahasa Arab Dasar untuk Anak Shalih Kelas 1", author: "Tim Asatidzah Al Wildan", publisher: "Pustaka Al Wildan", category: "Diniyyah", publishYear: 2023, price: 65000 },
+    { id: "b-tahfidz-1", isbn: "978-6022445029", title: "Buku Panduan Mutaba'ah Tahfidz Al-Qur'an Juz 30", author: "Lembaga Tahfidz Al Wildan", publisher: "Pustaka Al Wildan", category: "Tahfidz", publishYear: 2023, price: 75000 },
+    { id: "b-math-2", isbn: "978-1108746496", title: "Cambridge Primary Mathematics Learner's Book 2", author: "Cherri Moseley", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 95000 },
+    { id: "b-sci-2", isbn: "978-1108742733", title: "Cambridge Primary Science Learner's Book 2", author: "Jon Board", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 90000 },
+    { id: "b-eng-2", isbn: "978-1108719308", title: "Cambridge Global English Learner's Book 2", author: "Elly Schottman", publisher: "Cambridge University Press", category: "Cambridge International", publishYear: 2021, price: 110000 },
+    { id: "b-pai-2", isbn: "978-6022445036", title: "Pendidikan Agama Islam dan Budi Pekerti Kelas 2", author: "Drs. M. Daud", publisher: "Kementerian Agama & Kemendikbud", category: "Agama & Karakter", publishYear: 2022, price: 55000 },
   ];
 
-  // Upsert idempotent agar buku demo baru (mis. Kelas 2) masuk ke DB lama juga
+  // Upsert idempotent agar buku demo baru (mis. Kelas 2) masuk ke DB lama juga.
+  // Harga hanya di-backfill untuk buku yang masih 0 agar edit manual tidak tertimpa rerun.
   for (const b of bookList) {
     await targetDb
       .insert(books)
       .values({ ...b, createdAt: now, updatedAt: now })
       .onConflictDoNothing();
+    await targetDb
+      .update(books)
+      .set({ price: b.price, updatedAt: now })
+      .where(and(eq(books.id, b.id), eq(books.price, 0)));
   }
 
   // 4. Packages (upsert idempotent agar paket demo baru masuk ke DB lama juga)

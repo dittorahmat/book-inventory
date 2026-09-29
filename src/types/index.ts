@@ -28,6 +28,7 @@ export interface Book {
   category?: string;
   description?: string;
   coverUrl?: string;
+  price?: number;
 }
 
 export interface BookItem {
@@ -47,6 +48,9 @@ export interface TransferShipment {
   fromSchoolId: string;
   toSchoolId: string;
   status: "draft" | "pending_dispatch" | "in_transit" | "completed" | "completed_with_discrepancy" | "cancelled";
+  totalDeclaredValue?: number;
+  looseCount?: number;
+  packageCount?: number;
   dispatchedAt?: string;
   receivedAt?: string;
   notes?: string;
@@ -56,7 +60,13 @@ export interface TransferShipment {
   toSchool?: School;
   items?: Array<{
     id: string;
-    bookItemId: string;
+    itemType?: "loose" | "package";
+    bookItemId?: string | null;
+    packageId?: string | null;
+    packageItemId?: string | null;
+    quantity?: number;
+    unitPriceSnapshot?: number;
+    lineTotal?: number;
     receivedCondition?: string;
     barcode?: string;
     condition?: string;

@@ -71,6 +71,31 @@ packagesRouter.get("/", async (c) => {
   return c.json({ success: true, data: results });
 });
 
+// GET ready physical bundles (for transfer pickers)
+packagesRouter.get("/items/ready", async (c) => {
+  const schoolId = c.req.query("schoolId");
+  let rows = await db
+    .select({
+      id: packageItems.id,
+      barcode: packageItems.barcode,
+      status: packageItems.status,
+      currentSchoolId: packageItems.currentSchoolId,
+      packageId: bookPackages.id,
+      packageCode: bookPackages.code,
+      packageName: bookPackages.name,
+      packagePrice: bookPackages.price,
+    })
+    .from(packageItems)
+    .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
+    .where(eq(packageItems.status, "in_stock"));
+
+  if (schoolId) {
+    rows = rows.filter((r: any) => r.currentSchoolId === schoolId);
+  }
+
+  return c.json({ success: true, data: rows });
+});
+
 // GET package inventory summary per school (bundle ready count & potential assembly count)
 packagesRouter.get("/:id/stock/:schoolId", async (c) => {
   const packageId = c.req.param("id");

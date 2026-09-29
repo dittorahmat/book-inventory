@@ -6,19 +6,31 @@ INSERT OR IGNORE INTO schools (id, name, code, type, address, phone, created_at,
 ('school-alw-4', 'Al Wildan 4 (Islamic School)', 'ALW-04', 'branch', 'Jl. Raya Ciater No. 45, BSD City', '+62 21 5550104', datetime('now'), datetime('now'));
 
 -- 1. Master Books
-INSERT OR IGNORE INTO books (id, isbn, title, author, publisher, category, publish_year, created_at, updated_at) VALUES
-('b-math-1', '978-1108746489', 'Cambridge Primary Mathematics Learner''s Book 1', 'Cherri Moseley', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-sci-1', '978-1108742726', 'Cambridge Primary Science Learner''s Book 1', 'Jon Board', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-eng-1', '978-1108719292', 'Cambridge Global English Learner''s Book 1', 'Elly Schottman', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-pai-1', '978-6022444985', 'Pendidikan Agama Islam dan Budi Pekerti Kelas 1', 'Drs. M. Daud', 'Kementerian Agama & Kemendikbud', 'Agama & Karakter', 2022, datetime('now'), datetime('now')),
-('b-bindo-1', '978-6022444992', 'Bahasa Indonesia: Aku Bisa! Kelas 1', 'Sofie Dewayani', 'Pusat Kurikulum dan Perbukuan', 'Nasional', 2022, datetime('now'), datetime('now')),
-('b-ppkn-1', '978-6022445005', 'Pendidikan Pancasila Kelas 1', 'Elisa Seftriyana', 'Kemendikbudristek', 'Nasional', 2022, datetime('now'), datetime('now')),
-('b-arab-1', '978-6022445012', 'Bahasa Arab Dasar untuk Anak Shalih Kelas 1', 'Tim Asatidzah Al Wildan', 'Pustaka Al Wildan', 'Diniyyah', 2023, datetime('now'), datetime('now')),
-('b-tahfidz-1', '978-6022445029', 'Buku Panduan Mutaba''ah Tahfidz Al-Qur''an Juz 30', 'Lembaga Tahfidz Al Wildan', 'Pustaka Al Wildan', 'Tahfidz', 2023, datetime('now'), datetime('now')),
-('b-math-2', '978-1108746496', 'Cambridge Primary Mathematics Learner''s Book 2', 'Cherri Moseley', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-sci-2', '978-1108742733', 'Cambridge Primary Science Learner''s Book 2', 'Jon Board', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-eng-2', '978-1108719308', 'Cambridge Global English Learner''s Book 2', 'Elly Schottman', 'Cambridge University Press', 'Cambridge International', 2021, datetime('now'), datetime('now')),
-('b-pai-2', '978-6022445036', 'Pendidikan Agama Islam dan Budi Pekerti Kelas 2', 'Drs. M. Daud', 'Kementerian Agama & Kemendikbud', 'Agama & Karakter', 2022, datetime('now'), datetime('now'));
+INSERT OR IGNORE INTO books (id, isbn, title, author, publisher, category, publish_year, price, created_at, updated_at) VALUES
+('b-math-1', '978-1108746489', 'Cambridge Primary Mathematics Learner''s Book 1', 'Cherri Moseley', 'Cambridge University Press', 'Cambridge International', 2021, 120000, datetime('now'), datetime('now')),
+('b-sci-1', '978-1108742726', 'Cambridge Primary Science Learner''s Book 1', 'Jon Board', 'Cambridge University Press', 'Cambridge International', 2021, 115000, datetime('now'), datetime('now')),
+('b-eng-1', '978-1108719292', 'Cambridge Global English Learner''s Book 1', 'Elly Schottman', 'Cambridge University Press', 'Cambridge International', 2021, 130000, datetime('now'), datetime('now')),
+('b-pai-1', '978-6022444985', 'Pendidikan Agama Islam dan Budi Pekerti Kelas 1', 'Drs. M. Daud', 'Kementerian Agama & Kemendikbud', 'Agama & Karakter', 2022, 55000, datetime('now'), datetime('now')),
+('b-bindo-1', '978-6022444992', 'Bahasa Indonesia: Aku Bisa! Kelas 1', 'Sofie Dewayani', 'Pusat Kurikulum dan Perbukuan', 'Nasional', 2022, 60000, datetime('now'), datetime('now')),
+('b-ppkn-1', '978-6022445005', 'Pendidikan Pancasila Kelas 1', 'Elisa Seftriyana', 'Kemendikbudristek', 'Nasional', 2022, 50000, datetime('now'), datetime('now')),
+('b-arab-1', '978-6022445012', 'Bahasa Arab Dasar untuk Anak Shalih Kelas 1', 'Tim Asatidzah Al Wildan', 'Pustaka Al Wildan', 'Diniyyah', 2023, 65000, datetime('now'), datetime('now')),
+('b-tahfidz-1', '978-6022445029', 'Buku Panduan Mutaba''ah Tahfidz Al-Qur''an Juz 30', 'Lembaga Tahfidz Al Wildan', 'Pustaka Al Wildan', 'Tahfidz', 2023, 75000, datetime('now'), datetime('now')),
+('b-math-2', '978-1108746496', 'Cambridge Primary Mathematics Learner''s Book 2', 'Cherri Moseley', 'Cambridge University Press', 'Cambridge International', 2021, 95000, datetime('now'), datetime('now')),
+('b-sci-2', '978-1108742733', 'Cambridge Primary Science Learner''s Book 2', 'Jon Board', 'Cambridge University Press', 'Cambridge International', 2021, 90000, datetime('now'), datetime('now')),
+('b-eng-2', '978-1108719308', 'Cambridge Global English Learner''s Book 2', 'Elly Schottman', 'Cambridge University Press', 'Cambridge International', 2021, 110000, datetime('now'), datetime('now')),
+('b-pai-2', '978-6022445036', 'Pendidikan Agama Islam dan Budi Pekerti Kelas 2', 'Drs. M. Daud', 'Kementerian Agama & Kemendikbud', 'Agama & Karakter', 2022, 55000, datetime('now'), datetime('now'));
+UPDATE books SET price = 120000 WHERE id = 'b-math-1' AND price = 0;
+UPDATE books SET price = 115000 WHERE id = 'b-sci-1' AND price = 0;
+UPDATE books SET price = 130000 WHERE id = 'b-eng-1' AND price = 0;
+UPDATE books SET price = 55000 WHERE id = 'b-pai-1' AND price = 0;
+UPDATE books SET price = 60000 WHERE id = 'b-bindo-1' AND price = 0;
+UPDATE books SET price = 50000 WHERE id = 'b-ppkn-1' AND price = 0;
+UPDATE books SET price = 65000 WHERE id = 'b-arab-1' AND price = 0;
+UPDATE books SET price = 75000 WHERE id = 'b-tahfidz-1' AND price = 0;
+UPDATE books SET price = 95000 WHERE id = 'b-math-2' AND price = 0;
+UPDATE books SET price = 90000 WHERE id = 'b-sci-2' AND price = 0;
+UPDATE books SET price = 110000 WHERE id = 'b-eng-2' AND price = 0;
+UPDATE books SET price = 55000 WHERE id = 'b-pai-2' AND price = 0;
 
 -- 2. Book Packages (Bundles)
 INSERT OR IGNORE INTO book_packages (id, code, name, grade_level, curriculum_type, academic_year, price, description, created_at, updated_at) VALUES

@@ -69,6 +69,7 @@ export const books = sqliteTable("books", {
   category: text("category"),
   description: text("description"),
   coverUrl: text("cover_url"),
+  price: integer("price").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -93,6 +94,7 @@ export const transferShipments = sqliteTable("transfer_shipments", {
   status: text("status", { 
     enum: ["draft", "pending_dispatch", "in_transit", "completed", "completed_with_discrepancy", "cancelled"] 
   }).notNull().default("draft"),
+  totalDeclaredValue: integer("total_declared_value").notNull().default(0),
   dispatchedAt: text("dispatched_at"),
   receivedAt: text("received_at"),
   notes: text("notes"),
@@ -104,7 +106,12 @@ export const transferShipments = sqliteTable("transfer_shipments", {
 export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
   id: text("id").primaryKey(),
   shipmentId: text("shipment_id").notNull().references(() => transferShipments.id, { onDelete: "cascade" }),
-  bookItemId: text("book_item_id").notNull().references(() => bookItems.id),
+  itemType: text("item_type", { enum: ["loose", "package"] }).notNull().default("loose"),
+  bookItemId: text("book_item_id").references(() => bookItems.id),
+  packageId: text("package_id"),
+  packageItemId: text("package_item_id"),
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceSnapshot: integer("unit_price_snapshot").notNull().default(0),
   receivedCondition: text("received_condition", { enum: ["good", "damaged", "missing"] }),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
