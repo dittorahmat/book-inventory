@@ -120,3 +120,16 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
+
+---
+
+## 5. Bun Version & Lockfile Discipline (Anti-Build-Failure Rule)
+
+1. Cloudflare build memakai **bun@1.2.15** (lihat field `packageManager` di `package.json`) dengan `bun install --frozen-lockfile`.
+2. **DILARANG** commit `bun.lock` yang ditulis oleh bun versi lebih baru — format lockfile v2 tidak dikenal oleh bun 1.2.15 sehingga build gagal dengan error `Unknown lockfile version`.
+3. Setiap perintah yang mengubah lockfile (`bun add` / `remove` / `install`) **WAJIB** dijalankan dengan bun yang sama seperti `packageManager`:
+   ```bash
+   npx -y bun@1.2.15 install
+   ```
+   Verifikasi `lockfileVersion` di `bun.lock` tetap format lama sebelum commit dan push.
+4. Jangan upgrade `packageManager`/versi bun tanpa memastikan Cloudflare mendukung versi tersebut.
