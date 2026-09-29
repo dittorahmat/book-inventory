@@ -11,6 +11,7 @@ import { packagesRouter } from "./routes/packages";
 import { publicOrdersRouter } from "./routes/public-orders";
 import { paymentsRouter } from "./routes/payments";
 import { studentOrdersRouter } from "./routes/student-orders";
+import { dashboardRouter } from "./routes/dashboard";
 import { procurementRouter } from "./routes/procurement";
 import { settingsRouter } from "./routes/settings";
 import { auth } from "./auth";
@@ -44,6 +45,7 @@ app.get("/api/media/*", async (c) => {
 
 app.route("/api/public/orders", publicOrdersRouter);
 app.route("/api/student-orders", studentOrdersRouter);
+app.route("/api/dashboard", dashboardRouter);
 app.route("/api/procurement", procurementRouter);
 app.route("/api/payments", paymentsRouter);
 app.route("/api/settings", settingsRouter);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { School } from "./types";
 import { BranchSelector } from "./components/BranchSelector";
 import { CatalogView } from "./views/CatalogView";
@@ -11,14 +11,19 @@ import { PublicOrderView } from "./views/PublicOrderView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
 import { LoginView } from "./views/LoginView";
+import { DashboardLoadingFallback } from "./views/DashboardFallback";
+const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 import { useSession, signOut } from "./lib/auth-client";
-import { BookOpen, Layers, Package, Users, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2 } from "lucide-react";
+import { BookOpen, Layers, Package, Users, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard } from "lucide-react";
+
+const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "student_orders", "procurement", "returns", "transfers", "settings"] as const;
+type ActiveTab = typeof TAB_IDS[number];
 
 export function App() {
   const { data: session, isPending } = useSession();
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
-  const [activeTab, setActiveTab] = useState<"catalog" | "packages" | "inventory" | "student_orders" | "procurement" | "returns" | "transfers" | "settings">("student_orders");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
@@ -186,6 +191,17 @@ export function App() {
           {/* Navigation Tabs for Desktop */}
           <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm border-t border-[#E4E6EB]/60 overflow-x-auto">
             <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "dashboard"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </button>
+            <button
               onClick={() => setActiveTab("student_orders")}
               className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
                 activeTab === "student_orders"
@@ -280,6 +296,17 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">
+        {activeTab === "dashboard" && (
+          <Suspense fallback={<DashboardLoadingFallback />}>
+            <DashboardView
+              activeSchool={selectedSchool}
+              isCentralAdmin={isCentralAdmin}
+              onNavigateTab={(tab) => {
+                if ((TAB_IDS as readonly string[]).includes(tab)) setActiveTab(tab as ActiveTab);
+              }}
+            />
+          </Suspense>
+        )}
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
@@ -297,7 +324,19 @@ export function App() {
 
       {/* Bottom Navigation Bar for Mobile (< md) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-        <div className="grid grid-cols-4 auto-cols-fr gap-1.5">
+        <div className="grid grid-cols-5 auto-cols-fr gap-1.5">
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
+              activeTab === "dashboard"
+                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold">Dashboard</span>
+          </button>
+
           <button
             onClick={() => setActiveTab("inventory")}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
@@ -349,7 +388,7 @@ export function App() {
           {isCentralAdmin && (
             <button
               onClick={() => setActiveTab("settings")}
-              className={`col-span-3 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
+              className={`col-span-5 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
                 activeTab === "settings"
                   ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                   : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
