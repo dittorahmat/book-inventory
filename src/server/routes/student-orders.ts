@@ -13,6 +13,7 @@ import {
   bookItems 
 } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
+import { decodeBase64ToBytes } from "../base64";
 
 export const studentOrdersRouter = new Hono();
 
@@ -172,7 +173,7 @@ studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async
   let photoProofUrl: string | null = null;
   if (body.photoProofBase64) {
     const key = `returns/${returnId}_${Date.now()}.jpg`;
-    const buffer = Buffer.from(body.photoProofBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    const buffer = decodeBase64ToBytes(body.photoProofBase64);
     photoProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
   }
 

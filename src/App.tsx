@@ -5,6 +5,7 @@ import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
 import { PackagesView } from "./views/PackagesView";
 import { StudentOrdersView } from "./views/StudentOrdersView";
+import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
@@ -14,9 +15,9 @@ import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 import { useSession, signOut } from "./lib/auth-client";
-import { BookOpen, Layers, Package, Users, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard } from "lucide-react";
+import { BookOpen, Layers, Package, Users, GraduationCap, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard } from "lucide-react";
 
-const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "student_orders", "procurement", "returns", "transfers", "settings"] as const;
+const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "students", "student_orders", "procurement", "returns", "transfers", "settings"] as const;
 type ActiveTab = typeof TAB_IDS[number];
 
 export function App() {
@@ -202,6 +203,17 @@ export function App() {
               Dashboard
             </button>
             <button
+              onClick={() => setActiveTab("students")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "students"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              Database Siswa
+            </button>
+            <button
               onClick={() => setActiveTab("student_orders")}
               className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
                 activeTab === "student_orders"
@@ -308,6 +320,7 @@ export function App() {
           </Suspense>
         )}
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
+        {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
@@ -324,7 +337,7 @@ export function App() {
 
       {/* Bottom Navigation Bar for Mobile (< md) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-        <div className="grid grid-cols-5 auto-cols-fr gap-1.5">
+        <div className="grid grid-cols-6 auto-cols-fr gap-1.5">
           <button
             onClick={() => setActiveTab("dashboard")}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
@@ -374,6 +387,18 @@ export function App() {
           </button>
 
           <button
+            onClick={() => setActiveTab("students")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
+              activeTab === "students"
+                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <GraduationCap className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold">Siswa</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("transfers")}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
               activeTab === "transfers"
@@ -388,7 +413,7 @@ export function App() {
           {isCentralAdmin && (
             <button
               onClick={() => setActiveTab("settings")}
-              className={`col-span-5 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
+              className={`col-span-6 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
                 activeTab === "settings"
                   ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                   : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"

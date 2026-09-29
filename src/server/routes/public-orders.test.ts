@@ -239,4 +239,145 @@ describe("Public Orders & Student Search API", () => {
       .where(eq(bookPackages.gradeLevel, "99"));
     expect(pkgs.length).toBe(0);
   });
+
+  it("rejects scholarship submit without proof and accepts it with proof", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-sch-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Scholarship Test",
+      code: `ALW-SCH-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const studentId = `std-sch-${stamp}`;
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `SCH${String(stamp).slice(-6)}`,
+      name: `Siswa Beasiswa ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      parentName: "Ortu Beasiswa",
+      parentEmail: "beasiswa@example.com",
+      parentPhone: "+628100000003",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const pkgId = `pkg-sch-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      code: `PKG-SCH-${stamp}`,
+      name: "Paket Kelas 2 SD Internasional",
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      price: 1950000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Without proof -> 400 JSON, no order created
+    const rejected = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, packageId: pkgId, orderType: "scholarship" }),
+    });
+    expect(rejected.status).toBe(400);
+    const rejectedJson = await rejected.json();
+    expect(rejectedJson.success).toBe(false);
+    expect(rejectedJson.message).toContain("beasiswa");
+
+    // With proof -> 201, totalAmount 0, scholarship_pending
+    const accepted = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        packageId: pkgId,
+        orderType: "scholarship",
+        scholarshipProofBase64: "data:image/jpeg;base64,dGVzdC1iZWFzaXN3YS1kb2t1bWVu",
+      }),
+    });
+    expect(accepted.status).toBe(201);
+    const acceptedJson = await accepted.json();
+    expect(acceptedJson.data.totalAmount).toBe(0);
+    expect(acceptedJson.data.paymentStatus).toBe("scholarship_pending");
+  });
+
+  it("locks unverified students out of search and submit", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-verify-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Verify Test",
+      code: `ALW-VERIFY-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const pkgId = `pkg-verify-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      code: `PKG-VERIFY-${stamp}`,
+      name: "Paket Kelas 1 SD Internasional",
+      gradeLevel: "1",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      price: 1800000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Register via public form -> new_pending
+    const regRes = await publicOrdersRouter.request("/register-student", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId,
+        name: `Pending Kid ${stamp}`,
+        gender: "male",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        parentName: "Ortu Pending",
+        parentEmail: "pending@example.com",
+        parentPhone: "+628100000004",
+      }),
+    });
+    expect(regRes.status).toBe(201);
+    const regJson = await regRes.json();
+    expect(regJson.data.status).toBe("new_pending");
+    const pendingId: string = regJson.data.id;
+
+    // Hidden from portal search
+    const searchRes = await publicOrdersRouter.request(
+      `/search-students?query=${encodeURIComponent(`Pending Kid ${stamp}`)}&schoolId=${schoolId}`,
+      { method: "GET" }
+    );
+    expect(searchRes.status).toBe(200);
+    const searchJson = await searchRes.json();
+    expect(searchJson.data.find((s: any) => s.id === pendingId)).toBeUndefined();
+
+    // Forced submit -> 403, no order created
+    const submitRes = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId: pendingId, packageId: pkgId, orderType: "regular" }),
+    });
+    expect(submitRes.status).toBe(403);
+    const submitJson = await submitRes.json();
+    expect(submitJson.success).toBe(false);
+    expect(submitJson.message).toContain("verifikasi");
+  });
 });

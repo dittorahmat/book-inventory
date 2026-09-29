@@ -9,6 +9,7 @@ import { usersRouter } from "./routes/users";
 import { demoRouter } from "./routes/demo";
 import { packagesRouter } from "./routes/packages";
 import { publicOrdersRouter } from "./routes/public-orders";
+import { studentsRouter } from "./routes/students";
 import { paymentsRouter } from "./routes/payments";
 import { studentOrdersRouter } from "./routes/student-orders";
 import { dashboardRouter } from "./routes/dashboard";
@@ -22,6 +23,19 @@ export const app = new Hono();
 
 app.use("*", logger());
 app.use("*", cors());
+
+// Global JSON error envelope: portal publik dan semua klien selalu
+// menerima JSON (tidak pernah plain-teks "Internal Server Error").
+app.onError((err, c) => {
+  console.error(`[API] Unhandled error ${c.req.method} ${c.req.path}:`, err);
+  return c.json(
+    {
+      success: false,
+      message: "Terjadi kendala pada server. Silakan coba lagi beberapa saat.",
+    },
+    500
+  );
+});
 
 // Mount Better-Auth handler
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -44,6 +58,7 @@ app.get("/api/media/*", async (c) => {
 });
 
 app.route("/api/public/orders", publicOrdersRouter);
+app.route("/api/students", studentsRouter);
 app.route("/api/student-orders", studentOrdersRouter);
 app.route("/api/dashboard", dashboardRouter);
 app.route("/api/procurement", procurementRouter);

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, sql } from "drizzle-orm";
+import { eq, or, like, and, sql, notInArray } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, orderPayments, bookPackages, schools } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
+import { decodeBase64ToBytes } from "../base64";
 
 export const publicOrdersRouter = new Hono();
 
@@ -51,18 +52,17 @@ publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSche
   const { query, schoolId } = c.req.valid("query");
   const cleanQ = `%${query.trim().toLowerCase()}%`;
 
+  // Portal hanya boleh menemukan siswa terverifikasi: sembunyikan
+  // new_pending (menunggu admin) dan rejected (ditolak admin).
+  const verifiedOnly = notInArray(students.status, ["new_pending", "rejected"]);
+  const matchFilter = or(
+    like(sql`lower(${students.name})`, cleanQ),
+    like(sql`lower(${students.nis})`, cleanQ)
+  );
+
   const whereCondition = schoolId
-    ? and(
-        eq(students.schoolId, schoolId),
-        or(
-          like(sql`lower(${students.name})`, cleanQ),
-          like(sql`lower(${students.nis})`, cleanQ)
-        )
-      )
-    : or(
-        like(sql`lower(${students.name})`, cleanQ),
-        like(sql`lower(${students.nis})`, cleanQ)
-      );
+    ? and(eq(students.schoolId, schoolId), matchFilter, verifiedOnly)
+    : and(matchFilter, verifiedOnly);
 
   const foundStudents = await db
     .select({
@@ -144,6 +144,14 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     return c.json({ success: false, message: "Data murid tidak ditemukan" }, 404);
   }
 
+  // Pertahanan lapis kedua: hanya siswa terverifikasi yang boleh memesan
+  if (student.status !== "active" && student.status !== "promoted") {
+    return c.json(
+      { success: false, message: "Data siswa masih menunggu verifikasi admin sekolah. Silakan coba lagi setelah disetujui." },
+      403
+    );
+  }
+
   // Find package
   const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, body.packageId));
   if (!pkg) {
@@ -159,7 +167,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
       return c.json({ success: false, message: "Surat tanda beasiswa wajib dilampirkan" }, 400);
     }
     const key = `scholarships/${student.id}_${Date.now()}.jpg`;
-    const buffer = Buffer.from(body.scholarshipProofBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    const buffer = decodeBase64ToBytes(body.scholarshipProofBase64);
     scholarshipProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
   }
 
@@ -168,32 +176,12 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   let paidAmount = 0;
   let paymentStatus: any = isScholarship ? "scholarship_pending" : "unpaid";
 
-  // Handle optional payment proof
   if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
-    let paymentProofUrl: string | null = null;
-    if (body.payment.paymentProofBase64) {
-      const key = `payments/${orderId}_${Date.now()}.jpg`;
-      const buffer = Buffer.from(body.payment.paymentProofBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
-      paymentProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
-    }
-
     paidAmount = body.payment.bookAllocationAmount;
     paymentStatus = paidAmount >= totalAmount ? "paid" : "partial";
-
-    await db.insert(orderPayments).values({
-      id: crypto.randomUUID(),
-      orderId,
-      transferAmount: body.payment.transferAmount,
-      bookAllocationAmount: body.payment.bookAllocationAmount,
-      paymentProofUrl,
-      bankName: body.payment.bankName || null,
-      referenceNumber: body.payment.referenceNumber || null,
-      notes: "Submitted via Public Form",
-      createdAt: now,
-    });
   }
 
-  // Create order
+  // Create order FIRST so payment records always reference an existing order
   await db.insert(studentBookOrders).values({
     id: orderId,
     orderNumber,
@@ -210,6 +198,28 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     createdAt: now,
     updatedAt: now,
   });
+
+  // Handle optional payment proof (after order exists)
+  if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
+    let paymentProofUrl: string | null = null;
+    if (body.payment.paymentProofBase64) {
+      const key = `payments/${orderId}_${Date.now()}.jpg`;
+      const buffer = decodeBase64ToBytes(body.payment.paymentProofBase64);
+      paymentProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
+    }
+
+    await db.insert(orderPayments).values({
+      id: crypto.randomUUID(),
+      orderId,
+      transferAmount: body.payment.transferAmount,
+      bookAllocationAmount: body.payment.bookAllocationAmount,
+      paymentProofUrl,
+      bankName: body.payment.bankName || null,
+      referenceNumber: body.payment.referenceNumber || null,
+      notes: "Submitted via Public Form",
+      createdAt: now,
+    });
+  }
 
   const [orderRecord] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
 
@@ -295,7 +305,7 @@ publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema)
   let photoProofUrl: string | null = null;
   if (body.photoProofBase64) {
     const key = `returns/public_${returnId}_${Date.now()}.jpg`;
-    const buffer = Buffer.from(body.photoProofBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    const buffer = decodeBase64ToBytes(body.photoProofBase64);
     photoProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
   }
 

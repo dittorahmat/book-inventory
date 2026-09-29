@@ -92,13 +92,16 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
    - Kelas: `Kelas 1 SD`.
    - Kurikulum: `Internasional (Cambridge)`.
    - Nama Orang Tua: `Faris Abdullah`, Email: `faris@example.com`, No. WA: `081234567890`.
-   - Klik **Lanjutkan Pilih Paket**.
-3. Sistem langsung mengunci **Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)** (Normal: Rp 1.850.000) beserta rincian 8 bukunya — tanpa perlu memilih manual.
-4. Klik **Lanjut ke Pembayaran**:
+   - Klik **Daftarkan Siswa**.
+3. Sistem menampilkan layar **"Pendaftaran Diterima — menunggu verifikasi admin sekolah"** dan MENGUNCI pemesanan (tidak ada tombol lanjut ke paket/pembayaran).
+4. Verifikasi sebagai admin: login staf &rarr; tab **Database Siswa** &rarr; bagian **Antrian Verifikasi** &rarr; isi NIS resmi (mis. `20260015`) &rarr; klik **Setujui**. Status Zaidan berubah menjadi aktif.
+5. Kembali ke Portal Publik, cari `Zaidan Faris` &rarr; klik **Pilih**:
+   - Sistem langsung mengunci **Paket Kelas 1 SD Internasional (Cambridge + Diniyyah)** (Normal: Rp 1.850.000) beserta rincian 8 bukunya — tanpa perlu memilih manual.
+6. Klik **Lanjut ke Pembayaran**:
    - Pilih opsi: **Jalur Beasiswa (Diskon 100%)**.
    - Total tagihan menjadi **Rp 0**.
    - Unggah foto dokumen **Surat Keterangan / Tanda Beasiswa Tahfidz**.
-5. Klik **Konfirmasi & Kirim Pesanan**:
+7. Klik **Konfirmasi & Kirim Pesanan**:
    - Pesanan dibuat dengan status `scholarship_pending` (menunggu verifikasi loket administrasi).
 
 ---

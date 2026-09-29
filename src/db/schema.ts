@@ -132,7 +132,7 @@ export const students = sqliteTable("students", {
   parentName: text("parent_name"),
   parentEmail: text("parent_email"),
   parentPhone: text("parent_phone"),
-  status: text("status", { enum: ["active", "promoted", "new_pending", "graduated"] }).notNull().default("active"),
+  status: text("status", { enum: ["active", "promoted", "new_pending", "rejected", "graduated"] }).notNull().default("active"),
   isScholarship: integer("is_scholarship", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

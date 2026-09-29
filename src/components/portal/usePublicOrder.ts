@@ -68,6 +68,15 @@ export function usePublicOrder() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedOrder, setSubmittedOrder] = useState<any>(null);
 
+  // Menunggu verifikasi admin: pendaftar baru terkunci total di sini
+  const [verificationPending, setVerificationPending] = useState<{ name: string } | null>(null);
+
+  // Pindah step selalu menghapus error lama agar banner tidak bocor antar step
+  const goToStep = (next: OrderStep) => {
+    setErrorMessage(null);
+    setStep(next);
+  };
+
   // Locked package resolution: single package matching
   // (targetGradeLevel, curriculumType), preferring latest academicYear.
   // Re-runs when the package list arrives after a student was selected.
@@ -136,6 +145,7 @@ export function usePublicOrder() {
   };
 
   const handleSelectStudent = (st: StudentSearchResult) => {
+    setErrorMessage(null);
     setSelectedStudent(st);
     setIsNewStudentMode(false);
 
@@ -151,28 +161,10 @@ export function usePublicOrder() {
     try {
       const created = await registerStudent(newStudent);
 
-      const registered: StudentSearchResult = {
-        id: created.id,
-        nis: created.nis,
-        name: created.name,
-        gradeLevel: created.gradeLevel,
-        curriculumType: created.curriculumType,
-        academicYear: created.academicYear,
-        status: created.status,
-        isScholarship: false,
-        schoolId: created.schoolId,
-        schoolName: schools.find((s) => s.id === created.schoolId)?.name || "",
-        parentName: created.parentName,
-        parentEmail: created.parentEmail,
-        parentPhone: created.parentPhone,
-        detectedStatus: "baru",
-        currentGradeLevel: created.gradeLevel,
-        targetGradeLevel: created.gradeLevel,
-      };
-
-      setSelectedStudent(registered);
-      applyLockedPackage(registered);
-      setStep(2);
+      // Kunci total: tidak langsung jadi selectedStudent, melainkan
+      // layar tunggu sampai admin memverifikasi (status new_pending).
+      setVerificationPending({ name: created.name });
+      setIsNewStudentMode(false);
     } catch (err: any) {
       setErrorMessage(err.message || "Terjadi kesalahan pendaftaran");
     } finally {
@@ -236,16 +228,20 @@ export function usePublicOrder() {
 
   const resetOrderFlow = () => {
     setStep(1);
+    setErrorMessage(null);
     setSelectedStudent(null);
+    setVerificationPending(null);
+    setIsNewStudentMode(false);
     setSearchQuery("");
     setSearchResults([]);
   };
 
   return {
     activePortalTab, setActivePortalTab,
-    schools, packages, step, setStep,
+    schools, packages, step, setStep, goToStep,
     searchQuery, setSearchQuery, isSearching, searchResults,
     selectedStudent, isNewStudentMode, setIsNewStudentMode,
+    verificationPending, setVerificationPending,
     newStudent, setNewStudent,
     selectedPackageId, selectedPackage,
     orderType, setOrderType, scholarshipProofBase64, setScholarshipProofBase64,

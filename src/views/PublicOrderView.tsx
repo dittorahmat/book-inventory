@@ -1,4 +1,4 @@
-import { BookOpen, RotateCcw, AlertCircle } from "lucide-react";
+import { BookOpen, RotateCcw, AlertCircle, Clock } from "lucide-react";
 import { usePublicOrder } from "../components/portal/usePublicOrder";
 import { useReturnFlow } from "../components/portal/useReturnFlow";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
@@ -14,7 +14,7 @@ interface PublicOrderViewProps {
 export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps) {
   const order = usePublicOrder();
   const returns = useReturnFlow(order.packages, order.setErrorMessage);
-  const { activePortalTab, setActivePortalTab, step, setStep, errorMessage, setErrorMessage } = order;
+  const { activePortalTab, setActivePortalTab, step, errorMessage, setErrorMessage } = order;
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] antialiased flex flex-col justify-between">
@@ -131,8 +131,31 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
               </div>
             )}
 
-            {/* STEP 1: PENCARIAN SISWA ATAU PENDAFTARAN SISWA BARU */}
-            {step === 1 && (
+            {/* STEP 1: PENCARIAN SISWA / TUNGGU VERIFIKASI / PENDAFTARAN SISWA BARU */}
+            {step === 1 && order.verificationPending && (
+              <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-[#FFF7E6] border border-[#FFD966] flex items-center justify-center mx-auto">
+                  <Clock className="w-6 h-6 text-[#B7791F]" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-[#050505]">
+                    Pendaftaran Diterima
+                  </h2>
+                  <p className="text-xs text-[#65676B] mt-1 leading-relaxed max-w-sm mx-auto">
+                    Data <span className="font-semibold text-[#050505]">{order.verificationPending.name}</span> menunggu
+                    verifikasi admin sekolah. Silakan coba lagi setelah disetujui — belum bisa lanjut ke pemesanan buku.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => order.setVerificationPending(null)}
+                  className="px-5 py-2.5 bg-[#F0F2F5] text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98] transition-all"
+                >
+                  Kembali ke Pencarian
+                </button>
+              </div>
+            )}
+            {step === 1 && !order.verificationPending && (
               <StudentSearchStep
                 schools={order.schools}
                 searchQuery={order.searchQuery}
@@ -155,8 +178,8 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
               <LockedPackageStep
                 student={order.selectedStudent}
                 selectedPackage={order.selectedPackage}
-                onBack={() => setStep(1)}
-                onNext={() => setStep(3)}
+                onBack={() => order.goToStep(1)}
+                onNext={() => order.goToStep(3)}
               />
             )}
 
@@ -183,7 +206,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                 setNotes={order.setNotes}
                 isSubmitting={order.isSubmitting}
                 onFileUpload={order.handleFileUpload}
-                onBack={() => setStep(2)}
+                onBack={() => order.goToStep(2)}
                 onSubmit={order.handleSubmitFinalOrder}
               />
             )}
