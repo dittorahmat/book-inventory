@@ -2,7 +2,24 @@ export interface DashboardSchoolScope {
   id: string;
   name: string;
   code: string;
-  type: "main" | "branch";
+  type: "main" | "branch" | "warehouse";
+}
+
+export interface DashboardTitleStock {
+  bookId: string;
+  title: string;
+  totalQty: number;
+  availableQty: number;
+  inTransitQty: number;
+  byCondition: { new: number; good: number; fair: number; damaged: number };
+}
+
+export interface DashboardPackageStock {
+  packageId: string;
+  code: string;
+  name: string;
+  totalQty: number;
+  readyQty: number;
 }
 
 export interface DashboardStock {
@@ -11,6 +28,10 @@ export interface DashboardStock {
   byCondition: { new: number; good: number; fair: number; damaged: number };
   inTransit: number;
   lost: number;
+  /** Ringkasan per judul (bukan per barcode) sesuai lokasi sekolah. */
+  byTitle: DashboardTitleStock[];
+  /** Ringkasan per jenis paket (bukan per bundel fisik) sesuai lokasi sekolah. */
+  byPackage: DashboardPackageStock[];
 }
 
 export interface DashboardCoverage {

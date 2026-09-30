@@ -14,6 +14,13 @@ import {
 } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
 import { decodeBase64ToBytes } from "../base64";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  resolveLocationScope,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const studentOrdersRouter = new Hono();
 
@@ -42,8 +49,13 @@ const resolveReturnSchema = z.object({
 
 // 1. GET all student orders for a school with matrix filters
 studentOrdersRouter.get("/", async (c) => {
-  const schoolId = c.req.query("schoolId");
-  const paymentStatus = c.req.query("paymentStatus");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
+    // Scoped actors are locked to their location; central may filter or see all.
+    const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
+    const paymentStatus = c.req.query("paymentStatus");
   const fulfillmentStatus = c.req.query("fulfillmentStatus");
   const search = c.req.query("search");
 
@@ -97,18 +109,25 @@ studentOrdersRouter.get("/", async (c) => {
   });
 
   return c.json({ success: true, data: filtered });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 2. POST Handover Package / Generate Surat Jalan Penyerahan
 studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), async (c) => {
-  const orderId = c.req.param("id");
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const orderId = c.req.param("id");
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
 
-  const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-  if (!order) {
-    return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
-  }
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
 
   // Generate unique Surat Jalan Delivery Number
   const deliveryNumber = `SJ-SERAH-${Date.now().toString().slice(-8)}`;
@@ -162,11 +181,21 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
       fulfillmentStatus: "picked_up",
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 3. POST Report Defective Book for Return/Exchange
 studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const body = c.req.valid("json");
+    const [parentOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, body.orderId));
+    if (parentOrder) {
+      assertLocationAllowed(actor, parentOrder.schoolId, locations);
+    }
   const now = new Date().toISOString();
   const returnId = crypto.randomUUID();
 
@@ -197,11 +226,19 @@ studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async
 
   const [created] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
   return c.json({ success: true, message: "Laporan retur buku cacat berhasil disimpan", data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 4. GET all book returns
 studentOrdersRouter.get("/returns", async (c) => {
-  const allReturns = await db
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const scope = new Set(resolveLocationScope(actor, undefined, locations));
+    const scopedOnly = scope.size < locations.length;
+    const allReturns = await db
     .select({
       id: bookReturns.id,
       orderId: bookReturns.orderId,
@@ -209,6 +246,7 @@ studentOrdersRouter.get("/returns", async (c) => {
       studentId: bookReturns.studentId,
       studentName: students.name,
       nis: students.nis,
+      orderSchoolId: studentBookOrders.schoolId,
       defectiveBookId: bookReturns.defectiveBookId,
       bookTitle: books.title,
       isbn: books.isbn,
@@ -225,19 +263,30 @@ studentOrdersRouter.get("/returns", async (c) => {
     .innerJoin(books, eq(bookReturns.defectiveBookId, books.id))
     .orderBy(desc(bookReturns.createdAt));
 
-  return c.json({ success: true, data: allReturns });
+  const visible = scopedOnly ? allReturns.filter((r: any) => scope.has(r.orderSchoolId)) : allReturns;
+  return c.json({ success: true, data: visible });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 5. POST Resolve Book Return (Exchange from loose stock)
 studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveReturnSchema), async (c) => {
-  const returnId = c.req.param("id");
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const returnId = c.req.param("id");
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
 
-  const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
-  if (!ret) {
-    return c.json({ success: false, message: "Laporan retur tidak ditemukan" }, 404);
-  }
+    const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
+    if (!ret) {
+      return c.json({ success: false, message: "Laporan retur tidak ditemukan" }, 404);
+    }
+    const [retOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, ret.orderId));
+    if (retOrder) {
+      assertLocationAllowed(actor, retOrder.schoolId, locations);
+    }
 
   if (body.action === "replace") {
     // If replacement item not provided, pick available loose stock
@@ -299,5 +348,8 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
       .where(eq(bookReturns.id, returnId));
 
     return c.json({ success: true, message: "Laporan retur ditolak" });
+  }
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
 });

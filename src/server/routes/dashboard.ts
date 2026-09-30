@@ -2,11 +2,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
-import { auth } from "../auth";
+import { resolveRequestActor } from "../services/access-scope";
 import {
   DashboardHttpError,
   getDashboardSummary,
-  type DashboardActor,
 } from "../services/dashboard-summary";
 
 export const dashboardRouter = new Hono();
@@ -18,16 +17,7 @@ const summaryQuerySchema = z.object({
 dashboardRouter.get("/summary", zValidator("query", summaryQuerySchema), async (c) => {
   const { schoolId } = c.req.valid("query");
 
-  let actor: DashboardActor | null = null;
-  try {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    const user = session?.user as unknown as { role?: string; schoolId?: string | null } | undefined;
-    if (user && (user.role === "central_admin" || user.role === "branch_admin")) {
-      actor = { role: user.role, schoolId: user.schoolId ?? null };
-    }
-  } catch {
-    actor = null;
-  }
+  const actor = await resolveRequestActor(c);
 
   try {
     const data = await getDashboardSummary(db, actor, schoolId);

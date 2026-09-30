@@ -8,17 +8,19 @@ import { auth } from "../auth";
 
 export const usersRouter = new Hono();
 
+const staffRoles = ["central_admin", "warehouse_admin", "school_admin", "branch_admin"] as const;
+
 const createUserSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["central_admin", "branch_admin"]),
+  role: z.enum(staffRoles),
   schoolId: z.string().optional().nullable(),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
-  role: z.enum(["central_admin", "branch_admin"]).optional(),
+  role: z.enum(staffRoles).optional(),
   schoolId: z.string().optional().nullable(),
 });
 
@@ -50,9 +52,9 @@ usersRouter.get("/", async (c) => {
 usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
   const body = c.req.valid("json");
 
-  // Validate branch_admin must have schoolId
-  if (body.role === "branch_admin" && !body.schoolId) {
-    return c.json({ success: false, message: "Branch administrator must be assigned to a school" }, 400);
+  // Validate non-central roles must have schoolId (location assignment)
+  if (body.role !== "central_admin" && !body.schoolId) {
+    return c.json({ success: false, message: "Non-central administrator must be assigned to a school/warehouse" }, 400);
   }
 
   // If schoolId is provided, check school existence

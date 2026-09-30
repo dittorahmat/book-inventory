@@ -4,6 +4,12 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { studentBookOrders, orderPayments, students, bookPackages } from "../../db/schema";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const paymentsRouter = new Hono();
 
@@ -26,7 +32,10 @@ const scholarshipActionSchema = z.object({
 
 // GET order payment history & pending approvals
 paymentsRouter.get("/orders/:orderId", async (c) => {
-  const orderId = c.req.param("orderId");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const orderId = c.req.param("orderId");
 
   const [order] = await db
     .select({
@@ -55,6 +64,7 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
   if (!order) {
     return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
   }
+  assertLocationAllowed(actor, order.schoolId, locations);
 
   const payments = await db
     .select()
@@ -70,18 +80,25 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
       remainingAmount: Math.max(0, order.totalAmount - order.paidAmount),
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST record payment by cashier (Partial or Full)
 paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSchema), async (c) => {
-  const orderId = c.req.param("orderId");
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const orderId = c.req.param("orderId");
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
 
-  const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-  if (!order) {
-    return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
-  }
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
 
   const newPaidAmount = order.paidAmount + body.bookAllocationAmount;
   const newPaymentStatus = newPaidAmount >= order.totalAmount ? "paid" : "partial";
@@ -120,18 +137,25 @@ paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSch
       paymentStatus: newPaymentStatus,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST approve or reject scholarship
 paymentsRouter.post("/orders/:orderId/scholarship", zValidator("json", scholarshipActionSchema), async (c) => {
-  const orderId = c.req.param("orderId");
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const orderId = c.req.param("orderId");
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
 
-  const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-  if (!order) {
-    return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
-  }
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
 
   if (order.orderType !== "scholarship") {
     return c.json({ success: false, message: "Pesanan ini bukan pesanan jalur beasiswa" }, 400);
@@ -156,4 +180,7 @@ paymentsRouter.post("/orders/:orderId/scholarship", zValidator("json", scholarsh
       paymentStatus: newStatus,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });

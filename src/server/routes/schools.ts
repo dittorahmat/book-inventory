@@ -10,7 +10,7 @@ export const schoolsRouter = new Hono();
 const createSchoolSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   code: z.string().min(2, "Code must be at least 2 characters").toUpperCase(),
-  type: z.enum(["main", "branch"]),
+  type: z.enum(["main", "branch", "warehouse"]),
   address: z.string().optional(),
   phone: z.string().optional(),
 });
@@ -42,6 +42,14 @@ schoolsRouter.post("/", zValidator("json", createSchoolSchema), async (c) => {
     }
   }
 
+  // Single-warehouse policy: only one warehouse location is allowed
+  if (body.type === "warehouse") {
+    const existingWarehouse = await db.select().from(schools).where(eq(schools.type, "warehouse"));
+    if (existingWarehouse.length > 0) {
+      return c.json({ success: false, message: "Gudang logistik sudah terdaftar (hanya satu gudang)" }, 400);
+    }
+  }
+
   const [newSchool] = await db
     .insert(schools)
     .values({
@@ -62,7 +70,7 @@ schoolsRouter.post("/", zValidator("json", createSchoolSchema), async (c) => {
 const updateSchoolSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
   code: z.string().min(2, "Code must be at least 2 characters").toUpperCase().optional(),
-  type: z.enum(["main", "branch"]).optional(),
+  type: z.enum(["main", "branch", "warehouse"]).optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
 });

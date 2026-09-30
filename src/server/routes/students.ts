@@ -4,6 +4,13 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { students, schools } from "../../db/schema";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  resolveLocationScope,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const studentsRouter = new Hono();
 
@@ -37,9 +44,13 @@ async function nisTaken(nis: string, exceptId?: string) {
 
 // 1. GET list with school/status/search filters
 studentsRouter.get("/", async (c) => {
-  const schoolId = c.req.query("schoolId");
-  const status = c.req.query("status");
-  const search = c.req.query("search");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
+    const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
+    const status = c.req.query("status");
+    const search = c.req.query("search");
 
   const conditions = [];
   if (schoolId) conditions.push(eq(students.schoolId, schoolId));
@@ -80,11 +91,18 @@ studentsRouter.get("/", async (c) => {
     : rows;
 
   return c.json({ success: true, data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 2. POST create (admin-side: langsung terverifikasi bila status active)
 studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const body = c.req.valid("json");
+    assertLocationAllowed(actor, body.schoolId, locations);
   const now = new Date().toISOString();
 
   const [school] = await db.select().from(schools).where(eq(schools.id, body.schoolId));
@@ -116,22 +134,30 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
 
   const [created] = await db.select().from(students).where(eq(students.id, id));
   return c.json({ success: true, message: "Data siswa berhasil disimpan", data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 3. PUT update
 studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) => {
-  const id = c.req.param("id");
-  const body = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
   const now = new Date().toISOString();
 
   const [existing] = await db.select().from(students).where(eq(students.id, id));
   if (!existing) {
     return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
   }
+  assertLocationAllowed(actor, existing.schoolId, locations);
   if (body.nis && body.nis !== existing.nis && (await nisTaken(body.nis, id))) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
   if (body.schoolId) {
+    assertLocationAllowed(actor, body.schoolId, locations);
     const [school] = await db.select().from(schools).where(eq(schools.id, body.schoolId));
     if (!school) {
       return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
@@ -149,29 +175,43 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
   await db.update(students).set(patch as any).where(eq(students.id, id));
   const [updated] = await db.select().from(students).where(eq(students.id, id));
   return c.json({ success: true, message: "Data siswa berhasil diperbarui", data: updated });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 4. DELETE remove
 studentsRouter.delete("/:id", async (c) => {
-  const id = c.req.param("id");
-  const [existing] = await db.select().from(students).where(eq(students.id, id));
-  if (!existing) {
-    return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+    const [existing] = await db.select().from(students).where(eq(students.id, id));
+    if (!existing) {
+      return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, existing.schoolId, locations);
+    await db.delete(students).where(eq(students.id, id));
+    return c.json({ success: true, message: "Data siswa berhasil dihapus" });
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
-  await db.delete(students).where(eq(students.id, id));
-  return c.json({ success: true, message: "Data siswa berhasil dihapus" });
 });
 
 // 5. POST verify (approve dengan NIS resmi / reject)
 studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), async (c) => {
-  const id = c.req.param("id");
-  const body = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
   const now = new Date().toISOString();
 
   const [existing] = await db.select().from(students).where(eq(students.id, id));
   if (!existing) {
     return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
   }
+  assertLocationAllowed(actor, existing.schoolId, locations);
 
   if (body.action === "approve") {
     if (!body.nis) {
@@ -191,4 +231,7 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
   await db.update(students).set({ status: "rejected", updatedAt: now }).where(eq(students.id, id));
   const [updated] = await db.select().from(students).where(eq(students.id, id));
   return c.json({ success: true, message: "Pendaftaran siswa ditolak", data: updated });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
