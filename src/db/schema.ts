@@ -4,7 +4,7 @@ export const schools = sqliteTable("schools", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
-  type: text("type", { enum: ["main", "branch"] }).notNull().default("branch"),
+  type: text("type", { enum: ["main", "branch", "warehouse"] }).notNull().default("branch"),
   address: text("address"),
   phone: text("phone"),
   createdAt: text("created_at").notNull(),
@@ -17,7 +17,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
   image: text("image"),
-  role: text("role", { enum: ["central_admin", "branch_admin"] }).notNull().default("branch_admin"),
+  role: text("role", { enum: ["central_admin", "warehouse_admin", "school_admin", "branch_admin"] }).notNull().default("branch_admin"),
   schoolId: text("school_id").references(() => schools.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
@@ -70,6 +70,8 @@ export const books = sqliteTable("books", {
   description: text("description"),
   coverUrl: text("cover_url"),
   price: integer("price").notNull().default(0),
+  buyPrice: integer("buy_price").notNull().default(0),
+  sellPrice: integer("sell_price").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -158,11 +160,18 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   poNumber: text("po_number").notNull().unique(),
   supplierId: text("supplier_id").notNull().references(() => suppliers.id),
   targetSchoolId: text("target_school_id").notNull().references(() => schools.id),
-  status: text("status", { enum: ["draft", "ordered", "sent", "partially_received", "received", "cancelled"] }).notNull().default("draft"),
+  status: text("status", { enum: ["draft", "ordered", "printed", "signed_uploaded", "sent", "partially_received", "received", "cancelled"] }).notNull().default("draft"),
   orderDate: text("order_date").notNull(),
   expectedArrivalDate: text("expected_arrival_date"),
+  subtotalGross: integer("subtotal_gross").notNull().default(0),
+  discountTotal: integer("discount_total").notNull().default(0),
   totalAmount: integer("total_amount").notNull().default(0),
   notes: text("notes"),
+  printedAt: text("printed_at"),
+  signedDocUrl: text("signed_doc_url"),
+  signedDocName: text("signed_doc_name"),
+  signedDocType: text("signed_doc_type"),
+  signedDocUploadedAt: text("signed_doc_uploaded_at"),
   sentAt: text("sent_at"),
   sentTo: text("sent_to"),
   createdAt: text("created_at").notNull(),
@@ -176,6 +185,7 @@ export const purchaseOrderItems = sqliteTable("purchase_order_items", {
   quantityOrdered: integer("quantity_ordered").notNull(),
   quantityReceived: integer("quantity_received").notNull().default(0),
   unitPrice: integer("unit_price").notNull().default(0),
+  discountPercent: integer("discount_percent").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 
@@ -253,6 +263,16 @@ export const orderPayments = sqliteTable("order_payments", {
   verifiedByUserId: text("verified_by_user_id").references(() => users.id),
   verifiedAt: text("verified_at"),
   notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+/** Baris order satuan: satu order dapat berisi banyak judul dengan kuantitas. */
+export const studentOrderItems = sqliteTable("student_order_items", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => studentBookOrders.id, { onDelete: "cascade" }),
+  bookId: text("book_id").notNull().references(() => books.id),
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceSnapshot: integer("unit_price_snapshot").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 
