@@ -2,7 +2,7 @@ export interface School {
   id: string;
   name: string;
   code: string;
-  type: "main" | "branch";
+  type: "main" | "branch" | "warehouse";
   address?: string;
   phone?: string;
 }
@@ -11,7 +11,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "central_admin" | "branch_admin";
+  role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
   schoolId?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -29,6 +29,8 @@ export interface Book {
   description?: string;
   coverUrl?: string;
   price?: number;
+  buyPrice?: number;
+  sellPrice?: number;
 }
 
 export interface BookItem {

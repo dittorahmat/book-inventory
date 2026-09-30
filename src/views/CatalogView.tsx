@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { School, Book } from "../types";
 import { Plus, Image as ImageIcon, BookOpen, Search, Upload } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { BookPriceFields } from "../components/catalog/BookPriceFields";
+import { effectiveBookPrice } from "../lib/book-pricing";
 
 export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   const [books, setBooks] = useState<Book[]>([]);
@@ -15,6 +17,8 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     publishYear: 2024,
     category: "General",
     price: 0,
+    buyPrice: 0,
+    sellPrice: 0,
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
@@ -51,7 +55,12 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
       const res = await fetch("/api/books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, price: Math.max(0, Number(formData.price) || 0) }),
+        body: JSON.stringify({
+        ...formData,
+        price: Math.max(0, Number(formData.price) || 0),
+        buyPrice: Math.max(0, Number(formData.buyPrice) || 0),
+        sellPrice: Math.max(0, Number(formData.sellPrice) || 0),
+      }),
       });
       const data = await res.json();
       if (data.success) {
@@ -69,7 +78,7 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
           }
         }
         setIsAdding(false);
-        setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0 });
+        setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 });
         setCoverFile(null);
         setCoverPreviewUrl(null);
         fetchBooks();
@@ -257,18 +266,12 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                   onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
                 />
               </div>
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Harga Satuan (Rp)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={5000}
-                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs font-bold text-[#1877F2] focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-                  placeholder="0"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: Math.max(0, parseInt(e.target.value) || 0) })}
-                />
-              </div>
+              <BookPriceFields
+                price={formData.price}
+                buyPrice={formData.buyPrice}
+                sellPrice={formData.sellPrice}
+                onChange={(field, value) => setFormData({ ...formData, [field]: value })}
+              />
             </div>
           </div>
 
@@ -338,7 +341,7 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                   ISBN: {book.isbn}
                 </div>
                 <div className="text-xs font-bold text-[#1877F2] mt-1">
-                  {formatRupiah(book.price || 0)}
+                  Beli: {formatRupiah(effectiveBookPrice(book).buy)} &bull; Jual: {formatRupiah(effectiveBookPrice(book).sell)}
                 </div>
                 {book.publisher && (
                   <div className="text-[11px] text-[#65676B]">
@@ -370,7 +373,7 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
               <th className="py-3 px-4">Judul & Penulis</th>
               <th className="py-3 px-4">ISBN</th>
               <th className="py-3 px-4">Penerbit</th>
-              <th className="py-3 px-4 text-right">Harga Satuan</th>
+              <th className="py-3 px-4 text-right">Harga Beli / Jual</th>
               <th className="py-3 px-4 text-right">Aksi</th>
             </tr>
           </thead>
@@ -409,7 +412,10 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-[#65676B]">{book.isbn}</td>
                   <td className="py-3 px-4 text-[#65676B] font-medium">{book.publisher}</td>
-                  <td className="py-3 px-4 text-right font-bold text-[#1877F2]">{formatRupiah(book.price || 0)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</div>
+                    <div className="text-[10px] text-[#65676B] font-medium">Beli: {formatRupiah(effectiveBookPrice(book).buy)}</div>
+                  </td>
                   <td className="py-3 px-4 text-right">
                     <button
                       onClick={() => setGeneratingForBook(book)}

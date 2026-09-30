@@ -4,6 +4,15 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
+import { recalcPackagePrice } from "../services/book-price";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  requireLogisticsRole,
+  resolveLocationScope,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const packagesRouter = new Hono();
 
@@ -73,8 +82,12 @@ packagesRouter.get("/", async (c) => {
 
 // GET ready physical bundles (for transfer pickers)
 packagesRouter.get("/items/ready", async (c) => {
-  const schoolId = c.req.query("schoolId");
-  let rows = await db
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const requestedSchoolId = c.req.query("schoolId");
+    const scope = new Set(resolveLocationScope(actor, requestedSchoolId, locations));
+    let rows = await db
     .select({
       id: packageItems.id,
       barcode: packageItems.barcode,
@@ -89,17 +102,22 @@ packagesRouter.get("/items/ready", async (c) => {
     .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
     .where(eq(packageItems.status, "in_stock"));
 
-  if (schoolId) {
-    rows = rows.filter((r: any) => r.currentSchoolId === schoolId);
-  }
+  rows = rows.filter((r: any) => scope.has(r.currentSchoolId));
 
   return c.json({ success: true, data: rows });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // GET package inventory summary per school (bundle ready count & potential assembly count)
 packagesRouter.get("/:id/stock/:schoolId", async (c) => {
-  const packageId = c.req.param("id");
-  const schoolId = c.req.param("schoolId");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const packageId = c.req.param("id");
+    const schoolId = c.req.param("schoolId");
+    assertLocationAllowed(actor, schoolId, locations);
 
   const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   if (!pkg) {
@@ -173,11 +191,17 @@ packagesRouter.get("/:id/stock/:schoolId", async (c) => {
       looseStockBreakdown,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST Create new Package with BOM components
 packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const body = c.req.valid("json");
   const now = new Date().toISOString();
   const packageId = crypto.randomUUID();
 
@@ -193,7 +217,7 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
     gradeLevel: body.gradeLevel,
     curriculumType: body.curriculumType,
     academicYear: body.academicYear,
-    price: body.price,
+    price: 0,
     description: body.description || null,
     createdAt: now,
     updatedAt: now,
@@ -209,14 +233,24 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
     });
   }
 
+  // Harga paket terkomputasi: SUM(harga jual efektif * kuantitas) — input harga manual diabaikan.
+  await recalcPackagePrice(packageId);
+
   const [created] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   return c.json({ success: true, data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST Assembly / Bundling (Kitting)
 packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async (c) => {
-  const packageId = c.req.param("id");
-  const { schoolId, quantity } = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const packageId = c.req.param("id");
+    const { schoolId, quantity } = c.req.valid("json");
+    assertLocationAllowed(actor, schoolId, locations);
   const now = new Date().toISOString();
 
   const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
@@ -316,12 +350,19 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
       assembledItems: createdPackageItems,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST Disassembly / Unbundling (De-kitting)
 packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), async (c) => {
-  const packageId = c.req.param("id");
-  const { schoolId, quantity, reason } = c.req.valid("json");
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const packageId = c.req.param("id");
+    const { schoolId, quantity, reason } = c.req.valid("json");
+    assertLocationAllowed(actor, schoolId, locations);
   const now = new Date().toISOString();
 
   const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
@@ -395,4 +436,7 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
       restoredLooseCount: totalRestoredLoose,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });

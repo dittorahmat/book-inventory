@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { books } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
+import {
+  effectiveBuyPrice,
+  effectiveSellPrice,
+  recalcPackagesUsingBook,
+} from "../services/book-price";
 
 export const booksRouter = new Hono();
 
@@ -18,6 +23,8 @@ const createBookSchema = z.object({
   description: z.string().optional(),
   coverUrl: z.string().optional(),
   price: z.number().int().min(0, "Price must be >= 0").default(0),
+  buyPrice: z.number().int().min(0, "Buy price must be >= 0").optional(),
+  sellPrice: z.number().int().min(0, "Sell price must be >= 0").optional(),
 });
 
 const updateBookSchema = z.object({
@@ -29,11 +36,18 @@ const updateBookSchema = z.object({
   description: z.string().optional(),
   coverUrl: z.string().optional(),
   price: z.number().int().min(0, "Price must be >= 0").optional(),
+  buyPrice: z.number().int().min(0, "Buy price must be >= 0").optional(),
+  sellPrice: z.number().int().min(0, "Sell price must be >= 0").optional(),
 });
+
+/** Sajikan harga beli/jual efektif (fallback ke harga lama) agar daftar/detail selalu terisi. */
+function withEffectivePrices<T extends { price: number; buyPrice: number; sellPrice: number }>(book: T) {
+  return { ...book, buyPrice: effectiveBuyPrice(book), sellPrice: effectiveSellPrice(book) };
+}
 
 booksRouter.get("/", async (c) => {
   const allBooks = await db.select().from(books);
-  return c.json({ success: true, data: allBooks });
+  return c.json({ success: true, data: allBooks.map(withEffectivePrices) });
 });
 
 booksRouter.get("/:id", async (c) => {
@@ -42,7 +56,7 @@ booksRouter.get("/:id", async (c) => {
   if (!book) {
     return c.json({ success: false, message: "Book not found" }, 404);
   }
-  return c.json({ success: true, data: book });
+  return c.json({ success: true, data: withEffectivePrices(book) });
 });
 
 booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
@@ -68,15 +82,17 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
       description: body.description,
       coverUrl: body.coverUrl,
       price: body.price ?? 0,
+      buyPrice: body.buyPrice ?? body.price ?? 0,
+      sellPrice: body.sellPrice ?? body.price ?? 0,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
 
-  return c.json({ success: true, data: newBook }, 201);
+  return c.json({ success: true, data: withEffectivePrices(newBook) }, 201);
 });
 
-// Update book catalog fields (incl. manual unit price)
+// Update book catalog fields (incl. harga beli/jual terpisah)
 booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
   const id = c.req.param("id");
   const body = c.req.valid("json");
@@ -90,7 +106,19 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
   if (!updated) {
     return c.json({ success: false, message: "Book not found" }, 404);
   }
-  return c.json({ success: true, data: updated });
+
+  // Perubahan harga jual / harga lama memicu hitung ulang semua paket pemakai buku ini.
+  if (body.sellPrice !== undefined || body.price !== undefined) {
+    const recalcCount = await recalcPackagesUsingBook(id);
+    if (recalcCount > 0) {
+      return c.json({
+        success: true,
+        data: withEffectivePrices(updated),
+        message: `Harga jual diperbarui; ${recalcCount} paket dihitung ulang.`,
+      });
+    }
+  }
+  return c.json({ success: true, data: withEffectivePrices(updated) });
 });
 
 // Upload book cover endpoint

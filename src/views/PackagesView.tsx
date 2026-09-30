@@ -62,6 +62,12 @@ interface NewPackageItemInput {
   quantity: number;
 }
 
+/** Harga jual efektif komponen: fallback ke harga dasar bila harga jual belum diisi. */
+function effectiveSellOf(book: Book | undefined): number {
+  if (!book) return 0;
+  return book.sellPrice && book.sellPrice > 0 ? book.sellPrice : book.price || 0;
+}
+
 export function PackagesView({ activeSchool }: PackagesViewProps) {
   const [packages, setPackages] = useState<BookPackage[]>([]);
   const [catalogBooks, setCatalogBooks] = useState<Book[]>([]);
@@ -85,7 +91,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
   const [newPkgGrade, setNewPkgGrade] = useState("1");
   const [newPkgCurriculum, setNewPkgCurriculum] = useState<"international" | "national">("international");
   const [newPkgYear, setNewPkgYear] = useState("2026/2027");
-  const [newPkgPrice, setNewPkgPrice] = useState<number>(1500000);
   const [newPkgDescription, setNewPkgDescription] = useState("");
   const [newPkgItems, setNewPkgItems] = useState<NewPackageItemInput[]>([]);
   const [isSubmittingPackage, setIsSubmittingPackage] = useState(false);
@@ -147,7 +152,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
     const timestamp = Date.now().toString().slice(-4);
     setNewPkgCode(`PKG-SD${newPkgGrade}-${newPkgCurriculum === "international" ? "INT" : "NAT"}-${timestamp}`);
     setNewPkgName(`Paket Buku Kelas ${newPkgGrade} SD ${newPkgCurriculum === "international" ? "Internasional" : "Nasional"}`);
-    setNewPkgPrice(1500000);
     setNewPkgDescription("");
 
     if (catalogBooks.length > 0) {
@@ -185,6 +189,11 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
   };
 
   // Submit Create Package
+  const computedPkgPrice = newPkgItems.reduce(
+    (sum, it) => sum + effectiveSellOf(catalogBooks.find((x) => x.id === it.bookId)) * (it.quantity || 0),
+    0
+  );
+
   const handleSubmitCreatePackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPkgCode.trim() || !newPkgName.trim()) {
@@ -208,7 +217,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
           gradeLevel: newPkgGrade,
           curriculumType: newPkgCurriculum,
           academicYear: newPkgYear,
-          price: Math.max(0, Number(newPkgPrice) || 0),
+          price: computedPkgPrice,
           description: newPkgDescription.trim() || undefined,
           items: newPkgItems,
         }),
@@ -476,9 +485,10 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                               <div className="text-[11px] text-[#65676B] mt-0.5">
                                 {item.author}
                               </div>
-                              <div className="text-[11px] font-bold text-[#1877F2] mt-0.5">
-                                Rp {(catalogBooks.find((b) => b.id === item.bookId)?.price || 0).toLocaleString("id-ID")}
-                              </div>
+                                <div className="text-[11px] font-bold text-[#1877F2] mt-0.5">
+                                  Rp {(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)) * item.quantity).toLocaleString("id-ID")}
+                                  <span className="font-medium text-[#65676B]"> (@ Rp {effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)).toLocaleString("id-ID")}/eks jual)</span>
+                                </div>
                             </div>
 
                             <div className="mt-2.5 pt-2 border-t border-[#F0F2F5] flex items-center justify-between text-[11px]">
@@ -601,17 +611,14 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
                 <div>
                   <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Harga Paket (Rp) *
+                    Harga Paket (Rp) — Otomatis
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={10000}
-                    value={newPkgPrice}
-                    onChange={(e) => setNewPkgPrice(Math.max(0, parseInt(e.target.value) || 0))}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2] focus:outline-hidden focus:border-[#1877F2]"
-                  />
+                  <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-bold text-[#050505]">
+                    Rp {computedPkgPrice.toLocaleString("id-ID")}
+                  </div>
+                  <p className="text-[10px] text-[#65676B] mt-1">
+                    Dihitung otomatis: jumlah harga jual × qty tiap komponen.
+                  </p>
                 </div>
               </div>
 
