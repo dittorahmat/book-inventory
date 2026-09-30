@@ -3,22 +3,45 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, inArray, and } from "drizzle-orm";
 import { db } from "../../db";
-import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
-import { calcHeaderTotal } from "../services/transfer-valuation";
+import { transferShipments, transferShipmentItems, bookItems, packageItems } from "../../db/schema";
 import { listShipmentsWithCounts, getShipmentDetail } from "../services/shipment-read";
+import { createShipment } from "../services/shipment-write";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  resolveLocationScope,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const shipmentsRouter = new Hono();
+
+const shipmentLineSchema = z.discriminatedUnion("itemType", [
+  z.object({
+    itemType: z.literal("loose"),
+    bookId: z.string().min(1, "Book ID required"),
+    quantity: z.number().int().min(1, "Kuantitas minimal 1"),
+  }),
+  z.object({
+    itemType: z.literal("package"),
+    packageId: z.string().min(1, "Package ID required"),
+    quantity: z.number().int().min(1, "Kuantitas minimal 1"),
+  }),
+]);
 
 const createShipmentSchema = z.object({
   fromSchoolId: z.string().min(1, "Origin school ID required"),
   toSchoolId: z.string().min(1, "Destination school ID required"),
+  /** Input kuantitas per judul/paket; fisiknya dialokasikan otomatis FIFO. */
+  items: z.array(shipmentLineSchema).default([]),
   bookItemIds: z.array(z.string().min(1)).default([]),
   packageItemIds: z.array(z.string().min(1)).default([]),
   notes: z.string().optional(),
   reason: z.string().optional(),
-}).refine((v) => v.bookItemIds.length > 0 || v.packageItemIds.length > 0, {
-  message: "At least one book item or package item required",
-});
+}).refine(
+  (v) => v.items.length > 0 || v.bookItemIds.length > 0 || v.packageItemIds.length > 0,
+  { message: "At least one book item or package item required" }
+);
 
 const receiptSchema = z.object({
   condition: z.enum(["good", "damaged", "missing"]),
@@ -40,159 +63,81 @@ const receiveShipmentSchema = z.object({
 
 // List shipments (with filter for from/to school)
 shipmentsRouter.get("/", async (c) => {
-  const schoolId = c.req.query("schoolId");
-  const data = await listShipmentsWithCounts(db, schoolId);
-  return c.json({ success: true, data });
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const requestedSchoolId = c.req.query("schoolId");
+    const scope = resolveLocationScope(actor, requestedSchoolId, locations);
+    // Scoped actors always see their own location; central may filter or see all.
+    const effectiveSchoolId = scope.length === 1 ? scope[0] : requestedSchoolId;
+    const data = await listShipmentsWithCounts(db, effectiveSchoolId);
+    return c.json({ success: true, data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // Get shipment detail with items
 shipmentsRouter.get("/:id", async (c) => {
-  const id = c.req.param("id");
-  const detail = await getShipmentDetail(db, id);
-  if (!detail) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
+  try {
+    const actor = await resolveRequestActor(c);
+    const id = c.req.param("id");
+    const detail = await getShipmentDetail(db, id);
+    if (!detail) {
+      return c.json({ success: false, message: "Shipment not found" }, 404);
+    }
+    if (actor && actor.role !== "central_admin" && actor.schoolId !== detail.fromSchoolId && actor.schoolId !== detail.toSchoolId) {
+      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
+    }
+    return c.json({ success: true, data: detail });
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
-  return c.json({ success: true, data: detail });
 });
 
-// Create shipment draft (mixed loose + physical packages)
-shipmentsRouter.post("/", zValidator("json", createShipmentSchema), async (c) => {
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
-  const shipmentId = crypto.randomUUID();
-  const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
-  const looseIds = body.bookItemIds || [];
-  const bundleIds = [...new Set(body.packageItemIds || [])];
-
-  // Verify loose book items belong to fromSchool and are in_stock
-  const looseSnapshots = new Map<string, number>();
-  if (looseIds.length > 0) {
-    const selectedItems = await db
-      .select()
-      .from(bookItems)
-      .where(inArray(bookItems.id, looseIds));
-
-    if (selectedItems.length !== looseIds.length) {
-      return c.json({ success: false, message: "Some book items do not exist" }, 400);
+// Create shipment draft: input kuantitas per judul/paket, fisiknya dialokasikan FIFO.
+shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const body = c.req.valid('json');
+    assertLocationAllowed(actor, body.fromSchoolId, locations);
+    if (!locations.some((l) => l.id === body.toSchoolId)) {
+      return c.json({ success: false, message: 'Sekolah/gudang tujuan tidak ditemukan' }, 404);
     }
 
-    const invalid = selectedItems.find(
-      (item: any) => item.currentSchoolId !== body.fromSchoolId || item.status !== "in_stock"
-    );
-    if (invalid) {
-      return c.json(
-        { success: false, message: `Item ${invalid.barcode} is not in stock at origin school` },
-        400
-      );
-    }
-
-    const bookIds = [...new Set(selectedItems.map((i: any) => i.bookId as string))] as string[];
-    const priceRows = await db.select({ id: books.id, price: books.price }).from(books).where(inArray(books.id, bookIds));
-    const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
-    for (const item of selectedItems) {
-      looseSnapshots.set(item.id, priceMap.get((item as any).bookId) || 0);
-    }
-  }
-
-  // Verify physical bundles belong to fromSchool and are ready (in_stock)
-  const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
-  if (bundleIds.length > 0) {
-    const selectedBundles = await db
-      .select()
-      .from(packageItems)
-      .where(inArray(packageItems.id, bundleIds));
-
-    if (selectedBundles.length !== bundleIds.length) {
-      return c.json({ success: false, message: "Some packages do not exist" }, 400);
-    }
-
-    const invalidBundle = selectedBundles.find(
-      (b: any) => b.currentSchoolId !== body.fromSchoolId || b.status !== "in_stock"
-    );
-    if (invalidBundle) {
-      return c.json(
-        { success: false, message: `Package ${(invalidBundle as any).barcode} is not ready (in_stock) at origin school` },
-        400
-      );
-    }
-
-    const masterIds = [...new Set(selectedBundles.map((b: any) => b.packageId as string))] as string[];
-    const masterRows = await db.select().from(bookPackages).where(inArray(bookPackages.id, masterIds));
-    const masterMap = new Map<string, number>(masterRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
-    for (const b of selectedBundles) {
-      bundleSnapshots.set((b as any).id, {
-        packageId: (b as any).packageId,
-        snapshot: masterMap.get((b as any).packageId) || 0,
-      });
-    }
-  }
-
-  await db
-    .insert(transferShipments)
-    .values({
-      id: shipmentId,
-      shipmentNumber,
+    const result = await createShipment(db, {
       fromSchoolId: body.fromSchoolId,
       toSchoolId: body.toSchoolId,
-      status: "draft",
-      totalDeclaredValue: 0,
+      items: body.items,
+      bookItemIds: body.bookItemIds,
+      packageItemIds: body.packageItemIds,
       notes: body.notes,
       reason: body.reason,
-      createdAt: now,
-      updatedAt: now,
     });
 
-  const valuedLines: Array<{ unitPriceSnapshot: number; quantity: number }> = [];
-  for (const bookItemId of looseIds) {
-    const snapshot = looseSnapshots.get(bookItemId) || 0;
-    valuedLines.push({ unitPriceSnapshot: snapshot, quantity: 1 });
-    await db.insert(transferShipmentItems).values({
-      id: crypto.randomUUID(),
-      shipmentId,
-      itemType: "loose",
-      bookItemId,
-      packageId: null,
-      quantity: 1,
-      unitPriceSnapshot: snapshot,
-      createdAt: now,
-    });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, data: result.shipment }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
-
-  for (const packageItemId of bundleIds) {
-    const meta = bundleSnapshots.get(packageItemId);
-    if (!meta) continue;
-    valuedLines.push({ unitPriceSnapshot: meta.snapshot, quantity: 1 });
-    await db.insert(transferShipmentItems).values({
-      id: crypto.randomUUID(),
-      shipmentId,
-      itemType: "package",
-      bookItemId: null,
-      packageId: meta.packageId,
-      packageItemId,
-      quantity: 1,
-      unitPriceSnapshot: meta.snapshot,
-      createdAt: now,
-    });
-  }
-
-  const total = calcHeaderTotal(valuedLines);
-  const [withTotal] = await db
-    .update(transferShipments)
-    .set({ totalDeclaredValue: total, updatedAt: now })
-    .where(eq(transferShipments.id, shipmentId))
-    .returning();
-
-  return c.json({ success: true, data: withTotal }, 201);
 });
 
 // Dispatch shipment (Pusat sends to Branch)
 shipmentsRouter.post("/:id/dispatch", async (c) => {
-  const id = c.req.param("id");
-  const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
+  try {
+    const actor = await resolveRequestActor(c);
+    const id = c.req.param("id");
+    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 
-  if (!shipment) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
-  }
+    if (!shipment) {
+      return c.json({ success: false, message: "Shipment not found" }, 404);
+    }
+    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
+      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
+    }
   if (shipment.status !== "draft" && shipment.status !== "pending_dispatch") {
     return c.json({ success: false, message: "Shipment cannot be dispatched from current state" }, 400);
   }
@@ -230,17 +175,25 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
     .returning();
 
   return c.json({ success: true, data: updated });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // Receive shipment (Branch receives from Pusat)
 shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), async (c) => {
-  const id = c.req.param("id");
-  const body = c.req.valid("json");
-  const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
+  try {
+    const actor = await resolveRequestActor(c);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 
-  if (!shipment) {
-    return c.json({ success: false, message: "Shipment not found" }, 404);
-  }
+    if (!shipment) {
+      return c.json({ success: false, message: "Shipment not found" }, 404);
+    }
+    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
+      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
+    }
   if (shipment.status !== "in_transit") {
     return c.json({ success: false, message: "Only in_transit shipments can be received" }, 400);
   }
@@ -340,4 +293,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     .returning();
 
   return c.json({ success: true, data: completed });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });

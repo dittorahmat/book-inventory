@@ -2,6 +2,7 @@ import { db } from "../../db";
 import {
   bookItems,
   bookPackages,
+  books,
   bookReturns,
   packageItems,
   purchaseOrders,
@@ -13,10 +14,20 @@ import {
 import type {
   DashboardSchoolSummary,
   DashboardSummaryPayload,
+  DashboardTitleStock,
+  DashboardPackageStock,
 } from "../../lib/dashboard-types";
 
+import {
+  AccessHttpError,
+  resolveLocationScope,
+  type StaffRole,
+} from "./access-scope";
+
+export type { StaffRole };
+
 export interface DashboardActor {
-  role: "central_admin" | "branch_admin";
+  role: StaffRole;
   schoolId: string | null;
 }
 
@@ -34,22 +45,18 @@ export function resolveScope(
   requestedSchoolId: string | undefined,
   allSchoolIds: string[],
 ): string[] {
-  if (actor?.role === "branch_admin") {
-    if (!actor.schoolId) {
-      throw new DashboardHttpError(403, "Branch admin has no assigned school");
+  try {
+    return resolveLocationScope(
+      actor,
+      requestedSchoolId,
+      allSchoolIds.map((id) => ({ id })),
+    );
+  } catch (err) {
+    if (err instanceof AccessHttpError) {
+      throw new DashboardHttpError(err.status, err.message);
     }
-    if (requestedSchoolId && requestedSchoolId !== actor.schoolId) {
-      throw new DashboardHttpError(403, "Access to another school is forbidden");
-    }
-    return [actor.schoolId];
+    throw err;
   }
-  if (requestedSchoolId) {
-    if (!allSchoolIds.includes(requestedSchoolId)) {
-      throw new DashboardHttpError(404, "School not found");
-    }
-    return [requestedSchoolId];
-  }
-  return allSchoolIds;
 }
 
 type SchoolRow = typeof schools.$inferSelect;
@@ -61,6 +68,8 @@ type OrderRow = typeof studentBookOrders.$inferSelect;
 type ReturnRow = typeof bookReturns.$inferSelect;
 type ShipmentRow = typeof transferShipments.$inferSelect;
 type PurchaseOrderRow = typeof purchaseOrders.$inferSelect;
+
+type BookRow = typeof books.$inferSelect;
 
 async function getSchoolSummary(
   database: typeof db,
@@ -75,6 +84,7 @@ async function getSchoolSummary(
   const itemRows: BookItemRow[] = await database.select().from(bookItems);
   const pkgRows: PackageItemRow[] = await database.select().from(packageItems);
   const pkgDefs: BookPackageRow[] = await database.select().from(bookPackages);
+  const bookRows: BookRow[] = await database.select().from(books);
   const studentRows: StudentRow[] = await database.select().from(students);
   const orderRows: OrderRow[] = await database.select().from(studentBookOrders);
   const returnRows: ReturnRow[] = await database.select().from(bookReturns);
@@ -105,6 +115,51 @@ async function getSchoolSummary(
   }
 
   const readyPackages = pkgs.filter((p) => p.status === "in_stock").length;
+
+  // Ringkasan per judul & per jenis paket, tanpa identitas fisik (spec: inventory-summary).
+  const bookTitle = new Map(bookRows.map((b) => [b.id, b.title]));
+  const titleMap = new Map<string, DashboardTitleStock>();
+  for (const it of items) {
+    let entry = titleMap.get(it.bookId);
+    if (!entry) {
+      entry = {
+        bookId: it.bookId,
+        title: bookTitle.get(it.bookId) ?? it.bookId,
+        totalQty: 0,
+        availableQty: 0,
+        inTransitQty: 0,
+        byCondition: { new: 0, good: 0, fair: 0, damaged: 0 },
+      };
+      titleMap.set(it.bookId, entry);
+    }
+    entry.totalQty += 1;
+    if (it.status === "in_stock") {
+      entry.availableQty += 1;
+      entry.byCondition[it.condition as keyof typeof entry.byCondition] += 1;
+    }
+    if (it.status === "in_transit") entry.inTransitQty += 1;
+  }
+  const byTitle = [...titleMap.values()].sort((a, b) => b.totalQty - a.totalQty);
+
+  const packageMap = new Map<string, DashboardPackageStock>();
+  for (const p of pkgs) {
+    const def = pkgTier.get(p.packageId);
+    let entry = packageMap.get(p.packageId);
+    if (!entry) {
+      entry = {
+        packageId: p.packageId,
+        code: def?.code ?? p.packageId,
+        name: def?.name ?? p.packageId,
+        totalQty: 0,
+        readyQty: 0,
+      };
+      packageMap.set(p.packageId, entry);
+    }
+    entry.totalQty += 1;
+    if (p.status === "in_stock") entry.readyQty += 1;
+  }
+  const byPackage = [...packageMap.values()].sort((a, b) => b.totalQty - a.totalQty);
+
   const waitingOrders = orders.filter((o) => o.fulfillmentStatus === "waiting_preparation").length;
   const shortfall = Math.max(0, waitingOrders - readyPackages);
 
@@ -143,6 +198,8 @@ async function getSchoolSummary(
       byCondition,
       inTransit,
       lost,
+      byTitle,
+      byPackage,
     },
     coverage: {
       ratio: waitingOrders === 0 ? null : readyPackages / waitingOrders,

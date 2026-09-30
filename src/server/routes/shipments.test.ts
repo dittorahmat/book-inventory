@@ -294,10 +294,18 @@ describe("Inter-School Transfer Shipments API", () => {
   });
 
   it("rejects empty drafts and unknown packages", async () => {
+    const fromId = crypto.randomUUID();
+    const toId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: fromId, name: "Reject From", code: `REJ-F-${Date.now()}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: toId, name: "Reject To", code: `REJ-T-${Date.now()}`, type: "branch", createdAt: now, updatedAt: now },
+    ]);
+
     const emptyRes = await shipmentsRouter.request("/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromSchoolId: "school-alw-1", toSchoolId: "school-alw-2" }),
+      body: JSON.stringify({ fromSchoolId: fromId, toSchoolId: toId }),
     });
     expect(emptyRes.status).toBe(400);
 
@@ -305,11 +313,25 @@ describe("Inter-School Transfer Shipments API", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fromSchoolId: "school-alw-1",
-        toSchoolId: "school-alw-2",
+        fromSchoolId: fromId,
+        toSchoolId: toId,
         packageItemIds: ["pkg-item-does-not-exist"],
       }),
     });
     expect(badPkgRes.status).toBe(400);
+
+    const unknownDestRes = await shipmentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromSchoolId: fromId,
+        toSchoolId: "school-ghost-does-not-exist",
+        packageItemIds: ["pkg-item-does-not-exist"],
+      }),
+    });
+    expect(unknownDestRes.status).toBe(404);
+
+    await db.delete(schools).where(eq(schools.id, fromId));
+    await db.delete(schools).where(eq(schools.id, toId));
   });
 });

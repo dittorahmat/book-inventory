@@ -1,12 +1,16 @@
 import { eq, inArray, and } from "drizzle-orm";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "./transfer-valuation";
+import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
   fromSchoolId: string;
   toSchoolId: string;
-  bookItemIds: string[];
-  packageItemIds: string[];
+  /** Input kuantitas per judul/paket; fisiknya dialokasikan otomatis FIFO. */
+  items?: ShipmentLineInput[];
+  bookItemIds?: string[];
+  packageItemIds?: string[];
   notes?: string;
   reason?: string;
 }
@@ -23,7 +27,7 @@ export interface BundleReceipt {
   notes?: string;
 }
 
-export type ServiceError = { ok: false; status: number; message: string };
+export type ServiceError = { ok: false; status: ContentfulStatusCode; message: string };
 
 export async function createShipment(
   database: any,
@@ -32,8 +36,16 @@ export async function createShipment(
   const now = new Date().toISOString();
   const shipmentId = crypto.randomUUID();
   const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
-  const looseIds = input.bookItemIds || [];
-  const bundleIds = [...new Set(input.packageItemIds || [])];
+
+  // Input kuantitas -> eksemplar fisik tertua (FIFO).
+  let looseIds = input.bookItemIds || [];
+  let bundleIds = [...new Set(input.packageItemIds || [])];
+  if (input.items && input.items.length > 0) {
+    const resolved = await resolveShipmentLines(input.fromSchoolId, input.items);
+    if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
+    looseIds = [...new Set([...looseIds, ...resolved.looseIds])];
+    bundleIds = [...new Set([...bundleIds, ...resolved.bundleIds])];
+  }
 
   const looseSnapshots = new Map<string, number>();
   if (looseIds.length > 0) {
