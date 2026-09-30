@@ -11,13 +11,14 @@ import { ProcurementView } from "./views/ProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
+import { SalesReportView } from "./views/SalesReportView";
 import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 import { useSession, signOut } from "./lib/auth-client";
-import { BookOpen, Layers, Package, Users, GraduationCap, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard } from "lucide-react";
+import { BookOpen, Layers, Package, Users, GraduationCap, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard, BarChart3 } from "lucide-react";
 
-const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "students", "student_orders", "procurement", "returns", "transfers", "settings"] as const;
+const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "students", "student_orders", "procurement", "returns", "transfers", "reports", "settings"] as const;
 type ActiveTab = typeof TAB_IDS[number];
 
 export function App() {
@@ -59,7 +60,7 @@ export function App() {
   useEffect(() => {
     if (session?.user && schools.length > 0) {
       const user = session.user as any;
-      if (user.role === "branch_admin" && user.schoolId) {
+      if (user.role !== "central_admin" && user.schoolId) {
         const assigned = schools.find((s) => s.id === user.schoolId);
         if (assigned) setSelectedSchool(assigned);
       } else if (!selectedSchool && schools.length > 0) {
@@ -290,6 +291,17 @@ export function App() {
               <Truck className="w-4 h-4" />
               Transfer
             </button>
+            <button
+              onClick={() => setActiveTab("reports")}
+              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
+                activeTab === "reports"
+                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
+                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Laporan
+            </button>
           {isCentralAdmin && (
             <button
               onClick={() => setActiveTab("settings")}
@@ -324,9 +336,15 @@ export function App() {
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
-        {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
+        {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} role={currentUser?.role} />}
         {activeTab === "catalog" && <CatalogView activeSchool={selectedSchool} />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
+        {activeTab === "reports" && (
+          <SalesReportView
+            schools={schools}
+            lockedSchoolId={isCentralAdmin ? null : currentUser?.schoolId ?? null}
+          />
+        )}
         {activeTab === "settings" && isCentralAdmin && (
           <SettingsView
             currentUser={currentUser}
