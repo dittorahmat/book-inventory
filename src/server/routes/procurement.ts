@@ -5,7 +5,17 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, bookItems, schools } from "../../db/schema";
 import { sendPurchaseOrderEmail } from "../services/po-delivery";
+import { fetchEffectiveBuyPrices } from "../services/book-price";
+import { evaluateSendGate, resolveWarehouseTarget } from "../services/po-workflow";
 import type { EmailRuntimeEnv } from "../services/email";
+import {
+  accessErrorResponse,
+  assertLocationAllowed,
+  loadLocationIds,
+  requireLogisticsRole,
+  resolveLocationScope,
+  resolveRequestActor,
+} from "../services/access-scope";
 export const procurementRouter = new Hono();
 
 const createSupplierSchema = z.object({
@@ -19,7 +29,7 @@ const createSupplierSchema = z.object({
 
 const createPOSchema = z.object({
   supplierId: z.string().min(1, "Supplier wajib dipilih"),
-  targetSchoolId: z.string().min(1, "Sekolah tujuan wajib dipilih"),
+  targetSchoolId: z.string().min(1).optional(),
   orderDate: z.string().min(1, "Tanggal order wajib diisi"),
   expectedArrivalDate: z.string().optional(),
   notes: z.string().optional(),
@@ -27,7 +37,8 @@ const createPOSchema = z.object({
     z.object({
       bookId: z.string().min(1, "Buku wajib dipilih"),
       quantityOrdered: z.number().int().min(1, "Jumlah minimal 1"),
-      unitPrice: z.number().int().min(0).default(0),
+      unitPrice: z.number().int().min(0).optional(),
+      discountPercent: z.number().min(0, "Diskon tidak boleh negatif").max(100, "Diskon maksimal 100 persen").default(0),
     })
   ).min(1, "Minimal 1 buku dalam PO"),
 });
@@ -75,7 +86,12 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 
 // 2. GET Purchase Orders
 procurementRouter.get("/purchase-orders", async (c) => {
-  const pos = await db
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const scope = new Set(resolveLocationScope(actor, undefined, locations));
+    const scopedOnly = scope.size < locations.length;
+    const pos = await db
     .select({
       id: purchaseOrders.id,
       poNumber: purchaseOrders.poNumber,
@@ -87,8 +103,15 @@ procurementRouter.get("/purchase-orders", async (c) => {
       status: purchaseOrders.status,
       orderDate: purchaseOrders.orderDate,
       expectedArrivalDate: purchaseOrders.expectedArrivalDate,
+      subtotalGross: purchaseOrders.subtotalGross,
+      discountTotal: purchaseOrders.discountTotal,
       totalAmount: purchaseOrders.totalAmount,
       notes: purchaseOrders.notes,
+      printedAt: purchaseOrders.printedAt,
+      signedDocUrl: purchaseOrders.signedDocUrl,
+      signedDocName: purchaseOrders.signedDocName,
+      signedDocType: purchaseOrders.signedDocType,
+      signedDocUploadedAt: purchaseOrders.signedDocUploadedAt,
       sentAt: purchaseOrders.sentAt,
       sentTo: purchaseOrders.sentTo,
       createdAt: purchaseOrders.createdAt,
@@ -110,6 +133,7 @@ procurementRouter.get("/purchase-orders", async (c) => {
           quantityOrdered: purchaseOrderItems.quantityOrdered,
           quantityReceived: purchaseOrderItems.quantityReceived,
           unitPrice: purchaseOrderItems.unitPrice,
+          discountPercent: purchaseOrderItems.discountPercent,
         })
         .from(purchaseOrderItems)
         .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))
@@ -122,33 +146,63 @@ procurementRouter.get("/purchase-orders", async (c) => {
     })
   );
 
-  return c.json({ success: true, data: results });
+  const visible = scopedOnly ? results.filter((po: any) => scope.has(po.targetSchoolId)) : results;
+  return c.json({ success: true, data: visible });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 3. POST Create Purchase Order
 procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), async (c) => {
-  const body = c.req.valid("json");
-  const now = new Date().toISOString();
-  const id = crypto.randomUUID();
-  const poNumber = `PO-${Date.now().toString().slice(-8)}`;
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const locations = await loadLocationIds(db);
+    const body = c.req.valid("json");
+    const target = await resolveWarehouseTarget(body.targetSchoolId);
+    if (!target.ok) {
+      return c.json({ success: false, message: target.message }, 400);
+    }
+    assertLocationAllowed(actor, target.warehouseId, locations);
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    const poNumber = `PO-${Date.now().toString().slice(-8)}`;
 
-  const totalAmount = body.items.reduce((sum, item) => sum + item.quantityOrdered * item.unitPrice, 0);
+  // Default harga satuan item PO = harga beli efektif buku (bila tidak diisi manual).
+  const buyPrices = await fetchEffectiveBuyPrices(body.items.map((i) => i.bookId));
+  const resolvedItems = body.items.map((item) => ({
+    ...item,
+    unitPrice: item.unitPrice ?? buyPrices.get(item.bookId) ?? 0,
+  }));
+
+  // Tiga angka header: kotor, diskon, netto.
+  let subtotalGross = 0;
+  let discountTotal = 0;
+  for (const item of resolvedItems) {
+    const grossLine = item.quantityOrdered * item.unitPrice;
+    subtotalGross += grossLine;
+    discountTotal += Math.round((grossLine * item.discountPercent) / 100);
+  }
+  const totalAmount = subtotalGross - discountTotal;
 
   await db.insert(purchaseOrders).values({
     id,
     poNumber,
     supplierId: body.supplierId,
-    targetSchoolId: body.targetSchoolId,
-    status: "ordered",
+    targetSchoolId: target.warehouseId,
+    status: "draft",
     orderDate: body.orderDate,
     expectedArrivalDate: body.expectedArrivalDate || null,
+    subtotalGross,
+    discountTotal,
     totalAmount,
     notes: body.notes || null,
     createdAt: now,
     updatedAt: now,
   });
 
-  for (const item of body.items) {
+  for (const item of resolvedItems) {
     await db.insert(purchaseOrderItems).values({
       id: crypto.randomUUID(),
       purchaseOrderId: id,
@@ -156,24 +210,37 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
       quantityOrdered: item.quantityOrdered,
       quantityReceived: 0,
       unitPrice: item.unitPrice,
+      discountPercent: item.discountPercent,
       createdAt: now,
     });
   }
 
   const [created] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
-  return c.json({ success: true, message: "Purchase Order berhasil diterbitkan", data: created }, 201);
+  return c.json({
+    success: true,
+    message: "Purchase Order berhasil diterbitkan",
+    data: { ...created, items: resolvedItems },
+  }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 4. POST Receive Goods from PO into Loose Inventory
 procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receivePOSchema), async (c) => {
-  const poId = c.req.param("id");
-  const { receivedItems } = c.req.valid("json");
-  const now = new Date().toISOString();
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const locations = await loadLocationIds(db);
+    const poId = c.req.param("id");
+    const { receivedItems } = c.req.valid("json");
+    const now = new Date().toISOString();
 
-  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
-  if (!po) {
-    return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
-  }
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    if (!po) {
+      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.targetSchoolId, locations);
 
   let totalReceivedThisBatch = 0;
 
@@ -232,14 +299,32 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
       totalReceivedThisBatch,
     },
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 5. POST Send Purchase Order to supplier email (with delivery trail)
 procurementRouter.post("/purchase-orders/:id/send", async (c) => {
-  const outcome = await sendPurchaseOrderEmail(
-    c.req.param("id"),
-    c.env as unknown as EmailRuntimeEnv | undefined
-  );
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const locations = await loadLocationIds(db);
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, c.req.param("id")));
+    if (!po) {
+      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.targetSchoolId, locations);
+
+    const gate = evaluateSendGate(po);
+    if (!gate.allowed) {
+      return c.json({ success: false, message: gate.message, data: { status: po.status } }, 400);
+    }
+
+    const outcome = await sendPurchaseOrderEmail(
+      c.req.param("id"),
+      c.env as unknown as EmailRuntimeEnv | undefined
+    );
 
   if (outcome.kind === "error") {
     return c.json(
@@ -262,4 +347,7 @@ procurementRouter.post("/purchase-orders/:id/send", async (c) => {
     message: `PO ${outcome.poNumber} terkirim via ${outcome.provider} ke ${outcome.sentTo}`,
     data: outcome,
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });

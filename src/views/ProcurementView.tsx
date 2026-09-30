@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { School, Book } from "../types";
 import { PoSendAction } from "../components/procurement/PoSendAction";
+import { PoTotalsSummary } from "../components/procurement/PoTotalsSummary";
+import { PoWorkflowActions } from "../components/procurement/PoWorkflowActions";
+import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
+import { SupplierMasterSection, type SupplierRecord } from "../components/procurement/SupplierMasterSection";
+import { calcPoTotals, effectiveBookPrice } from "../lib/book-pricing";
 import { 
   Search, 
   RefreshCw, 
@@ -34,6 +39,7 @@ interface PurchaseOrderItem {
   quantityOrdered: number;
   quantityReceived: number;
   unitPrice: number;
+  discountPercent: number;
 }
 
 interface PurchaseOrder {
@@ -43,12 +49,19 @@ interface PurchaseOrder {
   supplierName: string;
   targetSchoolId: string;
   schoolName: string;
-  status: "draft" | "ordered" | "sent" | "partially_received" | "received" | "cancelled";
+  status: "draft" | "ordered" | "printed" | "signed_uploaded" | "sent" | "partially_received" | "received" | "cancelled";
   orderDate: string;
   expectedArrivalDate?: string;
   totalAmount: number;
+  subtotalGross?: number;
+  discountTotal?: number;
   notes?: string;
   supplierEmail?: string;
+  printedAt?: string | null;
+  signedDocUrl?: string | null;
+  signedDocName?: string | null;
+  signedDocType?: string | null;
+  signedDocUploadedAt?: string | null;
   sentAt?: string;
   sentTo?: string;
   items: PurchaseOrderItem[];
@@ -62,12 +75,12 @@ interface NewPOItemInput {
   bookId: string;
   quantityOrdered: number;
   unitPrice: number;
+  discountPercent: number;
 }
 
 export function ProcurementView({ activeSchool }: ProcurementViewProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [schools, setSchools] = useState<School[]>([]);
   const [catalogBooks, setCatalogBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,12 +93,15 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
   // Create PO Modal State
   const [isCreatePOModalOpen, setIsCreatePOModalOpen] = useState(false);
   const [poSupplierId, setPoSupplierId] = useState("");
-  const [poTargetSchoolId, setPoTargetSchoolId] = useState("");
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [poExpectedArrival, setPoExpectedArrival] = useState("");
   const [poNotes, setPoNotes] = useState("");
   const [poItems, setPoItems] = useState<NewPOItemInput[]>([]);
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
+
+  // PO Detail & Print View State
+  const [detailPo, setDetailPo] = useState<PurchaseOrder | null>(null);
+  const [printPo, setPrintPo] = useState<PrintablePo | null>(null);
 
   // Create Supplier Modal State
   const [isCreateSupplierModalOpen, setIsCreateSupplierModalOpen] = useState(false);
@@ -103,17 +119,15 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [poRes, supRes, schoolRes, booksRes] = await Promise.all([
+      const [poRes, supRes, booksRes] = await Promise.all([
         fetch("/api/procurement/purchase-orders"),
         fetch("/api/procurement/suppliers"),
-        fetch("/api/schools"),
         fetch("/api/books"),
       ]);
 
-      const [poData, supData, schoolData, booksData] = await Promise.all([
+      const [poData, supData, booksData] = await Promise.all([
         poRes.json(),
         supRes.json(),
-        schoolRes.json(),
         booksRes.json(),
       ]);
 
@@ -123,9 +137,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
         if (supData.data.length > 0 && !poSupplierId) {
           setPoSupplierId(supData.data[0].id);
         }
-      }
-      if (schoolData.success) {
-        setSchools(schoolData.data);
       }
       if (booksData.success) {
         setCatalogBooks(booksData.data);
@@ -141,23 +152,20 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     loadData();
   }, [loadData]);
 
-  // Set default target school whenever activeSchool or schools change
-  useEffect(() => {
-    if (activeSchool) {
-      setPoTargetSchoolId(activeSchool.id);
-    } else if (schools.length > 0 && !poTargetSchoolId) {
-      setPoTargetSchoolId(schools[0].id);
-    }
-  }, [activeSchool, schools, poTargetSchoolId]);
-
   // Handler: Open Create PO Modal with 1 default item row
+  const defaultBuyPrice = (bookId: string, fallback: number) => {
+    const b = catalogBooks.find((x) => x.id === bookId);
+    return b ? effectiveBookPrice(b).buy : fallback;
+  };
+
   const handleOpenCreatePO = () => {
     if (catalogBooks.length > 0) {
       setPoItems([
         {
           bookId: catalogBooks[0].id,
           quantityOrdered: 20,
-          unitPrice: 75000,
+          unitPrice: defaultBuyPrice(catalogBooks[0].id, 75000),
+          discountPercent: 0,
         },
       ]);
     } else {
@@ -176,7 +184,8 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
       {
         bookId: catalogBooks[0].id,
         quantityOrdered: 10,
-        unitPrice: 50000,
+        unitPrice: defaultBuyPrice(catalogBooks[0].id, 50000),
+        discountPercent: 0,
       },
     ]);
   };
@@ -189,10 +198,10 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     setPoItems((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
-        return {
-          ...item,
-          [field]: field === "bookId" ? val : Math.max(0, Number(val) || 0),
-        };
+        if (field === "bookId") return { ...item, bookId: val };
+        const num = Math.max(0, Number(val) || 0);
+        if (field === "discountPercent") return { ...item, discountPercent: Math.min(100, num) };
+        return { ...item, [field]: num };
       })
     );
   };
@@ -202,10 +211,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     e.preventDefault();
     if (!poSupplierId) {
       alert("Silakan pilih Supplier penerbit.");
-      return;
-    }
-    if (!poTargetSchoolId) {
-      alert("Silakan tentukan cabang sekolah tujuan.");
       return;
     }
     if (poItems.length === 0) {
@@ -219,6 +224,12 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
       return;
     }
 
+    const invalidDiscount = poItems.find((it) => it.discountPercent < 0 || it.discountPercent > 100);
+    if (invalidDiscount) {
+      alert("Diskon per item harus antara 0 sampai 100 persen.");
+      return;
+    }
+
     setIsSubmittingPO(true);
     try {
       const res = await fetch("/api/procurement/purchase-orders", {
@@ -226,7 +237,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           supplierId: poSupplierId,
-          targetSchoolId: poTargetSchoolId,
           orderDate: poOrderDate,
           expectedArrivalDate: poExpectedArrival || undefined,
           notes: poNotes.trim() || undefined,
@@ -358,10 +368,32 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     return matchesSearch && matchesStatus;
   });
 
-  const totalCalculatedPO = poItems.reduce(
-    (sum, item) => sum + (item.quantityOrdered || 0) * (item.unitPrice || 0),
-    0
-  );
+  const poTotals = calcPoTotals(poItems);
+
+  const toPrintablePo = (po: PurchaseOrder): PrintablePo => ({
+    poNumber: po.poNumber,
+    supplierName: po.supplierName,
+    schoolName: po.schoolName,
+    orderDate: po.orderDate,
+    expectedArrivalDate: po.expectedArrivalDate,
+    status: po.status,
+    notes: po.notes,
+    subtotalGross: po.subtotalGross,
+    discountTotal: po.discountTotal,
+    totalAmount: po.totalAmount,
+    printedAt: po.printedAt,
+    signedDocName: po.signedDocName,
+    sentAt: po.sentAt,
+    sentTo: po.sentTo,
+    items: po.items.map((it) => ({
+      title: it.title,
+      isbn: it.isbn,
+      quantityOrdered: it.quantityOrdered,
+      quantityReceived: it.quantityReceived,
+      unitPrice: it.unitPrice,
+      discountPercent: it.discountPercent,
+    })),
+  });
 
   return (
     <div className="space-y-5">
@@ -424,9 +456,12 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           <span className="text-[11px] font-semibold text-[#65676B] mr-1 hidden sm:inline">Status:</span>
-          {(["all", "ordered", "sent", "partially_received", "received"] as const).map((st) => {
+          {(["all", "draft", "printed", "signed_uploaded", "ordered", "sent", "partially_received", "received"] as const).map((st) => {
             const labels: Record<string, string> = {
               all: "Semua Status",
+              draft: "Draft",
+              printed: "Dicetak",
+              signed_uploaded: "TTD Diupload",
               ordered: "Dipesan",
               sent: "Terkirim",
               partially_received: "Sebagian",
@@ -449,6 +484,11 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
           })}
         </div>
       </div>
+
+      <SupplierMasterSection
+        suppliers={suppliers as SupplierRecord[]}
+        onChanged={loadData}
+      />
 
       {/* PO List Table */}
       <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
@@ -492,7 +532,17 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                   return (
                     <tr key={po.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="py-3.5 px-4">
-                        <div className="font-mono font-bold text-xs text-[#1877F2]">{po.poNumber}</div>
+                        <div className="font-mono font-bold text-xs text-[#1877F2]">
+                          <button
+                            type="button"
+                            onClick={() => setDetailPo(po)}
+                            className="hover:underline inline-flex items-center gap-1"
+                            title="Buka detail PO"
+                          >
+                            {po.poNumber}
+                            <FileText className="w-3 h-3" />
+                          </button>
+                        </div>
                         <div className="text-[11px] text-[#65676B] mt-0.5 flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-[#65676B]" />
                           <span>{po.orderDate}</span>
@@ -519,13 +569,47 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                               <span className="font-semibold text-[#050505]">{it.title}</span>:{" "}
                               <span className="text-[#1877F2] font-semibold">{it.quantityReceived}</span>
                               <span className="text-[#65676B]">/{it.quantityOrdered} eks</span>
+                              {it.discountPercent > 0 && (
+                                <span className="ml-1 px-1.5 py-px text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  −{it.discountPercent}%
+                                </span>
+                              )}
                             </div>
                           ))}
+                          <div className="text-[11px] pt-0.5 border-t border-[#E4E6EB]">
+                            <span className="text-[#65676B]">Netto: </span>
+                            <span className="font-bold text-[#050505]">
+                              Rp {(po.subtotalGross !== undefined && po.discountTotal !== undefined
+                                ? po.subtotalGross - po.discountTotal
+                                : po.totalAmount
+                              ).toLocaleString("id-ID")}
+                            </span>
+                            {po.discountTotal !== undefined && po.discountTotal > 0 && (
+                              <span className="text-[#65676B]">
+                                {" "}(kotor Rp {po.subtotalGross?.toLocaleString("id-ID")})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
                       <td className="py-3.5 px-4">
                         <div className="space-y-1.5">
+                          {po.status === "draft" && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#F0F2F5] text-[#65676B] border border-[#CED0D4] inline-block">
+                              DRAFT (BELUM DICETAK)
+                            </span>
+                          )}
+                          {po.status === "printed" && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-block">
+                              DICETAK — MENUNGGU BUKTI TTD
+                            </span>
+                          )}
+                          {po.status === "signed_uploaded" && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#E7F3FF] text-[#1877F2] border border-[#B2D8FF] inline-block">
+                              TTD SUDAH DIUPLOAD
+                            </span>
+                          )}
                           {po.status === "ordered" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-block">
                               ORDERED (DIPESAN)
@@ -562,6 +646,11 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex flex-col items-end gap-2">
+                          <PoWorkflowActions
+                            po={po}
+                            onChanged={loadData}
+                            onPrint={() => setPrintPo(toPrintablePo(po))}
+                          />
                           <PoSendAction po={po} onSent={loadData} />
                           {!isFullyReceived ? (
                             <button
@@ -647,21 +736,15 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Gudang Cabang Tujuan *
-                  </label>
-                  <select
-                    value={poTargetSchoolId}
-                    onChange={(e) => setPoTargetSchoolId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  >
-                    {schools.map((sch) => (
-                      <option key={sch.id} value={sch.id}>
-                        {sch.name} {sch.type === "main" ? "(Pusat/HQ)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="block text-xs font-semibold text-[#050505] mb-1">
+                    Tujuan Barang Masuk
+                  </span>
+                  <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-semibold text-[#050505]">
+                    Gudang Logistik
+                  </div>
+                  <p className="text-[10px] text-[#65676B] mt-1">
+                    PO selalu dipusatkan di Gudang Logistik, lalu diteruskan ke cabang lewat transfer.
+                  </p>
                 </div>
 
                 <div>
@@ -721,7 +804,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                         key={idx}
                         className="p-3 bg-[#F9FAFB] border border-[#E4E6EB] rounded-xl grid grid-cols-12 gap-2.5 items-center"
                       >
-                        <div className="col-span-12 sm:col-span-6">
+                        <div className="col-span-12 sm:col-span-5">
                           <label className="block text-[10px] text-[#65676B] mb-0.5">Judul Buku</label>
                           <select
                             value={item.bookId}
@@ -747,7 +830,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                           />
                         </div>
 
-                        <div className="col-span-5 sm:col-span-3">
+                        <div className="col-span-5 sm:col-span-2">
                           <label className="block text-[10px] text-[#65676B] mb-0.5">Harga Satuan (Rp)</label>
                           <input
                             type="number"
@@ -755,6 +838,19 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                             step={1000}
                             value={item.unitPrice}
                             onChange={(e) => handleUpdatePOItem(idx, "unitPrice", e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
+                          />
+                        </div>
+
+                        <div className="col-span-5 sm:col-span-2">
+                          <label className="block text-[10px] text-[#65676B] mb-0.5">Diskon (%)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={item.discountPercent}
+                            onChange={(e) => handleUpdatePOItem(idx, "discountPercent", e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
                           />
                         </div>
@@ -790,15 +886,12 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                   />
                 </div>
 
-                <div className="bg-[#F0F2F5] p-3 rounded-xl flex flex-col justify-center">
-                  <span className="text-[11px] text-[#65676B]">Total Estimasi Pembelian PO:</span>
-                  <div className="text-base font-bold text-[#050505] mt-0.5">
-                    Rp {totalCalculatedPO.toLocaleString("id-ID")}
-                  </div>
-                  <span className="text-[10px] text-[#65676B] mt-0.5">
-                    Total: {poItems.reduce((s, it) => s + (it.quantityOrdered || 0), 0)} eksemplar
-                  </span>
-                </div>
+                <PoTotalsSummary
+                  gross={poTotals.gross}
+                  discount={poTotals.discount}
+                  net={poTotals.net}
+                  totalQty={poTotals.totalQty}
+                />
               </div>
 
               {/* Action Buttons */}
@@ -1029,6 +1122,111 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
           </div>
         </div>
       )}
+      {/* PO Detail Modal: item, tiga angka, bukti TTD, dan aksi alur */}
+      {detailPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <header className="px-5 py-3.5 border-b border-[#E4E6EB] flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-[#050505] font-mono">{detailPo.poNumber}</h3>
+                <p className="text-[11px] text-[#65676B]">
+                  {detailPo.supplierName} &bull; Tujuan: {detailPo.schoolName} &bull; {detailPo.orderDate}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailPo(null)}
+                className="p-1.5 rounded-lg hover:bg-[#F0F2F5] text-[#65676B] shrink-0"
+                title="Tutup detail"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </header>
+
+            <div className="px-5 py-4 overflow-y-auto space-y-4">
+              <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl">
+                {detailPo.items.map((it) => (
+                  <div key={it.id} className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[#050505] truncate">{it.title}</div>
+                      <div className="text-[11px] text-[#65676B] font-mono">{it.isbn}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[#65676B]">
+                        {it.quantityReceived}/{it.quantityOrdered} eks &times; Rp {it.unitPrice.toLocaleString("id-ID")}
+                        {it.discountPercent > 0 ? ` −${it.discountPercent}%` : ""}
+                      </div>
+                      <div className="font-bold text-[#050505]">
+                        Rp {Math.round(it.quantityOrdered * it.unitPrice * (1 - (it.discountPercent || 0) / 100)).toLocaleString("id-ID")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <PoTotalsSummary
+                gross={detailPo.subtotalGross ?? detailPo.totalAmount}
+                discount={detailPo.discountTotal ?? 0}
+                net={detailPo.totalAmount}
+                totalQty={detailPo.items.reduce((s, it) => s + it.quantityOrdered, 0)}
+              />
+
+              {detailPo.notes && (
+                <div>
+                  <p className="text-xs font-semibold text-[#050505] mb-1">Catatan PO</p>
+                  <p className="text-xs text-[#65676B] whitespace-pre-wrap">{detailPo.notes}</p>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-[#050505] mb-1.5">Bukti TTD &amp; Cap</p>
+                {detailPo.signedDocUrl ? (
+                  <div className="space-y-1.5">
+                    <a
+                      href={detailPo.signedDocUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-[#1877F2] hover:underline inline-flex items-center gap-1"
+                    >
+                      Buka/unduh {detailPo.signedDocName || "berkas bukti"}
+                    </a>
+                    {detailPo.signedDocType?.startsWith("image/") && (
+                      <img
+                        src={detailPo.signedDocUrl}
+                        alt={`Bukti tanda tangan ${detailPo.poNumber}`}
+                        className="max-w-full h-40 object-contain rounded-xl border border-[#E4E6EB] bg-[#F9FAFB]"
+                      />
+                    )}
+                    {detailPo.signedDocUploadedAt && (
+                      <p className="text-[11px] text-[#65676B]">
+                        Diupload: {detailPo.signedDocUploadedAt.slice(0, 19).replace("T", " ")}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Belum ada berkas bukti. PO harus dicetak, ditandatangani, lalu diupload sebelum dikirim.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <footer className="px-5 py-3 border-t border-[#E4E6EB] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+              <PoWorkflowActions
+                po={detailPo}
+                onChanged={async () => {
+                  await loadData();
+                  setDetailPo((prev) => (prev ? purchaseOrders.find((p) => p.id === prev.id) ?? null : null));
+                }}
+                onPrint={() => setPrintPo(toPrintablePo(detailPo))}
+              />
+              <PoSendAction po={detailPo} onSent={loadData} />
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {printPo && <PoPrintView po={printPo} onClose={() => setPrintPo(null)} />}
     </div>
   );
 }

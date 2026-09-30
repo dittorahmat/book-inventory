@@ -1,21 +1,32 @@
 import { describe, expect, it } from "bun:test";
 import { procurementRouter } from "./procurement";
+import { poWorkflowRouter } from "./po-workflow";
 import { db } from "../../db";
-import { schools, books } from "../../db/schema";
+import { books } from "../../db/schema";
+
+/** Bawa PO dari draft ke signed_uploaded: tandai dicetak lalu upload bukti TTD. */
+async function advanceToSignedUploaded(poId: string) {
+  const printRes = await poWorkflowRouter.request(`/purchase-orders/${poId}/print`, {
+    method: "POST",
+  });
+  expect(printRes.status).toBe(200);
+
+  const form = new FormData();
+  form.append(
+    "signedDoc",
+    new File([new Uint8Array([1, 2, 3, 4])], "bukti-ttd.pdf", { type: "application/pdf" })
+  );
+  const uploadRes = await poWorkflowRouter.request(`/purchase-orders/${poId}/signed-doc`, {
+    method: "POST",
+    body: form,
+  });
+  expect(uploadRes.status).toBe(200);
+  return uploadRes.json();
+}
 
 describe("Supplier Procurement & Purchase Order API", () => {
   it("registers supplier, creates purchase order, and receives inbound loose books", async () => {
-    const schoolId = "test-po-dest-school";
     const now = new Date().toISOString();
-
-    await db.insert(schools).values({
-      id: schoolId,
-      name: "Al Wildan Logistics Central",
-      code: `ALW-LOG-${Date.now()}`,
-      type: "main",
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
 
     const bookId = `b-po-${Date.now()}`;
     await db.insert(books).values({
@@ -50,7 +61,6 @@ describe("Supplier Procurement & Purchase Order API", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         supplierId,
-        targetSchoolId: schoolId,
         orderDate: "2026-09-24",
         notes: "Pengadaan awal tahun ajaran baru",
         items: [
@@ -65,7 +75,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(poRes.status).toBe(201);
     const poJson = await poRes.json();
     const poId = poJson.data.id;
-    expect(poJson.data.status).toBe("ordered");
+    expect(poJson.data.status).toBe("draft");
 
     // 3. Query PO to get the purchaseOrderItem id
     const listRes = await procurementRouter.request("/purchase-orders", { method: "GET" });
@@ -116,17 +126,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
     const realFetch = globalThis.fetch;
 
     try {
-      // Supplier dengan email valid + sekolah + buku
-      const schoolId = `test-send-sch-${stamp}`;
-      await db.insert(schools).values({
-        id: schoolId,
-        name: "Al Wildan Kirim Test",
-        code: `ALW-SEND-${stamp}`,
-        type: "main",
-        createdAt: now,
-        updatedAt: now,
-      }).onConflictDoNothing();
-
+      // Supplier dengan email valid + buku
       const bookId = `b-send-${stamp}`;
       await db.insert(books).values({
         id: bookId,
@@ -155,7 +155,6 @@ describe("Supplier Procurement & Purchase Order API", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           supplierId,
-          targetSchoolId: schoolId,
           orderDate: "2026-09-28",
           notes: "PO uji kirim email",
           items: [{ bookId, quantityOrdered: 10, unitPrice: 50000 }],
@@ -163,6 +162,9 @@ describe("Supplier Procurement & Purchase Order API", () => {
       });
       expect(poRes.status).toBe(201);
       const poId = (await poRes.json()).data.id;
+
+      // Alur baru: draft -> printed -> signed_uploaded sebelum boleh kirim
+      await advanceToSignedUploaded(poId);
 
       // 1. Kirim sukses (Brevo di-stub 201, kredensial via c.env)
       globalThis.fetch = (async () =>
@@ -212,12 +214,12 @@ describe("Supplier Procurement & Purchase Order API", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           supplierId: noMailSupId,
-          targetSchoolId: schoolId,
           orderDate: "2026-09-28",
           items: [{ bookId, quantityOrdered: 5, unitPrice: 10000 }],
         }),
       });
       const poNoMailId = (await poNoMailRes.json()).data.id;
+      await advanceToSignedUploaded(poNoMailId);
 
       const failRes = await procurementRouter.request(`/purchase-orders/${poNoMailId}/send`, {
         method: "POST",
@@ -228,7 +230,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
 
       const listRes2 = await procurementRouter.request("/purchase-orders", { method: "GET" });
       const untouched = (await listRes2.json()).data.find((p: any) => p.id === poNoMailId);
-      expect(untouched.status).toBe("ordered");
+      expect(untouched.status).toBe("signed_uploaded");
 
       // 4. PO tidak ada -> 404
       const missingRes = await procurementRouter.request(
