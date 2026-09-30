@@ -56,7 +56,8 @@ export async function registerStudent(payload: NewStudentForm): Promise<any> {
 
 export interface FinalOrderPayload {
   studentId: string;
-  packageId: string;
+  packageId?: string;
+  looseItems?: Array<{ bookId: string; quantity: number }>;
   orderType: "regular" | "scholarship";
   scholarshipProofBase64?: string;
   payment?: {
@@ -67,6 +68,40 @@ export interface FinalOrderPayload {
     paymentProofBase64?: string;
   };
   notes?: string;
+}
+
+export interface SatuanStatus {
+  academicYear: string;
+  open: boolean;
+  todayWIB: string;
+  openFrom: string | null;
+  override: "open" | "closed" | null;
+  reason: string;
+}
+
+export interface SatuanBookOption {
+  id: string;
+  isbn: string;
+  title: string;
+  author: string;
+  publisher: string;
+  category: string | null;
+  coverUrl: string | null;
+  sellPrice: number;
+}
+
+/** Status keterbukaan order satuan (public, tanpa login). */
+export async function fetchSatuanStatus(): Promise<SatuanStatus> {
+  const res = await fetch("/api/public/orders/satuan-status");
+  const data = await readJson(res, "Gagal memuat status order satuan");
+  return data.data;
+}
+
+/** Katalog satuan; kosong saat periode tertutup. */
+export async function fetchSatuanCatalog(): Promise<{ open: boolean; status: SatuanStatus; books: SatuanBookOption[] }> {
+  const res = await fetch("/api/public/orders/satable-catalog");
+  const data = await readJson(res, "Gagal memuat daftar buku satuan");
+  return data.data;
 }
 
 export async function submitFinalOrder(payload: FinalOrderPayload): Promise<any> {

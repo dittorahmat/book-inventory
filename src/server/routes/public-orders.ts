@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, sql, notInArray } from "drizzle-orm";
+import { eq, or, like, and, sql, notInArray, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { students, studentBookOrders, orderPayments, bookPackages, schools } from "../../db/schema";
+import { students, studentBookOrders, studentOrderItems, orderPayments, bookPackages, books, schools } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
 import { decodeBase64ToBytes } from "../base64";
+import { getCurrentSatuanStatus, getSatuanStatus } from "../services/satuan-cutoff";
 
 export const publicOrdersRouter = new Hono();
 
@@ -29,22 +30,95 @@ const createNewStudentSchema = z.object({
 });
 
 // Schema for book order submission
-const submitOrderSchema = z.object({
-  studentId: z.string().min(1, "Student ID wajib diisi"),
-  packageId: z.string().min(1, "Paket buku wajib dipilih"),
-  orderType: z.enum(["regular", "scholarship"]).default("regular"),
-  scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
-  // Optional payment info submitted immediately
-  payment: z
-    .object({
-      transferAmount: z.number().int().min(0),
-      bookAllocationAmount: z.number().int().min(0),
-      bankName: z.string().optional(),
-      referenceNumber: z.string().optional(),
-      paymentProofBase64: z.string().optional(),
+const looseOrderItemSchema = z.object({
+  bookId: z.string().min(1, "Judul buku wajib dipilih"),
+  quantity: z.number().int().min(1, "Jumlah minimal 1").max(50),
+});
+
+const submitOrderSchema = z
+  .object({
+    studentId: z.string().min(1, "Student ID wajib diisi"),
+    packageId: z.string().min(1).optional(),
+    looseItems: z.array(looseOrderItemSchema).default([]),
+    orderType: z.enum(["regular", "scholarship"]).default("regular"),
+    scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
+    // Optional payment info submitted immediately
+    payment: z
+      .object({
+        transferAmount: z.number().int().min(0),
+        bookAllocationAmount: z.number().int().min(0),
+        bankName: z.string().optional(),
+        referenceNumber: z.string().optional(),
+        paymentProofBase64: z.string().optional(),
+      })
+      .optional(),
+    notes: z.string().optional(),
+  })
+  .refine((v) => !!v.packageId || v.looseItems.length > 0, {
+    message: "Pilih paket atau minimal satu judul buku satuan",
+  });
+
+// 0. Status order satuan (public, tanpa login) + katalog satuan saat terbuka
+publicOrdersRouter.get("/satuan-status", async (c) => {
+  const academicYear = c.req.query("academicYear")?.trim();
+  const status = academicYear
+    ? await getSatuanStatus(academicYear)
+    : await getCurrentSatuanStatus();
+  return c.json({ success: true, data: status });
+});
+
+publicOrdersRouter.get("/satable-catalog", async (c) => {
+  const academicYear = c.req.query("academicYear")?.trim();
+  const status = academicYear
+    ? await getSatuanStatus(academicYear)
+    : await getCurrentSatuanStatus();
+
+  if (!status.open) {
+    return c.json({ success: true, data: { open: false, status, books: [] } });
+  }
+
+  const rows: Array<{
+    id: string;
+    isbn: string;
+    title: string;
+    author: string;
+    publisher: string;
+    category: string | null;
+    coverUrl: string | null;
+    price: number;
+    sellPrice: number;
+  }> = await db
+    .select({
+      id: books.id,
+      isbn: books.isbn,
+      title: books.title,
+      author: books.author,
+      publisher: books.publisher,
+      category: books.category,
+      coverUrl: books.coverUrl,
+      price: books.price,
+      sellPrice: books.sellPrice,
     })
-    .optional(),
-  notes: z.string().optional(),
+    .from(books)
+    .orderBy(books.title);
+
+  return c.json({
+    success: true,
+    data: {
+      open: true,
+      status,
+      books: rows.map((b) => ({
+        id: b.id,
+        isbn: b.isbn,
+        title: b.title,
+        author: b.author,
+        publisher: b.publisher,
+        category: b.category,
+        coverUrl: b.coverUrl,
+        sellPrice: b.sellPrice > 0 ? b.sellPrice : b.price,
+      })),
+    },
+  });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
@@ -152,10 +226,49 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     );
   }
 
+  // Order satuan hanya boleh dibuat saat periode satuan dibuka (design D7).
+  if (body.looseItems.length > 0) {
+    const status = await getCurrentSatuanStatus();
+    if (!status.open) {
+      return c.json(
+        { success: false, message: `Order satuan sedang ditutup. ${status.reason}` },
+        403
+      );
+    }
+  }
+
   // Find package
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, body.packageId));
-  if (!pkg) {
-    return c.json({ success: false, message: "Paket buku tidak ditemukan" }, 404);
+  let pkg: typeof bookPackages.$inferSelect | undefined;
+  if (body.packageId) {
+    [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, body.packageId));
+    if (!pkg) {
+      return c.json({ success: false, message: "Paket buku tidak ditemukan" }, 404);
+    }
+  }
+
+  // Baris satuan: harga jual efektif per judul, total = jumlah (harga jual x qty).
+  const looseLines: Array<{ bookId: string; title: string; quantity: number; unitPrice: number }> = [];
+  if (body.looseItems.length > 0) {
+    const bookIds = [...new Set(body.looseItems.map((i) => i.bookId))];
+    const bookRows: Array<typeof books.$inferSelect> = await db
+      .select()
+      .from(books)
+      .where(inArray(books.id, bookIds));
+    const bookMap = new Map<string, typeof books.$inferSelect>(
+      bookRows.map((b) => [b.id, b])
+    );
+    for (const item of body.looseItems) {
+      const book = bookMap.get(item.bookId);
+      if (!book) {
+        return c.json({ success: false, message: "Judul buku tidak ditemukan" }, 404);
+      }
+      looseLines.push({
+        bookId: book.id,
+        title: book.title,
+        quantity: item.quantity,
+        unitPrice: book.sellPrice > 0 ? book.sellPrice : book.price,
+      });
+    }
   }
 
   const isScholarship = body.orderType === "scholarship";
@@ -171,8 +284,11 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     scholarshipProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
   }
 
-  // Calculate pricing: 100% discount for scholarship
-  const totalAmount = isScholarship ? 0 : pkg.price;
+  // Calculate pricing: 100% discount for scholarship.
+  // Paket: harga paket. Satuan: jumlah harga jual x kuantitas.
+  const looseSubtotal = looseLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const grossAmount = (pkg?.price ?? 0) + looseSubtotal;
+  const totalAmount = isScholarship ? 0 : grossAmount;
   let paidAmount = 0;
   let paymentStatus: any = isScholarship ? "scholarship_pending" : "unpaid";
 
@@ -187,7 +303,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     orderNumber,
     studentId: student.id,
     schoolId: student.schoolId,
-    packageId: pkg.id,
+    packageId: pkg?.id ?? null,
     orderType: body.orderType,
     paymentStatus,
     fulfillmentStatus: "waiting_preparation",
@@ -198,6 +314,17 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     createdAt: now,
     updatedAt: now,
   });
+
+  for (const line of looseLines) {
+    await db.insert(studentOrderItems).values({
+      id: crypto.randomUUID(),
+      orderId,
+      bookId: line.bookId,
+      quantity: line.quantity,
+      unitPriceSnapshot: line.unitPrice,
+      createdAt: now,
+    });
+  }
 
   // Handle optional payment proof (after order exists)
   if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
@@ -229,7 +356,8 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     data: {
       order: orderRecord,
       studentName: student.name,
-      packageName: pkg.name,
+      packageName: pkg?.name ?? null,
+      looseItems: looseLines,
       totalAmount,
       paidAmount,
       paymentStatus,

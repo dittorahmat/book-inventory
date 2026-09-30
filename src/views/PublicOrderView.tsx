@@ -3,7 +3,7 @@ import { usePublicOrder } from "../components/portal/usePublicOrder";
 import { useReturnFlow } from "../components/portal/useReturnFlow";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
 import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal";
-import { LockedPackageStep } from "../components/portal/LockedPackageStep";
+import { OrderItemStep } from "../components/portal/OrderItemStep";
 import { PaymentStep } from "../components/portal/PaymentStep";
 import { OrderSuccessStep } from "../components/portal/OrderSuccessStep";
 import { ReturnReportTab } from "../components/portal/ReturnReportTab";
@@ -184,20 +184,48 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
               />
             )}
 
-            {/* STEP 2: DETAIL PAKET TERKUNCI */}
+            {/* STEP 2: PEMILIHAN PAKET ATAU BUKU SATUAN */}
             {step === 2 && order.selectedStudent && (
-              <LockedPackageStep
-                student={order.selectedStudent}
-                selectedPackage={order.selectedPackage}
+              <OrderItemStep
+                packageMode={order.packageMode}
+                canOrderSatuan={order.satuanOpen}
+                onModeChange={(next) => {
+                  order.setPackageMode(next);
+                  if (next) order.resetLooseSelection();
+                }}
+                books={order.satuanBooks}
+                selections={order.looseSelections}
+                onQuantityChange={order.handleLooseQuantityChange}
+                selectedPackagePrice={order.selectedPackage?.price ?? 0}
+                selectedPackageName={order.selectedPackage?.name ?? null}
+                onContinue={() => order.goToStep(3)}
                 onBack={() => order.goToStep(1)}
-                onNext={() => order.goToStep(3)}
+                isSubmitting={order.isSubmitting}
               />
             )}
 
             {/* STEP 3: PEMBAYARAN ATAU JALUR BEASISWA */}
-            {step === 3 && order.selectedStudent && order.selectedPackage && (
+            {step === 3 &&
+              order.selectedStudent &&
+              (order.packageMode ? order.selectedPackage : order.looseTotal > 0) && (
               <PaymentStep
-                pkg={order.selectedPackage}
+                pkg={
+                  order.packageMode && order.selectedPackage
+                    ? order.selectedPackage
+                    : {
+                        id: "satuan",
+                        code: "SATUAN",
+                        name: `Buku satuan (${order.looseSelections.length} judul)`,
+                        gradeLevel: order.selectedStudent.gradeLevel,
+                        curriculumType: order.selectedStudent.curriculumType as
+                          | "international"
+                          | "national",
+                        academicYear: order.selectedStudent.academicYear,
+                        price: order.looseTotal,
+                        totalItemsCount: order.looseSelections.length,
+                        items: [],
+                      }
+                }
                 orderType={order.orderType}
                 setOrderType={order.setOrderType}
                 scholarshipProofBase64={order.scholarshipProofBase64}

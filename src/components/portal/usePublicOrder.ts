@@ -6,7 +6,10 @@ import {
   searchStudents,
   registerStudent,
   submitFinalOrder,
+  fetchSatuanCatalog,
 } from "./portal-api";
+import type { LooseSelection } from "./OrderItemStep";
+import type { SatuanBookOption } from "./portal-api";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -74,6 +77,17 @@ export function usePublicOrder() {
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProofBase64, setScholarshipProofBase64] = useState<string>("");
 
+  // Order satuan (hanya tersedia saat periode satuan dibuka)
+  const [satuanBooks, setSatuanBooks] = useState<SatuanBookOption[]>([]);
+  const [satuanOpen, setSatuanOpen] = useState(false);
+  const [packageMode, setPackageMode] = useState(true);
+  const [looseSelections, setLooseSelections] = useState<LooseSelection[]>([]);
+
+  const looseTotal = looseSelections.reduce((sum, sel) => {
+    const book = satuanBooks.find((b) => b.id === sel.bookId);
+    return sum + (book?.sellPrice ?? 0) * sel.quantity;
+  }, 0);
+
   // Payment details (Regular)
   const [paymentChoice, setPaymentChoice] = useState<"full" | "partial">("full");
   const [transferAmount, setTransferAmount] = useState<number>(0);
@@ -140,7 +154,29 @@ export function usePublicOrder() {
       .catch((err: any) => {
         setErrorMessage(err.message || "Gagal memuat daftar paket buku. Periksa koneksi Anda.");
       });
+
+    // Keterbukaan order satuan ditentukan cut-off per tahun ajaran (WIB).
+    fetchSatuanCatalog()
+      .then((result) => {
+        setSatuanOpen(result.open);
+        setSatuanBooks(result.books);
+        if (!result.open) setPackageMode(true);
+      })
+      .catch(() => {
+        // Gagal memuat status satuan tidak boleh memblokir pemesanan paket.
+        setSatuanOpen(false);
+        setSatuanBooks([]);
+      });
   }, []);
+
+  const handleLooseQuantityChange = (bookId: string, quantity: number) => {
+    setLooseSelections((prev) => {
+      const rest = prev.filter((s) => s.bookId !== bookId);
+      return quantity > 0 ? [...rest, { bookId, quantity }] : rest;
+    });
+  };
+
+  const resetLooseSelection = () => setLooseSelections([]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,7 +255,10 @@ export function usePublicOrder() {
 
   const handleSubmitFinalOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent || !selectedPackage) return;
+    if (!selectedStudent) return;
+    const looseItems = looseSelections.filter((s) => s.quantity > 0);
+    if (packageMode && !selectedPackage) return;
+    if (!packageMode && looseItems.length === 0) return;
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -228,9 +267,15 @@ export function usePublicOrder() {
         throw new Error("Dokumen bukti surat tanda beasiswa wajib dilampirkan.");
       }
 
+      const bookTotal = packageMode ? (selectedPackage?.price ?? 0) : looseTotal;
+      if (orderType === "regular" && bookAllocationAmount > 0 && bookAllocationAmount !== bookTotal) {
+        setBookAllocationAmount(bookTotal);
+        setTransferAmount(bookTotal);
+      }
+
       const data = await submitFinalOrder({
         studentId: selectedStudent.id,
-        packageId: selectedPackage.id,
+        ...(packageMode ? { packageId: selectedPackage!.id } : { looseItems }),
         orderType,
         notes: notes.trim() || undefined,
         ...(orderType === "scholarship"
@@ -267,6 +312,8 @@ export function usePublicOrder() {
     setPendingNoResult(null);
     setSearchQuery("");
     setSearchResults([]);
+    setPackageMode(true);
+    resetLooseSelection();
   };
 
   return {
@@ -278,6 +325,8 @@ export function usePublicOrder() {
     verificationPending, setVerificationPending,
     newStudent, setNewStudent,
     selectedPackageId, selectedPackage,
+    satuanOpen, satuanBooks, packageMode, setPackageMode,
+    looseSelections, looseTotal, handleLooseQuantityChange, resetLooseSelection,
     orderType, setOrderType, scholarshipProofBase64, setScholarshipProofBase64,
     paymentChoice, setPaymentChoice, transferAmount, setTransferAmount,
     bookAllocationAmount, setBookAllocationAmount, bankName, setBankName,

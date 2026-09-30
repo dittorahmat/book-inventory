@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { School, User } from "../types";
-import { Building2, Users, Plus, Mail, CheckCircle2, RefreshCw } from "lucide-react";
+import { Building2, Users, Plus, Mail, CheckCircle2, RefreshCw, CalendarClock } from "lucide-react";
+import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSettings";
+import { currentAcademicYear } from "../lib/wib-time";
 
 interface SettingsViewProps {
   currentUser?: any;
@@ -8,7 +10,8 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp">("schools");
+  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp" | "cutoff">("schools");
+  const [cutoffYear, setCutoffYear] = useState(currentAcademicYear());
   const [schoolsList, setSchoolsList] = useState<School[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
 
@@ -16,7 +19,7 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
   const [isAddingSchool, setIsAddingSchool] = useState(false);
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
-  const [schoolType, setSchoolType] = useState<"main" | "branch">("branch");
+  const [schoolType, setSchoolType] = useState<"main" | "branch" | "warehouse">("branch");
   const [schoolAddress, setSchoolAddress] = useState("");
   const [schoolPhone, setSchoolPhone] = useState("");
 
@@ -25,7 +28,7 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("password123");
-  const [userRole, setUserRole] = useState<"central_admin" | "branch_admin">("branch_admin");
+  const [userRole, setUserRole] = useState<"central_admin" | "warehouse_admin" | "school_admin" | "branch_admin">("branch_admin");
   const [userSchoolId, setUserSchoolId] = useState("");
 
   const fetchData = async () => {
@@ -158,8 +161,35 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
             <Mail className="w-4 h-4" />
             Email SMTP
           </button>
+          <button
+            onClick={() => setActiveTab("cutoff")}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all ${
+              activeTab === "cutoff"
+                ? "bg-white text-[#1877F2] font-bold shadow-xs"
+                : "text-[#65676B] hover:text-[#050505]"
+            }`}
+          >
+            <CalendarClock className="w-4 h-4" />
+            Cut-off Satuan
+          </button>
         </div>
       </div>
+
+      {/* 4. Cut-off Order Satuan Tab */}
+      {activeTab === "cutoff" && (
+        <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs p-5 space-y-4 max-w-2xl">
+          <div>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Tahun Ajaran</label>
+            <input
+              className="w-48 px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
+              placeholder="2026/2027"
+              value={cutoffYear}
+              onChange={(e) => setCutoffYear(e.target.value)}
+            />
+          </div>
+          <SatuanCutoffSettings academicYear={cutoffYear} />
+        </div>
+      )}
 
       {/* 1. School Hierarchy Tab */}
       {activeTab === "schools" && (
@@ -210,11 +240,12 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
                   <label className="block text-xs font-semibold text-[#050505] mb-1">Tipe *</label>
                   <select
                     value={schoolType}
-                    onChange={(e) => setSchoolType(e.target.value as "main" | "branch")}
+                    onChange={(e) => setSchoolType(e.target.value as "main" | "branch" | "warehouse")}
                     className="w-full px-3.5 py-2.5 border border-[#CED0D4] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
                   >
                     <option value="branch">Branch (Cabang)</option>
                     <option value="main">Headquarters (Pusat / Central HQ)</option>
+                    <option value="warehouse">Warehouse (Gudang Logistik)</option>
                   </select>
                 </div>
                 <div>
@@ -277,6 +308,11 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
                       {s.type === "main" && (
                         <span className="bg-[#E7F3FF] text-[#1877F2] text-[10px] px-2 py-0.5 rounded-full font-bold">
                           HQ
+                        </span>
+                      )}
+                      {s.type === "warehouse" && (
+                        <span className="bg-[#FFF4E5] text-[#B45309] text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          GUDANG
                         </span>
                       )}
                     </td>
@@ -350,14 +386,16 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
                   <label className="block text-xs font-semibold text-[#050505] mb-1">Peran / Role *</label>
                   <select
                     value={userRole}
-                    onChange={(e) => setUserRole(e.target.value as "central_admin" | "branch_admin")}
+                    onChange={(e) => setUserRole(e.target.value as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin")}
                     className="w-full px-3.5 py-2.5 border border-[#CED0D4] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
                   >
+                    <option value="school_admin">Admin Sekolah</option>
+                    <option value="warehouse_admin">Admin Gudang (Gudang Logistik)</option>
                     <option value="branch_admin">Branch Admin (Admin Cabang)</option>
                     <option value="central_admin">Central Admin (Admin Pusat HQ)</option>
                   </select>
                 </div>
-                {userRole === "branch_admin" && (
+                {userRole !== "central_admin" && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-[#050505] mb-1">
                       Cabang Sekolah yang Ditugaskan *
@@ -416,6 +454,14 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
                       {u.role === "central_admin" ? (
                         <span className="bg-[#E7F3FF] text-[#1877F2] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                           CENTRAL ADMIN
+                        </span>
+                      ) : u.role === "warehouse_admin" ? (
+                        <span className="bg-[#FFF4E5] text-[#B45309] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                          ADMIN GUDANG
+                        </span>
+                      ) : u.role === "school_admin" ? (
+                        <span className="bg-[#E6F9EC] text-[#0E7A3D] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                          ADMIN SEKOLAH
                         </span>
                       ) : (
                         <span className="bg-[#F0F2F5] text-[#050505] border border-[#CED0D4] px-2.5 py-0.5 rounded-full text-[10px] font-semibold">

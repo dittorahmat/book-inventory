@@ -1,8 +1,16 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email";
 import type { EmailRuntimeEnv } from "../services/email";
+import { currentAcademicYear } from "../../lib/wib-time";
+import {
+  getSatuanStatus,
+  setSatuanOpenFrom,
+  setSatuanOverride,
+  type SatuanOverride,
+} from "../services/satuan-cutoff";
+import { accessErrorResponse, requireLogisticsRole, resolveRequestActor } from "../services/access-scope";
 
 export const settingsRouter = new Hono();
 
@@ -21,6 +29,72 @@ const updateSmtpSchema = z.object({
 
 const testEmailSchema = z.object({
   recipientEmail: z.string().email("Format email tujuan tidak valid"),
+});
+
+const academicYearSchema = z.string().regex(/^\d{4}\/\d{4}$/, "Format tahun ajaran harus 2026/2027");
+
+const openFromSchema = z.object({
+  academicYear: academicYearSchema,
+  openFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD"),
+});
+
+const overrideSchema = z.object({
+  academicYear: academicYearSchema,
+  override: z.enum(["open", "closed", "auto"]),
+});
+
+/** Otorisasi pengaturan cut-off: hanya central admin / admin gudang. */
+async function assertCutoffAdmin(c: Context) {
+  const actor = await resolveRequestActor(c);
+  requireLogisticsRole(actor);
+}
+
+// GET status cut-off order satuan (hanya peran logistik)
+settingsRouter.get("/satuan-cutoff", async (c) => {
+  try {
+    await assertCutoffAdmin(c);
+    const academicYear = c.req.query("academicYear")?.trim() || currentAcademicYear();
+    const data = await getSatuanStatus(academicYear);
+    return c.json({ success: true, data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan tanggal efektif buka order satuan
+settingsRouter.post("/satuan-cutoff/open-from", zValidator("json", openFromSchema), async (c) => {
+  try {
+    await assertCutoffAdmin(c);
+    const { academicYear, openFrom } = c.req.valid("json");
+    const data = await setSatuanOpenFrom(academicYear, openFrom);
+    return c.json({
+      success: true,
+      message: `Order satuan tahun ajaran ${academicYear} akan terbuka mulai ${openFrom} (WIB).`,
+      data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan override manual (open / closed / auto)
+settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema), async (c) => {
+  try {
+    await assertCutoffAdmin(c);
+    const { academicYear, override } = c.req.valid("json");
+    const next: SatuanOverride | null = override === "auto" ? null : override;
+    const data = await setSatuanOverride(academicYear, next);
+    return c.json({
+      success: true,
+      message:
+        override === "auto"
+          ? `Override tahun ajaran ${academicYear} dihapus, kembali mengikuti tanggal efektif.`
+          : `Order satuan tahun ajaran ${academicYear} dipaksa ${override === "open" ? "buka" : "tutup"}.`,
+      data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // GET current email config (secrets masked, never exposed)
