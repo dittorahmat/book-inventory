@@ -61,8 +61,7 @@ export type SendGate = { allowed: true } | { allowed: false; message: string };
  * belum memiliki berkas bukti TTD + cap. PO lama berstatus di luar alur baru tetap valid.
  */
 export function evaluateSendGate(po: Pick<PoRow, "status" | "signedDocUrl" | "poNumber">): SendGate {
-  if (LEGACY_PO_STATUSES.has(po.status)) return { allowed: true };
-  if (po.signedDocUrl) return { allowed: true };
+  if (LEGACY_PO_STATUSES.has(po.status) || po.signedDocUrl) return { allowed: true };
   return {
     allowed: false,
     message:
@@ -83,15 +82,11 @@ export type SignedDocValidation =
   | { ok: true; contentType: string }
   | { ok: false; message: string };
 
-export function validateSignedDoc(file: File): SignedDocValidation {
-  if (file.size === 0) {
-    return { ok: false, message: "Berkas bukti kosong. Pilih berkas hasil scan atau foto dokumen bertanda tangan." };
-  }
-  if (file.size > SIGNED_DOC_MAX_BYTES) {
-    return { ok: false, message: "Ukuran berkas bukti maksimal 10 MB." };
-  }
-  if (!(SIGNED_DOC_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
-    return { ok: false, message: "Format berkas bukti harus gambar (JPG, PNG, WebP) atau PDF." };
-  }
-  return { ok: true, contentType: file.type };
-}
+export const validateSignedDoc = (file: File): SignedDocValidation =>
+  file.size === 0
+    ? { ok: false, message: "Berkas bukti kosong. Pilih berkas hasil scan atau foto dokumen bertanda tangan." }
+    : file.size > SIGNED_DOC_MAX_BYTES
+      ? { ok: false, message: "Ukuran berkas bukti maksimal 10 MB." }
+      : !(SIGNED_DOC_ALLOWED_TYPES as readonly string[]).includes(file.type)
+        ? { ok: false, message: "Format berkas bukti harus gambar (JPG, PNG, WebP) atau PDF." }
+        : { ok: true, contentType: file.type };

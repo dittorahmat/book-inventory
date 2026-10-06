@@ -5,7 +5,6 @@ import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSetting
 import { currentAcademicYear } from "../lib/wib-time";
 
 interface SettingsViewProps {
-  currentUser?: any;
   onSchoolsUpdated?: () => void;
 }
 

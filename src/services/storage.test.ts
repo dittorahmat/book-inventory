@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { MemoryStorageService, S3CompatibleStorageService } from "./storage";
+import { MemoryStorageService, CloudflareR2StorageService } from "./storage";
 
 describe("Storage Service Abstraction", () => {
   it("uploads and retrieves file URLs via MemoryStorageService", async () => {
@@ -19,9 +19,8 @@ describe("Storage Service Abstraction", () => {
     expect(deleted).toBeNull();
   });
 
-  it("formats URLs correctly for S3/R2 storage service", async () => {
-    const s3Storage = new S3CompatibleStorageService("book-covers", "https://r2.schoolbooks.org");
-    const url = s3Storage.getUrl("covers/math-grade7.png");
-    expect(url).toBe("https://r2.schoolbooks.org/covers/math-grade7.png");
+  it("formats URLs correctly for R2 storage service", async () => {
+    const r2 = new CloudflareR2StorageService({ put: async () => {}, get: async () => null, delete: async () => {} }, "https://r2.schoolbooks.org");
+    expect(r2.getUrl("covers/math-grade7.png")).toBe("https://r2.schoolbooks.org/covers/math-grade7.png");
   });
 });

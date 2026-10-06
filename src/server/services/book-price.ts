@@ -5,14 +5,10 @@ import { books, bookPackageItems, bookPackages } from "../../db/schema";
 type PriceLike = { price: number; buyPrice: number; sellPrice: number };
 
 /** Harga jual efektif: fallback ke harga lama (`price`) bila harga jual belum pernah diisi. */
-export function effectiveSellPrice(book: PriceLike): number {
-  return book.sellPrice > 0 ? book.sellPrice : book.price;
-}
+export const effectiveSellPrice = (book: PriceLike): number => (book.sellPrice > 0 ? book.sellPrice : book.price);
 
 /** Harga beli efektif: fallback ke harga lama (`price`) bila harga beli belum pernah diisi. */
-export function effectiveBuyPrice(book: PriceLike): number {
-  return book.buyPrice > 0 ? book.buyPrice : book.price;
-}
+export const effectiveBuyPrice = (book: PriceLike): number => (book.buyPrice > 0 ? book.buyPrice : book.price);
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
 export async function recalcPackagePrice(packageId: string): Promise<number> {
@@ -42,10 +38,7 @@ export async function recalcPackagesUsingBook(bookId: string): Promise<number> {
     .from(bookPackageItems)
     .where(eq(bookPackageItems.bookId, bookId));
   const packageIds = [...new Set(rows.map((r) => r.packageId))];
-  if (packageIds.length === 0) return 0;
-  for (const packageId of packageIds) {
-    await recalcPackagePrice(packageId);
-  }
+  await Promise.all(packageIds.map((packageId) => recalcPackagePrice(packageId)));
   return packageIds.length;
 }
 
@@ -57,8 +50,6 @@ export async function fetchEffectiveBuyPrices(bookIds: string[]): Promise<Map<st
     .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
     .from(books)
     .where(inArray(books.id, bookIds));
-  for (const row of rows) {
-    map.set(row.id, effectiveBuyPrice(row));
-  }
+  rows.forEach((row: any) => map.set(row.id, effectiveBuyPrice(row)));
   return map;
 }

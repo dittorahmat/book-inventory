@@ -1,7 +1,7 @@
 import { eq, inArray, and } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
-import { calcHeaderTotal } from "./transfer-valuation";
+import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
@@ -38,13 +38,14 @@ export async function createShipment(
   const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
 
   // Input kuantitas -> eksemplar fisik tertua (FIFO).
-  let looseIds = input.bookItemIds || [];
-  let bundleIds = [...new Set(input.packageItemIds || [])];
+  const dedupe = (a: string[], b: string[]): string[] => [...new Set([...a, ...b])];
+  let looseIds = input.bookItemIds ?? [];
+  let bundleIds = [...new Set(input.packageItemIds ?? [])];
   if (input.items && input.items.length > 0) {
     const resolved = await resolveShipmentLines(input.fromSchoolId, input.items);
     if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
-    looseIds = [...new Set([...looseIds, ...resolved.looseIds])];
-    bundleIds = [...new Set([...bundleIds, ...resolved.bundleIds])];
+    looseIds = dedupe(looseIds, resolved.looseIds);
+    bundleIds = dedupe(bundleIds, resolved.bundleIds);
   }
 
   const looseSnapshots = new Map<string, number>();
@@ -68,9 +69,7 @@ export async function createShipment(
     const bookIds = [...new Set(selectedItems.map((i: any) => i.bookId as string))] as string[];
     const priceRows = await database.select({ id: books.id, price: books.price }).from(books).where(inArray(books.id, bookIds));
     const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
-    for (const item of selectedItems) {
-      looseSnapshots.set(item.id, priceMap.get((item as any).bookId) || 0);
-    }
+    selectedItems.forEach((item: any) => looseSnapshots.set(item.id, priceMap.get(item.bookId) || 0));
   }
 
   const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
@@ -94,12 +93,7 @@ export async function createShipment(
     const masterIds = [...new Set(selectedBundles.map((b: any) => b.packageId as string))] as string[];
     const masterRows = await database.select().from(bookPackages).where(inArray(bookPackages.id, masterIds));
     const masterMap = new Map<string, number>(masterRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
-    for (const b of selectedBundles) {
-      bundleSnapshots.set((b as any).id, {
-        packageId: (b as any).packageId,
-        snapshot: masterMap.get((b as any).packageId) || 0,
-      });
-    }
+    selectedBundles.forEach((b: any) => bundleSnapshots.set(b.id, { packageId: b.packageId, snapshot: masterMap.get(b.packageId) || 0 }));
   }
 
   await database.insert(transferShipments).values({
@@ -115,39 +109,43 @@ export async function createShipment(
     updatedAt: now,
   });
 
-  const valuedLines: Array<{ unitPriceSnapshot: number; quantity: number }> = [];
-  for (const bookItemId of looseIds) {
-    const snapshot = looseSnapshots.get(bookItemId) || 0;
-    valuedLines.push({ unitPriceSnapshot: snapshot, quantity: 1 });
-    await database.insert(transferShipmentItems).values({
-      id: crypto.randomUUID(),
-      shipmentId,
-      itemType: "loose",
-      bookItemId,
-      packageId: null,
-      packageItemId: null,
-      quantity: 1,
-      unitPriceSnapshot: snapshot,
-      createdAt: now,
-    });
-  }
-
-  for (const packageItemId of bundleIds) {
+  const looseLines = looseIds.map((bookItemId) => ({ bookItemId, snapshot: looseSnapshots.get(bookItemId) || 0 }));
+  const bundleLines = bundleIds.flatMap((packageItemId) => {
     const meta = bundleSnapshots.get(packageItemId);
-    if (!meta) continue;
-    valuedLines.push({ unitPriceSnapshot: meta.snapshot, quantity: 1 });
-    await database.insert(transferShipmentItems).values({
-      id: crypto.randomUUID(),
-      shipmentId,
-      itemType: "package",
-      bookItemId: null,
-      packageId: meta.packageId,
-      packageItemId,
-      quantity: 1,
-      unitPriceSnapshot: meta.snapshot,
-      createdAt: now,
-    });
-  }
+    return meta ? [{ packageItemId, meta }] : [];
+  });
+  const valuedLines = [
+    ...looseLines.map((l) => ({ unitPriceSnapshot: l.snapshot, quantity: 1 })),
+    ...bundleLines.map((l) => ({ unitPriceSnapshot: l.meta.snapshot, quantity: 1 })),
+  ];
+  await Promise.all([
+    ...looseLines.map((l) =>
+      database.insert(transferShipmentItems).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        itemType: "loose",
+        bookItemId: l.bookItemId,
+        packageId: null,
+        packageItemId: null,
+        quantity: 1,
+        unitPriceSnapshot: l.snapshot,
+        createdAt: now,
+      })
+    ),
+    ...bundleLines.map((l) =>
+      database.insert(transferShipmentItems).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        itemType: "package",
+        bookItemId: null,
+        packageId: l.meta.packageId,
+        packageItemId: l.packageItemId,
+        quantity: 1,
+        unitPriceSnapshot: l.meta.snapshot,
+        createdAt: now,
+      })
+    ),
+  ]);
 
   const total = calcHeaderTotal(valuedLines);
   const [withTotal] = await database

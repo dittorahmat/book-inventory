@@ -44,9 +44,7 @@ export interface SalesReportInput {
   schoolIds: string[];
 }
 
-function emptyChannel(): SalesChannelBreakdown {
-  return { orderCount: 0, quantity: 0, revenue: 0, collected: 0, outstanding: 0 };
-}
+const emptyChannel = (): SalesChannelBreakdown => ({ orderCount: 0, quantity: 0, revenue: 0, collected: 0, outstanding: 0 });
 
 /**
  * Rekap penjualan dari `student_book_orders` + `student_order_items`
@@ -71,10 +69,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
       ? await db.select().from(studentOrderItems).where(inArray(studentOrderItems.orderId, orderIds))
       : [];
 
-  const qtyByOrder = new Map<string, number>();
-  for (const line of lineRows) {
-    qtyByOrder.set(line.orderId, (qtyByOrder.get(line.orderId) ?? 0) + line.quantity);
-  }
+  const qtyByOrder = lineRows.reduce((m, line) => m.set(line.orderId, (m.get(line.orderId) ?? 0) + line.quantity), new Map<string, number>());
 
   const schoolRows: Array<{ id: string; name: string }> = await db
     .select({ id: schools.id, name: schools.name })
@@ -97,9 +92,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
     channel.collected += order.paidAmount;
     channel.outstanding += outstanding;
 
-    let row = bySchoolMap.get(order.schoolId);
-    if (!row) {
-      row = {
+    const row = bySchoolMap.get(order.schoolId) ?? (bySchoolMap.set(order.schoolId, {
         schoolId: order.schoolId,
         schoolName: schoolName.get(order.schoolId) ?? order.schoolId,
         revenue: 0,
@@ -109,9 +102,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
         packageOrderCount: 0,
         looseOrderCount: 0,
         scholarshipOrderCount: 0,
-      };
-      bySchoolMap.set(order.schoolId, row);
-    }
+      }).get(order.schoolId) as SalesSchoolRow);
     row.revenue += order.totalAmount;
     row.collected += order.paidAmount;
     row.outstanding += outstanding;
@@ -130,12 +121,11 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
     period: { from: input.from, to: input.to },
     scopeSchoolIds: schoolIds,
     totals: {
-      ...packageChannel,
+      orderCount: packageChannel.orderCount + looseChannel.orderCount,
+      quantity: packageChannel.quantity + looseChannel.quantity,
       revenue: packageChannel.revenue + looseChannel.revenue,
       collected: packageChannel.collected + looseChannel.collected,
       outstanding: packageChannel.outstanding + looseChannel.outstanding,
-      quantity: packageChannel.quantity + looseChannel.quantity,
-      orderCount: packageChannel.orderCount + looseChannel.orderCount,
       packageOrderCount,
       looseOrderCount,
       scholarshipOrderCount: scholarshipOrders.length,

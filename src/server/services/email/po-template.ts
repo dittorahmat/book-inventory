@@ -16,17 +16,10 @@ export interface PoEmailData {
   notes?: string | null;
 }
 
-export function escapeHtml(value: string | number | null | undefined): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { formatRupiah } from "../../../lib/transfer-pricing";
 
-export function formatRupiah(amount: number): string {
-  return `Rp ${Number(amount || 0).toLocaleString("id-ID")}`;
+export function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
 /** Template HTML email PO: satu sumber kebenaran isi email untuk supplier. */

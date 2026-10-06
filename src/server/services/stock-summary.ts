@@ -31,15 +31,11 @@ export interface PackageStockSummaryRow {
   byStatus: { in_stock: number; reserved: number; dispatched: number; delivered: number };
 }
 
-function emptyCondition() {
-  return { new: 0, good: 0, fair: 0, damaged: 0 };
-}
-function emptyBookStatus() {
-  return { in_stock: 0, in_transit: 0, disposed: 0, lost: 0 };
-}
-function emptyPackageStatus() {
-  return { in_stock: 0, reserved: 0, dispatched: 0, delivered: 0 };
-}
+const emptyCondition = () => ({ new: 0, good: 0, fair: 0, damaged: 0 });
+const emptyBookStatus = () => ({ in_stock: 0, in_transit: 0, disposed: 0, lost: 0 });
+const emptyPackageStatus = () => ({ in_stock: 0, reserved: 0, dispatched: 0, delivered: 0 });
+
+const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.set(k, mk()).get(k) as V);
 
 /**
  * Stok satuan sebagai satu baris per judul per lokasi (spec: inventory-summary).
@@ -70,10 +66,7 @@ export async function getLooseStockSummary(
 
   const grouped = new Map<string, LooseStockSummaryRow>();
   for (const row of rows) {
-    const key = `${row.schoolId}|${row.bookId}`;
-    let entry = grouped.get(key);
-    if (!entry) {
-      entry = {
+    const entry = getOrInit(grouped, `${row.schoolId}|${row.bookId}`, () => ({
         schoolId: row.schoolId,
         schoolName: row.schoolName,
         bookId: row.bookId,
@@ -86,9 +79,7 @@ export async function getLooseStockSummary(
         inTransitQty: 0,
         byCondition: emptyCondition(),
         byStatus: emptyBookStatus(),
-      };
-      grouped.set(key, entry);
-    }
+      }));
     entry.totalQty += 1;
     entry.byCondition[row.condition as keyof typeof entry.byCondition] += 1;
     entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
@@ -126,10 +117,7 @@ export async function getPackageStockSummary(
 
   const grouped = new Map<string, PackageStockSummaryRow>();
   for (const row of rows) {
-    const key = `${row.schoolId}|${row.packageId}`;
-    let entry = grouped.get(key);
-    if (!entry) {
-      entry = {
+    const entry = getOrInit(grouped, `${row.schoolId}|${row.packageId}`, () => ({
         schoolId: row.schoolId,
         schoolName: row.schoolName,
         packageId: row.packageId,
@@ -141,9 +129,7 @@ export async function getPackageStockSummary(
         totalQty: 0,
         readyQty: 0,
         byStatus: emptyPackageStatus(),
-      };
-      grouped.set(key, entry);
-    }
+      }));
     entry.totalQty += 1;
     entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
     if (row.status === "in_stock") entry.readyQty += 1;

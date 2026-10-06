@@ -2,6 +2,8 @@
 // Workers -> Brevo HTTP API (fetch), Bun/VPS -> SMTP (Nodemailer),
 // tanpa kredensial -> simulasi eksplisit (tidak pernah klaim terkirim).
 
+export const DEFAULT_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
 export type EmailProviderName = "brevo" | "smtp" | "simulated";
 export type EmailProviderSetting = "auto" | "brevo" | "smtp";
 

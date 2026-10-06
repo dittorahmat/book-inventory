@@ -22,17 +22,8 @@ export function resolveLockedPackage<T extends LockablePackage>(
   packages: T[]
 ): T | null {
   if (!student || !packages || packages.length === 0) return null;
-  const candidates = packages.filter(
-    (p) =>
-      p.gradeLevel === student.targetGradeLevel &&
-      p.curriculumType === student.curriculumType
-  );
-  if (candidates.length === 0) return null;
-  return [...candidates].sort((a, b) =>
-    b.academicYear.localeCompare(a.academicYear)
-  )[0];
+  const candidates = packages.filter((p) => p.gradeLevel === student.targetGradeLevel && p.curriculumType === student.curriculumType);
+  return candidates.reduce<T | null>((a, b) => (!a || b.academicYear > a.academicYear ? b : a), null);
 }
 
-export function curriculumLabel(curriculumType: string): string {
-  return curriculumType === "international" ? "Internasional" : "Nasional";
-}
+export const curriculumLabel = (curriculumType: string): string => (curriculumType === "international" ? "Internasional" : "Nasional");

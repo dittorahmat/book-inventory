@@ -25,32 +25,15 @@ export interface SmtpConfig {
   brevoApiUrl: string;
 }
 
-const DEFAULT_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+import { DEFAULT_BREVO_API_URL } from "./types";
 
-function isBunRuntime(): boolean {
-  return typeof (globalThis as any).Bun !== "undefined";
-}
+const isBunRuntime = (): boolean => typeof (globalThis as any).Bun !== "undefined";
 
-async function readSettingsMap(): Promise<Record<string, string>> {
-  const rows = await db.select().from(systemSettings);
-  const map: Record<string, string> = {};
-  for (const row of rows as any[]) {
-    map[row.key] = row.value;
-  }
-  return map;
-}
+const readSettingsMap = async (): Promise<Record<string, string>> =>
+  Object.fromEntries(((await db.select().from(systemSettings)) as any[]).map((r) => [r.key, r.value]));
 
-function pick(
-  envVal: string | undefined,
-  storedVal: string | undefined,
-  processVal: string | undefined,
-  fallback: string
-): string {
-  if (envVal !== undefined && envVal !== "") return envVal;
-  if (storedVal !== undefined && storedVal !== "") return storedVal;
-  if (processVal !== undefined && processVal !== "") return processVal;
-  return fallback;
-}
+const pick = (envVal: string | undefined, storedVal: string | undefined, processVal: string | undefined, fallback: string): string =>
+  [envVal, storedVal, processVal].find((v) => v !== undefined && v !== "") ?? fallback;
 
 /**
  * Resolusi konfigurasi email.
@@ -190,8 +173,12 @@ export function selectProviderName(
   };
 }
 
-function toResolved(config: SmtpConfig): ResolvedEmailConfig {
-  return {
+export async function sendEmailNotification(
+  options: EmailSendOptions,
+  env?: EmailRuntimeEnv
+): Promise<EmailSendResult> {
+  const config = await getSmtpConfig(env);
+  const resolved: ResolvedEmailConfig = {
     providerSetting: config.provider,
     brevoApiKey: config.brevoApiKey || "",
     brevoApiUrl: config.brevoApiUrl,
@@ -203,21 +190,6 @@ function toResolved(config: SmtpConfig): ResolvedEmailConfig {
     fromName: config.fromName,
     fromEmail: config.fromEmail,
   };
-}
-
-function buildProvider(
-  name: Exclude<EmailProviderName, "simulated">,
-  config: ResolvedEmailConfig
-): EmailProvider {
-  return name === "brevo" ? new BrevoHttpProvider(config) : new SmtpProvider(config);
-}
-
-export async function sendEmailNotification(
-  options: EmailSendOptions,
-  env?: EmailRuntimeEnv
-): Promise<EmailSendResult> {
-  const config = await getSmtpConfig(env);
-  const resolved = toResolved(config);
   const selection = selectProviderName(resolved, isBunRuntime());
 
   if (selection.provider === "simulated") {
@@ -234,10 +206,8 @@ export async function sendEmailNotification(
   }
 
   try {
-    const messageId = await buildProvider(selection.provider, resolved).send(options, {
-      name: resolved.fromName,
-      email: resolved.fromEmail,
-    });
+    const provider: EmailProvider = selection.provider === "brevo" ? new BrevoHttpProvider(resolved) : new SmtpProvider(resolved);
+    const messageId = await provider.send(options, { name: resolved.fromName, email: resolved.fromEmail });
     return { success: true, provider: selection.provider, simulated: false, messageId };
   } catch (err: any) {
     const message = err?.message || "Pengiriman email gagal tanpa pesan provider.";

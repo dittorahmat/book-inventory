@@ -350,10 +350,7 @@ export function App() {
           />
         )}
         {activeTab === "settings" && isCentralAdmin && (
-          <SettingsView
-            currentUser={currentUser}
-            onSchoolsUpdated={() => loadSchools()}
-          />
+          <SettingsView onSchoolsUpdated={() => loadSchools()} />
         )}
       </main>
 

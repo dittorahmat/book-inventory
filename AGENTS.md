@@ -93,6 +93,11 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      ```
      Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`).
 
+8. **YAGNI & One-Liner Discipline (WAJIB)**
+   - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` untuk harga efektif, `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari.
+   - **Prefer one-liner solutions**: guard/loop verbose yang setara **wajib** jadi `map`/`filter`/`reduce`/`??`/`||`/ternary satu baris bila tidak mengubah perilaku (contoh: `pick` → `.find(...) ?? fallback`, `readSettingsMap` → `Object.fromEntries`, toggle → `toggleIn(setter)`, 5x `return` status → hitung `open`+`reason` + single return, N+1 `await insert` di loop → `Promise.all`).
+   - **Aman**: refactor penyederhanaan dilarang mengubah perilaku — public API yang dipakai route/test (`selectProviderName`, `getSmtpConfig`, `sendEmailNotification`, `resolveScope`, `DashboardHttpError`) dipertahankan sebagai alias tipis bila perlu kompatibilitas.
+
 ---
 
 ## 2. Technology Stack Standards

@@ -21,43 +21,20 @@ import type {
 import {
   AccessHttpError,
   resolveLocationScope,
+  type AccessActor,
   type StaffRole,
 } from "./access-scope";
 
 export type { StaffRole };
-
-export interface DashboardActor {
-  role: StaffRole;
-  schoolId: string | null;
-}
-
-export class DashboardHttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
+export type DashboardActor = AccessActor;
+export const DashboardHttpError = AccessHttpError;
 
 /** Pure scope resolution so branch isolation is unit-testable without a session. */
-export function resolveScope(
-  actor: DashboardActor | null,
+export const resolveScope = (
+  actor: AccessActor | null,
   requestedSchoolId: string | undefined,
   allSchoolIds: string[],
-): string[] {
-  try {
-    return resolveLocationScope(
-      actor,
-      requestedSchoolId,
-      allSchoolIds.map((id) => ({ id })),
-    );
-  } catch (err) {
-    if (err instanceof AccessHttpError) {
-      throw new DashboardHttpError(err.status, err.message);
-    }
-    throw err;
-  }
-}
+): string[] => resolveLocationScope(actor, requestedSchoolId, allSchoolIds.map((id) => ({ id })));
 
 type SchoolRow = typeof schools.$inferSelect;
 type BookItemRow = typeof bookItems.$inferSelect;
@@ -91,17 +68,18 @@ interface DashboardRows {
  * sekolah dikerjakan in-memory dari hasil fetch tunggal ini.
  */
 async function fetchDashboardRows(database: typeof db): Promise<DashboardRows> {
+  const fetchAll = <T>(table: unknown): Promise<T[]> => database.select().from(table as any) as Promise<T[]>;
   const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows] =
     await Promise.all([
-      database.select().from(bookItems) as Promise<BookItemRow[]>,
-      database.select().from(packageItems) as Promise<PackageItemRow[]>,
-      database.select().from(bookPackages) as Promise<BookPackageRow[]>,
-      database.select().from(books) as Promise<BookRow[]>,
-      database.select().from(students) as Promise<StudentRow[]>,
-      database.select().from(studentBookOrders) as Promise<OrderRow[]>,
-      database.select().from(bookReturns) as Promise<ReturnRow[]>,
-      database.select().from(transferShipments) as Promise<ShipmentRow[]>,
-      database.select().from(purchaseOrders) as Promise<PurchaseOrderRow[]>,
+      fetchAll<BookItemRow>(bookItems),
+      fetchAll<PackageItemRow>(packageItems),
+      fetchAll<BookPackageRow>(bookPackages),
+      fetchAll<BookRow>(books),
+      fetchAll<StudentRow>(students),
+      fetchAll<OrderRow>(studentBookOrders),
+      fetchAll<ReturnRow>(bookReturns),
+      fetchAll<ShipmentRow>(transferShipments),
+      fetchAll<PurchaseOrderRow>(purchaseOrders),
     ]);
   return { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows };
 }

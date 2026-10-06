@@ -1,4 +1,5 @@
 import { auth } from "../auth";
+import { schools } from "../../db/schema";
 
 export type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
 
@@ -43,9 +44,9 @@ export async function resolveRequestActor(c: {
   return null;
 }
 
-function allIdsOf(allSchools: Array<{ id: string }>): string[] {
-  return allSchools.map((s) => s.id);
-}
+const mustExist = (ids: string[], id: string): void => {
+  if (!ids.includes(id)) throw new AccessHttpError(404, "Sekolah/gudang tidak ditemukan");
+};
 
 /**
  * Pure location-scope resolution. Central admin sees all (or one requested);
@@ -57,12 +58,10 @@ export function resolveLocationScope(
   requestedSchoolId: string | undefined,
   allSchools: Array<{ id: string }>
 ): string[] {
-  const ids = allIdsOf(allSchools);
+  const ids = allSchools.map((s) => s.id);
   if (!actor || actor.role === "central_admin") {
     if (requestedSchoolId) {
-      if (!ids.includes(requestedSchoolId)) {
-        throw new AccessHttpError(404, "Sekolah/gudang tidak ditemukan");
-      }
+      mustExist(ids, requestedSchoolId);
       return [requestedSchoolId];
     }
     return ids;
@@ -82,10 +81,7 @@ export function assertLocationAllowed(
   locationId: string,
   allSchools: Array<{ id: string }>
 ): void {
-  const ids = allIdsOf(allSchools);
-  if (!ids.includes(locationId)) {
-    throw new AccessHttpError(404, "Sekolah/gudang tidak ditemukan");
-  }
+  mustExist(allSchools.map((s) => s.id), locationId);
   if (!actor || actor.role === "central_admin") return;
   if (!actor.schoolId) {
     throw new AccessHttpError(403, "Admin terisolasi belum memiliki penugasan sekolah/gudang");
@@ -112,9 +108,6 @@ export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 40
 }
 
 /** Load all location ids for scoping. Keeps route handlers to one-liners. */
-export async function loadLocationIds(database: {
+export const loadLocationIds = (database: {
   select: (fields?: unknown) => { from: (table: unknown) => Promise<Array<{ id: string }>> };
-}): Promise<Array<{ id: string }>> {
-  const { schools } = await import("../../db/schema");
-  return database.select({ id: schools.id }).from(schools);
-}
+}): Promise<Array<{ id: string }>> => database.select({ id: schools.id }).from(schools);

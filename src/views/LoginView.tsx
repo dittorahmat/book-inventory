@@ -7,6 +7,12 @@ interface LoginViewProps {
   onNavigateToPublicPortal?: () => void;
 }
 
+const DEMO_ACCOUNTS = [
+  { email: "admin.pusat@alwildan.sch.id", label: "Central Admin (HQ Pusat)", tag: "Al Wildan 1", Icon: Shield },
+  { email: "admin.cabang2@alwildan.sch.id", label: "Branch Admin 2", tag: "Al Wildan 2", Icon: School },
+  { email: "admin.cabang3@alwildan.sch.id", label: "Branch Admin 3", tag: "Al Wildan 3", Icon: School },
+];
+
 export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginViewProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -161,62 +167,27 @@ export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginVie
               </div>
 
               <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo("admin.pusat@alwildan.sch.id")}
-                  className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2]">
-                      <Shield className="w-4 h-4 text-[#1877F2]" />
+                {DEMO_ACCOUNTS.map(({ email: demoEmail, label, tag, Icon }) => (
+                  <button
+                    key={demoEmail}
+                    type="button"
+                    onClick={() => handleQuickDemo(demoEmail)}
+                    className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between group active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2]">
+                        <Icon className="w-4 h-4 text-[#1877F2]" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#050505]">{label}</div>
+                        <div className="text-[11px] text-[#65676B]">{demoEmail}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#050505]">Central Admin (HQ Pusat)</div>
-                      <div className="text-[11px] text-[#65676B]">admin.pusat@alwildan.sch.id</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
-                    Al Wildan 1
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo("admin.cabang2@alwildan.sch.id")}
-                  className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2]">
-                      <School className="w-4 h-4 text-[#1877F2]" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#050505]">Branch Admin 2</div>
-                      <div className="text-[11px] text-[#65676B]">admin.cabang2@alwildan.sch.id</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
-                    Al Wildan 2
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo("admin.cabang3@alwildan.sch.id")}
-                  className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2]">
-                      <School className="w-4 h-4 text-[#1877F2]" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#050505]">Branch Admin 3</div>
-                      <div className="text-[11px] text-[#65676B]">admin.cabang3@alwildan.sch.id</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
-                    Al Wildan 3
-                  </span>
-                </button>
+                    <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
+                      {tag}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

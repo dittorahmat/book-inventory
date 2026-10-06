@@ -1,5 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, schools, books, bookPackages } from "../../db/schema";
+import { calcLineTotal } from "../../lib/transfer-pricing";
 
 export async function listShipmentsWithCounts(database: any, schoolId?: string) {
   const all = await database.select({
@@ -16,22 +17,19 @@ export async function listShipmentsWithCounts(database: any, schoolId?: string) 
     createdAt: transferShipments.createdAt,
   }).from(transferShipments);
 
-  const filtered = schoolId
-    ? all.filter((s: any) => s.fromSchoolId === schoolId || s.toSchoolId === schoolId)
-    : all;
+  const filtered = all.filter((s: any) => !schoolId || s.fromSchoolId === schoolId || s.toSchoolId === schoolId);
 
   const allLines = await database.select({
     shipmentId: transferShipmentItems.shipmentId,
     itemType: transferShipmentItems.itemType,
   }).from(transferShipmentItems);
 
-  const counts = new Map<string, { looseCount: number; packageCount: number }>();
-  for (const l of allLines) {
-    const e = counts.get(l.shipmentId) || { looseCount: 0, packageCount: 0 };
+  const counts = allLines.reduce((m: Map<string, { looseCount: number; packageCount: number }>, l: any) => {
+    const e = m.get(l.shipmentId) || { looseCount: 0, packageCount: 0 };
     if (l.itemType === "package") e.packageCount += 1;
     else e.looseCount += 1;
-    counts.set(l.shipmentId, e);
-  }
+    return m.set(l.shipmentId, e);
+  }, new Map());
 
   return filtered.map((s: any) => ({
     ...s,
@@ -93,19 +91,21 @@ export async function getShipmentDetail(database: any, id: string) {
     ...looseItems.map((i: any) => ({
       ...i,
       itemType: "loose" as const,
-      lineTotal: (i.unitPriceSnapshot || 0) * (i.quantity || 1),
+      lineTotal: calcLineTotal(i.unitPriceSnapshot, i.quantity),
     })),
     ...pkgItems.map((i: any) => ({
       ...i,
       itemType: "package" as const,
       bookTitle: i.packageName,
       barcode: i.bundleBarcode || i.packageCode,
-      lineTotal: (i.unitPriceSnapshot || 0) * (i.quantity || 1),
+      lineTotal: calcLineTotal(i.unitPriceSnapshot, i.quantity),
     })),
   ];
 
-  const fromRows = await database.select().from(schools).where(eq(schools.id, shipment.fromSchoolId));
-  const toRows = await database.select().from(schools).where(eq(schools.id, shipment.toSchoolId));
+  const [fromRows, toRows] = await Promise.all([
+    database.select().from(schools).where(eq(schools.id, shipment.fromSchoolId)),
+    database.select().from(schools).where(eq(schools.id, shipment.toSchoolId)),
+  ]);
 
   return { ...shipment, fromSchool: fromRows[0], toSchool: toRows[0], items };
 }

@@ -19,23 +19,13 @@ export interface SatuanStatus {
   reason: string;
 }
 
-async function readSetting(key: string): Promise<string | null> {
-  const [row] = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
-  return row?.value ?? null;
-}
+const readSetting = async (key: string): Promise<string | null> => {
+  const rows = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
+  return rows[0]?.value ?? null;
+};
 
-async function writeSetting(key: string, value: string, description: string) {
-  const now = new Date().toISOString();
-  const [existing] = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
-  if (existing) {
-    await db
-      .update(systemSettings)
-      .set({ value, description, updatedAt: now })
-      .where(eq(systemSettings.key, key));
-  } else {
-    await db.insert(systemSettings).values({ key, value, description, updatedAt: now });
-  }
-}
+const writeSetting = async (key: string, value: string, description: string) =>
+  db.insert(systemSettings).values({ key, value, description, updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: systemSettings.key, set: { value, description, updatedAt: new Date().toISOString() } });
 
 /**
  * Status openness order satuan untuk satu tahun ajaran.
@@ -51,54 +41,18 @@ export async function getSatuanStatus(
   const override: SatuanOverride | null =
     rawOverride === "open" || rawOverride === "closed" ? rawOverride : null;
 
-  if (override === "open") {
-    return {
-      academicYear,
-      open: true,
-      todayWIB: today,
-      openFrom,
-      override,
-      reason: "Order satuan dipaksa buka oleh admin.",
-    };
-  }
-  if (override === "closed") {
-    return {
-      academicYear,
-      open: false,
-      todayWIB: today,
-      openFrom,
-      override,
-      reason: "Order satuan dipaksa tutup oleh admin.",
-    };
-  }
-  if (!openFrom) {
-    return {
-      academicYear,
-      open: false,
-      todayWIB: today,
-      openFrom: null,
-      override: null,
-      reason: "Order satuan belum dibuka untuk tahun ajaran ini.",
-    };
-  }
-  if (!isWIBOnOrAfter(today, openFrom)) {
-    return {
-      academicYear,
-      open: false,
-      todayWIB: today,
-      openFrom,
-      override: null,
-      reason: `Order satuan dibuka mulai ${openFrom}.`,
-    };
-  }
-  return {
-    academicYear,
-    open: true,
-    todayWIB: today,
-    openFrom,
-    override: null,
-    reason: `Order satuan terbuka sejak ${openFrom}.`,
-  };
+  const open = override === "open" || (!override && !!openFrom && isWIBOnOrAfter(today, openFrom));
+  const reason =
+    override === "open"
+      ? "Order satuan dipaksa buka oleh admin."
+      : override === "closed"
+        ? "Order satuan dipaksa tutup oleh admin."
+        : !openFrom
+          ? "Order satuan belum dibuka untuk tahun ajaran ini."
+          : today < openFrom
+            ? `Order satuan dibuka mulai ${openFrom}.`
+            : `Order satuan terbuka sejak ${openFrom}.`;
+  return { academicYear, open, todayWIB: today, openFrom: openFrom ?? null, override, reason };
 }
 
 /** Simpan tanggal efektif pembuka order satuan (format YYYY-MM-DD). */

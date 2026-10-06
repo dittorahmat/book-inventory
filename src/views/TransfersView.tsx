@@ -69,13 +69,14 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
       .catch(() => alert("Terjadi kesalahan jaringan saat memuat bundel"));
   };
 
-  const toggleLooseItem = (id: string) => {
-    setSelectedItems((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const toggleIn =
+    (setter: React.Dispatch<React.SetStateAction<string[]>>) =>
+    (id: string): void =>
+      setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const togglePackageItem = (id: string) => {
-    setSelectedPackages((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const toggleLooseItem = toggleIn(setSelectedItems);
+
+  const togglePackageItem = toggleIn(setSelectedPackages);
 
   const handleCreateShipment = async () => {
     if (!activeSchool || !destinationSchoolId) return;

@@ -34,11 +34,7 @@ export function isWIBOnOrAfter(todayIsoDate: string, effectiveFrom: string): boo
 
 /** Tahun ajaran berjalan, mis. "2026/2027", dari tanggal WIB saat ini. */
 export function currentAcademicYear(now: Date = new Date()): string {
-  const year = Number(toWIBDate(now).slice(0, 4));
-  // Tahun ajaran Indonesia dimulai pada Agustus.
-  return monthOfWIB(now) >= 8 ? `${year}/${year + 1}` : `${year - 1}/${year}`;
-}
-
-function monthOfWIB(now: Date): number {
-  return Number(toWIBDate(now).slice(5, 7));
+  const d = toWIBDate(now);
+  const year = Number(d.slice(0, 4));
+  return Number(d.slice(5, 7)) >= 8 ? `${year}/${year + 1}` : `${year - 1}/${year}`;
 }

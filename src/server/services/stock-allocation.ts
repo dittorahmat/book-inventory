@@ -27,10 +27,7 @@ interface PackageCandidate {
 }
 
 /** Urut FIFO: createdAt terlama lebih dulu. */
-function byOldest(a: { createdAt: string }, b: { createdAt: string }): number {
-  if (a.createdAt === b.createdAt) return 0;
-  return a.createdAt < b.createdAt ? -1 : 1;
-}
+const byOldest = (a: { createdAt: string }, b: { createdAt: string }): number => a.createdAt.localeCompare(b.createdAt);
 
 /**
  * Alokasi FIFO eksemplar satuan: pilih N eksemplar tertua yang tersedia

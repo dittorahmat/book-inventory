@@ -3,8 +3,7 @@ import type {
   EmailSendOptions,
   ResolvedEmailConfig,
 } from "./types";
-
-const DEFAULT_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+import { DEFAULT_BREVO_API_URL } from "./types";
 
 /** Transport Brevo via HTTP API — satu-satunya jalur yang bisa dipakai di Workers. */
 export class BrevoHttpProvider implements EmailProvider {
