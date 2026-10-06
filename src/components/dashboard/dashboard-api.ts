@@ -22,7 +22,8 @@ export async function fetchDashboardSummary(
   }
 
   if (!res.ok || !body.success || !body.data) {
-    throw new Error(body.message || `Gagal memuat dashboard (kode ${res.status}). Coba lagi.`);
+    const ref = (body as { ref?: string }).ref ? ` (ref ${(body as { ref?: string }).ref})` : "";
+    throw new Error(`${body.message || `Gagal memuat dashboard (kode ${res.status})`}${ref} Coba lagi.`);
   }
   return body.data;
 }

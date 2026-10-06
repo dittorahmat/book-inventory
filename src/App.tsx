@@ -119,19 +119,20 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
-      {/* Facebook Modern Header */}
-      <header className="border-b border-[#E4E6EB] bg-white sticky top-0 z-40 shadow-xs">
+      {/* Staff Header: solid blue top band + white nav band (portal ortu tetap putih) */}
+      <header className="sticky top-0 z-40 shadow-xs">
+        <div className="bg-[#1877F2]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {/* Al Wildan Logistics Crest Icon */}
-            <div className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center text-white shadow-sm shrink-0">
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
               <BookOpen className="w-5 h-5 text-white" />
             </div>
             <div className="truncate">
-              <span className="text-base sm:text-lg tracking-tight font-bold text-[#050505] truncate block sm:inline">
+              <span className="text-base sm:text-lg tracking-tight font-bold text-white truncate block sm:inline">
                 School Logistics
               </span>
-              <span className="hidden sm:inline-block ml-2 text-[11px] font-semibold text-[#1877F2] bg-[#E7F3FF] border border-[#1877F2]/20 px-2 py-0.5 rounded-full">
+              <span className="hidden sm:inline-block ml-2 text-[11px] font-semibold text-white bg-white/15 border border-white/30 px-2 py-0.5 rounded-full">
                 Al Wildan
               </span>
             </div>
@@ -147,14 +148,14 @@ export function App() {
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F0F2F5] rounded-full text-xs font-semibold text-[#050505] border border-[#CED0D4]">
-                <SchoolIcon className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
+                <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
                 <span className="truncate max-w-[110px] sm:max-w-none">{selectedSchool?.name || "Assigned Branch"}</span>
               </div>
             )}
 
               {/* User Badge & Logout */}
-              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-[#E4E6EB]">
+              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/25">
                 <button
                   type="button"
                   onClick={() => setIsPublicMode(true)}
@@ -166,11 +167,11 @@ export function App() {
                 </button>
 
                 <div className="text-right hidden md:block">
-                  <div className="text-xs font-semibold text-[#050505]">{currentUser.name}</div>
-                  <div className="text-[11px] text-[#65676B] flex items-center justify-end gap-1">
+                  <div className="text-xs font-semibold text-white">{currentUser.name}</div>
+                  <div className="text-[11px] text-white/75 flex items-center justify-end gap-1">
                     {isCentralAdmin ? (
-                      <span className="text-[#1877F2] flex items-center gap-1 font-semibold">
-                        <Shield className="w-3 h-3 text-[#1877F2]" /> HQ Central Admin
+                      <span className="text-white flex items-center gap-1 font-semibold">
+                        <Shield className="w-3 h-3 text-white" /> HQ Central Admin
                       </span>
                     ) : (
                       <span>Branch Admin</span>
@@ -181,17 +182,19 @@ export function App() {
                 <button
                   onClick={() => signOut()}
                   title="Sign Out"
-                  className="w-9 h-9 flex items-center justify-center text-[#050505] hover:bg-[#E4E6EB] rounded-full transition-colors bg-[#F0F2F5]"
+                  className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition-colors bg-white/15"
                   aria-label="Sign Out"
                 >
-                  <LogOut className="w-4 h-4 text-[#65676B]" />
+                  <LogOut className="w-4 h-4 text-white" />
                 </button>
               </div>
             </div>
           </div>
+          </div>
 
           {/* Navigation Tabs for Desktop */}
-          <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm border-t border-[#E4E6EB]/60 overflow-x-auto">
+          <div className="bg-white border-b border-[#E4E6EB]">
+          <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
             <button
               onClick={() => setActiveTab("dashboard")}
               className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
@@ -315,6 +318,7 @@ export function App() {
               Pengaturan
             </button>
           )}
+          </div>
         </div>
       </header>
 

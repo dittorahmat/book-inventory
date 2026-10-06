@@ -152,6 +152,30 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     loadData();
   }, [loadData]);
 
+  // Refresh daftar + sinkronkan modal detail & pratinjau cetak dari data
+  // segar (hindari stale closure: purchaseOrders state bisa basi saat
+  // aksi workflow selesai).
+  const refreshAfterWorkflow = useCallback(async () => {
+    try {
+      const res = await fetch("/api/procurement/purchase-orders");
+      const data = await res.json();
+      if (data.success) {
+        setPurchaseOrders(data.data);
+        setDetailPo((prev) => (prev ? data.data.find((p: PurchaseOrder) => p.id === prev.id) ?? null : null));
+        setPrintPo((prev) => {
+          if (!prev) return prev;
+          const fresh = data.data.find((p: PurchaseOrder) => p.id === prev.id);
+          return fresh ? toPrintablePo(fresh) : prev;
+        });
+        return;
+      }
+    } catch {
+      // Abaikan, pengguna bisa muat ulang manual.
+    }
+    await loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Handler: Open Create PO Modal with 1 default item row
   const defaultBuyPrice = (bookId: string, fallback: number) => {
     const b = catalogBooks.find((x) => x.id === bookId);
@@ -371,6 +395,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
   const poTotals = calcPoTotals(poItems);
 
   const toPrintablePo = (po: PurchaseOrder): PrintablePo => ({
+    id: po.id,
     poNumber: po.poNumber,
     supplierName: po.supplierName,
     schoolName: po.schoolName,
@@ -382,7 +407,10 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     discountTotal: po.discountTotal,
     totalAmount: po.totalAmount,
     printedAt: po.printedAt,
+    signedDocUrl: po.signedDocUrl,
     signedDocName: po.signedDocName,
+    signedDocType: po.signedDocType,
+    signedDocUploadedAt: po.signedDocUploadedAt,
     sentAt: po.sentAt,
     sentTo: po.sentTo,
     items: po.items.map((it) => ({
@@ -1214,19 +1242,16 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
             <footer className="px-5 py-3 border-t border-[#E4E6EB] flex items-center justify-between gap-3 shrink-0 flex-wrap">
               <PoWorkflowActions
                 po={detailPo}
-                onChanged={async () => {
-                  await loadData();
-                  setDetailPo((prev) => (prev ? purchaseOrders.find((p) => p.id === prev.id) ?? null : null));
-                }}
+                onChanged={refreshAfterWorkflow}
                 onPrint={() => setPrintPo(toPrintablePo(detailPo))}
               />
-              <PoSendAction po={detailPo} onSent={loadData} />
+              <PoSendAction po={detailPo} onSent={refreshAfterWorkflow} />
             </footer>
           </div>
         </div>
       )}
 
-      {printPo && <PoPrintView po={printPo} onClose={() => setPrintPo(null)} />}
+      {printPo && <PoPrintView po={printPo} onClose={() => setPrintPo(null)} onChanged={refreshAfterWorkflow} />}
     </div>
   );
 }

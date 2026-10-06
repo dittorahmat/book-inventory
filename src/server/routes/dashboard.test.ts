@@ -133,6 +133,26 @@ describe("Dashboard summary API", () => {
       await cleanup();
     }
   });
+
+  it("comparison entry matches detail numbers for the same school (single-fetch regression)", async () => {
+    try {
+      await cleanup();
+      await seed();
+      const detailRes = await dashboardRouter.request(`/summary?schoolId=${SCH}`, { method: "GET" });
+      const detail = (await detailRes.json()).data.schools[0];
+      const cmpRes = await dashboardRouter.request("/summary", { method: "GET" });
+      const cmp = (await cmpRes.json()).data.schools.find(
+        (s: { school: { id: string } }) => s.school.id === SCH
+      );
+      expect(cmp).toBeDefined();
+      expect(cmp.coverage).toMatchObject(detail.coverage);
+      expect(cmp.funnel).toMatchObject(detail.funnel);
+      expect(cmp.payments.outstandingRp).toBe(detail.payments.outstandingRp);
+      expect(cmp.stock.looseInStock).toBe(detail.stock.looseInStock);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe("Dashboard scope resolution (branch isolation)", () => {

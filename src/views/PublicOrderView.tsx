@@ -198,6 +198,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
                 onQuantityChange={order.handleLooseQuantityChange}
                 selectedPackagePrice={order.selectedPackage?.price ?? 0}
                 selectedPackageName={order.selectedPackage?.name ?? null}
+                packageItems={order.selectedPackage?.items ?? []}
                 onContinue={() => order.goToStep(3)}
                 onBack={() => order.goToStep(1)}
                 isSubmitting={order.isSubmitting}
@@ -254,6 +255,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
             {step === 4 && order.submittedOrder && (
               <OrderSuccessStep
                 submittedOrder={order.submittedOrder}
+                packageItems={order.selectedPackage?.items ?? []}
                 onOrderAnother={order.resetOrderFlow}
               />
             )}

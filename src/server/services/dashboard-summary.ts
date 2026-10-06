@@ -71,26 +71,48 @@ type PurchaseOrderRow = typeof purchaseOrders.$inferSelect;
 
 type BookRow = typeof books.$inferSelect;
 
-async function getSchoolSummary(
-  database: typeof db,
-  schoolId: string,
-): Promise<DashboardSchoolSummary> {
-  const schoolRows: SchoolRow[] = await database.select().from(schools);
-  const school = schoolRows.find((r) => r.id === schoolId);
-  if (!school) {
-    throw new DashboardHttpError(404, "School not found");
-  }
+interface DashboardRows {
+  itemRows: BookItemRow[];
+  pkgRows: PackageItemRow[];
+  pkgDefs: BookPackageRow[];
+  bookRows: BookRow[];
+  studentRows: StudentRow[];
+  orderRows: OrderRow[];
+  returnRows: ReturnRow[];
+  shipmentRows: ShipmentRow[];
+  poRows: PurchaseOrderRow[];
+}
 
-  const itemRows: BookItemRow[] = await database.select().from(bookItems);
-  const pkgRows: PackageItemRow[] = await database.select().from(packageItems);
-  const pkgDefs: BookPackageRow[] = await database.select().from(bookPackages);
-  const bookRows: BookRow[] = await database.select().from(books);
-  const studentRows: StudentRow[] = await database.select().from(students);
-  const orderRows: OrderRow[] = await database.select().from(studentBookOrders);
-  const returnRows: ReturnRow[] = await database.select().from(bookReturns);
-  const shipmentRows: ShipmentRow[] = await database.select().from(transferShipments);
-  const poRows: PurchaseOrderRow[] = await database.select().from(purchaseOrders);
+/**
+ * Ambil semua tabel ringkasan SEKALI untuk seluruh sekolah.
+ * Sebelumnya tiap sekolah memicu ~10 full-table scan berurutan
+ * (180 sekolah di production = ~1800 query -> Worker kehabisan
+ * CPU time dan jatuh ke 500 generik). Sekarang agregasi per
+ * sekolah dikerjakan in-memory dari hasil fetch tunggal ini.
+ */
+async function fetchDashboardRows(database: typeof db): Promise<DashboardRows> {
+  const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows] =
+    await Promise.all([
+      database.select().from(bookItems) as Promise<BookItemRow[]>,
+      database.select().from(packageItems) as Promise<PackageItemRow[]>,
+      database.select().from(bookPackages) as Promise<BookPackageRow[]>,
+      database.select().from(books) as Promise<BookRow[]>,
+      database.select().from(students) as Promise<StudentRow[]>,
+      database.select().from(studentBookOrders) as Promise<OrderRow[]>,
+      database.select().from(bookReturns) as Promise<ReturnRow[]>,
+      database.select().from(transferShipments) as Promise<ShipmentRow[]>,
+      database.select().from(purchaseOrders) as Promise<PurchaseOrderRow[]>,
+    ]);
+  return { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows };
+}
 
+function isKnownCondition(value: string): value is keyof { new: number; good: number; fair: number; damaged: number } {
+  return value === "new" || value === "good" || value === "fair" || value === "damaged";
+}
+
+function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSchoolSummary {
+  const schoolId = school.id;
+  const { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows } = rows;
   const items = itemRows.filter((r) => r.currentSchoolId === schoolId);
   const pkgs = pkgRows.filter((r) => r.currentSchoolId === schoolId);
   const pkgTier = new Map(pkgDefs.map((p) => [p.id, p]));
@@ -107,7 +129,7 @@ async function getSchoolSummary(
   let damaged = 0;
   for (const it of items) {
     if (it.status === "in_stock") {
-      byCondition[it.condition as keyof typeof byCondition] += 1;
+      if (isKnownCondition(it.condition)) byCondition[it.condition] += 1;
       if (it.condition === "damaged") damaged += 1;
     }
     if (it.status === "in_transit") inTransit += 1;
@@ -135,7 +157,7 @@ async function getSchoolSummary(
     entry.totalQty += 1;
     if (it.status === "in_stock") {
       entry.availableQty += 1;
-      entry.byCondition[it.condition as keyof typeof entry.byCondition] += 1;
+      if (isKnownCondition(it.condition)) entry.byCondition[it.condition] += 1;
     }
     if (it.status === "in_transit") entry.inTransitQty += 1;
   }
@@ -236,9 +258,17 @@ export async function getDashboardSummary(
 ): Promise<DashboardSummaryPayload> {
   const allSchoolRows: SchoolRow[] = await database.select().from(schools);
   const scope = resolveScope(actor, requestedSchoolId, allSchoolRows.map((s) => s.id));
+  const schoolById = new Map(allSchoolRows.map((s) => [s.id, s]));
+  // Satu fetch untuk semua sekolah, lalu bangun ringkasan per sekolah
+  // secara sinkron (lihat fetchDashboardRows).
+  const rows = await fetchDashboardRows(database);
   const summaries: DashboardSchoolSummary[] = [];
   for (const id of scope) {
-    summaries.push(await getSchoolSummary(database, id));
+    const school = schoolById.get(id);
+    if (!school) {
+      throw new DashboardHttpError(404, "School not found");
+    }
+    summaries.push(buildSchoolSummary(school, rows));
   }
   return { mode: requestedSchoolId ? "detail" : "comparison", schools: summaries };
 }

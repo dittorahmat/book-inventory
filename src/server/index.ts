@@ -30,11 +30,14 @@ app.use("*", cors());
 // Global JSON error envelope: portal publik dan semua klien selalu
 // menerima JSON (tidak pernah plain-teks "Internal Server Error").
 app.onError((err, c) => {
-  console.error(`[API] Unhandled error ${c.req.method} ${c.req.path}:`, err);
+  const requestId = crypto.randomUUID().slice(0, 8);
+  console.error(`[API] Unhandled error ${c.req.method} ${c.req.path} (ref ${requestId}):`, err);
   return c.json(
     {
       success: false,
       message: "Terjadi kendala pada server. Silakan coba lagi beberapa saat.",
+      ref: requestId,
+      path: c.req.path,
     },
     500
   );

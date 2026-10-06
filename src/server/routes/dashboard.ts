@@ -17,9 +17,10 @@ const summaryQuerySchema = z.object({
 dashboardRouter.get("/summary", zValidator("query", summaryQuerySchema), async (c) => {
   const { schoolId } = c.req.valid("query");
 
-  const actor = await resolveRequestActor(c);
-
   try {
+    // Di dalam try: kegagalan resolve actor (mis. session rusak)
+    // dipetakan rapi, bukan jatuh ke envelope 500 generik.
+    const actor = await resolveRequestActor(c);
     const data = await getDashboardSummary(db, actor, schoolId);
     return c.json({ success: true, data });
   } catch (err) {

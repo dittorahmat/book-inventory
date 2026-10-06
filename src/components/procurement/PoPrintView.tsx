@@ -1,4 +1,5 @@
 import { Printer, X } from "lucide-react";
+import { PoWorkflowActions, type PoWorkflowTarget } from "./PoWorkflowActions";
 
 export interface PrintablePoItem {
   title: string;
@@ -10,6 +11,7 @@ export interface PrintablePoItem {
 }
 
 export interface PrintablePo {
+  id: string;
   poNumber: string;
   supplierName: string;
   schoolName: string;
@@ -21,7 +23,10 @@ export interface PrintablePo {
   discountTotal?: number;
   totalAmount: number;
   printedAt?: string | null;
+  signedDocUrl?: string | null;
   signedDocName?: string | null;
+  signedDocType?: string | null;
+  signedDocUploadedAt?: string | null;
   sentAt?: string | null;
   sentTo?: string | null;
   items: PrintablePoItem[];
@@ -48,9 +53,19 @@ function lineTotal(item: PrintablePoItem): number {
 }
 
 /** Dokumen PO siap cetak untuk alur tanda tangan basah dan cap. */
-export function PoPrintView({ po, onClose }: { po: PrintablePo; onClose: () => void }) {
+export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClose: () => void; onChanged: () => void }) {
   const gross = po.subtotalGross ?? po.items.reduce((s, i) => s + i.quantityOrdered * i.unitPrice, 0);
   const discount = po.discountTotal ?? 0;
+  const workflow: PoWorkflowTarget = {
+    id: po.id,
+    poNumber: po.poNumber,
+    status: po.status,
+    printedAt: po.printedAt,
+    signedDocUrl: po.signedDocUrl,
+    signedDocName: po.signedDocName,
+    signedDocType: po.signedDocType,
+    signedDocUploadedAt: po.signedDocUploadedAt,
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#F0F2F5] print:bg-white print:static">
@@ -76,8 +91,7 @@ export function PoPrintView({ po, onClose }: { po: PrintablePo; onClose: () => v
         </button>
       </div>
 
-      <div className="max-w-3xl mx-auto my-6 bg-white p-8 print:my-0 print:max-w-none print:p-0 shadow-xs print:shadow-none">
-        <header className="flex items-start justify-between gap-6 pb-4 border-b-2 border-[#050505]">
+      <div className="max-w-3xl mx-auto my-6 bg-white p-8 print:my-0 print:max-w-none print:p-0 shadow-xs print:shadow-none">        <header className="flex items-start justify-between gap-6 pb-4 border-b-2 border-[#050505]">
           <div>
             <h1 className="text-lg font-bold text-[#050505] tracking-tight">PURCHASE ORDER</h1>
             <p className="text-xs text-[#65676B] mt-0.5 font-mono">{po.poNumber}</p>
@@ -170,6 +184,19 @@ export function PoPrintView({ po, onClose }: { po: PrintablePo; onClose: () => v
         {po.signedDocName && (
           <p className="mt-6 text-[10px] text-[#65676B]">Berkas bukti TTD: {po.signedDocName}</p>
         )}
+      </div>
+
+      {/* Alur pasca-cetak: tandai dicetak lalu upload bukti TTD (tidak ikut tercetak) */}
+      <div className="print:hidden max-w-3xl mx-auto mb-6 bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[#65676B]">
+          Langkah Berikutnya
+        </p>
+        <p className="mt-0.5 text-xs text-[#65676B]">
+          1. Cetak dokumen di atas &amp; bubuhkan TTD + cap &nbsp;&rarr;&nbsp; 2. Tandai dicetak &nbsp;&rarr;&nbsp; 3. Upload foto/scan bukti &nbsp;&rarr;&nbsp; 4. Kirim dari daftar PO.
+        </p>
+        <div className="mt-3">
+          <PoWorkflowActions po={workflow} onChanged={onChanged} onPrint={() => window.print()} />
+        </div>
       </div>
     </div>
   );

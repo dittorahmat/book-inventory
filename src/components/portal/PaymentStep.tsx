@@ -3,6 +3,7 @@ import type {
   BookPackageOption,
   FileUploadHandler,
 } from "../../lib/portal-types";
+import { PackageBreakdown } from "./PackageBreakdown";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
@@ -63,6 +64,11 @@ export function PaymentStep({
         <p className="text-xs text-[#65676B] mt-0.5">
           Paket: <span className="font-semibold text-[#050505]">{pkg.name}</span> (Normal: Rp {pkg.price.toLocaleString("id-ID")})
         </p>
+        {pkg.items.length > 0 && (
+          <div className="mt-1 text-left">
+            <PackageBreakdown items={pkg.items} />
+          </div>
+        )}
       </div>
 
       {/* Radio Order Type */}

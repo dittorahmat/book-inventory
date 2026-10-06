@@ -443,10 +443,12 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
                       <button
                         onClick={() => setExpandedPackageId(isExpanded ? null : pkg.id)}
-                        className="p-2 rounded-xl text-[#65676B] hover:bg-[#F0F2F5] transition-colors"
-                        title="Lihat Rincian Buku Satuan (BOM)"
+                        aria-expanded={isExpanded}
+                        title={isExpanded ? "Sembunyikan rincian buku" : `Lihat rincian ${pkg.totalItemsCount} buku dalam paket`}
+                        className="px-3 py-2 rounded-xl border border-[#CED0D4] text-[#050505] hover:bg-[#F0F2F5] transition-colors flex items-center gap-1.5 text-xs font-semibold active:scale-[0.98]"
                       >
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <span>{isExpanded ? "Tutup" : `Lihat ${pkg.totalItemsCount} Buku`}</span>
                       </button>
                     </div>
                   </div>

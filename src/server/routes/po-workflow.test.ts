@@ -77,8 +77,7 @@ describe("Alur PO cetak - tanda tangan - upload - kirim", () => {
     expect(await currentStatus(poId!)).toBe("printed");
   });
 
-  it("menolak aksi kirim pada PO printed yang belum punya bukti TTD dan status tetap printed", async () => {
-    const stamp = Date.now();
+  it("menolak aksi kirim pada PO printed yang belum punya bukti TTD dan status tetap printed", async () => {    const stamp = Date.now();
     const supplierId = await makeSupplier(stamp);
     const bookId = await makeBook(stamp);
     const { poId } = await createPo(supplierId, bookId);
@@ -92,6 +91,20 @@ describe("Alur PO cetak - tanda tangan - upload - kirim", () => {
     expect(sendJson.message).toMatch(/bukti tanda tangan/i);
     expect(sendJson.data.status).toBe("printed");
     expect(await currentStatus(poId!)).toBe("printed");
+  });
+
+  it("menolak aksi kirim pada PO draft alur baru yang belum punya bukti TTD", async () => {
+    const stamp = Date.now();
+    const supplierId = await makeSupplier(stamp);
+    const bookId = await makeBook(stamp);
+    const { poId } = await createPo(supplierId, bookId);
+
+    const sendRes = await procurementRouter.request(`/purchase-orders/${poId}/send`, { method: "POST" });
+    expect(sendRes.status).toBe(400);
+    const sendJson = await sendRes.json();
+    expect(sendJson.success).toBe(false);
+    expect(sendJson.message).toMatch(/bukti tanda tangan/i);
+    expect(await currentStatus(poId!)).toBe("draft");
   });
 
   it("upload bukti memindahkan printed ke signed_uploaded lalu kirim berhasil menjadi sent", async () => {

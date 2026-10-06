@@ -24,14 +24,22 @@ function attentionTotal(s: DashboardSchoolSummary): number {
 
 function DetailSection({ summary, onNavigateTab }: { summary: DashboardSchoolSummary; onNavigateTab: (tab: string) => void }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="md:col-span-2">
+    <div className="grid gap-4 md:grid-cols-12">
+      <div className="md:col-span-12">
         <DashboardKpis summary={summary} />
       </div>
-      <FunnelChart summary={summary} />
-      <ConditionDonut summary={summary} />
-      <GradeBreakdown summary={summary} />
-      <AttentionList summary={summary} onNavigate={onNavigateTab} />
+      <div className="md:col-span-12 lg:col-span-8">
+        <FunnelChart summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-4">
+        <ConditionDonut summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-4">
+        <GradeBreakdown summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-8">
+        <AttentionList summary={summary} onNavigate={onNavigateTab} />
+      </div>
     </div>
   );
 }
@@ -70,13 +78,25 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-8 text-center">
         <div className="text-sm font-semibold text-[#050505]">Dashboard gagal dimuat</div>
         <div className="mt-1 text-sm text-[#65676B]">{error ?? "Terjadi kesalahan tak terduga."}</div>
-        <button
-          type="button"
-          onClick={retry}
-          className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-[#1877F2] rounded-xl hover:bg-[#1664D9] active:scale-[0.98] transition"
-        >
-          Coba Lagi
-        </button>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={retry}
+            className="px-4 py-2 text-sm font-semibold text-white bg-[#1877F2] rounded-xl hover:bg-[#1664D9] active:scale-[0.98] transition"
+          >
+            Coba Lagi
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const detail = `Dashboard error ${new Date().toISOString()} :: ${error ?? "unknown"} :: schoolId=${schoolId ?? "-"}`;
+              if (navigator.clipboard) navigator.clipboard.writeText(detail).catch(() => {});
+            }}
+            className="px-4 py-2 text-sm font-semibold text-[#050505] bg-white border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] active:scale-[0.98] transition"
+          >
+            Salin Detail
+          </button>
+        </div>
       </div>
     );
   }
@@ -116,7 +136,8 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
                 key={s.school.id}
                 type="button"
                 onClick={() => setDrillId(s.school.id)}
-                className="bg-white rounded-2xl border border-[#E4E6EB] p-5 text-left hover:border-[#1877F2]/40 active:scale-[0.98] transition"
+                style={{ borderLeftColor: tone.bar }}
+                className="bg-white rounded-2xl border border-[#E4E6EB] border-l-4 p-5 text-left hover:border-[#1877F2]/40 active:scale-[0.98] transition"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-bold text-[#050505] truncate">{s.school.name}</div>

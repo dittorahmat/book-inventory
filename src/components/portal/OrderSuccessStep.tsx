@@ -1,11 +1,13 @@
 import { CheckCircle2 } from "lucide-react";
+import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
 interface OrderSuccessStepProps {
   submittedOrder: any;
+  packageItems: BreakdownItem[];
   onOrderAnother: () => void;
 }
 
-export function OrderSuccessStep({ submittedOrder, onOrderAnother }: OrderSuccessStepProps) {
+export function OrderSuccessStep({ submittedOrder, packageItems, onOrderAnother }: OrderSuccessStepProps) {
   return (
     <div className="bg-white rounded-2xl p-7 border border-[#E4E6EB] shadow-xs text-center space-y-4">
       <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -41,6 +43,12 @@ export function OrderSuccessStep({ submittedOrder, onOrderAnother }: OrderSucces
           <span>Rp {submittedOrder.totalAmount.toLocaleString("id-ID")}</span>
         </div>
       </div>
+
+      {packageItems.length > 0 && (
+        <div className="max-w-md mx-auto text-left">
+          <PackageBreakdown items={packageItems} />
+        </div>
+      )}
 
       <div className="pt-3 flex justify-center gap-3">
         <button

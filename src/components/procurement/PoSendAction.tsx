@@ -5,9 +5,23 @@ export interface PoSendTarget {
   id: string;
   poNumber: string;
   status: string;
+  signedDocUrl?: string | null;
   sentTo?: string | null;
   sentAt?: string | null;
 }
+
+/**
+ * Status PO lama (sebelum alur cetak-TTD-upload): tetap boleh dikirim
+ * tanpa bukti. Cerminan server `evaluateSendGate` — jangan tambah
+ * status baru di sini tanpa mengubah server juga.
+ */
+const LEGACY_SEND_STATUSES: ReadonlySet<string> = new Set([
+  "ordered",
+  "sent",
+  "partially_received",
+  "received",
+  "cancelled",
+]);
 
 interface PoSendActionProps {
   po: PoSendTarget;
@@ -25,6 +39,8 @@ export function PoSendAction({ po, onSent }: PoSendActionProps) {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   const alreadySent = po.status === "sent";
+  // Kunci kirim sampai bukti TTD ada (server juga menolak via evaluateSendGate).
+  const needsTtd = !LEGACY_SEND_STATUSES.has(po.status) && !po.signedDocUrl;
 
   const handleSend = async () => {
     setIsSending(true);
@@ -61,8 +77,9 @@ export function PoSendAction({ po, onSent }: PoSendActionProps) {
         <button
           type="button"
           onClick={handleSend}
-          disabled={isSending}
-          className="px-3 py-1.5 bg-white border border-[#1877F2] text-[#1877F2] hover:bg-[#E7F3FF] active:scale-[0.98] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 disabled:opacity-50"
+          disabled={isSending || needsTtd}
+          title={needsTtd ? "Upload bukti TTD dan cap terlebih dahulu sebelum mengirim PO" : undefined}
+          className="px-3 py-1.5 bg-white border border-[#1877F2] text-[#1877F2] hover:bg-[#E7F3FF] active:scale-[0.98] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {alreadySent ? (
             <RotateCcw className="w-3.5 h-3.5" />
@@ -71,6 +88,11 @@ export function PoSendAction({ po, onSent }: PoSendActionProps) {
           )}
           <span>{isSending ? "Mengirim..." : alreadySent ? "Kirim Ulang" : "Kirim PO"}</span>
         </button>
+        {needsTtd && (
+          <p className="mt-1 text-[11px] text-amber-700 leading-snug max-w-55">
+            Upload bukti TTD &amp; cap dulu sebelum kirim ke supplier.
+          </p>
+        )}
       </div>
       {outcome && (
         <div

@@ -1,5 +1,6 @@
 import { Package, BookOpen, Minus, Plus, Lock } from "lucide-react";
 import type { SatuanBookOption } from "./portal-api";
+import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
 export interface LooseSelection {
   bookId: string;
@@ -16,6 +17,7 @@ interface OrderItemStepProps {
   onQuantityChange: (bookId: string, quantity: number) => void;
   selectedPackagePrice: number;
   selectedPackageName: string | null;
+  packageItems: BreakdownItem[];
   onContinue: () => void;
   onBack: () => void;
   isSubmitting: boolean;
@@ -41,6 +43,7 @@ export function OrderItemStep({
   onQuantityChange,
   selectedPackagePrice,
   selectedPackageName,
+  packageItems,
   onContinue,
   onBack,
   isSubmitting,
@@ -89,6 +92,7 @@ export function OrderItemStep({
             <Lock className="w-3 h-3" />
             Paket dikunci sesuai kelas &amp; kurikulum murid.
           </p>
+          <PackageBreakdown items={packageItems} />
         </div>
       ) : (
         <div className="space-y-3">
