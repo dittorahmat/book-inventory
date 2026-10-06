@@ -87,6 +87,10 @@ describe("Dashboard summary API", () => {
       expect(s.payments.outstandingRp).toBe(210000);
       expect(s.payments.unpaidCount).toBe(3);
       expect(s.payments.paidShare).toBeCloseTo(0.25);
+      expect(s.payments.totalOrders).toBe(4);
+      expect(s.payments.paidCount).toBe(1);
+      expect(s.payments.partialCount).toBe(1);
+      expect(s.payments.unpaidOnlyCount).toBe(2);
       const tier = s.breakdown.find((b: { gradeLevel: string }) => b.gradeLevel === "1");
       expect(tier.waitingOrders).toBe(3);
       expect(tier.readyStock).toBe(2);

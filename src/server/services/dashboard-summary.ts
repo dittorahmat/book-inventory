@@ -186,6 +186,8 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
   const shortfall = Math.max(0, waitingOrders - readyPackages);
 
   const paid = orders.filter((o) => o.paymentStatus === "paid").length;
+  const partialCount = orders.filter((o) => o.paymentStatus === "partial").length;
+  const unpaidOnlyCount = orders.filter((o) => o.paymentStatus === "unpaid").length;
   const openOrders = orders.filter((o) => o.paymentStatus === "unpaid" || o.paymentStatus === "partial");
   const outstandingRp = openOrders.reduce((sum, o) => sum + (o.totalAmount - o.paidAmount), 0);
 
@@ -239,6 +241,10 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
       outstandingRp,
       unpaidCount: openOrders.length,
       scholarshipPending: orders.filter((o) => o.paymentStatus === "scholarship_pending").length,
+      totalOrders: orders.length,
+      paidCount: paid,
+      partialCount,
+      unpaidOnlyCount,
     },
     attention: {
       damaged,

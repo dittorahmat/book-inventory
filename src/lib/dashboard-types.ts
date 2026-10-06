@@ -54,6 +54,11 @@ export interface DashboardPayments {
   outstandingRp: number;
   unpaidCount: number;
   scholarshipPending: number;
+  /** Hitungan per status untuk donat komposisi (paidShare saja tak cukup). */
+  totalOrders: number;
+  paidCount: number;
+  partialCount: number;
+  unpaidOnlyCount: number;
 }
 
 export interface DashboardAttention {

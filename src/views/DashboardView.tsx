@@ -6,8 +6,11 @@ import { useDashboard } from "../components/dashboard/useDashboard";
 import { DashboardKpis } from "../components/dashboard/DashboardKpis";
 import { coverageTone, formatRp } from "../components/dashboard/dashboard-format";
 import { CoverageChart } from "../components/dashboard/CoverageChart";
+import { ComparisonOverview } from "../components/dashboard/ComparisonOverview";
 import { FunnelChart } from "../components/dashboard/FunnelChart";
 import { ConditionDonut } from "../components/dashboard/ConditionDonut";
+import { PaymentsDonut } from "../components/dashboard/PaymentsDonut";
+import { TierStockBar } from "../components/dashboard/TierStockBar";
 import { GradeBreakdown } from "../components/dashboard/GradeBreakdown";
 import { AttentionList } from "../components/dashboard/AttentionList";
 
@@ -33,6 +36,12 @@ function DetailSection({ summary, onNavigateTab }: { summary: DashboardSchoolSum
       </div>
       <div className="md:col-span-12 lg:col-span-4">
         <ConditionDonut summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-8">
+        <TierStockBar summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-4">
+        <PaymentsDonut summary={summary} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
         <GradeBreakdown summary={summary} />
@@ -127,6 +136,7 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
             </button>
           </div>
         ) : null}
+        <ComparisonOverview summaries={data.schools} />
         <CoverageChart summaries={data.schools} />
         <div className="grid gap-4 md:grid-cols-2">
           {ranked.map((s) => {

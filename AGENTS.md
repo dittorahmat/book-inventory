@@ -133,3 +133,16 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    ```
    Verifikasi `lockfileVersion` di `bun.lock` tetap format lama sebelum commit dan push.
 4. Jangan upgrade `packageManager`/versi bun tanpa memastikan Cloudflare mendukung versi tersebut.
+
+---
+
+## 6. Test Database Isolation & Production D1 Write Discipline (Anti-Pollution Rule)
+
+1. `bun test` **WAJIB** berjalan di database sementara terisolasi, bukan `data/inventory.db`:
+   - Mekanisme: `test/setup.ts` (dimuat via `[test] preload` di `bunfig.toml`) membuat `data/.tmp-test-<pid>.db`, menerapkan seluruh migrasi `drizzle/00*.sql`, mengarahkan `DB_PATH` ke sana, lalu menjalankan baseline seed — semua sebelum file test mana pun diimpor.
+   - **DILARANG** menonaktifkan/mengubah preload ini tanpa pengganti yang setara. **DILARANG** mengarahkan test ke D1 (remote maupun lokal): tidak ada file `*.test.ts` yang boleh menerima binding D1/`env.DB`; akses DB test hanya via proxy `src/db`.
+   - Test baru **wajib mandiri**: seed data yang dibutuhkan sendiri dengan ID unik (stempel waktu) dan bersihkan setelah selesai (`finally`/`cleanup`), agar run berulang tidak menumpuk baris.
+   - Verifikasi isolasi: setelah `bun test`, `data/inventory.db` tidak boleh berubah (cek jumlah baris tabel utama sebelum vs sesudah).
+2. **Disiplin tulis ke D1 production** (mencegah insiden 180 sekolah sampah berisi data test):
+   - **DILARANG** QA manual / skrip / test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dan pola sampah sejenis. QA destruktif hanya di dev lokal.
+   - Setiap `wrangler d1 execute ... --remote` yang bersifat tulis (terutama `DELETE` massal) **WAJIB** didahului: (a) verifikasi target (`database_name`/`database_id`), (b) `SELECT COUNT(*)` + contoh baris dengan predikat yang sama, (c) cek nol relasi anak di semua tabel yang mereferensikan (`students`, `student_book_orders`, `book_items`, `package_items`, `transfer_shipments`, `purchase_orders`, `users` untuk tabel `schools`).
