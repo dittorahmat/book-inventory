@@ -8,7 +8,10 @@ export const useSchools = () => {
   useEffect(() => {
     api<School[]>("/api/schools", undefined, "Gagal memuat daftar sekolah.")
       .then(setSchools)
-      .catch(() => setSchools([]));
+      .catch((err) => {
+        console.error("Failed to load schools", err);
+        setSchools([]);
+      });
   }, []);
   return schools;
 };

@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { app } from "./index";
+import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 
 import { getDatabase } from "../db";
 import { setStorageService, CloudflareR2StorageService } from "../services/storage";
 
 type Bindings = {
-  DB: any;
-  BUCKET: any;
+  DB: D1Database;
+  BUCKET: R2Bucket;
   ASSETS: { fetch: typeof fetch };
   // Email transport secrets (dibaca layer email via c.env, lihat services/email/*)
   EMAIL_PROVIDER?: string;

@@ -148,7 +148,7 @@ export function salesReportToCsv(report: SalesReport): string {
     "Terkumpul",
     "Piutang",
   ];
-  const rupiah = (n: number) => String(Math.round(n));
+  const toCsvInt = (n: number) => String(Math.round(n));
 
   const rows: string[][] = report.bySchool.map((r) => [
     r.schoolName,
@@ -156,9 +156,9 @@ export function salesReportToCsv(report: SalesReport): string {
     String(r.looseOrderCount),
     String(r.scholarshipOrderCount),
     String(r.orderCount),
-    rupiah(r.revenue),
-    rupiah(r.collected),
-    rupiah(r.outstanding),
+    toCsvInt(r.revenue),
+    toCsvInt(r.collected),
+    toCsvInt(r.outstanding),
   ]);
 
   rows.push([
@@ -167,9 +167,9 @@ export function salesReportToCsv(report: SalesReport): string {
     String(report.totals.looseOrderCount),
     String(report.totals.scholarshipOrderCount),
     String(report.totals.orderCount),
-    rupiah(report.totals.revenue),
-    rupiah(report.totals.collected),
-    rupiah(report.totals.outstanding),
+    toCsvInt(report.totals.revenue),
+    toCsvInt(report.totals.collected),
+    toCsvInt(report.totals.outstanding),
   ]);
 
   const escape = (cell: string) => (/[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell);

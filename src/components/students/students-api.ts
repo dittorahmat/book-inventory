@@ -1,3 +1,5 @@
+import { readJson } from "../../lib/api";
+
 export interface StudentRecord {
   id: string;
   nis: string;
@@ -40,20 +42,6 @@ export interface StudentFormPayload {
   parentEmail?: string;
   parentPhone?: string;
   status?: string;
-}
-
-async function readJson(res: Response, fallback: string) {
-  let data: any = null;
-  try {
-    const text = await res.text();
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    throw new Error(fallback);
-  }
-  if (!res.ok || !data || data.success === false) {
-    throw new Error((data && (data.message || data.error)) || fallback);
-  }
-  return data;
 }
 
 function toQuery(params: StudentListParams): string {

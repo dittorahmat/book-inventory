@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { School, Book } from "../types";
+import { effectiveBookPrice } from "../lib/book-pricing";
+import { formatRupiah } from "../lib/transfer-pricing";
 import { BundlingModal } from "../components/BundlingModal";
 import { PackageTransferModal } from "../components/packages/PackageTransferModal";
 import { 
@@ -62,11 +64,8 @@ interface NewPackageItemInput {
   quantity: number;
 }
 
-/** Harga jual efektif komponen: fallback ke harga dasar bila harga jual belum diisi. */
-function effectiveSellOf(book: Book | undefined): number {
-  if (!book) return 0;
-  return book.sellPrice && book.sellPrice > 0 ? book.sellPrice : book.price || 0;
-}
+/** Harga jual efektif komponen: delegasi ke kanonik book-pricing. */
+const effectiveSellOf = (book: Book | undefined): number => (book ? effectiveBookPrice(book).sell : 0);
 
 export function PackagesView({ activeSchool }: PackagesViewProps) {
   const [packages, setPackages] = useState<BookPackage[]>([]);
@@ -488,8 +487,8 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                                 {item.author}
                               </div>
                                 <div className="text-[11px] font-bold text-[#1877F2] mt-0.5">
-                                  Rp {(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)) * item.quantity).toLocaleString("id-ID")}
-                                  <span className="font-medium text-[#65676B]"> (@ Rp {effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)).toLocaleString("id-ID")}/eks jual)</span>
+                                  {formatRupiah(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)) * item.quantity)}
+                                  <span className="font-medium text-[#65676B]"> (@ {formatRupiah(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)))}/eks jual)</span>
                                 </div>
                             </div>
 

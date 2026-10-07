@@ -72,8 +72,7 @@ bookItemsRouter.get("/", async (c) => {
   if (status) conditions.push(eq(bookItems.status, status as "in_stock" | "in_transit" | "disposed" | "lost"));
 
   if (conditions.length > 0) {
-    // @ts-ignore
-    query = query.where(and(...conditions));
+    query = query.where(and(...conditions)) as typeof query;
   }
 
   const items = await query;

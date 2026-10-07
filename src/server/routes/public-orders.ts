@@ -6,6 +6,8 @@ import { db } from "../../db";
 import { students, studentBookOrders, studentOrderItems, orderPayments, bookPackages, books, schools } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
 import { decodeBase64ToBytes } from "../base64";
+import { effectiveSellPrice } from "../services/book-price";
+import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { getCurrentSatuanStatus, getSatuanStatus } from "../services/satuan-cutoff";
 
 export const publicOrdersRouter = new Hono();
@@ -266,7 +268,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
         bookId: book.id,
         title: book.title,
         quantity: item.quantity,
-        unitPrice: book.sellPrice > 0 ? book.sellPrice : book.price,
+        unitPrice: effectiveSellPrice(book),
       });
     }
   }
@@ -285,12 +287,12 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   }
 
   // Calculate pricing: 100% discount for scholarship.
-  // Paket: harga paket. Satuan: jumlah harga jual x kuantitas.
-  const looseSubtotal = looseLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  // Paket: harga paket. Satuan: jumlah harga jual x kuantitas (kanonik transfer-pricing).
+  const looseSubtotal = calcHeaderTotal(looseLines.map((l) => ({ unitPriceSnapshot: l.unitPrice, quantity: l.quantity })));
   const grossAmount = (pkg?.price ?? 0) + looseSubtotal;
   const totalAmount = isScholarship ? 0 : grossAmount;
   let paidAmount = 0;
-  let paymentStatus: any = isScholarship ? "scholarship_pending" : "unpaid";
+  let paymentStatus: string = isScholarship ? "scholarship_pending" : "unpaid";
 
   if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
     paidAmount = body.payment.bookAllocationAmount;

@@ -5,7 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, bookItems, schools } from "../../db/schema";
 import { sendPurchaseOrderEmail } from "../services/po-delivery";
-import { fetchEffectiveBuyPrices } from "../services/book-price";
+import { fetchEffectiveBuyPrices, calcPoHeader } from "../services/book-price";
 import { evaluateSendGate, resolveWarehouseTarget } from "../services/po-workflow";
 import type { EmailRuntimeEnv } from "../services/email";
 import {
@@ -176,15 +176,8 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
     unitPrice: item.unitPrice ?? buyPrices.get(item.bookId) ?? 0,
   }));
 
-  // Tiga angka header: kotor, diskon, netto.
-  let subtotalGross = 0;
-  let discountTotal = 0;
-  for (const item of resolvedItems) {
-    const grossLine = item.quantityOrdered * item.unitPrice;
-    subtotalGross += grossLine;
-    discountTotal += Math.round((grossLine * item.discountPercent) / 100);
-  }
-  const totalAmount = subtotalGross - discountTotal;
+  // Tiga angka header: kotor, diskon, netto (kanonik server-side).
+  const { subtotalGross, discountTotal, totalAmount } = calcPoHeader(resolvedItems);
 
   await db.insert(purchaseOrders).values({
     id,

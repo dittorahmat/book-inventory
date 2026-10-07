@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { School } from "../types";
+import { api } from "../lib/api";
 import { School as SchoolIcon, ChevronDown, Check } from "lucide-react";
 
 interface Props {
@@ -12,17 +13,18 @@ export function BranchSelector({ selectedSchool, onSelectSchool }: Props) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/schools")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.data.length > 0) {
-          setSchools(data.data);
+    api<School[]>("/api/schools", undefined, "Gagal memuat daftar sekolah.")
+      .then((list) => {
+        if (list.length > 0) {
+          setSchools(list);
           if (!selectedSchool) {
-            onSelectSchool(data.data[0]);
+            onSelectSchool(list[0]);
           }
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Failed to load schools for branch selector", err);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

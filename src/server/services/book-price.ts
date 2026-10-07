@@ -50,6 +50,19 @@ export async function fetchEffectiveBuyPrices(bookIds: string[]): Promise<Map<st
     .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
     .from(books)
     .where(inArray(books.id, bookIds));
-  rows.forEach((row: any) => map.set(row.id, effectiveBuyPrice(row)));
+  rows.forEach((row: PriceLike & { id: string }) => map.set(row.id, effectiveBuyPrice(row)));
   return map;
 }
+
+export interface PoLineInput {
+  quantityOrdered: number;
+  unitPrice: number;
+  discountPercent: number;
+}
+
+/** Tiga angka header PO (kotor, diskon, netto). Kanonik server-side agar route + cetak konsisten. */
+export const calcPoHeader = (items: PoLineInput[]): { subtotalGross: number; discountTotal: number; totalAmount: number } => {
+  const subtotalGross = items.reduce((s, it) => s + (it.quantityOrdered || 0) * (it.unitPrice || 0), 0);
+  const discountTotal = items.reduce((s, it) => s + Math.round(((it.quantityOrdered || 0) * (it.unitPrice || 0) * (it.discountPercent || 0)) / 100), 0);
+  return { subtotalGross, discountTotal, totalAmount: subtotalGross - discountTotal };
+};

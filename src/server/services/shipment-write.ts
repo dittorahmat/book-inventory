@@ -1,5 +1,6 @@
 import { eq, inArray, and } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
@@ -30,7 +31,7 @@ export interface BundleReceipt {
 export type ServiceError = { ok: false; status: ContentfulStatusCode; message: string };
 
 export async function createShipment(
-  database: any,
+  database: AppDatabase,
   input: CreateShipmentInput
 ): Promise<{ ok: true; shipment: any } | ServiceError> {
   const now = new Date().toISOString();
@@ -158,7 +159,7 @@ export async function createShipment(
 }
 
 export async function dispatchShipment(
-  database: any,
+  database: AppDatabase,
   id: string
 ): Promise<{ ok: true; shipment: any } | ServiceError> {
   const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
@@ -203,7 +204,7 @@ export async function dispatchShipment(
 }
 
 export async function receiveShipment(
-  database: any,
+  database: AppDatabase,
   id: string,
   looseReceipts: LooseReceipt[],
   bundleReceipts: BundleReceipt[]

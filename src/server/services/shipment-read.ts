@@ -1,8 +1,9 @@
 import { eq, and } from "drizzle-orm";
+import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, schools, books, bookPackages } from "../../db/schema";
 import { calcLineTotal } from "../../lib/transfer-pricing";
 
-export async function listShipmentsWithCounts(database: any, schoolId?: string) {
+export async function listShipmentsWithCounts(database: AppDatabase, schoolId?: string) {
   const all = await database.select({
     id: transferShipments.id,
     shipmentNumber: transferShipments.shipmentNumber,
@@ -38,7 +39,7 @@ export async function listShipmentsWithCounts(database: any, schoolId?: string) 
   }));
 }
 
-export async function getShipmentDetail(database: any, id: string) {
+export async function getShipmentDetail(database: AppDatabase, id: string) {
   const rows = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
   const shipment = rows[0];
   if (!shipment) return null;

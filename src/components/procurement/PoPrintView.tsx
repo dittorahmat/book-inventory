@@ -1,4 +1,6 @@
 import { Printer, X } from "lucide-react";
+import { formatRupiah } from "../../lib/transfer-pricing";
+import { calcPoTotals } from "../../lib/book-pricing";
 import { PoWorkflowActions, type PoWorkflowTarget } from "./PoWorkflowActions";
 
 export interface PrintablePoItem {
@@ -43,19 +45,16 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "DIBATALKAN",
 };
 
-function rupiah(n: number): string {
-  return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
-}
+const rupiah = formatRupiah;
 
-function lineTotal(item: PrintablePoItem): number {
-  const gross = item.quantityOrdered * item.unitPrice;
-  return gross - Math.round((gross * (item.discountPercent || 0)) / 100);
-}
+const lineTotal = (item: PrintablePoItem): number =>
+  calcPoTotals([{ quantityOrdered: item.quantityOrdered, unitPrice: item.unitPrice, discountPercent: item.discountPercent }]).net;
 
 /** Dokumen PO siap cetak untuk alur tanda tangan basah dan cap. */
 export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClose: () => void; onChanged: () => void }) {
-  const gross = po.subtotalGross ?? po.items.reduce((s, i) => s + i.quantityOrdered * i.unitPrice, 0);
-  const discount = po.discountTotal ?? 0;
+  const fallback = calcPoTotals(po.items.map((i) => ({ quantityOrdered: i.quantityOrdered, unitPrice: i.unitPrice, discountPercent: i.discountPercent })));
+  const gross = po.subtotalGross ?? fallback.gross;
+  const discount = po.discountTotal ?? fallback.discount;
   const workflow: PoWorkflowTarget = {
     id: po.id,
     poNumber: po.poNumber,

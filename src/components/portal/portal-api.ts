@@ -1,3 +1,4 @@
+import { readJson } from "../../lib/api";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -6,23 +7,6 @@ import type {
   NewStudentForm,
   PackageBookChoice,
 } from "../../lib/portal-types";
-
-async function readJson(res: Response, fallback: string) {
-  // Tahan terhadap respons non-JSON (mis. plain-teks "Internal Server Error"
-  // dari proxy/Worker crash): jangan pernah lempar pesan teknis mentah
-  // seperti `Unexpected token ... is not valid JSON` ke pengguna.
-  let data: any = null;
-  try {
-    const text = await res.text();
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    throw new Error(fallback);
-  }
-  if (!res.ok || !data || data.success === false) {
-    throw new Error((data && (data.message || data.error)) || fallback);
-  }
-  return data;
-}
 
 export async function fetchSchools(): Promise<SchoolOption[]> {
   const res = await fetch("/api/schools");

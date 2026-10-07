@@ -1,5 +1,5 @@
 /** Zona waktu Indonesia Barat. Offset tetap +07:00 (tanpa DST). */
-export const WIB_OFFSET_HOURS = 7;
+const WIB_OFFSET_HOURS = 7;
 
 /**
  * Tanggal hari ini di zona Asia/Jakarta dalam format "YYYY-MM-DD".
@@ -15,11 +15,6 @@ export function todayWIB(now: Date = new Date()): string {
 export function toWIBDate(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
   return shifted.toISOString().slice(0, 10);
-}
-
-/** Tanggal WIB dari string ISO/UTC, format "YYYY-MM-DD". */
-export function wibDateFrom(iso: string): string {
-  return toWIBDate(new Date(iso));
 }
 
 /** Epoch UTC tengah malam WIB untuk tanggal "YYYY-MM-DD". */

@@ -1,3 +1,5 @@
+import { formatRupiah } from "../../lib/transfer-pricing";
+
 interface PoTotalsSummaryProps {
   gross: number;
   discount: number;
@@ -5,12 +7,9 @@ interface PoTotalsSummaryProps {
   totalQty: number;
 }
 
-function rupiah(n: number): string {
-  return `Rp ${Math.round(n).toLocaleString("id-ID")}`;
-}
-
 /** Ringkasan tiga angka PO: total kotor, total diskon, total netto. Baris datar, tanpa kartu bertumpuk. */
 export function PoTotalsSummary({ gross, discount, net, totalQty }: PoTotalsSummaryProps) {
+  const rupiah = formatRupiah;
   return (
     <div className="bg-[#F0F2F5] p-3 rounded-xl">
       <div className="divide-y divide-[#E4E6EB] text-xs">

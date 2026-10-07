@@ -10,6 +10,13 @@ export interface StorageService {
   getFile(key: string): Promise<StorageFile | null>;
 }
 
+/** Bentuk minimal binding R2 yang dipakai service ini (mudah di-stub di test). */
+export interface R2BucketLike {
+  put(key: string, value: Uint8Array | ArrayBuffer | Buffer, options?: unknown): Promise<unknown>;
+  get(key: string): Promise<{ body: unknown; httpMetadata?: { contentType?: string } } | null>;
+  delete(key: string): Promise<void>;
+}
+
 export class MemoryStorageService implements StorageService {
   private files = new Map<string, { data: Uint8Array; contentType: string }>();
   private baseUrl: string;
@@ -40,10 +47,10 @@ export class MemoryStorageService implements StorageService {
 }
 
 export class CloudflareR2StorageService implements StorageService {
-  private bucket: any; // R2Bucket binding
+  private bucket: R2BucketLike;
   private publicUrl: string;
 
-  constructor(bucket: any, publicUrl = "/api/media") {
+  constructor(bucket: R2BucketLike, publicUrl = "/api/media") {
     this.bucket = bucket;
     this.publicUrl = publicUrl.replace(/\/$/, "");
   }
@@ -65,9 +72,9 @@ export class CloudflareR2StorageService implements StorageService {
 
   async getFile(key: string): Promise<StorageFile | null> {
     const object = await this.bucket.get(key);
-    if (!object) return null;
+    if (!object || !object.body) return null;
     return {
-      data: object.body,
+      data: object.body as StorageFile["data"],
       contentType: object.httpMetadata?.contentType || "image/jpeg",
     };
   }

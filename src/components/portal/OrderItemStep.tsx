@@ -1,4 +1,5 @@
 import { Package, BookOpen, Minus, Plus, Lock } from "lucide-react";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import type { SatuanBookOption } from "./portal-api";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
@@ -26,9 +27,7 @@ interface OrderItemStepProps {
 const qtyClass =
   "w-14 px-2 py-1 bg-white border border-[#CED0D4] rounded-lg text-xs font-bold text-[#1877F2] text-center focus:outline-hidden focus:border-[#1877F2]";
 
-function rupiah(n: number): string {
-  return `Rp ${Math.round(n).toLocaleString("id-ID")}`;
-}
+const rupiah = formatRupiah;
 
 /**
  * Langkah pemilihan item: paket terkunci atau buku satuan.
