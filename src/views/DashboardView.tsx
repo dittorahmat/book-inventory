@@ -6,6 +6,7 @@ import { useDashboard } from "../components/dashboard/useDashboard";
 import { DashboardKpis } from "../components/dashboard/DashboardKpis";
 import { coverageTone, formatRp } from "../components/dashboard/dashboard-format";
 import { CoverageChart } from "../components/dashboard/CoverageChart";
+import { BranchHealthScatter } from "../components/dashboard/BranchHealthScatter";
 import { ComparisonOverview } from "../components/dashboard/ComparisonOverview";
 import { FunnelChart } from "../components/dashboard/FunnelChart";
 import { ConditionDonut } from "../components/dashboard/ConditionDonut";
@@ -145,7 +146,14 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
           </div>
         ) : null}
         <ComparisonOverview summaries={data.schools} />
-        <CoverageChart summaries={data.schools} />
+        <div className="grid gap-4 md:grid-cols-12">
+          <div className="md:col-span-12 lg:col-span-7">
+            <BranchHealthScatter summaries={data.schools} onSelectSchool={setDrillId} />
+          </div>
+          <div className="md:col-span-12 lg:col-span-5">
+            <CoverageChart summaries={data.schools} onSelectSchool={setDrillId} />
+          </div>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {ranked.map((s) => {
             const tone = coverageTone(s.coverage.ratio);
