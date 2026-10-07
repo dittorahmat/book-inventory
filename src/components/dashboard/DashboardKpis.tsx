@@ -1,5 +1,6 @@
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { coverageTone, formatRp } from "./dashboard-format";
+import { coverageTone } from "./dashboard-format";
+import { formatRupiah } from "../../lib/transfer-pricing";
 
 export function DashboardKpis({ summary }: { summary: DashboardSchoolSummary }) {
   const { coverage, stock, payments } = summary;
@@ -10,7 +11,7 @@ export function DashboardKpis({ summary }: { summary: DashboardSchoolSummary }) 
   const rows: Array<{ label: string; value: string; sub?: string }> = [
     { label: "Paket Siap", value: String(coverage.readyPackages), sub: `${coverage.waitingOrders} pesanan menunggu` },
     { label: "Stok Satuan", value: String(stock.looseInStock), sub: `${stock.inTransit} dalam perjalanan` },
-    { label: "Tunggakan", value: formatRp(payments.outstandingRp), sub: `${payments.unpaidCount} pesanan belum lunas` },
+    { label: "Tunggakan", value: formatRupiah(payments.outstandingRp), sub: `${payments.unpaidCount} pesanan belum lunas` },
     { label: "Beasiswa Pending", value: String(payments.scholarshipPending), sub: "menunggu persetujuan" },
   ];
 

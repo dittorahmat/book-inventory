@@ -8,8 +8,8 @@ import {
   books,
   schools,
 } from "../../db/schema";
-import { sendEmailNotification } from "./email";
-import type { EmailRuntimeEnv } from "./email";
+import { sendEmailNotification } from "./email/factory";
+import type { EmailRuntimeEnv } from "./email/types";
 import { renderPurchaseOrderEmail } from "./email/po-template";
 
 export type PoSendOutcome =
@@ -78,6 +78,7 @@ export async function sendPurchaseOrderEmail(
       isbn: books.isbn,
       quantityOrdered: purchaseOrderItems.quantityOrdered,
       unitPrice: purchaseOrderItems.unitPrice,
+      discountPercent: purchaseOrderItems.discountPercent,
     })
     .from(purchaseOrderItems)
     .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))

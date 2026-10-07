@@ -82,3 +82,16 @@ export type FileUploadHandler = (
   e: React.ChangeEvent<HTMLInputElement>,
   setter: (val: string) => void
 ) => void;
+
+export type SatuanOverride = "open" | "closed";
+
+/** Status keterbukaan order satuan. Kanonik lintas seam (server + portal + pengaturan). */
+export interface SatuanStatus {
+  academicYear: string;
+  open: boolean;
+  todayWIB: string;
+  openFrom: string | null;
+  override: SatuanOverride | null;
+  /** Alasan singkat untuk ditampilkan di UI publik. */
+  reason: string;
+}

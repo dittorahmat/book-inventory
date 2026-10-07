@@ -72,9 +72,10 @@ poWorkflowRouter.post("/purchase-orders/:id/signed-doc", async (c) => {
     if (!po) return notFound(c);
     assertLocationAllowed(actor, po.targetSchoolId, locations);
 
-    if (po.status !== PRINTED_STATUS) {
+    const canUpload = po.status === PRINTED_STATUS || po.status === SIGNED_UPLOADED_STATUS;
+    if (!canUpload) {
       return c.json(
-        { success: false, message: `Berkas bukti hanya dapat diupload pada PO berstatus dicetak (PO ${po.poNumber} saat ini ${po.status})` },
+        { success: false, message: `Berkas bukti hanya dapat diupload pada PO berstatus dicetak atau sudah upload bukti (PO ${po.poNumber} saat ini ${po.status})` },
         400
       );
     }

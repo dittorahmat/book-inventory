@@ -1,8 +1,8 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email";
-import type { EmailRuntimeEnv } from "../services/email";
+import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
+import type { EmailRuntimeEnv } from "../services/email/types";
 import { currentAcademicYear } from "../../lib/wib-time";
 import {
   getSatuanStatus,

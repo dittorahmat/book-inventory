@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Save, ShieldAlert, Loader2 } from "lucide-react";
-
-interface SatuanStatus {
-  academicYear: string;
-  open: boolean;
-  todayWIB: string;
-  openFrom: string | null;
-  override: "open" | "closed" | null;
-  reason: string;
-}
+import type { SatuanStatus } from "../../lib/portal-types";
 
 interface SatuanCutoffSettingsProps {
   academicYear: string;

@@ -32,7 +32,9 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
 
   const isDraft = po.status === "draft";
   const isPrinted = po.status === "printed";
+  const isSignedUploaded = po.status === "signed_uploaded";
   const canUpload = isPrinted;
+  const canReupload = isSignedUploaded;
   const isImageEvidence = !!po.signedDocType?.startsWith("image/");
 
   const handleMarkPrinted = async () => {
@@ -92,46 +94,48 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
       )}
 
       {canUpload && (
-        <div>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="px-3 py-1.5 bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8EBFF] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
-            title="Upload scan/foto PO bertanda tangan basah dan cap"
-          >
-            {isUploading ? (
-              <Upload className="w-3.5 h-3.5 animate-pulse" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            <span>{isUploading ? "Mengunggah..." : "Upload Bukti TTD"}</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleUpload(file);
-            }}
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="px-3 py-1.5 bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8EBFF] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
+          title="Upload scan/foto PO bertanda tangan basah dan cap"
+        >
+          {isUploading ? (
+            <Upload className="w-3.5 h-3.5 animate-pulse" />
+          ) : (
+            <Upload className="w-3.5 h-3.5" />
+          )}
+          <span>{isUploading ? "Mengunggah..." : "Upload Bukti TTD"}</span>
+        </button>
       )}
 
       {po.signedDocUrl && (
         <div className="space-y-1">
-          <a
-            href={po.signedDocUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="px-2 py-1 text-[11px] font-semibold text-[#1877F2] hover:underline inline-flex items-center gap-1"
-          >
-            <FileCheck2 className="w-3.5 h-3.5" />
-            <span className="truncate max-w-40">{po.signedDocName || "Bukti TTD"}</span>
-            <ExternalLink className="w-3 h-3 shrink-0" />
-          </a>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <a
+              href={po.signedDocUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 text-[11px] font-semibold text-[#1877F2] hover:underline inline-flex items-center gap-1"
+            >
+              <FileCheck2 className="w-3.5 h-3.5" />
+              <span className="truncate max-w-40">{po.signedDocName || "Bukti TTD"}</span>
+              <ExternalLink className="w-3 h-3 shrink-0" />
+            </a>
+            {canReupload && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="px-2 py-0.5 text-[11px] font-semibold text-[#1877F2] hover:bg-[#E7F3FF] rounded-lg transition-all inline-flex items-center gap-1 active:scale-[0.98] disabled:opacity-50"
+                title="Ganti atau upload ulang bukti tanda tangan"
+              >
+                <Upload className={`w-3 h-3 ${isUploading ? "animate-pulse" : ""}`} />
+                <span>{isUploading ? "Mengunggah..." : "Ganti"}</span>
+              </button>
+            )}
+          </div>
           {isImageEvidence && (
             <img
               src={po.signedDocUrl}
@@ -140,6 +144,19 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
             />
           )}
         </div>
+      )}
+
+      {(canUpload || canReupload) && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file);
+          }}
+        />
       )}
 
       <button

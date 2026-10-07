@@ -3,11 +3,11 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
-import { suppliers, purchaseOrders, purchaseOrderItems, books, bookItems, schools } from "../../db/schema";
+import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
 import { sendPurchaseOrderEmail } from "../services/po-delivery";
 import { fetchEffectiveBuyPrices, calcPoHeader } from "../services/book-price";
-import { evaluateSendGate, resolveWarehouseTarget } from "../services/po-workflow";
-import type { EmailRuntimeEnv } from "../services/email";
+import { evaluateSendGate, resolveWarehouseTarget, receivePurchaseOrder } from "../services/po-workflow";
+import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -227,7 +227,6 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
     const { receivedItems } = c.req.valid("json");
-    const now = new Date().toISOString();
 
     const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
     if (!po) {
@@ -235,63 +234,16 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
     }
     assertLocationAllowed(actor, po.targetSchoolId, locations);
 
-  let totalReceivedThisBatch = 0;
-
-  for (const rec of receivedItems) {
-    const [poItem] = await db
-      .select()
-      .from(purchaseOrderItems)
-      .where(eq(purchaseOrderItems.id, rec.poItemId));
-
-    if (!poItem) continue;
-
-    const newReceived = poItem.quantityReceived + rec.quantityToReceive;
-    await db
-      .update(purchaseOrderItems)
-      .set({ quantityReceived: newReceived })
-      .where(eq(purchaseOrderItems.id, rec.poItemId));
-
-    // Generate physical loose stock units in book_items
-    for (let k = 0; k < rec.quantityToReceive; k++) {
-      const barcode = `INB-PO-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-      await db.insert(bookItems).values({
-        id: crypto.randomUUID(),
-        bookId: poItem.bookId,
-        currentSchoolId: po.targetSchoolId,
-        barcode,
-        condition: "new",
-        status: "in_stock",
-        notes: `Inbound receiving from ${po.poNumber}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalReceivedThisBatch++;
+    const result = await receivePurchaseOrder(poId, receivedItems);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-  }
 
-  // Check overall completion
-  const allPoItems = await db
-    .select()
-    .from(purchaseOrderItems)
-    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
-
-  const isAllReceived = allPoItems.every((item: any) => item.quantityReceived >= item.quantityOrdered);
-  const newStatus = isAllReceived ? "received" : "partially_received";
-
-  await db
-    .update(purchaseOrders)
-    .set({ status: newStatus, updatedAt: now })
-    .where(eq(purchaseOrders.id, poId));
-
-  return c.json({
-    success: true,
-    message: `Berhasil menerima ${totalReceivedThisBatch} eksamplar buku ke dalam stok satuan`,
-    data: {
-      poId,
-      status: newStatus,
-      totalReceivedThisBatch,
-    },
-  });
+    return c.json({
+      success: true,
+      message: `Berhasil menerima ${result.data.totalReceivedThisBatch} eksamplar buku ke dalam stok satuan`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

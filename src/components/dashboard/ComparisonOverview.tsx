@@ -1,7 +1,7 @@
 import { ChevronRight, Clock, PackageCheck, UserCheck } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { formatRp } from "./dashboard-format";
+import { formatRupiah } from "../../lib/transfer-pricing";
 
 function MiniTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number | string }> }) {
   if (!active || !payload || payload.length === 0) return null;
@@ -170,7 +170,7 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
 
             <div className="rounded-xl bg-[#F0F2F5]/80 p-3 flex items-center justify-between my-2">
               <span className="text-xs text-[#65676B]">Total Piutang Berjalan</span>
-              <span className="text-sm font-black text-[#050505]">{formatRp(pay.outstandingRp)}</span>
+              <span className="text-sm font-black text-[#050505]">{formatRupiah(pay.outstandingRp)}</span>
             </div>
 
             <div>

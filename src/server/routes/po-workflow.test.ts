@@ -151,6 +151,36 @@ describe("Alur PO cetak - tanda tangan - upload - kirim", () => {
     }
   });
 
+  it("mengizinkan upload ulang/re-upload bukti TTD pada PO yang sudah signed_uploaded sebelum dikirim", async () => {
+    const stamp = Date.now();
+    const supplierId = await makeSupplier(stamp);
+    const bookId = await makeBook(stamp);
+    const { poId } = await createPo(supplierId, bookId);
+
+    await poWorkflowRouter.request(`/purchase-orders/${poId}/print`, { method: "POST" });
+
+    // Upload pertama
+    const firstRes = await poWorkflowRouter.request(`/purchase-orders/${poId}/signed-doc`, {
+      method: "POST",
+      body: evidenceForm("ttd-pertama.pdf"),
+    });
+    expect(firstRes.status).toBe(200);
+    expect(await currentStatus(poId!)).toBe("signed_uploaded");
+
+    // Upload kedua (revisi/timpa berkas sebelum dikirim)
+    const secondRes = await poWorkflowRouter.request(`/purchase-orders/${poId}/signed-doc`, {
+      method: "POST",
+      body: evidenceForm("ttd-revisi.pdf"),
+    });
+    expect(secondRes.status).toBe(200);
+    const secondJson = await secondRes.json();
+    expect(secondJson.data.signedDocName).toBe("ttd-revisi.pdf");
+
+    const [row] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId!));
+    expect(row.signedDocName).toBe("ttd-revisi.pdf");
+    expect(row.status).toBe("signed_uploaded");
+  });
+
   it("menolak upload berkas bukan gambar/PDF, berkas kosong, dan upload di luar status printed", async () => {
     const stamp = Date.now();
     const supplierId = await makeSupplier(stamp);

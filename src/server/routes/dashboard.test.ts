@@ -9,10 +9,14 @@ import {
   students,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import {
-  DashboardHttpError,
-  resolveScope,
-} from "../services/dashboard-summary";
+import { DashboardHttpError } from "../services/dashboard-summary";
+import { resolveLocationScope, type AccessActor } from "../services/access-scope";
+
+const scopeOf = (
+  actor: AccessActor | null,
+  requestedSchoolId: string | undefined,
+  allSchoolIds: string[],
+): string[] => resolveLocationScope(actor, requestedSchoolId, allSchoolIds.map((id) => ({ id })));
 
 const SCH = "TEST-DSH-SCH";
 const UUID_SCH = crypto.randomUUID();
@@ -162,13 +166,13 @@ describe("Dashboard summary API", () => {
 describe("Dashboard scope resolution (branch isolation)", () => {
   const all = ["school-alw-1", "school-alw-2"];
   it("forces branch admin to their own school", () => {
-    expect(resolveScope({ role: "branch_admin", schoolId: "school-alw-2" }, undefined, all)).toEqual(["school-alw-2"]);
-    expect(() => resolveScope({ role: "branch_admin", schoolId: "school-alw-2" }, "school-alw-1", all)).toThrow(DashboardHttpError);
-    expect(() => resolveScope({ role: "branch_admin", schoolId: null }, undefined, all)).toThrow(DashboardHttpError);
+    expect(scopeOf({ role: "branch_admin", schoolId: "school-alw-2" }, undefined, all)).toEqual(["school-alw-2"]);
+    expect(() => scopeOf({ role: "branch_admin", schoolId: "school-alw-2" }, "school-alw-1", all)).toThrow(DashboardHttpError);
+    expect(() => scopeOf({ role: "branch_admin", schoolId: null }, undefined, all)).toThrow(DashboardHttpError);
   });
   it("lets central admin scope freely but rejects unknown ids", () => {
-    expect(resolveScope({ role: "central_admin", schoolId: null }, undefined, all)).toEqual(all);
-    expect(resolveScope(null, "school-alw-1", all)).toEqual(["school-alw-1"]);
-    expect(() => resolveScope(null, "unknown", all)).toThrow(DashboardHttpError);
+    expect(scopeOf({ role: "central_admin", schoolId: null }, undefined, all)).toEqual(all);
+    expect(scopeOf(null, "school-alw-1", all)).toEqual(["school-alw-1"]);
+    expect(() => scopeOf(null, "unknown", all)).toThrow(DashboardHttpError);
   });
 });

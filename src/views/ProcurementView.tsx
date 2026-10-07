@@ -1,171 +1,65 @@
-import { useState, useEffect, useCallback } from "react";
-import { School, Book } from "../types";
+import { useCallback, useState } from "react";
+import { School } from "../types";
 import { PoSendAction } from "../components/procurement/PoSendAction";
-import { PoTotalsSummary } from "../components/procurement/PoTotalsSummary";
 import { PoWorkflowActions } from "../components/procurement/PoWorkflowActions";
 import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
 import { SupplierMasterSection, type SupplierRecord } from "../components/procurement/SupplierMasterSection";
-import { calcPoTotals, effectiveBookPrice } from "../lib/book-pricing";
-import { 
-  Search, 
-  RefreshCw, 
-  X, 
-  PackageCheck,
+import { CreatePOModal } from "../components/procurement/CreatePOModal";
+import { CreateSupplierModal } from "../components/procurement/CreateSupplierModal";
+import { ReceivingModal } from "../components/procurement/ReceivingModal";
+import { PODetailModal } from "../components/procurement/PODetailModal";
+import { toPrintablePo, type PurchaseOrder } from "../components/procurement/procurement-types";
+import { useProcurementData } from "../components/procurement/useProcurementData";
+import {
+  Search,
+  RefreshCw,
   Plus,
   Truck,
   Building2,
   Calendar,
-  AlertCircle,
-  Trash2,
+  PackageCheck,
   CheckCircle2,
   FileText
 } from "lucide-react";
-
-interface Supplier {
-  id: string;
-  code: string;
-  name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-}
-
-interface PurchaseOrderItem {
-  id: string;
-  bookId: string;
-  title: string;
-  isbn: string;
-  quantityOrdered: number;
-  quantityReceived: number;
-  unitPrice: number;
-  discountPercent: number;
-}
-
-interface PurchaseOrder {
-  id: string;
-  poNumber: string;
-  supplierId: string;
-  supplierName: string;
-  targetSchoolId: string;
-  schoolName: string;
-  status: "draft" | "ordered" | "printed" | "signed_uploaded" | "sent" | "partially_received" | "received" | "cancelled";
-  orderDate: string;
-  expectedArrivalDate?: string;
-  totalAmount: number;
-  subtotalGross?: number;
-  discountTotal?: number;
-  notes?: string;
-  supplierEmail?: string;
-  printedAt?: string | null;
-  signedDocUrl?: string | null;
-  signedDocName?: string | null;
-  signedDocType?: string | null;
-  signedDocUploadedAt?: string | null;
-  sentAt?: string;
-  sentTo?: string;
-  items: PurchaseOrderItem[];
-}
 
 interface ProcurementViewProps {
   activeSchool: School | null;
 }
 
-interface NewPOItemInput {
-  bookId: string;
-  quantityOrdered: number;
-  unitPrice: number;
-  discountPercent: number;
-}
-
 export function ProcurementView({ activeSchool }: ProcurementViewProps) {
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [catalogBooks, setCatalogBooks] = useState<Book[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    purchaseOrders,
+    suppliers,
+    catalogBooks,
+    isLoading,
+    defaultSupplierId,
+    loadData,
+    loadSuppliers,
+    loadPurchaseOrders,
+  } = useProcurementData();
+
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Inbound Receiving Modal State
-  const [activeReceivingPO, setActiveReceivingPO] = useState<PurchaseOrder | null>(null);
-  const [receiveQuantities, setReceiveQuantities] = useState<Record<string, number>>({});
-  const [isSubmittingReceive, setIsSubmittingReceive] = useState(false);
-
-  // Create PO Modal State
-  const [isCreatePOModalOpen, setIsCreatePOModalOpen] = useState(false);
-  const [poSupplierId, setPoSupplierId] = useState("");
-  const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().split("T")[0]);
-  const [poExpectedArrival, setPoExpectedArrival] = useState("");
-  const [poNotes, setPoNotes] = useState("");
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>([]);
-  const [isSubmittingPO, setIsSubmittingPO] = useState(false);
-
-  // PO Detail & Print View State
-  const [detailPo, setDetailPo] = useState<PurchaseOrder | null>(null);
-  const [printPo, setPrintPo] = useState<PrintablePo | null>(null);
-
-  // Create Supplier Modal State
-  const [isCreateSupplierModalOpen, setIsCreateSupplierModalOpen] = useState(false);
-  const [newSupplierCode, setNewSupplierCode] = useState("");
-  const [newSupplierName, setNewSupplierName] = useState("");
-  const [newSupplierContact, setNewSupplierContact] = useState("");
-  const [newSupplierPhone, setNewSupplierPhone] = useState("");
-  const [newSupplierEmail, setNewSupplierEmail] = useState("");
-  const [newSupplierAddress, setNewSupplierAddress] = useState("");
-  const [isSubmittingSupplier, setIsSubmittingSupplier] = useState(false);
-
-  // Status Filter State
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [poRes, supRes, booksRes] = await Promise.all([
-        fetch("/api/procurement/purchase-orders"),
-        fetch("/api/procurement/suppliers"),
-        fetch("/api/books"),
-      ]);
-
-      const [poData, supData, booksData] = await Promise.all([
-        poRes.json(),
-        supRes.json(),
-        booksRes.json(),
-      ]);
-
-      if (poData.success) setPurchaseOrders(poData.data);
-      if (supData.success) {
-        setSuppliers(supData.data);
-        if (supData.data.length > 0 && !poSupplierId) {
-          setPoSupplierId(supData.data[0].id);
-        }
-      }
-      if (booksData.success) {
-        setCatalogBooks(booksData.data);
-      }
-    } catch (err) {
-      console.error("Failed to load procurement data", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [poSupplierId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Modal orchestration (data holder; isi + logika tinggal di sub-modul)
+  const [isCreatePOModalOpen, setIsCreatePOModalOpen] = useState(false);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [activeReceivingPO, setActiveReceivingPO] = useState<PurchaseOrder | null>(null);
+  const [detailPo, setDetailPo] = useState<PurchaseOrder | null>(null);
+  const [printPo, setPrintPo] = useState<PrintablePo | null>(null);
 
   // Refresh daftar + sinkronkan modal detail & pratinjau cetak dari data
   // segar (hindari stale closure: purchaseOrders state bisa basi saat
   // aksi workflow selesai).
   const refreshAfterWorkflow = useCallback(async () => {
     try {
-      const res = await fetch("/api/procurement/purchase-orders");
-      const data = await res.json();
-      if (data.success) {
-        setPurchaseOrders(data.data);
-        setDetailPo((prev) => (prev ? data.data.find((p: PurchaseOrder) => p.id === prev.id) ?? null : null));
+      const fresh = await loadPurchaseOrders();
+      if (fresh) {
+        setDetailPo((prev) => (prev ? fresh.find((p: PurchaseOrder) => p.id === prev.id) ?? null : null));
         setPrintPo((prev) => {
           if (!prev) return prev;
-          const fresh = data.data.find((p: PurchaseOrder) => p.id === prev.id);
-          return fresh ? toPrintablePo(fresh) : prev;
+          const found = fresh.find((p: PurchaseOrder) => p.id === prev.id);
+          return found ? toPrintablePo(found) : prev;
         });
         return;
       }
@@ -173,217 +67,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
       // Abaikan, pengguna bisa muat ulang manual.
     }
     await loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Handler: Open Create PO Modal with 1 default item row
-  const defaultBuyPrice = (bookId: string, fallback: number) => {
-    const b = catalogBooks.find((x) => x.id === bookId);
-    return b ? effectiveBookPrice(b).buy : fallback;
-  };
-
-  const handleOpenCreatePO = () => {
-    if (catalogBooks.length > 0) {
-      setPoItems([
-        {
-          bookId: catalogBooks[0].id,
-          quantityOrdered: 20,
-          unitPrice: defaultBuyPrice(catalogBooks[0].id, 75000),
-          discountPercent: 0,
-        },
-      ]);
-    } else {
-      setPoItems([]);
-    }
-    setPoOrderDate(new Date().toISOString().split("T")[0]);
-    setPoExpectedArrival("");
-    setPoNotes("");
-    setIsCreatePOModalOpen(true);
-  };
-
-  const handleAddPOItemRow = () => {
-    if (catalogBooks.length === 0) return;
-    const defaultBook = catalogBooks[0];
-    setPoItems((prev) => [
-      ...prev,
-      {
-        bookId: defaultBook.id,
-        quantityOrdered: 10,
-        unitPrice: defaultBuyPrice(defaultBook.id, 0),
-        discountPercent: 0,
-      },
-    ]);
-  };
-
-  const handleRemovePOItemRow = (index: number) => {
-    setPoItems((prev) => prev.filter((_, idx) => idx !== index));
-  };
-
-  const handleUpdatePOItem = (index: number, field: keyof NewPOItemInput, val: any) => {
-    setPoItems((prev) =>
-      prev.map((item, idx) => {
-        if (idx !== index) return item;
-        if (field === "bookId") {
-          return {
-            ...item,
-            bookId: val,
-            unitPrice: defaultBuyPrice(val, 0),
-          };
-        }
-        const num = Math.max(0, Number(val) || 0);
-        if (field === "discountPercent") return { ...item, discountPercent: Math.min(100, num) };
-        return { ...item, [field]: num };
-      })
-    );
-  };
-
-  // Submit New Purchase Order
-  const handleSubmitCreatePO = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!poSupplierId) {
-      alert("Silakan pilih Supplier penerbit.");
-      return;
-    }
-    if (poItems.length === 0) {
-      alert("Tambahkan minimal 1 item buku pada PO.");
-      return;
-    }
-
-    const invalidItem = poItems.find((it) => it.quantityOrdered <= 0);
-    if (invalidItem) {
-      alert("Jumlah pesanan buku harus lebih dari 0.");
-      return;
-    }
-
-    const invalidDiscount = poItems.find((it) => it.discountPercent < 0 || it.discountPercent > 100);
-    if (invalidDiscount) {
-      alert("Diskon per item harus antara 0 sampai 100 persen.");
-      return;
-    }
-
-    setIsSubmittingPO(true);
-    try {
-      const res = await fetch("/api/procurement/purchase-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          supplierId: poSupplierId,
-          orderDate: poOrderDate,
-          expectedArrivalDate: poExpectedArrival || undefined,
-          notes: poNotes.trim() || undefined,
-          items: poItems,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menerbitkan Purchase Order.");
-      }
-
-      setIsCreatePOModalOpen(false);
-      await loadData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsSubmittingPO(false);
-    }
-  };
-
-  // Submit New Supplier
-  const handleSubmitCreateSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSupplierCode.trim() || !newSupplierName.trim()) {
-      alert("Kode dan Nama Supplier wajib diisi.");
-      return;
-    }
-
-    setIsSubmittingSupplier(true);
-    try {
-      const res = await fetch("/api/procurement/suppliers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: newSupplierCode.trim().toUpperCase(),
-          name: newSupplierName.trim(),
-          contactPerson: newSupplierContact.trim() || undefined,
-          phone: newSupplierPhone.trim() || undefined,
-          email: newSupplierEmail.trim() || undefined,
-          address: newSupplierAddress.trim() || undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal mendaftarkan supplier.");
-      }
-
-      setIsCreateSupplierModalOpen(false);
-      setNewSupplierCode("");
-      setNewSupplierName("");
-      setNewSupplierContact("");
-      setNewSupplierPhone("");
-      setNewSupplierEmail("");
-      setNewSupplierAddress("");
-
-      // Refresh and auto select newly created supplier
-      const supRes = await fetch("/api/procurement/suppliers");
-      const supData = await supRes.json();
-      if (supData.success) {
-        setSuppliers(supData.data);
-        setPoSupplierId(data.data.id);
-      }
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsSubmittingSupplier(false);
-    }
-  };
-
-  // Inbound Receiving Handlers
-  const handleOpenReceive = (po: PurchaseOrder) => {
-    setActiveReceivingPO(po);
-    const initial: Record<string, number> = {};
-    po.items.forEach((item) => {
-      const remaining = Math.max(0, item.quantityOrdered - item.quantityReceived);
-      initial[item.id] = remaining;
-    });
-    setReceiveQuantities(initial);
-  };
-
-  const handleSubmitReceive = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeReceivingPO) return;
-    setIsSubmittingReceive(true);
-    try {
-      const receivedItems = Object.entries(receiveQuantities)
-        .filter(([_, qty]) => qty > 0)
-        .map(([poItemId, quantityToReceive]) => ({
-          poItemId,
-          quantityToReceive,
-        }));
-
-      if (receivedItems.length === 0) {
-        alert("Pilih minimal 1 item untuk diterima.");
-        setIsSubmittingReceive(false);
-        return;
-      }
-
-      const res = await fetch(`/api/procurement/purchase-orders/${activeReceivingPO.id}/receive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receivedItems }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal mencatat penerimaan");
-
-      setActiveReceivingPO(null);
-      await loadData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsSubmittingReceive(false);
-    }
-  };
+  }, [loadData, loadPurchaseOrders]);
 
   // Filter Purchase Orders
   const filteredPOs = purchaseOrders.filter((po) => {
@@ -397,37 +81,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
       statusFilter === "all" || po.status === statusFilter;
 
     return matchesSearch && matchesStatus;
-  });
-
-  const poTotals = calcPoTotals(poItems);
-
-  const toPrintablePo = (po: PurchaseOrder): PrintablePo => ({
-    id: po.id,
-    poNumber: po.poNumber,
-    supplierName: po.supplierName,
-    schoolName: po.schoolName,
-    orderDate: po.orderDate,
-    expectedArrivalDate: po.expectedArrivalDate,
-    status: po.status,
-    notes: po.notes,
-    subtotalGross: po.subtotalGross,
-    discountTotal: po.discountTotal,
-    totalAmount: po.totalAmount,
-    printedAt: po.printedAt,
-    signedDocUrl: po.signedDocUrl,
-    signedDocName: po.signedDocName,
-    signedDocType: po.signedDocType,
-    signedDocUploadedAt: po.signedDocUploadedAt,
-    sentAt: po.sentAt,
-    sentTo: po.sentTo,
-    items: po.items.map((it) => ({
-      title: it.title,
-      isbn: it.isbn,
-      quantityOrdered: it.quantityOrdered,
-      quantityReceived: it.quantityReceived,
-      unitPrice: it.unitPrice,
-      discountPercent: it.discountPercent,
-    })),
   });
 
   return (
@@ -459,7 +112,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
           </button>
 
           <button
-            onClick={() => setIsCreateSupplierModalOpen(true)}
+            onClick={() => setIsSupplierModalOpen(true)}
             className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors flex items-center gap-1.5 active:scale-[0.98]"
           >
             <Building2 className="w-3.5 h-3.5 text-[#65676B]" />
@@ -467,7 +120,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
           </button>
 
           <button
-            onClick={handleOpenCreatePO}
+            onClick={() => setIsCreatePOModalOpen(true)}
             className="px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-xs transition-colors shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
@@ -689,7 +342,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                           <PoSendAction po={po} onSent={loadData} />
                           {!isFullyReceived ? (
                             <button
-                              onClick={() => handleOpenReceive(po)}
+                              onClick={() => setActiveReceivingPO(po)}
                               className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
                             >
                               <PackageCheck className="w-3.5 h-3.5" />
@@ -711,557 +364,42 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
         </div>
       </div>
 
-      {/* MODAL 1: CREATE NEW PURCHASE ORDER */}
       {isCreatePOModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between bg-white shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-[#E7F3FF] text-[#1877F2] flex items-center justify-center font-bold">
-                  +
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-[#050505]">Terbitkan Purchase Order (PO) Baru</h3>
-                  <p className="text-[11px] text-[#65676B]">Pemesanan buku satuan resmi dari vendor/penerbit</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreatePOModalOpen(false)}
-                className="text-[#65676B] hover:text-[#050505] p-1 rounded-lg hover:bg-[#F0F2F5]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleSubmitCreatePO} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Supplier / Vendor Resmi *
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={poSupplierId}
-                      onChange={(e) => setPoSupplierId(e.target.value)}
-                      required
-                      className="flex-1 px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                    >
-                      {suppliers.length === 0 ? (
-                        <option value="">Belum ada supplier (Tambah baru)</option>
-                      ) : (
-                        suppliers.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.code})
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setIsCreateSupplierModalOpen(true)}
-                      className="px-2.5 py-2 border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] text-xs font-semibold shrink-0"
-                      title="Tambah Supplier Baru"
-                    >
-                      + Baru
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="block text-xs font-semibold text-[#050505] mb-1">
-                    Tujuan Barang Masuk
-                  </span>
-                  <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-semibold text-[#050505]">
-                    Gudang Logistik
-                  </div>
-                  <p className="text-[10px] text-[#65676B] mt-1">
-                    PO selalu dipusatkan di Gudang Logistik, lalu diteruskan ke cabang lewat transfer.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Tanggal Order *
-                  </label>
-                  <input
-                    type="date"
-                    value={poOrderDate}
-                    onChange={(e) => setPoOrderDate(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Estimasi Tiba di Gudang
-                  </label>
-                  <input
-                    type="date"
-                    value={poExpectedArrival}
-                    onChange={(e) => setPoExpectedArrival(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  />
-                </div>
-              </div>
-
-              {/* Items Section */}
-              <div className="pt-2 border-t border-[#E4E6EB]">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-[#050505]">
-                    Daftar Item Buku Dipesan ({poItems.length} Judul)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleAddPOItemRow}
-                    className="text-[#1877F2] hover:text-[#166FE5] text-xs font-semibold flex items-center gap-1 active:scale-[0.98]"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Judul Buku</span>
-                  </button>
-                </div>
-
-                {catalogBooks.length === 0 ? (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-                    Katalog buku masih kosong. Tambahkan buku di tab <strong>Katalog</strong> terlebih dahulu.
-                  </div>
-                ) : poItems.length === 0 ? (
-                  <div className="p-4 bg-[#F0F2F5] border border-dashed border-[#CED0D4] rounded-xl text-center text-[#65676B]">
-                    Belum ada item buku. Klik <strong>Tambah Judul Buku</strong> untuk menambahkan.
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {poItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-[#F9FAFB] border border-[#E4E6EB] rounded-xl grid grid-cols-12 gap-2.5 items-center"
-                      >
-                        <div className="col-span-12 sm:col-span-5">
-                          <label className="block text-[10px] text-[#65676B] mb-0.5">Judul Buku</label>
-                          <select
-                            value={item.bookId}
-                            onChange={(e) => handleUpdatePOItem(idx, "bookId", e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] font-medium"
-                          >
-                            {catalogBooks.map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.title} ({b.isbn})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="col-span-5 sm:col-span-2">
-                          <label className="block text-[10px] text-[#65676B] mb-0.5">Qty Pesan</label>
-                          <input
-                            type="number"
-                            min={1}
-                            placeholder="0"
-                            value={item.quantityOrdered === 0 ? "" : item.quantityOrdered}
-                            onChange={(e) => handleUpdatePOItem(idx, "quantityOrdered", e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2]"
-                          />
-                        </div>
-
-                        <div className="col-span-5 sm:col-span-2">
-                          <label className="block text-[10px] text-[#65676B] mb-0.5">
-                            Harga Satuan (Rp) <span className="text-[9px] text-[#8A8D91]">(Katalog)</span>
-                          </label>
-                          <input
-                            type="number"
-                            readOnly
-                            tabIndex={-1}
-                            placeholder="0"
-                            value={item.unitPrice === 0 ? "" : item.unitPrice}
-                            className="w-full px-2.5 py-1.5 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg text-xs font-semibold text-right text-[#65676B] cursor-not-allowed select-none"
-                            title="Harga satuan terkunci mengikuti harga beli di katalog"
-                          />
-                        </div>
-
-                        <div className="col-span-5 sm:col-span-2">
-                          <label className="block text-[10px] text-[#65676B] mb-0.5">Diskon (%)</label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            placeholder="0"
-                            value={item.discountPercent === 0 ? "" : item.discountPercent}
-                            onChange={(e) => handleUpdatePOItem(idx, "discountPercent", e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
-                          />
-                        </div>
-
-                        <div className="col-span-2 sm:col-span-1 flex justify-end pt-3 sm:pt-0">
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePOItemRow(idx)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Hapus baris"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Notes & Summary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#E4E6EB]">
-                <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1">
-                    Catatan PO (Opsional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={poNotes}
-                    onChange={(e) => setPoNotes(e.target.value)}
-                    placeholder="Contoh: Pengadaan buku Cambridge Semester 1..."
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  />
-                </div>
-
-                <PoTotalsSummary
-                  gross={poTotals.gross}
-                  discount={poTotals.discount}
-                  net={poTotals.net}
-                  totalQty={poTotals.totalQty}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-[#E4E6EB] flex justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsCreatePOModalOpen(false)}
-                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] rounded-xl font-semibold text-[#65676B] transition-colors active:scale-[0.98]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingPO}
-                  className="px-5 py-2 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl font-semibold flex items-center gap-1.5 transition-colors shadow-2xs active:scale-[0.98] disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{isSubmittingPO ? "Menerbitkan..." : "Terbitkan PO"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreatePOModal
+          suppliers={suppliers}
+          catalogBooks={catalogBooks}
+          defaultSupplierId={defaultSupplierId}
+          onClose={() => setIsCreatePOModalOpen(false)}
+          onCreated={loadData}
+          reloadSuppliers={loadSuppliers}
+        />
       )}
 
-      {/* MODAL 2: CREATE NEW SUPPLIER */}
-      {isCreateSupplierModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-[#E7F3FF] text-[#1877F2] flex items-center justify-center">
-                  <Building2 className="w-4 h-4" />
-                </div>
-                <h3 className="text-sm font-bold text-[#050505]">Tambah Vendor / Supplier Baru</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateSupplierModalOpen(false)}
-                className="text-[#65676B] hover:text-[#050505] p-1 rounded-lg hover:bg-[#F0F2F5]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitCreateSupplier} className="p-6 space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-[#050505] mb-1">Kode Supplier *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: SUP-ERL, MENTARI-ID"
-                  value={newSupplierCode}
-                  onChange={(e) => setNewSupplierCode(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] uppercase font-mono focus:outline-hidden focus:border-[#1877F2]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#050505] mb-1">Nama Perusahaan / Penerbit *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Penerbit Erlangga Pusat"
-                  value={newSupplierName}
-                  onChange={(e) => setNewSupplierName(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold text-[#050505] mb-1">Kontak Person</label>
-                  <input
-                    type="text"
-                    placeholder="Bpk/Ibu PIC"
-                    value={newSupplierContact}
-                    onChange={(e) => setNewSupplierContact(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-[#050505] mb-1">No. Telepon / WA</label>
-                  <input
-                    type="text"
-                    placeholder="0812xxxx"
-                    value={newSupplierPhone}
-                    onChange={(e) => setNewSupplierPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#050505] mb-1">Email</label>
-                <input
-                  type="email"
-                  placeholder="sales@supplier.co.id"
-                  value={newSupplierEmail}
-                  onChange={(e) => setNewSupplierEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#050505] mb-1">Alamat Kantor / Gudang</label>
-                <textarea
-                  rows={2}
-                  placeholder="Alamat lengkap supplier..."
-                  value={newSupplierAddress}
-                  onChange={(e) => setNewSupplierAddress(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateSupplierModalOpen(false)}
-                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] rounded-xl font-semibold text-[#65676B] transition-colors active:scale-[0.98]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingSupplier}
-                  className="px-4 py-2 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl font-semibold flex items-center gap-1.5 transition-colors shadow-2xs active:scale-[0.98] disabled:opacity-50"
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>{isSubmittingSupplier ? "Menyimpan..." : "Daftarkan Supplier"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {isSupplierModalOpen && (
+        <CreateSupplierModal
+          onClose={() => setIsSupplierModalOpen(false)}
+          onCreated={async () => {
+            await loadSuppliers();
+            setIsSupplierModalOpen(false);
+          }}
+        />
       )}
 
-      {/* MODAL 3: INBOUND PHYSICAL RECEIVING */}
       {activeReceivingPO && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-[#050505]">Penerimaan Barang Fisik (Inbound Receiving)</h3>
-                <p className="text-[11px] text-[#65676B]">Otomatis buat barcode fisik & tambahkan ke stok satuan</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveReceivingPO(null)}
-                className="text-[#65676B] hover:text-[#050505] p-1 rounded-lg hover:bg-[#F0F2F5]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitReceive} className="p-6 space-y-4 text-xs">
-              <div className="bg-[#F0F2F5] p-3 rounded-xl flex justify-between">
-                <span>No. PO: <strong className="font-mono">{activeReceivingPO.poNumber}</strong></span>
-                <span>Supplier: <strong>{activeReceivingPO.supplierName}</strong></span>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-2 text-[#050505]">
-                  Input Jumlah Buku yang Diterima Hari Ini:
-                </label>
-                <div className="space-y-2.5 max-h-56 overflow-y-auto">
-                  {activeReceivingPO.items.map((it) => {
-                    const remaining = Math.max(0, it.quantityOrdered - it.quantityReceived);
-
-                    return (
-                      <div
-                        key={it.id}
-                        className="p-3 bg-white border border-[#CED0D4] rounded-xl flex items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-bold text-[#050505] truncate">{it.title}</div>
-                          <div className="text-[10px] text-[#65676B]">
-                            Telah diterima: {it.quantityReceived} dari total {it.quantityOrdered} eks
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <input
-                            type="number"
-                            min={0}
-                            max={remaining}
-                            placeholder="0"
-                            value={(receiveQuantities[it.id] ?? 0) === 0 ? "" : receiveQuantities[it.id]}
-                            onChange={(e) =>
-                              setReceiveQuantities({
-                                ...receiveQuantities,
-                                [it.id]: parseInt(e.target.value) || 0,
-                              })
-                            }
-                            className="w-20 px-2.5 py-1.5 border border-[#CED0D4] rounded-lg text-center font-bold text-[#1877F2]"
-                          />
-                          <span className="text-[11px] text-[#65676B]">/ max {remaining}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2 text-[11px]">
-                <AlertCircle className="w-4 h-4 shrink-0 text-[#1877F2] mt-0.5" />
-                <span>
-                  Buku yang dikonfirmasi akan langsung otomatis dibuatkan ID barcode lepasan dengan kondisi <strong>Baru (new)</strong> di gudang <strong>{activeReceivingPO.schoolName}</strong>.
-                </span>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveReceivingPO(null)}
-                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] rounded-xl font-semibold text-[#65676B] transition-colors active:scale-[0.98]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingReceive}
-                  className="px-4 py-2 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl font-semibold flex items-center gap-1.5 transition-colors shadow-2xs active:scale-[0.98] disabled:opacity-50"
-                >
-                  <PackageCheck className="w-3.5 h-3.5" />
-                  <span>{isSubmittingReceive ? "Menyimpan..." : "Konfirmasi Masuk Stok Satuan"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ReceivingModal
+          po={activeReceivingPO}
+          onClose={() => setActiveReceivingPO(null)}
+          onReceived={loadData}
+        />
       )}
-      {/* PO Detail Modal: item, tiga angka, bukti TTD, dan aksi alur */}
+
       {detailPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            <header className="px-5 py-3.5 border-b border-[#E4E6EB] flex items-start justify-between gap-3 shrink-0">
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-[#050505] font-mono">{detailPo.poNumber}</h3>
-                <p className="text-[11px] text-[#65676B]">
-                  {detailPo.supplierName} &bull; Tujuan: {detailPo.schoolName} &bull; {detailPo.orderDate}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailPo(null)}
-                className="p-1.5 rounded-lg hover:bg-[#F0F2F5] text-[#65676B] shrink-0"
-                title="Tutup detail"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </header>
-
-            <div className="px-5 py-4 overflow-y-auto space-y-4">
-              <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl">
-                {detailPo.items.map((it) => (
-                  <div key={it.id} className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-[#050505] truncate">{it.title}</div>
-                      <div className="text-[11px] text-[#65676B] font-mono">{it.isbn}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[#65676B]">
-                        {it.quantityReceived}/{it.quantityOrdered} eks &times; Rp {it.unitPrice.toLocaleString("id-ID")}
-                        {it.discountPercent > 0 ? ` −${it.discountPercent}%` : ""}
-                      </div>
-                      <div className="font-bold text-[#050505]">
-                        Rp {Math.round(it.quantityOrdered * it.unitPrice * (1 - (it.discountPercent || 0) / 100)).toLocaleString("id-ID")}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <PoTotalsSummary
-                gross={detailPo.subtotalGross ?? detailPo.totalAmount}
-                discount={detailPo.discountTotal ?? 0}
-                net={detailPo.totalAmount}
-                totalQty={detailPo.items.reduce((s, it) => s + it.quantityOrdered, 0)}
-              />
-
-              {detailPo.notes && (
-                <div>
-                  <p className="text-xs font-semibold text-[#050505] mb-1">Catatan PO</p>
-                  <p className="text-xs text-[#65676B] whitespace-pre-wrap">{detailPo.notes}</p>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-semibold text-[#050505] mb-1.5">Bukti TTD &amp; Cap</p>
-                {detailPo.signedDocUrl ? (
-                  <div className="space-y-1.5">
-                    <a
-                      href={detailPo.signedDocUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-semibold text-[#1877F2] hover:underline inline-flex items-center gap-1"
-                    >
-                      Buka/unduh {detailPo.signedDocName || "berkas bukti"}
-                    </a>
-                    {detailPo.signedDocType?.startsWith("image/") && (
-                      <img
-                        src={detailPo.signedDocUrl}
-                        alt={`Bukti tanda tangan ${detailPo.poNumber}`}
-                        className="max-w-full h-40 object-contain rounded-xl border border-[#E4E6EB] bg-[#F9FAFB]"
-                      />
-                    )}
-                    {detailPo.signedDocUploadedAt && (
-                      <p className="text-[11px] text-[#65676B]">
-                        Diupload: {detailPo.signedDocUploadedAt.slice(0, 19).replace("T", " ")}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Belum ada berkas bukti. PO harus dicetak, ditandatangani, lalu diupload sebelum dikirim.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <footer className="px-5 py-3 border-t border-[#E4E6EB] flex items-center justify-between gap-3 shrink-0 flex-wrap">
-              <PoWorkflowActions
-                po={detailPo}
-                onChanged={refreshAfterWorkflow}
-                onPrint={() => setPrintPo(toPrintablePo(detailPo))}
-              />
-              <PoSendAction po={detailPo} onSent={refreshAfterWorkflow} />
-            </footer>
-          </div>
-        </div>
+        <PODetailModal
+          po={detailPo}
+          onClose={() => setDetailPo(null)}
+          onChanged={refreshAfterWorkflow}
+          onPrint={() => setPrintPo(toPrintablePo(detailPo))}
+        />
       )}
 
       {printPo && <PoPrintView po={printPo} onClose={() => setPrintPo(null)} onChanged={refreshAfterWorkflow} />}

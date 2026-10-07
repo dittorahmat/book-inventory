@@ -54,14 +54,7 @@ export interface FinalOrderPayload {
   notes?: string;
 }
 
-export interface SatuanStatus {
-  academicYear: string;
-  open: boolean;
-  todayWIB: string;
-  openFrom: string | null;
-  override: "open" | "closed" | null;
-  reason: string;
-}
+import type { SatuanStatus } from "../../lib/portal-types";
 
 export interface SatuanBookOption {
   id: string;

@@ -1,14 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, sql, notInArray, inArray } from "drizzle-orm";
+import { eq, or, like, and, notInArray, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { students, studentBookOrders, studentOrderItems, orderPayments, bookPackages, books, schools } from "../../db/schema";
-import { defaultStorage } from "../../services/storage";
-import { decodeBase64ToBytes } from "../base64";
-import { effectiveSellPrice } from "../services/book-price";
-import { calcHeaderTotal } from "../../lib/transfer-pricing";
-import { getCurrentSatuanStatus, getSatuanStatus } from "../services/satuan-cutoff";
+import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
+import { getCurrentSatuanStatus, getSatuanCatalogIfOpen, getSatuanStatus } from "../services/satuan-cutoff";
+import { reportReturn } from "../services/return-intake";
+import { submitPublicOrder } from "../services/public-order";
 
 export const publicOrdersRouter = new Hono();
 
@@ -71,56 +69,8 @@ publicOrdersRouter.get("/satuan-status", async (c) => {
 
 publicOrdersRouter.get("/satable-catalog", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
-  const status = academicYear
-    ? await getSatuanStatus(academicYear)
-    : await getCurrentSatuanStatus();
-
-  if (!status.open) {
-    return c.json({ success: true, data: { open: false, status, books: [] } });
-  }
-
-  const rows: Array<{
-    id: string;
-    isbn: string;
-    title: string;
-    author: string;
-    publisher: string;
-    category: string | null;
-    coverUrl: string | null;
-    price: number;
-    sellPrice: number;
-  }> = await db
-    .select({
-      id: books.id,
-      isbn: books.isbn,
-      title: books.title,
-      author: books.author,
-      publisher: books.publisher,
-      category: books.category,
-      coverUrl: books.coverUrl,
-      price: books.price,
-      sellPrice: books.sellPrice,
-    })
-    .from(books)
-    .orderBy(books.title);
-
-  return c.json({
-    success: true,
-    data: {
-      open: true,
-      status,
-      books: rows.map((b) => ({
-        id: b.id,
-        isbn: b.isbn,
-        title: b.title,
-        author: b.author,
-        publisher: b.publisher,
-        category: b.category,
-        coverUrl: b.coverUrl,
-        sellPrice: b.sellPrice > 0 ? b.sellPrice : b.price,
-      })),
-    },
-  });
+  const catalog = await getSatuanCatalogIfOpen(academicYear || undefined);
+  return c.json({ success: true, data: catalog });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
@@ -210,160 +160,16 @@ publicOrdersRouter.post("/register-student", zValidator("json", createNewStudent
 // 3. Submit Order (Regular or Scholarship 100%)
 publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async (c) => {
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
-  const orderId = crypto.randomUUID();
-  const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
+  const result = await submitPublicOrder(body);
 
-  // Find student
-  const [student] = await db.select().from(students).where(eq(students.id, body.studentId));
-  if (!student) {
-    return c.json({ success: false, message: "Data murid tidak ditemukan" }, 404);
+  if (!result.ok) {
+    return c.json({ success: false, message: result.message }, result.status);
   }
-
-  // Pertahanan lapis kedua: hanya siswa terverifikasi yang boleh memesan
-  if (student.status !== "active" && student.status !== "promoted") {
-    return c.json(
-      { success: false, message: "Data siswa masih menunggu verifikasi admin sekolah. Silakan coba lagi setelah disetujui." },
-      403
-    );
-  }
-
-  // Order satuan hanya boleh dibuat saat periode satuan dibuka (design D7).
-  if (body.looseItems.length > 0) {
-    const status = await getCurrentSatuanStatus();
-    if (!status.open) {
-      return c.json(
-        { success: false, message: `Order satuan sedang ditutup. ${status.reason}` },
-        403
-      );
-    }
-  }
-
-  // Find package
-  let pkg: typeof bookPackages.$inferSelect | undefined;
-  if (body.packageId) {
-    [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, body.packageId));
-    if (!pkg) {
-      return c.json({ success: false, message: "Paket buku tidak ditemukan" }, 404);
-    }
-  }
-
-  // Baris satuan: harga jual efektif per judul, total = jumlah (harga jual x qty).
-  const looseLines: Array<{ bookId: string; title: string; quantity: number; unitPrice: number }> = [];
-  if (body.looseItems.length > 0) {
-    const bookIds = [...new Set(body.looseItems.map((i) => i.bookId))];
-    const bookRows: Array<typeof books.$inferSelect> = await db
-      .select()
-      .from(books)
-      .where(inArray(books.id, bookIds));
-    const bookMap = new Map<string, typeof books.$inferSelect>(
-      bookRows.map((b) => [b.id, b])
-    );
-    for (const item of body.looseItems) {
-      const book = bookMap.get(item.bookId);
-      if (!book) {
-        return c.json({ success: false, message: "Judul buku tidak ditemukan" }, 404);
-      }
-      looseLines.push({
-        bookId: book.id,
-        title: book.title,
-        quantity: item.quantity,
-        unitPrice: effectiveSellPrice(book),
-      });
-    }
-  }
-
-  const isScholarship = body.orderType === "scholarship";
-  let scholarshipProofUrl: string | null = null;
-
-  // Handle scholarship proof upload
-  if (isScholarship) {
-    if (!body.scholarshipProofBase64) {
-      return c.json({ success: false, message: "Surat tanda beasiswa wajib dilampirkan" }, 400);
-    }
-    const key = `scholarships/${student.id}_${Date.now()}.jpg`;
-    const buffer = decodeBase64ToBytes(body.scholarshipProofBase64);
-    scholarshipProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
-  }
-
-  // Calculate pricing: 100% discount for scholarship.
-  // Paket: harga paket. Satuan: jumlah harga jual x kuantitas (kanonik transfer-pricing).
-  const looseSubtotal = calcHeaderTotal(looseLines.map((l) => ({ unitPriceSnapshot: l.unitPrice, quantity: l.quantity })));
-  const grossAmount = (pkg?.price ?? 0) + looseSubtotal;
-  const totalAmount = isScholarship ? 0 : grossAmount;
-  let paidAmount = 0;
-  let paymentStatus: string = isScholarship ? "scholarship_pending" : "unpaid";
-
-  if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
-    paidAmount = body.payment.bookAllocationAmount;
-    paymentStatus = paidAmount >= totalAmount ? "paid" : "partial";
-  }
-
-  // Create order FIRST so payment records always reference an existing order
-  await db.insert(studentBookOrders).values({
-    id: orderId,
-    orderNumber,
-    studentId: student.id,
-    schoolId: student.schoolId,
-    packageId: pkg?.id ?? null,
-    orderType: body.orderType,
-    paymentStatus,
-    fulfillmentStatus: "waiting_preparation",
-    totalAmount,
-    paidAmount,
-    scholarshipProofUrl,
-    notes: body.notes || null,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  for (const line of looseLines) {
-    await db.insert(studentOrderItems).values({
-      id: crypto.randomUUID(),
-      orderId,
-      bookId: line.bookId,
-      quantity: line.quantity,
-      unitPriceSnapshot: line.unitPrice,
-      createdAt: now,
-    });
-  }
-
-  // Handle optional payment proof (after order exists)
-  if (!isScholarship && body.payment && body.payment.bookAllocationAmount > 0) {
-    let paymentProofUrl: string | null = null;
-    if (body.payment.paymentProofBase64) {
-      const key = `payments/${orderId}_${Date.now()}.jpg`;
-      const buffer = decodeBase64ToBytes(body.payment.paymentProofBase64);
-      paymentProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
-    }
-
-    await db.insert(orderPayments).values({
-      id: crypto.randomUUID(),
-      orderId,
-      transferAmount: body.payment.transferAmount,
-      bookAllocationAmount: body.payment.bookAllocationAmount,
-      paymentProofUrl,
-      bankName: body.payment.bankName || null,
-      referenceNumber: body.payment.referenceNumber || null,
-      notes: "Submitted via Public Form",
-      createdAt: now,
-    });
-  }
-
-  const [orderRecord] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
 
   return c.json({
     success: true,
     message: "Pesanan buku berhasil dibuat!",
-    data: {
-      order: orderRecord,
-      studentName: student.name,
-      packageName: pkg?.name ?? null,
-      looseItems: looseLines,
-      totalAmount,
-      paidAmount,
-      paymentStatus,
-    },
+    data: result.data,
   }, 201);
 });
 
@@ -423,48 +229,17 @@ const publicReturnSchema = z.object({
 
 publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
-  const returnId = crypto.randomUUID();
-
-  // Validate order existence
-  const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, body.orderId));
-  if (!order) {
-    return c.json({ success: false, message: "Data pesanan tidak ditemukan" }, 404);
+  const result = await reportReturn(db, { ...body, source: "public" });
+  if (!result.ok) {
+    return c.json({ success: false, message: result.message }, result.status);
   }
-
-  let photoProofUrl: string | null = null;
-  if (body.photoProofBase64) {
-    const key = `returns/public_${returnId}_${Date.now()}.jpg`;
-    const buffer = decodeBase64ToBytes(body.photoProofBase64);
-    photoProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
-  }
-
-  // Import bookReturns schema
-  const { bookReturns } = await import("../../db/schema");
-  await db.insert(bookReturns).values({
-    id: returnId,
-    orderId: body.orderId,
-    studentId: body.studentId,
-    defectiveBookId: body.defectiveBookId,
-    reason: body.reason,
-    photoProofUrl,
-    status: "reported",
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  // Flag order fulfillment status
-  await db
-    .update(studentBookOrders)
-    .set({ fulfillmentStatus: "return_in_progress", updatedAt: now })
-    .where(eq(studentBookOrders.id, body.orderId));
 
   return c.json({
     success: true,
     message: "Laporan retur buku rusak berhasil dikirimkan. Tim logistik sekolah akan segera memproses penggantian fisik buku Anda.",
     data: {
-      returnId,
-      orderNumber: order.orderNumber,
+      returnId: result.created.id,
+      orderNumber: result.orderNumber,
       status: "reported",
     },
   }, 201);

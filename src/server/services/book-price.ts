@@ -2,13 +2,11 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { books, bookPackageItems, bookPackages } from "../../db/schema";
 
-type PriceLike = { price: number; buyPrice: number; sellPrice: number };
+import { effectiveBuyPrice, effectiveSellPrice } from "../../lib/book-pricing";
+import type { PriceLike } from "../../lib/book-pricing";
 
-/** Harga jual efektif: fallback ke harga lama (`price`) bila harga jual belum pernah diisi. */
-export const effectiveSellPrice = (book: PriceLike): number => (book.sellPrice > 0 ? book.sellPrice : book.price);
-
-/** Harga beli efektif: fallback ke harga lama (`price`) bila harga beli belum pernah diisi. */
-export const effectiveBuyPrice = (book: PriceLike): number => (book.buyPrice > 0 ? book.buyPrice : book.price);
+export { calcPoHeader, calcPoLineNet, effectiveBookPrice, effectiveBuyPrice, effectiveSellPrice } from "../../lib/book-pricing";
+export type { PoLineInput, PriceLike } from "../../lib/book-pricing";
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
 export async function recalcPackagePrice(packageId: string): Promise<number> {
@@ -53,16 +51,3 @@ export async function fetchEffectiveBuyPrices(bookIds: string[]): Promise<Map<st
   rows.forEach((row: PriceLike & { id: string }) => map.set(row.id, effectiveBuyPrice(row)));
   return map;
 }
-
-export interface PoLineInput {
-  quantityOrdered: number;
-  unitPrice: number;
-  discountPercent: number;
-}
-
-/** Tiga angka header PO (kotor, diskon, netto). Kanonik server-side agar route + cetak konsisten. */
-export const calcPoHeader = (items: PoLineInput[]): { subtotalGross: number; discountTotal: number; totalAmount: number } => {
-  const subtotalGross = items.reduce((s, it) => s + (it.quantityOrdered || 0) * (it.unitPrice || 0), 0);
-  const discountTotal = items.reduce((s, it) => s + Math.round(((it.quantityOrdered || 0) * (it.unitPrice || 0) * (it.discountPercent || 0)) / 100), 0);
-  return { subtotalGross, discountTotal, totalAmount: subtotalGross - discountTotal };
-};

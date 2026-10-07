@@ -13,6 +13,7 @@ import {
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
+import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
 
 export const packagesRouter = new Hono();
 
@@ -251,105 +252,18 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
     const packageId = c.req.param("id");
     const { schoolId, quantity } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
-  const now = new Date().toISOString();
 
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
-  if (!pkg) {
-    return c.json({ success: false, message: "Package not found" }, 404);
-  }
-
-  const bom = await db
-    .select({
-      bookId: bookPackageItems.bookId,
-      quantity: bookPackageItems.quantity,
-      title: books.title,
-    })
-    .from(bookPackageItems)
-    .innerJoin(books, eq(bookPackageItems.bookId, books.id))
-    .where(eq(bookPackageItems.packageId, packageId));
-
-  if (bom.length === 0) {
-    return c.json({ success: false, message: "Package has no BOM components" }, 400);
-  }
-
-  // Verify stock sufficiency for all components
-  for (const item of bom) {
-    const requiredTotal = item.quantity * quantity;
-    const loose = await db
-      .select()
-      .from(bookItems)
-      .where(
-        and(
-          eq(bookItems.bookId, item.bookId),
-          eq(bookItems.currentSchoolId, schoolId),
-          eq(bookItems.status, "in_stock"),
-          eq(bookItems.condition, "new")
-        )
-      );
-
-    if (loose.length < requiredTotal) {
-      return c.json(
-        {
-          success: false,
-          message: `Insufficient stock for "${item.title}". Required: ${requiredTotal}, Available: ${loose.length}`,
-        },
-        400
-      );
+    const result = await assemblePackageBundles(packageId, schoolId, quantity);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-  }
 
-  // Deduct loose stock items & create pre-packed package items
-  for (const item of bom) {
-    const requiredTotal = item.quantity * quantity;
-    const looseToConsume = await db
-      .select({ id: bookItems.id })
-      .from(bookItems)
-      .where(
-        and(
-          eq(bookItems.bookId, item.bookId),
-          eq(bookItems.currentSchoolId, schoolId),
-          eq(bookItems.status, "in_stock"),
-          eq(bookItems.condition, "new")
-        )
-      )
-      .limit(requiredTotal);
-
-    for (const l of looseToConsume) {
-      // Mark as disposed/bundled into package
-      await db
-        .update(bookItems)
-        .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
-        .where(eq(bookItems.id, l.id));
-    }
-  }
-
-  // Create new physical package items
-  const createdPackageItems = [];
-  for (let i = 0; i < quantity; i++) {
-    const itemBarcode = `PKG-${pkg.code}-${Date.now().toString().slice(-6)}-${(i + 1).toString().padStart(3, "0")}`;
-    const pItemId = crypto.randomUUID();
-    await db.insert(packageItems).values({
-      id: pItemId,
-      packageId,
-      currentSchoolId: schoolId,
-      barcode: itemBarcode,
-      status: "in_stock",
-      notes: "Assembled via kitting operation",
-      createdAt: now,
-      updatedAt: now,
+    const [pkg] = await db.select({ name: bookPackages.name }).from(bookPackages).where(eq(bookPackages.id, packageId));
+    return c.json({
+      success: true,
+      message: `Successfully assembled ${quantity} bundle(s) of ${pkg?.name ?? "package"}`,
+      data: result.data,
     });
-    createdPackageItems.push({ id: pItemId, barcode: itemBarcode });
-  }
-
-  return c.json({
-    success: true,
-    message: `Successfully assembled ${quantity} bundle(s) of ${pkg.name}`,
-    data: {
-      packageId,
-      quantityAssembled: quantity,
-      assembledItems: createdPackageItems,
-    },
-  });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -363,79 +277,17 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
     const packageId = c.req.param("id");
     const { schoolId, quantity, reason } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
-  const now = new Date().toISOString();
 
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
-  if (!pkg) {
-    return c.json({ success: false, message: "Package not found" }, 404);
-  }
-
-  // Check available bundled items
-  const availableBundles = await db
-    .select()
-    .from(packageItems)
-    .where(
-      and(
-        eq(packageItems.packageId, packageId),
-        eq(packageItems.currentSchoolId, schoolId),
-        eq(packageItems.status, "in_stock")
-      )
-    )
-    .limit(quantity);
-
-  if (availableBundles.length < quantity) {
-    return c.json(
-      {
-        success: false,
-        message: `Not enough assembled packages to unbundle. Requested: ${quantity}, Available: ${availableBundles.length}`,
-      },
-      400
-    );
-  }
-
-  const bom = await db
-    .select({
-      bookId: bookPackageItems.bookId,
-      quantity: bookPackageItems.quantity,
-    })
-    .from(bookPackageItems)
-    .where(eq(bookPackageItems.packageId, packageId));
-
-  // Delete the unbundled package items
-  for (const b of availableBundles) {
-    await db.delete(packageItems).where(eq(packageItems.id, b.id));
-  }
-
-  // Restore loose stock books
-  let totalRestoredLoose = 0;
-  for (const item of bom) {
-    const returnCount = item.quantity * quantity;
-    for (let j = 0; j < returnCount; j++) {
-      const barcode = `RET-UNB-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-      await db.insert(bookItems).values({
-        id: crypto.randomUUID(),
-        bookId: item.bookId,
-        currentSchoolId: schoolId,
-        barcode,
-        condition: "new",
-        status: "in_stock",
-        notes: `Restored from unbundled package ${pkg.name}. Reason: ${reason}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalRestoredLoose++;
+    const result = await disassemblePackageBundles(packageId, schoolId, quantity, reason);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-  }
 
-  return c.json({
-    success: true,
-    message: `Successfully unbundled ${quantity} packages. Restored ${totalRestoredLoose} loose books to inventory.`,
-    data: {
-      packageId,
-      unbundledCount: quantity,
-      restoredLooseCount: totalRestoredLoose,
-    },
-  });
+    return c.json({
+      success: true,
+      message: `Successfully unbundled ${quantity} packages. Restored ${result.data.restoredLooseCount} loose books to inventory.`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

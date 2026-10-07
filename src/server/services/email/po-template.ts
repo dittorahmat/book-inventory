@@ -3,6 +3,7 @@ export interface PoEmailItem {
   isbn: string;
   quantityOrdered: number;
   unitPrice: number;
+  discountPercent?: number;
 }
 
 export interface PoEmailData {
@@ -17,6 +18,7 @@ export interface PoEmailData {
 }
 
 import { formatRupiah } from "../../../lib/transfer-pricing";
+import { calcPoLineNet } from "../../../lib/book-pricing";
 
 export function escapeHtml(value: string | number | null | undefined): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -39,7 +41,7 @@ export function renderPurchaseOrderEmail(po: PoEmailData): {
           <td style="padding: 8px; border: 1px solid #E4E6EB; font-family: monospace;">${escapeHtml(it.isbn)}</td>
           <td style="padding: 8px; border: 1px solid #E4E6EB; text-align: center;">${it.quantityOrdered}</td>
           <td style="padding: 8px; border: 1px solid #E4E6EB; text-align: right;">${formatRupiah(it.unitPrice)}</td>
-          <td style="padding: 8px; border: 1px solid #E4E6EB; text-align: right;">${formatRupiah(it.quantityOrdered * it.unitPrice)}</td>
+          <td style="padding: 8px; border: 1px solid #E4E6EB; text-align: right;">${formatRupiah(calcPoLineNet({ ...it, discountPercent: it.discountPercent ?? 0 }))}</td>
         </tr>`
     )
     .join("");

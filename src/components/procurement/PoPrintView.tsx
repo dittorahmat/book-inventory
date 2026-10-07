@@ -1,6 +1,6 @@
 import { Printer, X } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { calcPoTotals } from "../../lib/book-pricing";
+import { calcPoHeader, calcPoLineNet } from "../../lib/book-pricing";
 import { PoWorkflowActions, type PoWorkflowTarget } from "./PoWorkflowActions";
 
 export interface PrintablePoItem {
@@ -47,14 +47,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 const rupiah = formatRupiah;
 
-const lineTotal = (item: PrintablePoItem): number =>
-  calcPoTotals([{ quantityOrdered: item.quantityOrdered, unitPrice: item.unitPrice, discountPercent: item.discountPercent }]).net;
+const lineTotal = (item: PrintablePoItem): number => calcPoLineNet(item);
 
 /** Dokumen PO siap cetak untuk alur tanda tangan basah dan cap. */
 export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClose: () => void; onChanged: () => void }) {
-  const fallback = calcPoTotals(po.items.map((i) => ({ quantityOrdered: i.quantityOrdered, unitPrice: i.unitPrice, discountPercent: i.discountPercent })));
-  const gross = po.subtotalGross ?? fallback.gross;
-  const discount = po.discountTotal ?? fallback.discount;
+  const fallback = calcPoHeader(po.items);
+  const gross = po.subtotalGross ?? fallback.subtotalGross;
+  const discount = po.discountTotal ?? fallback.discountTotal;
   const workflow: PoWorkflowTarget = {
     id: po.id,
     poNumber: po.poNumber,

@@ -27,8 +27,6 @@ const GRANDFATHERED = [
   "src/views/CatalogView.tsx",
   "src/views/TransfersView.tsx",
   "src/App.tsx",
-  "src/server/routes/packages.ts",
-  "src/server/routes/public-orders.ts",
   "src/server/routes/student-orders.ts",
 ];
 

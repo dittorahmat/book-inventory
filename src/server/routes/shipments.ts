@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { transferShipments, transferShipmentItems, bookItems, packageItems } from "../../db/schema";
+import { transferShipments } from "../../db/schema";
 import { listShipmentsWithCounts, getShipmentDetail } from "../services/shipment-read";
-import { createShipment } from "../services/shipment-write";
+import { createShipment, dispatchShipment, receiveShipment } from "../services/shipment-write";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -138,43 +138,11 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
     if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
       return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
     }
-  if (shipment.status !== "draft" && shipment.status !== "pending_dispatch") {
-    return c.json({ success: false, message: "Shipment cannot be dispatched from current state" }, 400);
-  }
-
-  const now = new Date().toISOString();
-  const items = await db
-    .select()
-    .from(transferShipmentItems)
-    .where(eq(transferShipmentItems.shipmentId, id));
-
-  const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId);
-  const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId);
-
-  // Update loose book items to in_transit
-  if (looseIds.length > 0) {
-    await db
-      .update(bookItems)
-      .set({ status: "in_transit", updatedAt: now })
-      .where(inArray(bookItems.id, looseIds));
-  }
-
-  // Lock physical bundles as dispatched (ready stock leaves origin monitoring)
-  if (bundleIds.length > 0) {
-    await db
-      .update(packageItems)
-      .set({ status: "dispatched", updatedAt: now })
-      .where(inArray(packageItems.id, bundleIds));
-  }
-
-  // Update shipment status to in_transit
-  const [updated] = await db
-    .update(transferShipments)
-    .set({ status: "in_transit", dispatchedAt: now, updatedAt: now })
-    .where(eq(transferShipments.id, id))
-    .returning();
-
-  return c.json({ success: true, data: updated });
+    const result = await dispatchShipment(db, id);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, data: result.shipment });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -194,105 +162,11 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
       return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
     }
-  if (shipment.status !== "in_transit") {
-    return c.json({ success: false, message: "Only in_transit shipments can be received" }, 400);
-  }
-
-  const now = new Date().toISOString();
-  let hasDiscrepancy = false;
-  const looseReceipts = body.itemReceipts || [];
-  const bundleReceipts = (body as any).packageReceipts || [];
-
-  for (const receipt of looseReceipts) {
-    await db
-      .update(transferShipmentItems)
-      .set({ receivedCondition: receipt.condition, notes: receipt.notes })
-      .where(
-        and(
-          eq(transferShipmentItems.shipmentId, id),
-          eq(transferShipmentItems.bookItemId, receipt.bookItemId)
-        )
-      );
-
-    if (receipt.condition === "missing") {
-      hasDiscrepancy = true;
-      await db
-        .update(bookItems)
-        .set({ status: "lost", updatedAt: now })
-        .where(eq(bookItems.id, receipt.bookItemId));
-    } else if (receipt.condition === "damaged") {
-      hasDiscrepancy = true;
-      await db
-        .update(bookItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          condition: "damaged",
-          updatedAt: now,
-        })
-        .where(eq(bookItems.id, receipt.bookItemId));
-    } else {
-      await db
-        .update(bookItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          updatedAt: now,
-        })
-        .where(eq(bookItems.id, receipt.bookItemId));
+    const result = await receiveShipment(db, id, body.itemReceipts || [], (body as any).packageReceipts || []);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-  }
-
-  for (const receipt of bundleReceipts) {
-    await db
-      .update(transferShipmentItems)
-      .set({ receivedCondition: receipt.condition, notes: receipt.notes })
-      .where(
-        and(
-          eq(transferShipmentItems.shipmentId, id),
-          eq(transferShipmentItems.packageItemId, receipt.packageItemId)
-        )
-      );
-
-    if (receipt.condition === "missing") {
-      hasDiscrepancy = true;
-      await db.delete(packageItems).where(eq(packageItems.id, receipt.packageItemId));
-    } else if (receipt.condition === "damaged") {
-      hasDiscrepancy = true;
-      await db
-        .update(packageItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          notes: receipt.notes ? `Rusak saat transit: ${receipt.notes}` : "Rusak saat transit",
-          updatedAt: now,
-        })
-        .where(eq(packageItems.id, receipt.packageItemId));
-    } else {
-      await db
-        .update(packageItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          updatedAt: now,
-        })
-        .where(eq(packageItems.id, receipt.packageItemId));
-    }
-  }
-
-  const finalStatus = hasDiscrepancy ? "completed_with_discrepancy" : "completed";
-
-  const [completed] = await db
-    .update(transferShipments)
-    .set({
-      status: finalStatus,
-      receivedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(transferShipments.id, id))
-    .returning();
-
-  return c.json({ success: true, data: completed });
+    return c.json({ success: true, data: result.shipment });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

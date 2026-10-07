@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
+import { effectiveSellPrice } from "./book-price";
 
 export interface LooseStockSummaryRow {
   schoolId: string;
@@ -73,7 +74,7 @@ export async function getLooseStockSummary(
         title: row.title,
         isbn: row.isbn,
         coverUrl: row.coverUrl,
-        sellPrice: row.sellPrice > 0 ? row.sellPrice : row.price,
+        sellPrice: effectiveSellPrice(row),
         totalQty: 0,
         availableQty: 0,
         inTransitQty: 0,

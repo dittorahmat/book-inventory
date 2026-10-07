@@ -19,7 +19,7 @@ import {
   setSatuanOpenFrom,
   setSatuanOverride,
 } from "../services/satuan-cutoff";
-import { currentAcademicYear } from "../../lib/wib-time";
+import { currentAcademicYear, todayWIB } from "../../lib/wib-time";
 
 const FUTURE_YEAR = "2099/2100";
 const ROLLOVER_YEAR = "2098/2099";
@@ -99,8 +99,10 @@ describe("Evaluasi cut-off satuan (spec: public-order-satuan)", () => {
   });
 
   it("terbuka pada atau setelah tanggal efektif, tertutup sebelum tanggal", async () => {
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const today = todayWIB();
+    const todayMs = new Date(today + "T00:00:00Z").getTime();
+    const yesterday = new Date(todayMs - 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = new Date(todayMs + 86_400_000).toISOString().slice(0, 10);
 
     await setSatuanOpenFrom(FUTURE_YEAR, yesterday);
     expect((await getSatuanStatus(FUTURE_YEAR)).open).toBe(true);
@@ -340,5 +342,45 @@ describe("Otorisasi pengaturan cut-off (spec: public-order-satuan)", () => {
       body: JSON.stringify({ academicYear: "2026/2027", override: "maybe" }),
     });
     expect(badOverride.status).toBe(400);
+  });
+});
+
+describe("Katalog satuan terpadu cut-off (spec: c4-single-capability)", () => {
+  it("mengembalikan katalog kosong saat tertutup dan harga efektif saat terbuka", async () => {
+    const stamp = Date.now();
+    const bookId = `bk-cat-${stamp}`;
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-CAT-${stamp}`,
+      title: `Buku Katalog ${stamp}`,
+      author: "Tester",
+      publisher: "Test",
+      price: 80000,
+      sellPrice: 0,
+      buyPrice: 70000,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    try {
+      await clearSettings(FUTURE_YEAR);
+      const closedRes = await publicOrdersRouter.request(`/satable-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
+      expect(closedRes.status).toBe(200);
+      const closed = await closedRes.json();
+      expect(closed.data.open).toBe(false);
+      expect(closed.data.books).toEqual([]);
+
+      await setSatuanOverride(FUTURE_YEAR, "open");
+      const openRes = await publicOrdersRouter.request(`/satable-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
+      expect(openRes.status).toBe(200);
+      const opened = await openRes.json();
+      expect(opened.data.open).toBe(true);
+      const row = opened.data.books.find((b: { id: string }) => b.id === bookId);
+      expect(row).toBeDefined();
+      // sellPrice 0 → fallback ke price (aturan kanonik tunggal)
+      expect(row.sellPrice).toBe(80000);
+    } finally {
+      await db.delete(books).where(eq(books.id, bookId));
+      await clearSettings(FUTURE_YEAR);
+    }
   });
 });

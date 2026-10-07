@@ -12,8 +12,7 @@ import {
   books, 
   bookItems 
 } from "../../db/schema";
-import { defaultStorage } from "../../services/storage";
-import { decodeBase64ToBytes } from "../base64";
+import { reportReturn } from "../services/return-intake";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -196,36 +195,11 @@ studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async
     if (parentOrder) {
       assertLocationAllowed(actor, parentOrder.schoolId, locations);
     }
-  const now = new Date().toISOString();
-  const returnId = crypto.randomUUID();
-
-  let photoProofUrl: string | null = null;
-  if (body.photoProofBase64) {
-    const key = `returns/${returnId}_${Date.now()}.jpg`;
-    const buffer = decodeBase64ToBytes(body.photoProofBase64);
-    photoProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
-  }
-
-  await db.insert(bookReturns).values({
-    id: returnId,
-    orderId: body.orderId,
-    studentId: body.studentId,
-    defectiveBookId: body.defectiveBookId,
-    reason: body.reason,
-    photoProofUrl,
-    status: "reported",
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  // Flag order as return in progress
-  await db
-    .update(studentBookOrders)
-    .set({ fulfillmentStatus: "return_in_progress", updatedAt: now })
-    .where(eq(studentBookOrders.id, body.orderId));
-
-  const [created] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
-  return c.json({ success: true, message: "Laporan retur buku cacat berhasil disimpan", data: created }, 201);
+    const result = await reportReturn(db, { ...body, source: "staff" });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: "Laporan retur buku cacat berhasil disimpan", data: result.created }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);
   }

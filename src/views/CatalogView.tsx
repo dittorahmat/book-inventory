@@ -3,7 +3,7 @@ import { School, Book } from "../types";
 import { Plus, Image as ImageIcon, BookOpen, Search, Upload } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { BookPriceFields } from "../components/catalog/BookPriceFields";
-import { effectiveBookPrice } from "../lib/book-pricing";
+import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
 
 export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   const [books, setBooks] = useState<Book[]>([]);
@@ -54,7 +54,7 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     try {
       const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
       const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
-      const legacyPrice = sellPrice > 0 ? sellPrice : buyPrice;
+      const legacyPrice = effectiveSellPrice({ price: buyPrice, buyPrice, sellPrice });
 
       const res = await fetch("/api/books", {
         method: "POST",

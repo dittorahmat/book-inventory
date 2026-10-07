@@ -117,4 +117,21 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     const resolveJson = await resolveRes.json();
     expect(resolveJson.success).toBe(true);
   });
+
+  it("rejects return reports for unknown orders on both staff and public paths", async () => {
+    const payload = {
+      orderId: `ord-ghost-${Date.now()}`,
+      studentId: `st-ghost-${Date.now()}`,
+      defectiveBookId: `b-ghost-${Date.now()}`,
+      reason: "Halaman sobek dan tidak layak baca",
+      photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr",
+    };
+    const staffRes = await studentOrdersRouter.request("/returns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    expect(staffRes.status).toBe(404);
+    expect(((await staffRes.json()) as { success: boolean }).success).toBe(false);
+  });
 });

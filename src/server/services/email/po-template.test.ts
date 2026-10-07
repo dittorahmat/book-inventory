@@ -55,4 +55,17 @@ describe("renderPurchaseOrderEmail", () => {
     expect(html).not.toContain("Catatan:");
     expect(text).not.toContain("Estimasi Tiba");
   });
+
+  it("merender subtotal baris neto setelah diskon persen", () => {
+    const { html } = renderPurchaseOrderEmail({
+      ...sample,
+      items: [
+        { title: "Buku Diskon", isbn: "978-0000000000", quantityOrdered: 50, unitPrice: 95000, discountPercent: 10 },
+      ],
+      totalAmount: 4275000,
+    });
+    // 50 × 95.000 − 10% = Rp 4.275.000 (bukan Rp 4.750.000 kotor)
+    expect(html).toContain("Rp 4.275.000");
+    expect(html).not.toContain("Rp 4.750.000");
+  });
 });

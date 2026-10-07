@@ -1,6 +1,6 @@
 import { CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { formatRp } from "./dashboard-format";
+import { formatRupiah } from "../../lib/transfer-pricing";
 
 export function PaymentsMeter({ summary }: { summary: DashboardSchoolSummary }) {
   const p = summary.payments;
@@ -42,7 +42,7 @@ export function PaymentsMeter({ summary }: { summary: DashboardSchoolSummary }) 
           {/* Outstanding Total Card */}
           <div className="rounded-xl bg-[#F0F2F5]/80 p-3 flex items-center justify-between">
             <span className="text-xs text-[#65676B]">Total Piutang Belum Lunas</span>
-            <span className="text-sm font-black text-[#050505]">{formatRp(p.outstandingRp)}</span>
+            <span className="text-sm font-black text-[#050505]">{formatRupiah(p.outstandingRp)}</span>
           </div>
 
           {/* Segmented Stacked Progress Bar */}

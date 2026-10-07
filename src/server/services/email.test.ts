@@ -3,8 +3,8 @@ import {
   getSmtpConfig,
   sendEmailNotification,
   selectProviderName,
-} from "./email";
-import type { ResolvedEmailConfig } from "./email";
+} from "./email/factory";
+import type { ResolvedEmailConfig } from "./email/types";
 
 const ENV_KEYS = [
   "EMAIL_PROVIDER",

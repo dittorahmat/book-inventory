@@ -167,3 +167,20 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 2. **Disiplin tulis ke D1 production** (mencegah insiden 180 sekolah sampah berisi data test):
    - **DILARANG** QA manual / skrip / test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dan pola sampah sejenis. QA destruktif hanya di dev lokal.
    - Setiap `wrangler d1 execute ... --remote` yang bersifat tulis (terutama `DELETE` massal) **WAJIB** didahului: (a) verifikasi target (`database_name`/`database_id`), (b) `SELECT COUNT(*)` + contoh baris dengan predikat yang sama, (c) cek nol relasi anak di semua tabel yang mereferensikan (`students`, `student_book_orders`, `book_items`, `package_items`, `transfer_shipments`, `purchase_orders`, `users` untuk tabel `schools`).
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues via `gh` CLI (`dittorahmat/book-inventory`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context (`GLOSSARY.md` and `docs/adr/`). See `docs/agents/domain.md`.
+

@@ -380,4 +380,21 @@ describe("Public Orders & Student Search API", () => {
     expect(submitJson.success).toBe(false);
     expect(submitJson.message).toContain("verifikasi");
   });
+
+  it("rejects public return submission for unknown orders (shared intake)", async () => {
+    const stamp = Date.now();
+    const res = await publicOrdersRouter.request("/submit-return", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: `ord-ghost-pub-${stamp}`,
+        studentId: `st-ghost-pub-${stamp}`,
+        defectiveBookId: `b-ghost-pub-${stamp}`,
+        reason: "Halaman 15 sampai 22 sobek dan tidak tercetak",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr",
+      }),
+    });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { success: boolean }).success).toBe(false);
+  });
 });

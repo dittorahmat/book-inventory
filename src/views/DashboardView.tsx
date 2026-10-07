@@ -4,7 +4,8 @@ import type { School } from "../types";
 import type { DashboardSchoolSummary } from "../lib/dashboard-types";
 import { useDashboard } from "../components/dashboard/useDashboard";
 import { DashboardKpis } from "../components/dashboard/DashboardKpis";
-import { coverageTone, formatRp } from "../components/dashboard/dashboard-format";
+import { coverageTone } from "../components/dashboard/dashboard-format";
+import { formatRupiah } from "../lib/transfer-pricing";
 import { CoverageChart } from "../components/dashboard/CoverageChart";
 import { BranchHealthScatter } from "../components/dashboard/BranchHealthScatter";
 import { ComparisonOverview } from "../components/dashboard/ComparisonOverview";
@@ -175,7 +176,7 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
                   {s.stock.looseInStock} satuan - {s.coverage.readyPackages} paket siap
                 </div>
                 <div className="mt-1 text-xs text-[#65676B]">
-                  Tunggakan {formatRp(s.payments.outstandingRp)} - {attentionTotal(s)} perhatian
+                  Tunggakan {formatRupiah(s.payments.outstandingRp)} - {attentionTotal(s)} perhatian
                 </div>
               </button>
             );

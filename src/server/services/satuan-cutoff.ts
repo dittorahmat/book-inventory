@@ -1,23 +1,15 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { systemSettings } from "../../db/schema";
+import { books, systemSettings } from "../../db/schema";
 import { currentAcademicYear, isWIBOnOrAfter, todayWIB } from "../../lib/wib-time";
+import { effectiveSellPrice } from "../../lib/book-pricing";
+import type { SatuanOverride, SatuanStatus } from "../../lib/portal-types";
+
+export type { SatuanOverride, SatuanStatus } from "../../lib/portal-types";
 
 /** Kunci pengaturan cut-off order satuan (design D7). */
 export const openFromKey = (academicYear: string) => `satuan_open_from:${academicYear}`;
 export const overrideKey = (academicYear: string) => `satuan_override:${academicYear}`;
-
-export type SatuanOverride = "open" | "closed";
-
-export interface SatuanStatus {
-  academicYear: string;
-  open: boolean;
-  todayWIB: string;
-  openFrom: string | null;
-  override: SatuanOverride | null;
-  /** Alasan singkat untuk ditampilkan di UI publik. */
-  reason: string;
-}
 
 const readSetting = async (key: string): Promise<string | null> => {
   const rows = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
@@ -89,4 +81,49 @@ export async function setSatuanOverride(
 /** Status untuk tahun ajaran berjalan, dipakai form publik tanpa parameter tahun. */
 export function getCurrentSatuanStatus(now: Date = new Date()): Promise<SatuanStatus> {
   return getSatuanStatus(currentAcademicYear(now), now);
+}
+
+export interface SatuanCatalogBook {
+  id: string;
+  isbn: string;
+  title: string;
+  author: string;
+  publisher: string;
+  category: string | null;
+  coverUrl: string | null;
+  sellPrice: number;
+}
+
+export interface SatuanCatalog {
+  open: boolean;
+  status: SatuanStatus;
+  books: SatuanCatalogBook[];
+}
+
+/**
+ * Kemampuan cut-off + katalog dalam satu panggilan: status dievaluasi sekali,
+ * lalu buku di-query hanya saat terbuka — katalog basi setelah cut-off flip
+ * tidak mungkin terjadi.
+ */
+export async function getSatuanCatalogIfOpen(academicYear?: string): Promise<SatuanCatalog> {
+  const year = academicYear?.trim() || currentAcademicYear(new Date());
+  const status = await getSatuanStatus(year);
+  if (!status.open) {
+    return { open: false, status, books: [] };
+  }
+  const rows = await db
+    .select({
+      id: books.id,
+      isbn: books.isbn,
+      title: books.title,
+      author: books.author,
+      publisher: books.publisher,
+      category: books.category,
+      coverUrl: books.coverUrl,
+      price: books.price,
+      sellPrice: books.sellPrice,
+    })
+    .from(books)
+    .orderBy(books.title);
+  return { open: true, status, books: rows.map((b: SatuanCatalogBook & { price: number }) => ({ ...b, sellPrice: effectiveSellPrice(b) })) };
 }

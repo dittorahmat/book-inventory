@@ -29,13 +29,6 @@ export type { StaffRole };
 export type DashboardActor = AccessActor;
 export const DashboardHttpError = AccessHttpError;
 
-/** Pure scope resolution so branch isolation is unit-testable without a session. */
-export const resolveScope = (
-  actor: AccessActor | null,
-  requestedSchoolId: string | undefined,
-  allSchoolIds: string[],
-): string[] => resolveLocationScope(actor, requestedSchoolId, allSchoolIds.map((id) => ({ id })));
-
 type SchoolRow = typeof schools.$inferSelect;
 type BookItemRow = typeof bookItems.$inferSelect;
 type PackageItemRow = typeof packageItems.$inferSelect;
@@ -241,7 +234,7 @@ export async function getDashboardSummary(
   requestedSchoolId: string | undefined,
 ): Promise<DashboardSummaryPayload> {
   const allSchoolRows: SchoolRow[] = await database.select().from(schools);
-  const scope = resolveScope(actor, requestedSchoolId, allSchoolRows.map((s) => s.id));
+  const scope = resolveLocationScope(actor, requestedSchoolId, allSchoolRows.map((s) => ({ id: s.id })));
   const schoolById = new Map(allSchoolRows.map((s) => [s.id, s]));
   // Satu fetch untuk semua sekolah, lalu bangun ringkasan per sekolah
   // secara sinkron (lihat fetchDashboardRows).

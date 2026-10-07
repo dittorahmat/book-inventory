@@ -90,3 +90,101 @@ export const validateSignedDoc = (file: File): SignedDocValidation =>
       : !(SIGNED_DOC_ALLOWED_TYPES as readonly string[]).includes(file.type)
         ? { ok: false, message: "Format berkas bukti harus gambar (JPG, PNG, WebP) atau PDF." }
         : { ok: true, contentType: file.type };
+
+export interface ReceivedItemInput {
+  poItemId: string;
+  quantityToReceive: number;
+}
+
+export type ReceivePoResult =
+  | {
+      ok: true;
+      data: {
+        poId: string;
+        status: "received" | "partially_received";
+        totalReceivedThisBatch: number;
+      };
+    }
+  | {
+      ok: false;
+      status: 404;
+      message: string;
+    };
+
+/**
+ * Deep module: proses penerimaan barang fisik inbound dari PO.
+ * Mengenkapsulasi update kuantitas item PO, pembuatan nomor barcode batch,
+ * penambahan eksemplar fisik ke book_items, dan penentuan status akhir PO.
+ */
+export async function receivePurchaseOrder(
+  poId: string,
+  receivedItems: ReceivedItemInput[]
+): Promise<ReceivePoResult> {
+  const { purchaseOrderItems, bookItems } = await import("../../db/schema");
+  const now = new Date().toISOString();
+
+  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  if (!po) {
+    return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
+  }
+
+  let totalReceivedThisBatch = 0;
+  const newBookItemsToInsert: Array<typeof bookItems.$inferInsert> = [];
+
+  for (const rec of receivedItems) {
+    const [poItem] = await db
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.id, rec.poItemId));
+
+    if (!poItem) continue;
+
+    const newReceived = poItem.quantityReceived + rec.quantityToReceive;
+    await db
+      .update(purchaseOrderItems)
+      .set({ quantityReceived: newReceived })
+      .where(eq(purchaseOrderItems.id, rec.poItemId));
+
+    for (let k = 0; k < rec.quantityToReceive; k++) {
+      const barcode = `INB-PO-${Date.now().toString().slice(-6)}-${k + 1}-${crypto.randomUUID().slice(0, 6)}`;
+      newBookItemsToInsert.push({
+        id: crypto.randomUUID(),
+        bookId: poItem.bookId,
+        currentSchoolId: po.targetSchoolId,
+        barcode,
+        condition: "new",
+        status: "in_stock",
+        notes: `Inbound receiving from ${po.poNumber}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      totalReceivedThisBatch++;
+    }
+  }
+
+  if (newBookItemsToInsert.length > 0) {
+    await db.insert(bookItems).values(newBookItemsToInsert);
+  }
+
+  const allPoItems = await db
+    .select()
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
+
+  const isAllReceived = allPoItems.every((item: any) => item.quantityReceived >= item.quantityOrdered);
+  const newStatus: "received" | "partially_received" = isAllReceived ? "received" : "partially_received";
+
+  await db
+    .update(purchaseOrders)
+    .set({ status: newStatus, updatedAt: now })
+    .where(eq(purchaseOrders.id, poId));
+
+  return {
+    ok: true,
+    data: {
+      poId,
+      status: newStatus,
+      totalReceivedThisBatch,
+    },
+  };
+}
