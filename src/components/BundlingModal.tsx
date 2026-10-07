@@ -170,7 +170,8 @@ export function BundlingModal({
                 type="number"
                 min={1}
                 max={Math.max(1, maxAllowed)}
-                value={quantity}
+                placeholder="0"
+                value={quantity === 0 ? "" : quantity}
                 onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
                 className="w-full px-3.5 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-sm font-semibold text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
               />

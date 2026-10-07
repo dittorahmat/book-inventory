@@ -110,7 +110,8 @@ export function StockSummaryTable({
                             type="number"
                             min={0}
                             max={row.availableQty}
-                            value={quantities[key] ?? 0}
+                            placeholder="0"
+                            value={(quantities[key] ?? 0) === 0 ? "" : quantities[key]}
                             onChange={(e) =>
                               onQuantityChange(key, Math.max(0, Math.min(row.availableQty, Number(e.target.value) || 0)))
                             }
@@ -151,7 +152,8 @@ export function StockSummaryTable({
                     type="number"
                     min={0}
                     max={row.availableQty}
-                    value={quantities[key] ?? 0}
+                    placeholder="0"
+                    value={(quantities[key] ?? 0) === 0 ? "" : quantities[key]}
                     onChange={(e) =>
                       onQuantityChange(key, Math.max(0, Math.min(row.availableQty, Number(e.target.value) || 0)))
                     }
@@ -192,7 +194,8 @@ export function StockSummaryTable({
                       type="number"
                       min={0}
                       max={row.readyQty}
-                      value={quantities[key] ?? 0}
+                      placeholder="0"
+                      value={(quantities[key] ?? 0) === 0 ? "" : quantities[key]}
                       onChange={(e) =>
                         onQuantityChange(key, Math.max(0, Math.min(row.readyQty, Number(e.target.value) || 0)))
                       }

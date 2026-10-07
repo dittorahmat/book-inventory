@@ -214,7 +214,7 @@ export function PaymentStep({
               <input
                 type="number"
                 min={0}
-                value={transferAmount}
+                value={transferAmount === 0 ? "" : transferAmount}
                 onChange={(e) => setTransferAmount(parseInt(e.target.value) || 0)}
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
                 placeholder="Total di struk (bisa gabung SPP)"
@@ -232,7 +232,8 @@ export function PaymentStep({
                 type="number"
                 min={0}
                 max={pkg.price}
-                value={bookAllocationAmount}
+                placeholder="0"
+                value={bookAllocationAmount === 0 ? "" : bookAllocationAmount}
                 onChange={(e) => setBookAllocationAmount(parseInt(e.target.value) || 0)}
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]"
               />

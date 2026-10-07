@@ -657,8 +657,9 @@ function SmtpSettingsSection() {
           <input
             type="number"
             required
-            value={port}
-            onChange={(e) => setPort(parseInt(e.target.value) || 587)}
+            placeholder="587"
+            value={port === 0 ? "" : port}
+            onChange={(e) => setPort(parseInt(e.target.value) || 0)}
             className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
           />
         </div>

@@ -133,7 +133,8 @@ export function OrderItemStep({
                         type="number"
                         min={0}
                         max={50}
-                        value={qty}
+                        placeholder="0"
+                        value={qty === 0 ? "" : qty}
                         onChange={(e) =>
                           onQuantityChange(book.id, Math.max(0, Math.min(50, Number(e.target.value) || 0)))
                         }

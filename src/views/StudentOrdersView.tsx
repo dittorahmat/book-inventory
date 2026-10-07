@@ -433,7 +433,8 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                 <input
                   type="number"
                   required
-                  value={cashierTransferAmount}
+                  placeholder="0"
+                  value={cashierTransferAmount === 0 ? "" : cashierTransferAmount}
                   onChange={(e) => setCashierTransferAmount(parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-semibold"
                 />
@@ -443,7 +444,8 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                 <input
                   type="number"
                   required
-                  value={cashierBookAllocation}
+                  placeholder="0"
+                  value={cashierBookAllocation === 0 ? "" : cashierBookAllocation}
                   onChange={(e) => setCashierBookAllocation(parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-bold text-[#1877F2]"
                 />

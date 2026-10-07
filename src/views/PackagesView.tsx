@@ -181,7 +181,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
         if (idx !== index) return item;
         return {
           ...item,
-          [field]: field === "bookId" ? val : Math.max(1, parseInt(val) || 1),
+          [field]: field === "bookId" ? val : Math.max(0, parseInt(val) || 0),
         };
       })
     );
@@ -674,7 +674,8 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                           <input
                             type="number"
                             min={1}
-                            value={item.quantity}
+                            placeholder="0"
+                            value={item.quantity === 0 ? "" : item.quantity}
                             onChange={(e) => handleUpdateBOMItem(idx, "quantity", e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2]"
                           />

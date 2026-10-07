@@ -448,8 +448,9 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                 type="number"
                 min="1"
                 max="100"
-                value={generateCount}
-                onChange={(e) => setGenerateCount(Number(e.target.value))}
+                placeholder="0"
+                value={generateCount === 0 ? "" : generateCount}
+                onChange={(e) => setGenerateCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
                 className="w-full border border-[#CED0D4] p-2.5 rounded-lg font-mono text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
               />
             </div>

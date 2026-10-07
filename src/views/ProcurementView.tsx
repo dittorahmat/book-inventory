@@ -852,7 +852,8 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                           <input
                             type="number"
                             min={1}
-                            value={item.quantityOrdered}
+                            placeholder="0"
+                            value={item.quantityOrdered === 0 ? "" : item.quantityOrdered}
                             onChange={(e) => handleUpdatePOItem(idx, "quantityOrdered", e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2]"
                           />
@@ -864,7 +865,8 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                             type="number"
                             min={0}
                             step={1000}
-                            value={item.unitPrice}
+                            placeholder="0"
+                            value={item.unitPrice === 0 ? "" : item.unitPrice}
                             onChange={(e) => handleUpdatePOItem(idx, "unitPrice", e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
                           />
@@ -877,7 +879,8 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                             min={0}
                             max={100}
                             step={1}
-                            value={item.discountPercent}
+                            placeholder="0"
+                            value={item.discountPercent === 0 ? "" : item.discountPercent}
                             onChange={(e) => handleUpdatePOItem(idx, "discountPercent", e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
                           />
@@ -1105,7 +1108,8 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                             type="number"
                             min={0}
                             max={remaining}
-                            value={receiveQuantities[it.id] ?? 0}
+                            placeholder="0"
+                            value={(receiveQuantities[it.id] ?? 0) === 0 ? "" : receiveQuantities[it.id]}
                             onChange={(e) =>
                               setReceiveQuantities({
                                 ...receiveQuantities,

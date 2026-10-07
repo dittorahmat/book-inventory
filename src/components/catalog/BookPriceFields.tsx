@@ -25,7 +25,7 @@ export function BookPriceFields({ price, buyPrice, sellPrice, onChange }: BookPr
           step={5000}
           className={inputClass}
           placeholder="0"
-          value={price}
+          value={price === 0 ? "" : price}
           onChange={(e) => onChange("price", toNonNegative(e.target.value))}
         />
       </div>
@@ -36,8 +36,8 @@ export function BookPriceFields({ price, buyPrice, sellPrice, onChange }: BookPr
           min={0}
           step={5000}
           className={inputClass}
-          placeholder="Ikut harga dasar"
-          value={buyPrice}
+          placeholder="Ikut harga dasar (0)"
+          value={buyPrice === 0 ? "" : buyPrice}
           onChange={(e) => onChange("buyPrice", toNonNegative(e.target.value))}
         />
       </div>
@@ -48,8 +48,8 @@ export function BookPriceFields({ price, buyPrice, sellPrice, onChange }: BookPr
           min={0}
           step={5000}
           className={inputClass}
-          placeholder="Ikut harga dasar"
-          value={sellPrice}
+          placeholder="Ikut harga dasar (0)"
+          value={sellPrice === 0 ? "" : sellPrice}
           onChange={(e) => onChange("sellPrice", toNonNegative(e.target.value))}
         />
         <p className="text-[10px] text-[#65676B] mt-1">
