@@ -93,8 +93,11 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
 
       {canUpload && (
         <div>
-          <label
-            className="px-3 py-1.5 bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8EBFF] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-3 py-1.5 bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8EBFF] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
             title="Upload scan/foto PO bertanda tangan basah dan cap"
           >
             {isUploading ? (
@@ -103,7 +106,7 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
               <Upload className="w-3.5 h-3.5" />
             )}
             <span>{isUploading ? "Mengunggah..." : "Upload Bukti TTD"}</span>
-          </label>
+          </button>
           <input
             ref={fileInputRef}
             type="file"
