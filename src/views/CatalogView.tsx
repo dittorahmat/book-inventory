@@ -52,15 +52,19 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     e.preventDefault();
     setIsSubmittingBook(true);
     try {
+      const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
+      const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
+      const legacyPrice = sellPrice > 0 ? sellPrice : buyPrice;
+
       const res = await fetch("/api/books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-        ...formData,
-        price: Math.max(0, Number(formData.price) || 0),
-        buyPrice: Math.max(0, Number(formData.buyPrice) || 0),
-        sellPrice: Math.max(0, Number(formData.sellPrice) || 0),
-      }),
+          ...formData,
+          price: legacyPrice,
+          buyPrice,
+          sellPrice,
+        }),
       });
       const data = await res.json();
       if (data.success) {

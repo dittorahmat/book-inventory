@@ -203,12 +203,13 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
   const handleAddPOItemRow = () => {
     if (catalogBooks.length === 0) return;
+    const defaultBook = catalogBooks[0];
     setPoItems((prev) => [
       ...prev,
       {
-        bookId: catalogBooks[0].id,
+        bookId: defaultBook.id,
         quantityOrdered: 10,
-        unitPrice: defaultBuyPrice(catalogBooks[0].id, 50000),
+        unitPrice: defaultBuyPrice(defaultBook.id, 0),
         discountPercent: 0,
       },
     ]);
@@ -222,7 +223,13 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     setPoItems((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
-        if (field === "bookId") return { ...item, bookId: val };
+        if (field === "bookId") {
+          return {
+            ...item,
+            bookId: val,
+            unitPrice: defaultBuyPrice(val, 0),
+          };
+        }
         const num = Math.max(0, Number(val) || 0);
         if (field === "discountPercent") return { ...item, discountPercent: Math.min(100, num) };
         return { ...item, [field]: num };
@@ -860,15 +867,17 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                         </div>
 
                         <div className="col-span-5 sm:col-span-2">
-                          <label className="block text-[10px] text-[#65676B] mb-0.5">Harga Satuan (Rp)</label>
+                          <label className="block text-[10px] text-[#65676B] mb-0.5">
+                            Harga Satuan (Rp) <span className="text-[9px] text-[#8A8D91]">(Katalog)</span>
+                          </label>
                           <input
                             type="number"
-                            min={0}
-                            step={1000}
+                            readOnly
+                            tabIndex={-1}
                             placeholder="0"
                             value={item.unitPrice === 0 ? "" : item.unitPrice}
-                            onChange={(e) => handleUpdatePOItem(idx, "unitPrice", e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
+                            className="w-full px-2.5 py-1.5 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg text-xs font-semibold text-right text-[#65676B] cursor-not-allowed select-none"
+                            title="Harga satuan terkunci mengikuti harga beli di katalog"
                           />
                         </div>
 
