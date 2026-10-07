@@ -9,7 +9,9 @@ import { CoverageChart } from "../components/dashboard/CoverageChart";
 import { ComparisonOverview } from "../components/dashboard/ComparisonOverview";
 import { FunnelChart } from "../components/dashboard/FunnelChart";
 import { ConditionDonut } from "../components/dashboard/ConditionDonut";
-import { PaymentsDonut } from "../components/dashboard/PaymentsDonut";
+import { CoverageGauge } from "../components/dashboard/CoverageGauge";
+import { StockTreemap } from "../components/dashboard/StockTreemap";
+import { PaymentsMeter } from "../components/dashboard/PaymentsMeter";
 import { TierStockBar } from "../components/dashboard/TierStockBar";
 import { GradeBreakdown } from "../components/dashboard/GradeBreakdown";
 import { AttentionList } from "../components/dashboard/AttentionList";
@@ -35,18 +37,24 @@ function DetailSection({ summary, onNavigateTab }: { summary: DashboardSchoolSum
         <FunnelChart summary={summary} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
+        <CoverageGauge summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-8">
+        <StockTreemap summary={summary} />
+      </div>
+      <div className="md:col-span-12 lg:col-span-4">
         <ConditionDonut summary={summary} />
       </div>
       <div className="md:col-span-12 lg:col-span-8">
         <TierStockBar summary={summary} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
-        <PaymentsDonut summary={summary} />
+        <PaymentsMeter summary={summary} />
       </div>
-      <div className="md:col-span-12 lg:col-span-4">
+      <div className="md:col-span-12 lg:col-span-5">
         <GradeBreakdown summary={summary} />
       </div>
-      <div className="md:col-span-12 lg:col-span-8">
+      <div className="md:col-span-12 lg:col-span-7">
         <AttentionList summary={summary} onNavigate={onNavigateTab} />
       </div>
     </div>
