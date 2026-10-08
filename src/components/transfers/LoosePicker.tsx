@@ -1,5 +1,6 @@
 import type { BookItem } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 
 interface LoosePickerProps {
   items: BookItem[];
@@ -33,7 +34,7 @@ export function LoosePicker({ items, selectedIds, onToggle }: LoosePickerProps) 
             <span className="text-[#050505] font-medium truncate">({item.book?.title})</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-[#1877F2]">{formatRupiah(item.book?.price || 0)}</span>
+            <span className="text-[11px] font-bold text-[#1877F2]">{formatRupiah(effectiveSellPrice(item.book ?? {}))}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                 item.condition === "damaged"
