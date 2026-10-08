@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 /**
- * Kit kartu dasbor: satu-satunya pemilik cangkang kartu, status kosong
- * yang edukatif, dan tooltip grafik. Nada cakupan tinggal di modul
- * coverage-tone; grafik adalah adapter bodoh di atas kit.
+ * Primitif kartu dasbor: satu-satunya pemilik cangkang kartu, status kosong
+ * yang edukatif, dan tooltip grafik. Nada cakupan tinggal di kanonik
+ * lib/dashboard-tone; grafik adalah adapter di atas primitif ini.
  */
 
 interface ChartCardProps {

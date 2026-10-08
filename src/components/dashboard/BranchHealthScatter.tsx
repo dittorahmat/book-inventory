@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
 import { ChartCard, ChartEmpty, ChartTooltip as KitTooltip } from "./chart-kit";
-import { coverageTone } from "./coverage-tone";
+import { coverageTone } from "../../lib/dashboard-tone";
 import { formatCount } from "../../lib/transfer-pricing";
 
 interface PointData {

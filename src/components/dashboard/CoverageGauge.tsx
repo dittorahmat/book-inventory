@@ -1,7 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { DashboardCoverage } from "../../lib/dashboard-types";
 import { ChartCard } from "./chart-kit";
-import { coverageTone } from "./coverage-tone";
+import { coverageTone } from "../../lib/dashboard-tone";
 
 export function CoverageGauge({ coverage }: { coverage: DashboardCoverage }) {
   const tone = coverageTone(coverage.ratio);

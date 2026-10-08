@@ -1,7 +1,7 @@
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
 import { ChartCard, ChartEmpty, ChartTooltip as KitTooltip } from "./chart-kit";
-import { coverageTone } from "./coverage-tone";
+import { coverageTone } from "../../lib/dashboard-tone";
 import { formatCount } from "../../lib/transfer-pricing";
 
 function CoverageTooltip({

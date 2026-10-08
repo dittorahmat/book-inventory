@@ -1,66 +1,14 @@
 import { useState } from "react";
-import { ArrowLeft, LayoutDashboard } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { School } from "../types";
-import type { DashboardSchoolSummary } from "../lib/dashboard-types";
 import { useDashboard } from "../components/dashboard/useDashboard";
-import { DashboardKpis } from "../components/dashboard/DashboardKpis";
-import { coverageTone } from "../components/dashboard/coverage-tone";
-import { formatRupiah } from "../lib/transfer-pricing";
-import { CoverageChart } from "../components/dashboard/CoverageChart";
-import { BranchHealthScatter } from "../components/dashboard/BranchHealthScatter";
-import { ComparisonOverview } from "../components/dashboard/ComparisonOverview";
-import { FunnelChart } from "../components/dashboard/FunnelChart";
-import { ConditionDonut } from "../components/dashboard/ConditionDonut";
-import { CoverageGauge } from "../components/dashboard/CoverageGauge";
-import { StockTreemap } from "../components/dashboard/StockTreemap";
-import { PaymentsMeter } from "../components/dashboard/PaymentsMeter";
-import { TierStockBar } from "../components/dashboard/TierStockBar";
-import { GradeBreakdown } from "../components/dashboard/GradeBreakdown";
-import { AttentionList } from "../components/dashboard/AttentionList";
+import { ComparisonSection } from "../components/dashboard/ComparisonSection";
+import { DetailSection } from "../components/dashboard/DetailSection";
 
 interface DashboardViewProps {
   activeSchool: School | null;
   isCentralAdmin: boolean;
   onNavigateTab: (tab: string) => void;
-}
-
-function attentionTotal(s: DashboardSchoolSummary): number {
-  const a = s.attention;
-  return a.damaged + a.lost + a.returnsReported + a.transfersInTransit + a.poUnreceived;
-}
-
-function DetailSection({ summary, onNavigateTab }: { summary: DashboardSchoolSummary; onNavigateTab: (tab: string) => void }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-12">
-      <div className="md:col-span-12">
-        <DashboardKpis coverage={summary.coverage} stock={summary.stock} payments={summary.payments} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-8">
-        <FunnelChart funnel={summary.funnel} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-4">
-        <CoverageGauge coverage={summary.coverage} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-8">
-        <StockTreemap titles={summary.stock.byTitle} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-4">
-        <ConditionDonut byCondition={summary.stock.byCondition} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-8">
-        <TierStockBar breakdown={summary.breakdown} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-4">
-        <PaymentsMeter payments={summary.payments} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-5">
-        <GradeBreakdown breakdown={summary.breakdown} />
-      </div>
-      <div className="md:col-span-12 lg:col-span-7">
-        <AttentionList attention={summary.attention} onNavigate={onNavigateTab} />
-      </div>
-    </div>
-  );
 }
 
 function LoadingSkeleton() {
@@ -121,69 +69,7 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
   }
 
   if (data.mode === "comparison" && !drillId) {
-    const ranked = [...data.schools].sort((a, b) => (a.coverage.ratio ?? 2) - (b.coverage.ratio ?? 2));
-    const weakest = ranked[0];
-    const weakestTone = weakest ? coverageTone(weakest.coverage.ratio) : null;
-    return (
-      <div className="grid gap-4">
-        {weakest && weakestTone ? (
-          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-[#E7F3FF] flex items-center justify-center shrink-0">
-              <LayoutDashboard className="w-5 h-5 text-[#1877F2]" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-[#65676B]">Perhatian utama</div>
-              <div className="text-sm font-bold text-[#050505] truncate">
-                {weakest.school.name} - cakupan {weakest.coverage.ratio === null ? 100 : Math.min(100, Math.round(weakest.coverage.ratio * 100))}%
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setDrillId(weakest.school.id)}
-              className="ml-auto shrink-0 px-4 py-2 text-sm font-semibold text-white bg-[#1877F2] rounded-xl hover:bg-[#1664D9] active:scale-[0.98] transition"
-            >
-              Detail
-            </button>
-          </div>
-        ) : null}
-        <ComparisonOverview summaries={data.schools} />
-        <div className="grid gap-4 md:grid-cols-12">
-          <div className="md:col-span-12 lg:col-span-7">
-            <BranchHealthScatter summaries={data.schools} onSelectSchool={setDrillId} />
-          </div>
-          <div className="md:col-span-12 lg:col-span-5">
-            <CoverageChart summaries={data.schools} onSelectSchool={setDrillId} />
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {ranked.map((s) => {
-            const tone = coverageTone(s.coverage.ratio);
-            return (
-              <button
-                key={s.school.id}
-                type="button"
-                onClick={() => setDrillId(s.school.id)}
-                style={{ borderLeftColor: tone.bar }}
-                className="bg-white rounded-2xl border border-[#E4E6EB] border-l-4 p-5 text-left hover:border-[#1877F2]/40 active:scale-[0.98] transition"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-bold text-[#050505] truncate">{s.school.name}</div>
-                  <span className={`shrink-0 text-xs font-bold ${tone.text}`}>
-                    {s.coverage.ratio === null ? 100 : Math.min(100, Math.round(s.coverage.ratio * 100))}%
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-[#65676B]">
-                  {s.stock.looseInStock} satuan - {s.coverage.readyPackages} paket siap
-                </div>
-                <div className="mt-1 text-xs text-[#65676B]">
-                  Tunggakan {formatRupiah(s.payments.outstandingRp)} - {attentionTotal(s)} perhatian
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
+    return <ComparisonSection summaries={data.schools} onSelectSchool={setDrillId} />;
   }
 
   const summary = drillId ? data.schools.find((s) => s.school.id === drillId) ?? data.schools[0] : data.schools[0];
