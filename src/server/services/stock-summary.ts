@@ -2,14 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import {
-  emptyConditionBuckets,
-  emptyLooseStatusBuckets,
-  emptyPackageStatusBuckets,
-  isAvailableLoose,
-  isLooseInTransit,
-  isReadyBundle,
-} from "./stock-buckets";
+import { addLoose, addPackage, newLooseTally, newPackageTally } from "./stock-kernel";
 
 export interface LooseStockSummaryRow {
   schoolId: string;
@@ -40,10 +33,6 @@ export interface PackageStockSummaryRow {
   byStatus: { in_stock: number; reserved: number; dispatched: number; delivered: number };
 }
 
-const emptyCondition = () => emptyConditionBuckets();
-const emptyBookStatus = () => emptyLooseStatusBuckets();
-const emptyPackageStatus = () => emptyPackageStatusBuckets();
-
 const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.set(k, mk()).get(k) as V);
 
 /**
@@ -73,30 +62,33 @@ export async function getLooseStockSummary(
     .innerJoin(schools, eq(bookItems.currentSchoolId, schools.id))
     .where(inArray(bookItems.currentSchoolId, schoolIds));
 
-  const grouped = new Map<string, LooseStockSummaryRow>();
+  const grouped = new Map<string, { meta: Omit<LooseStockSummaryRow, "totalQty" | "availableQty" | "inTransitQty" | "byCondition" | "byStatus">; tally: ReturnType<typeof newLooseTally> }>();
   for (const row of rows) {
     const entry = getOrInit(grouped, `${row.schoolId}|${row.bookId}`, () => ({
-        schoolId: row.schoolId,
-        schoolName: row.schoolName,
-        bookId: row.bookId,
-        title: row.title,
-        isbn: row.isbn,
-        coverUrl: row.coverUrl,
-        sellPrice: effectiveSellPrice(row),
-        totalQty: 0,
-        availableQty: 0,
-        inTransitQty: 0,
-        byCondition: emptyCondition(),
-        byStatus: emptyBookStatus(),
+        meta: {
+          schoolId: row.schoolId,
+          schoolName: row.schoolName,
+          bookId: row.bookId,
+          title: row.title,
+          isbn: row.isbn,
+          coverUrl: row.coverUrl,
+          sellPrice: effectiveSellPrice(row),
+        },
+        tally: newLooseTally(),
       }));
-    entry.totalQty += 1;
-    entry.byCondition[row.condition as keyof typeof entry.byCondition] += 1;
-    entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
-    if (isAvailableLoose(row.status)) entry.availableQty += 1;
-    if (isLooseInTransit(row.status)) entry.inTransitQty += 1;
+    addLoose(entry.tally, row);
   }
 
-  return [...grouped.values()].sort(
+  return [...grouped.values()]
+    .map(({ meta, tally }) => ({
+      ...meta,
+      totalQty: tally.totalQty,
+      availableQty: tally.availableQty,
+      inTransitQty: tally.inTransitQty,
+      byCondition: tally.byConditionAll,
+      byStatus: tally.byStatus,
+    }))
+    .sort(
     (a, b) => a.schoolId.localeCompare(b.schoolId) || a.title.localeCompare(b.title)
   );
 }
@@ -124,27 +116,27 @@ export async function getPackageStockSummary(
     .innerJoin(schools, eq(packageItems.currentSchoolId, schools.id))
     .where(inArray(packageItems.currentSchoolId, schoolIds));
 
-  const grouped = new Map<string, PackageStockSummaryRow>();
+  const grouped = new Map<string, { meta: Omit<PackageStockSummaryRow, "totalQty" | "readyQty" | "byStatus">; tally: ReturnType<typeof newPackageTally> }>();
   for (const row of rows) {
     const entry = getOrInit(grouped, `${row.schoolId}|${row.packageId}`, () => ({
-        schoolId: row.schoolId,
-        schoolName: row.schoolName,
-        packageId: row.packageId,
-        code: row.code,
-        name: row.name,
-        gradeLevel: row.gradeLevel,
-        curriculumType: row.curriculumType,
-        price: row.price,
-        totalQty: 0,
-        readyQty: 0,
-        byStatus: emptyPackageStatus(),
+        meta: {
+          schoolId: row.schoolId,
+          schoolName: row.schoolName,
+          packageId: row.packageId,
+          code: row.code,
+          name: row.name,
+          gradeLevel: row.gradeLevel,
+          curriculumType: row.curriculumType,
+          price: row.price,
+        },
+        tally: newPackageTally(),
       }));
-    entry.totalQty += 1;
-    entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
-    if (isReadyBundle(row.status)) entry.readyQty += 1;
+    addPackage(entry.tally, row);
   }
 
-  return [...grouped.values()].sort(
+  return [...grouped.values()]
+    .map(({ meta, tally }) => ({ ...meta, totalQty: tally.totalQty, readyQty: tally.readyQty, byStatus: tally.byStatus }))
+    .sort(
     (a, b) => a.schoolId.localeCompare(b.schoolId) || a.name.localeCompare(b.name)
   );
 }
