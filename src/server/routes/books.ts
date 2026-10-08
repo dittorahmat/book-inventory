@@ -158,10 +158,25 @@ booksRouter.delete("/:id", async (c) => {
   }
 
   // Cek apakah dipakai di BOM paket
-  const { bookPackageItems, bookItems } = await import("../../db/schema");
-  const inPackages = await db.select().from(bookPackageItems).where(eq(bookPackageItems.bookId, id));
+  const { bookPackageItems, bookPackages, bookItems } = await import("../../db/schema");
+  const inPackages = await db
+    .select({
+      packageId: bookPackageItems.packageId,
+      packageName: bookPackages.name,
+    })
+    .from(bookPackageItems)
+    .innerJoin(bookPackages, eq(bookPackageItems.packageId, bookPackages.id))
+    .where(eq(bookPackageItems.bookId, id));
+
   if (inPackages.length > 0) {
-    return c.json({ success: false, message: "Buku tidak dapat dihapus karena masih menjadi komponen paket." }, 400);
+    const packageNames = Array.from(new Set(inPackages.map((p: { packageName: string }) => p.packageName))).join(", ");
+    return c.json(
+      {
+        success: false,
+        message: `Buku tidak dapat dihapus karena masih menjadi komponen dalam paket: "${packageNames}". Silakan hapus atau ubah komponen paket tersebut terlebih dahulu.`,
+      },
+      400
+    );
   }
 
   // Hapus eksemplar satuan yang berstatus in_stock / disposed

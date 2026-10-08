@@ -98,4 +98,62 @@ describe("Books Catalog API", () => {
 
     await db.delete(books).where(eq(books.isbn, "978-0000000001"));
   });
+
+  it("rejects deleting a book bound to a package and returns package names in error", async () => {
+    const { bookPackages, bookPackageItems } = await import("../../db/schema");
+    const testBookId = `test-del-book-${Date.now()}`;
+    const testPkgId = `test-del-pkg-${Date.now()}`;
+
+    // Seed book
+    await db.insert(books).values({
+      id: testBookId,
+      isbn: `978-TEST-${Date.now()}`,
+      title: "Matematika Dasar Kurikulum",
+      author: "Penulis Uji",
+      publisher: "Penerbit Uji",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Seed package
+    await db.insert(bookPackages).values({
+      id: testPkgId,
+      code: `PKG-TEST-${Date.now()}`,
+      name: "Paket Tematik Kelas 1 SD",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Link book to package
+    await db.insert(bookPackageItems).values({
+      id: `bpi-${Date.now()}`,
+      packageId: testPkgId,
+      bookId: testBookId,
+      quantity: 1,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Attempt delete -> should fail with 400 and list the package name
+    const delRes = await booksRouter.request(`/${testBookId}`, { method: "DELETE" });
+    const delJson = await delRes.json();
+    expect(delRes.status).toBe(400);
+    expect(delJson.success).toBe(false);
+    expect(delJson.message).toContain("Paket Tematik Kelas 1 SD");
+
+    // Unlink / cleanup package link
+    await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, testPkgId));
+    await db.delete(bookPackages).where(eq(bookPackages.id, testPkgId));
+
+    // Attempt delete again -> should succeed now
+    const delSuccessRes = await booksRouter.request(`/${testBookId}`, { method: "DELETE" });
+    const delSuccessJson = await delSuccessRes.json();
+    expect(delSuccessRes.status).toBe(200);
+    expect(delSuccessJson.success).toBe(true);
+
+    // Verify removed
+    const checkRes = await booksRouter.request(`/${testBookId}`, { method: "GET" });
+    expect(checkRes.status).toBe(404);
+  });
 });
