@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { purchaseOrders, schools } from "../../db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { db, type AppDatabase } from "../../db";
+import { books, purchaseOrders, purchaseOrderItems, suppliers, schools } from "../../db/schema";
+import { calcPoHeader, effectiveBuyPrice } from "../../lib/book-pricing";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 
 /**
@@ -95,6 +96,181 @@ export const validateSignedDoc = (file: File): SignedDocValidation =>
 export interface ReceivedItemInput {
   poItemId: string;
   quantityToReceive: number;
+}
+
+export interface CreatePoItemInput {
+  bookId: string;
+  quantityOrdered: number;
+  unitPrice?: number;
+  discountPercent?: number;
+}
+
+export interface CreatePoInput {
+  supplierId: string;
+  targetSchoolId?: string;
+  orderDate: string;
+  expectedArrivalDate?: string;
+  notes?: string;
+  items: CreatePoItemInput[];
+}
+
+/** Injeksi deterministik untuk test: jam, ID header, nomor PO, dan ID baris item. */
+export interface CreatePoDeps {
+  now?: () => string;
+  generateId?: () => string;
+  generatePoNumber?: (nowIso: string) => string;
+  generateItemId?: () => string;
+}
+
+export interface CreatedPoItem {
+  id: string;
+  bookId: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitPrice: number;
+  discountPercent: number;
+}
+
+export interface CreatedPo {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  targetSchoolId: string;
+  status: "draft";
+  orderDate: string;
+  expectedArrivalDate: string | null;
+  subtotalGross: number;
+  discountTotal: number;
+  totalAmount: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: CreatedPoItem[];
+}
+
+export type CreatePoResult =
+  | { ok: true; data: CreatedPo }
+  | { ok: false; status: 400 | 404; message: string };
+
+/** Validasi pra-tulis baris PO bersama create + receive (400, bukan 500). */
+const validateCreatePoLines = (items: CreatePoItemInput[]): string | null => {
+  if (!Array.isArray(items) || items.length === 0) return "Minimal 1 buku dalam PO";
+  const bad = items.find(
+    (it) =>
+      !it.bookId ||
+      !Number.isInteger(it.quantityOrdered) ||
+      it.quantityOrdered < 1 ||
+      (it.unitPrice !== undefined && !(it.unitPrice >= 0)) ||
+      (it.discountPercent !== undefined && !(it.discountPercent >= 0 && it.discountPercent <= 100))
+  );
+  return !bad
+    ? null
+    : !bad.bookId
+      ? "Buku wajib dipilih"
+      : "Jumlah minimal 1, harga ≥ 0, diskon 0–100";
+};
+
+/**
+ * Deep module: pembuatan Purchase Order bersanding dengan receivePurchaseOrder.
+ * Berbagi validasi pra-tulis (gudang + baris), harga beli efektif
+ * (`effectiveBuyPrice`), dan penomoran deterministik yang dapat diinjeksi.
+ * Tulis induk + anak atomik via seam `lib/d1-write` (batch di D1, sekuensial
+ * di bun-sqlite, insert item di-chunk maksimal 10 baris).
+ */
+export async function createPurchaseOrder(
+  database: AppDatabase,
+  input: CreatePoInput,
+  deps: CreatePoDeps = {}
+): Promise<CreatePoResult> {
+  if (!input.supplierId) return { ok: false, status: 400, message: "Supplier wajib dipilih" };
+  if (!input.orderDate) return { ok: false, status: 400, message: "Tanggal order wajib diisi" };
+  const lineError = validateCreatePoLines(input.items);
+  if (lineError) return { ok: false, status: 400, message: lineError };
+
+  const [supplier] = await database.select().from(suppliers).where(eq(suppliers.id, input.supplierId));
+  if (!supplier) return { ok: false, status: 400, message: "Supplier tidak ditemukan" };
+
+  const target = await resolveWarehouseTarget(input.targetSchoolId);
+  if (!target.ok) return { ok: false, status: 400, message: target.message };
+
+  const bookIds = [...new Set(input.items.map((it) => it.bookId))];
+  const priceRows: Array<{ id: string; price: number; buyPrice: number; sellPrice: number }> = await database
+    .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
+    .from(books)
+    .where(inArray(books.id, bookIds));
+  const priceById = new Map<string, number>(priceRows.map((r) => [r.id, effectiveBuyPrice(r)]));
+  const missing = bookIds.filter((id) => !priceById.has(id));
+  if (missing.length > 0) return { ok: false, status: 400, message: `Buku tidak ditemukan: ${missing[0]}` };
+
+  const resolved: CreatedPoItem[] = input.items.map((it) => ({
+    id: "",
+    bookId: it.bookId,
+    quantityOrdered: it.quantityOrdered,
+    quantityReceived: 0,
+    unitPrice: it.unitPrice ?? priceById.get(it.bookId) ?? 0,
+    discountPercent: it.discountPercent ?? 0,
+  }));
+
+  const { subtotalGross, discountTotal, totalAmount } = calcPoHeader(resolved);
+  const nowIso = (deps.now ?? (() => new Date().toISOString()))();
+  const poId = (deps.generateId ?? (() => crypto.randomUUID()))();
+  const poNumber = (deps.generatePoNumber ?? (() => `PO-${Date.now().toString().slice(-8)}`))(nowIso);
+  const genItemId = deps.generateItemId ?? (() => crypto.randomUUID());
+  const items: CreatedPoItem[] = resolved.map((r) => ({ ...r, id: genItemId() }));
+
+  try {
+    await runWriteBatch(database, [
+      database.insert(purchaseOrders).values({
+        id: poId,
+        poNumber,
+        supplierId: input.supplierId,
+        targetSchoolId: target.warehouseId,
+        status: "draft",
+        orderDate: input.orderDate,
+        expectedArrivalDate: input.expectedArrivalDate || null,
+        subtotalGross,
+        discountTotal,
+        totalAmount,
+        notes: input.notes || null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      }),
+      ...chunkRows(items.map((it) => ({
+        id: it.id,
+        purchaseOrderId: poId,
+        bookId: it.bookId,
+        quantityOrdered: it.quantityOrdered,
+        quantityReceived: 0,
+        unitPrice: it.unitPrice,
+        discountPercent: it.discountPercent,
+        createdAt: nowIso,
+      })), D1_WRITE_CHUNK_SIZE).map((rows) => database.insert(purchaseOrderItems).values(rows)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pembuatan purchase order");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return {
+    ok: true,
+    data: {
+      id: poId,
+      poNumber,
+      supplierId: input.supplierId,
+      targetSchoolId: target.warehouseId,
+      status: "draft",
+      orderDate: input.orderDate,
+      expectedArrivalDate: input.expectedArrivalDate || null,
+      subtotalGross,
+      discountTotal,
+      totalAmount,
+      notes: input.notes || null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      items,
+    },
+  };
 }
 
 export type ReceivePoResult =
