@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Truck } from "lucide-react";
 import { School } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { postJson } from "../../lib/api";
 import type { LooseSummaryRow, PackageSummaryRow } from "../../types/stock-summary";
 
 export interface TransferLinePreview {
@@ -65,24 +66,20 @@ export function QuantityTransferModal({
           : { itemType: "loose" as const, bookId: id, quantity: line.quantity };
       });
 
-      const res = await fetch("/api/shipments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const created = await postJson<{ shipmentNumber: string; totalDeclaredValue?: number }>(
+        "/api/shipments",
+        {
           fromSchoolId: fromSchool.id,
           toSchoolId: destinationId,
           items,
           reason: reason.trim() || undefined,
           notes: notes.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal membuat draf transfer.");
-      }
+        },
+        "Gagal membuat draf transfer."
+      );
       alert(
-        `Draf transfer ${data.data.shipmentNumber} dibuat. ${totalQty} unit dialokasikan otomatis dari stok tertua. Nilai: ${formatRupiah(
-          data.data.totalDeclaredValue || totalValue
+        `Draf transfer ${created.shipmentNumber} dibuat. ${totalQty} unit dialokasikan otomatis dari stok tertua. Nilai: ${formatRupiah(
+          created.totalDeclaredValue || totalValue
         )}`
       );
       setReason("");

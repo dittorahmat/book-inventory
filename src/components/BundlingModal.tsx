@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Layers, AlertCircle, ArrowRight } from "lucide-react";
+import { postJson } from "../lib/api";
 import { School } from "../types";
 
 interface BookPackage {
@@ -93,16 +94,11 @@ export function BundlingModal({
         ? { schoolId: activeSchool.id, quantity }
         : { schoolId: activeSchool.id, quantity, reason: reason.trim() };
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal memproses operasi stok");
-      }
+      await postJson(
+        endpoint,
+        payload,
+        "Gagal memproses operasi stok"
+      );
 
       onSuccess();
       onClose();

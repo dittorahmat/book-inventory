@@ -34,3 +34,20 @@ export interface StockOverviewPayload {
   loose: LooseSummaryRow[];
   packages: PackageSummaryRow[];
 }
+
+export interface StockPotentialBreakdown {
+  bookId: string;
+  title: string;
+  isbn: string;
+  quantityNeeded: number;
+  availableLooseStock: number;
+  maxBundlesFromComponent: number;
+}
+
+export interface StockPotential {
+  packageId: string;
+  schoolId: string;
+  readyBundleCount: number;
+  maxPossibleBundles: number;
+  looseStockBreakdown: StockPotentialBreakdown[];
+}

@@ -1,5 +1,7 @@
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
+import type { DashboardTitleStock } from "../../lib/dashboard-types";
+import { ChartCard, ChartEmpty, ChartTooltip } from "./chart-kit";
+import { formatCount } from "../../lib/transfer-pricing";
 
 // Palette colors for Treemap tiles (B2B educational palette)
 const TILE_COLORS = [
@@ -93,27 +95,22 @@ function TreemapTooltip({
   if (!data) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-lg px-3 py-2 text-xs">
-      <div className="font-bold text-[#050505] max-w-[200px] break-words">{data.name}</div>
-      <div className="mt-1 flex items-center justify-between gap-4 text-[#65676B]">
-        <span>Total Stok:</span>
-        <span className="font-bold text-[#050505]">{data.value} eksemplar</span>
-      </div>
-      {typeof data.available === "number" && (
-        <div className="flex items-center justify-between gap-4 text-[#65676B]">
-          <span>Tersedia:</span>
-          <span className="font-semibold text-emerald-600">{data.available} eksemplar</span>
-        </div>
-      )}
-    </div>
+    <ChartTooltip
+      active
+      title={data.name}
+      rows={[
+        { label: "Total Stok", value: `${formatCount(data.value)} eksemplar` },
+        ...(typeof data.available === "number"
+          ? [{ label: "Tersedia", value: `${formatCount(data.available)} eksemplar` }]
+          : []),
+      ]}
+    />
   );
 }
 
-export function StockTreemap({ summary }: { summary: DashboardSchoolSummary }) {
-  const titles = summary.stock.byTitle ?? [];
-
+export function StockTreemap({ titles }: { titles: DashboardTitleStock[] }) {
   // Filter books with positive quantity, sort descending, top 12
-  const topBooks = [...titles]
+  const topBooks = [...(titles ?? [])]
     .filter((b) => b.totalQty > 0)
     .sort((a, b) => b.totalQty - a.totalQty)
     .slice(0, 12);
@@ -127,23 +124,18 @@ export function StockTreemap({ summary }: { summary: DashboardSchoolSummary }) {
   const totalQty = data.reduce((sum, item) => sum + item.value, 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 h-full flex flex-col justify-between">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div>
-          <div className="text-sm font-bold text-[#050505]">Peta Sebaran Stok Judul Buku</div>
-          <div className="text-xs text-[#65676B]">
-            Proporsi volume stok judul buku terbesar di cabang (Top 12)
-          </div>
-        </div>
+    <ChartCard
+      title="Peta Sebaran Stok Judul Buku"
+      subtitle="Proporsi volume stok judul buku terbesar di cabang (Top 12)"
+      className="h-full flex flex-col justify-between"
+      action={
         <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
-          {totalQty} eks
+          {formatCount(totalQty)} eks
         </span>
-      </div>
-
+      }
+    >
       {data.length === 0 ? (
-        <div className="py-12 text-center text-sm text-[#65676B]">
-          Belum ada data stok judul buku pada sekolah ini.
-        </div>
+        <ChartEmpty message="Belum ada data stok judul buku pada sekolah ini." hint="Tambahkan eksemplar lewat katalog atau terima PO." />
       ) : (
         <div className="w-full h-[220px] mt-2">
           <ResponsiveContainer width="100%" height={220}>
@@ -159,6 +151,6 @@ export function StockTreemap({ summary }: { summary: DashboardSchoolSummary }) {
           </ResponsiveContainer>
         </div>
       )}
-    </div>
+    </ChartCard>
   );
 }

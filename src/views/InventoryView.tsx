@@ -6,6 +6,7 @@ import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
 import { QuantityTransferModal, type TransferLinePreview } from "../components/inventory/QuantityTransferModal";
 import { PhysicalDrilldown } from "../components/inventory/PhysicalDrilldown";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { buildQuery, getJson } from "../lib/api";
 
 interface InventoryViewProps {
   activeSchool: School | null;
@@ -33,14 +34,11 @@ export function InventoryView({ activeSchool, role }: InventoryViewProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/stock-summary/overview?schoolId=${encodeURIComponent(activeSchool.id)}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal memuat ringkasan stok.");
-      }
-      const row: StockOverviewPayload | undefined = data.data.find(
-        (r: StockOverviewPayload) => r.schoolId === activeSchool.id
+      const rows = await getJson<StockOverviewPayload[]>(
+        buildQuery("/api/stock-summary/overview", { schoolId: activeSchool.id }),
+        "Gagal memuat ringkasan stok."
       );
+      const row: StockOverviewPayload | undefined = rows.find((r) => r.schoolId === activeSchool.id);
       setOverview(
         row ?? {
           schoolId: activeSchool.id,
@@ -67,11 +65,8 @@ export function InventoryView({ activeSchool, role }: InventoryViewProps) {
   }, [loadOverview]);
 
   useEffect(() => {
-    fetch("/api/schools")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setAllSchools(data.data);
-      })
+    getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.")
+      .then(setAllSchools)
       .catch(() => setAllSchools([]));
   }, []);
 

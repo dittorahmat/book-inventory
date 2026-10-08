@@ -8,8 +8,8 @@ import { defaultStorage } from "../../services/storage";
 import {
   effectiveBuyPrice,
   effectiveSellPrice,
-  recalcPackagesUsingBook,
-} from "../services/book-price";
+} from "../../lib/book-pricing";
+import { recalcPackagesUsingBook } from "../services/book-price";
 
 export const booksRouter = new Hono();
 

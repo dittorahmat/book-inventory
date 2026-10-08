@@ -1,182 +1,40 @@
-import { useState, useEffect } from "react";
-import { School, BookItem, TransferShipment } from "../types";
-import { Send, CheckCircle, Plus, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { School } from "../types";
+import { Plus, ArrowRight } from "lucide-react";
 import { LoosePicker } from "../components/transfers/LoosePicker";
-import { PackagePicker, type ReadyBundle } from "../components/transfers/PackagePicker";
+import { PackagePicker } from "../components/transfers/PackagePicker";
 import { TransferTotalBar } from "../components/transfers/TransferTotalBar";
-import { formatRupiah, calcHeaderTotal } from "../lib/transfer-pricing";
+import { ShipmentDetailModal } from "../components/transfers/ShipmentDetailModal";
+import { useTransfers } from "../components/transfers/useTransfers";
+import { formatRupiah } from "../lib/transfer-pricing";
 
 export function TransfersView({ activeSchool }: { activeSchool: School | null }) {
-  const [shipments, setShipments] = useState<TransferShipment[]>([]);
-  const [allSchools, setAllSchools] = useState<School[]>([]);
-  const [availableItems, setAvailableItems] = useState<BookItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [bundles, setBundles] = useState<ReadyBundle[]>([]);
-  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  const {
+    shipments,
+    allSchools,
+    availableItems,
+    selectedItems,
+    bundles,
+    selectedPackages,
+    destinationSchoolId,
+    setDestinationSchoolId,
+    transferReason,
+    setTransferReason,
+    isCreating,
+    setIsCreating,
+    selectedShipment,
+    setSelectedShipment,
+    looseTotal,
+    packageTotal,
+    toggleLooseItem,
+    togglePackageItem,
+    loadAvailableItemsForTransfer,
+    handleCreateShipment,
+    handleDispatch,
+    handleReceive,
+    openShipmentDetail,
+  } = useTransfers(activeSchool);
   const [transferTab, setTransferTab] = useState<"loose" | "package">("loose");
-  const [destinationSchoolId, setDestinationSchoolId] = useState("");
-  const [transferReason, setTransferReason] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
-
-  const looseTotal = calcHeaderTotal(
-    selectedItems.map((id) => {
-      const item = availableItems.find((i) => i.id === id);
-      return { unitPriceSnapshot: item?.book?.price || 0, quantity: 1 };
-    })
-  );
-  const packageTotal = calcHeaderTotal(
-    selectedPackages.map((id) => {
-      const b = bundles.find((x) => x.id === id);
-      return { unitPriceSnapshot: b?.packagePrice || 0, quantity: 1 };
-    })
-  );
-
-  const fetchShipments = () => {
-    fetch("/api/shipments")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setShipments(data.data);
-        else alert(data.message || "Gagal memuat daftar transfer");
-      })
-      .catch(() => alert("Terjadi kesalahan jaringan saat memuat transfer"));
-  };
-
-  useEffect(() => {
-    fetchShipments();
-    fetch("/api/schools")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setAllSchools(data.data);
-      });
-  }, []);
-
-  const loadAvailableItemsForTransfer = () => {
-    if (!activeSchool) return;
-    fetch(`/api/book-items?schoolId=${activeSchool.id}&status=in_stock`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setAvailableItems(data.data);
-        else alert(data.message || "Gagal memuat stok satuan");
-      })
-      .catch(() => alert("Terjadi kesalahan jaringan saat memuat stok"));
-    fetch(`/api/packages/items/ready?schoolId=${activeSchool.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setBundles(data.data);
-        else alert(data.message || "Gagal memuat bundel ready");
-      })
-      .catch(() => alert("Terjadi kesalahan jaringan saat memuat bundel"));
-  };
-
-  const toggleIn =
-    (setter: React.Dispatch<React.SetStateAction<string[]>>) =>
-    (id: string): void =>
-      setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-  const toggleLooseItem = toggleIn(setSelectedItems);
-
-  const togglePackageItem = toggleIn(setSelectedPackages);
-
-  const handleCreateShipment = async () => {
-    if (!activeSchool || !destinationSchoolId) return;
-    if (selectedItems.length === 0 && selectedPackages.length === 0) {
-      alert("Pilih minimal 1 buku satuan atau 1 bundel paketan");
-      return;
-    }
-    try {
-      const res = await fetch("/api/shipments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fromSchoolId: activeSchool.id,
-          toSchoolId: destinationSchoolId,
-          bookItemIds: selectedItems,
-          packageItemIds: selectedPackages,
-          reason: transferReason.trim() || undefined,
-          notes: "Scheduled distribution",
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`Draf ${data.data.shipmentNumber} tersimpan! Nilai: ${formatRupiah(data.data.totalDeclaredValue || 0)}`);
-        setIsCreating(false);
-        setSelectedItems([]);
-        setSelectedPackages([]);
-        setTransferReason("");
-        fetchShipments();
-      } else {
-        alert(data.message || "Failed to create shipment");
-      }
-    } catch {
-      alert("Terjadi kesalahan jaringan saat menyimpan draf transfer");
-    }
-  };
-
-  const handleDispatch = async (id: string) => {
-    try {
-      const res = await fetch(`/api/shipments/${id}/dispatch`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        alert("Pengiriman transfer berhasil di-dispatch!");
-        fetchShipments();
-        if (selectedShipment?.id === id) openShipmentDetail(id);
-      } else {
-        alert(data.message || "Gagal melakukan dispatch pengiriman");
-      }
-    } catch {
-      alert("Terjadi kesalahan jaringan saat dispatch pengiriman");
-    }
-  };
-
-  const handleReceive = async (shipment: TransferShipment) => {
-    const looseItems = (shipment.items || []).filter((item) => item.itemType !== "package" && item.bookItemId);
-    const bundleItems = (shipment.items || []).filter((item) => item.itemType === "package" && item.packageItemId);
-    if (looseItems.length === 0 && bundleItems.length === 0) {
-      alert("Tidak ada item manifest pada transfer ini");
-      return;
-    }
-    const receipts = looseItems.map((item) => ({
-      bookItemId: item.bookItemId as string,
-      condition: "good" as const,
-    }));
-    const bundleReceipts = bundleItems.map((item) => ({
-      packageItemId: item.packageItemId as string,
-      condition: "good" as const,
-    }));
-
-    try {
-      const res = await fetch(`/api/shipments/${shipment.id}/receive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemReceipts: receipts, packageReceipts: bundleReceipts }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("Penerimaan transfer berhasil dikonfirmasi! Stok buku telah dialokasikan ke cabang ini.");
-        fetchShipments();
-        openShipmentDetail(shipment.id);
-      } else {
-        alert(data.message || (data.error && typeof data.error === "string" ? data.error : "Gagal mengonfirmasi penerimaan transfer"));
-      }
-    } catch (err: any) {
-      alert(`Terjadi kesalahan sistem saat konfirmasi: ${err?.message || "Koneksi terputus"}`);
-    }
-  };
-
-  const openShipmentDetail = async (id: string) => {
-    try {
-      const res = await fetch(`/api/shipments/${id}`);
-      const data = await res.json();
-      if (data.success) {
-        setSelectedShipment(data.data);
-      } else {
-        alert(data.message || "Gagal memuat rincian transfer");
-      }
-    } catch {
-      alert("Terjadi kesalahan jaringan saat memuat rincian transfer");
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -349,104 +207,12 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
 
       {/* Detail Modal */}
       {selectedShipment && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[#CED0D4] rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
-              <div>
-                <div className="font-bold text-lg text-[#050505]">{selectedShipment.shipmentNumber}</div>
-                <div className="text-xs text-[#65676B] font-semibold mt-0.5">
-                  {selectedShipment.fromSchool?.name} &rarr; {selectedShipment.toSchool?.name}
-                </div>
-                {selectedShipment.reason && (
-                  <div className="text-xs text-[#050505] mt-1 bg-[#F0F2F5] px-2.5 py-1 rounded-md">
-                    <span className="text-[#65676B] font-semibold">Alasan:</span> {selectedShipment.reason}
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E7F3FF] text-[#1877F2] uppercase">
-                {selectedShipment.status}
-              </span>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-[#65676B] mb-1.5">
-                Manifest Items ({selectedShipment.items?.length || 0}) - harga saat kirim
-              </div>
-              <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl max-h-48 overflow-y-auto text-xs bg-[#F0F2F5]">
-                {selectedShipment.items?.map((item) => (
-                  <div key={item.id} className="p-2.5 flex justify-between items-center gap-2 bg-white first:rounded-t-xl last:rounded-b-xl">
-                    <div className="min-w-0">
-                      <div className="font-mono font-bold text-xs text-[#1877F2] flex items-center gap-1.5 flex-wrap">
-                        <span>{item.barcode}</span>
-                        {item.itemType === "package" && (
-                          <span className="px-2 py-0.2 rounded-full text-[9px] font-bold uppercase bg-purple-50 text-purple-700 border border-purple-200">
-                            Paket
-                          </span>
-                        )}
-                        {item.condition && (
-                          <span
-                            className={`px-2 py-0.2 rounded-full text-[9px] font-bold uppercase ${
-                              item.condition === "damaged"
-                                ? "bg-red-50 text-[#FA383E] border border-red-200"
-                                : item.condition === "new"
-                                ? "bg-emerald-50 text-[#31A24C] border border-emerald-200"
-                                : "bg-[#F0F2F5] text-[#65676B] border border-[#CED0D4]"
-                            }`}
-                          >
-                            {item.condition}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[#050505] font-medium text-xs">{item.bookTitle}</div>
-                      <div className="text-[11px] font-bold text-[#1877F2]">
-                        {formatRupiah(item.unitPriceSnapshot || 0)}
-                        {(item.quantity || 1) > 1 ? ` x ${item.quantity} = ${formatRupiah(item.lineTotal || 0)}` : ""}
-                      </div>
-                    </div>
-                    {item.receivedCondition && (
-                      <span className="text-[10px] font-bold text-[#65676B] bg-[#F0F2F5] px-2 py-0.5 rounded-full border border-[#CED0D4] shrink-0">
-                        Diterima: {item.receivedCondition}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between mt-2 bg-[#E7F3FF] px-3 py-2 rounded-xl border border-[#1877F2]/20 text-xs">
-                <span className="font-bold text-[#050505]">Total Nilai</span>
-                <span className="font-bold text-[#1877F2]">{formatRupiah(selectedShipment.totalDeclaredValue || 0)}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">
-              <button
-                onClick={() => setSelectedShipment(null)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] transition-colors"
-              >
-                Tutup
-              </button>
-
-              {selectedShipment.status === "draft" && (
-                <button
-                  onClick={() => handleDispatch(selectedShipment.id)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  Dispatch Pengiriman
-                </button>
-              )}
-
-              {selectedShipment.status === "in_transit" && (
-                <button
-                  onClick={() => handleReceive(selectedShipment)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-[#31A24C] hover:bg-[#2B8F42] text-white rounded-lg transition-colors shadow-sm"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Konfirmasi Penerimaan
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <ShipmentDetailModal
+          shipment={selectedShipment}
+          onClose={() => setSelectedShipment(null)}
+          onDispatch={handleDispatch}
+          onReceive={handleReceive}
+        />
       )}
     </div>
   );

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { School, Book } from "../types";
-import { effectiveBookPrice } from "../lib/book-pricing";
+import { effectiveSellPrice } from "../lib/book-pricing";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { usePackagesData, type PackageRow } from "../components/packages/usePackagesData";
 import { BundlingModal } from "../components/BundlingModal";
 import { PackageTransferModal } from "../components/packages/PackageTransferModal";
 import { 
@@ -19,41 +20,7 @@ import {
   Send
 } from "lucide-react";
 
-interface BookPackage {
-  id: string;
-  code: string;
-  name: string;
-  gradeLevel: string;
-  curriculumType: "international" | "national";
-  academicYear: string;
-  price: number;
-  description?: string;
-  totalItemsCount: number;
-  items: Array<{
-    id: string;
-    bookId: string;
-    title: string;
-    isbn: string;
-    author: string;
-    category?: string;
-    quantity: number;
-  }>;
-}
-
-interface StockPotential {
-  packageId: string;
-  schoolId: string;
-  readyBundleCount: number;
-  maxPossibleBundles: number;
-  looseStockBreakdown: Array<{
-    bookId: string;
-    title: string;
-    isbn: string;
-    quantityNeeded: number;
-    availableLooseStock: number;
-    maxBundlesFromComponent: number;
-  }>;
-}
+type BookPackage = PackageRow;
 
 interface PackagesViewProps {
   activeSchool: School | null;
@@ -65,16 +32,21 @@ interface NewPackageItemInput {
 }
 
 /** Harga jual efektif komponen: delegasi ke kanonik book-pricing. */
-const effectiveSellOf = (book: Book | undefined): number => (book ? effectiveBookPrice(book).sell : 0);
+const effectiveSellOf = (book: Book | undefined): number => effectiveSellPrice(book ?? {});
 
 export function PackagesView({ activeSchool }: PackagesViewProps) {
-  const [packages, setPackages] = useState<BookPackage[]>([]);
-  const [catalogBooks, setCatalogBooks] = useState<Book[]>([]);
-  const [stockMap, setStockMap] = useState<Record<string, StockPotential>>({});
+  const {
+    packages,
+    catalogBooks,
+    stockMap,
+    isLoading,
+    loadError,
+    loadPackagesData,
+    createPackage,
+  } = usePackagesData(activeSchool);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>("all");
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Bundling / Unbundling Modal State
   const [modalPkg, setModalPkg] = useState<BookPackage | null>(null);
@@ -93,58 +65,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
   const [newPkgDescription, setNewPkgDescription] = useState("");
   const [newPkgItems, setNewPkgItems] = useState<NewPackageItemInput[]>([]);
   const [isSubmittingPackage, setIsSubmittingPackage] = useState(false);
-
-  const loadPackagesData = useCallback(async () => {
-    if (!activeSchool) return;
-    setIsLoading(true);
-    try {
-      const [res, booksRes] = await Promise.all([
-        fetch("/api/packages"),
-        fetch("/api/books"),
-      ]);
-
-      const [data, booksData] = await Promise.all([
-        res.json(),
-        booksRes.json(),
-      ]);
-
-      if (booksData.success) {
-        setCatalogBooks(booksData.data);
-      }
-
-      if (data.success) {
-        setPackages(data.data);
-
-        // Fetch stock potentials per package for active school
-        const stockPromises = data.data.map(async (pkg: BookPackage) => {
-          try {
-            const sRes = await fetch(`/api/packages/${pkg.id}/stock/${activeSchool.id}`);
-            const sData = await sRes.json();
-            if (sData.success) {
-              return { packageId: pkg.id, data: sData.data };
-            }
-          } catch {
-            return null;
-          }
-        });
-
-        const stocks = await Promise.all(stockPromises);
-        const map: Record<string, StockPotential> = {};
-        stocks.forEach((s) => {
-          if (s) map[s.packageId] = s.data;
-        });
-        setStockMap(map);
-      }
-    } catch (err) {
-      console.error("Failed to load packages", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeSchool]);
-
-  useEffect(() => {
-    loadPackagesData();
-  }, [loadPackagesData]);
 
   // Handler: Open Create Package Modal
   const handleOpenCreateModal = () => {
@@ -207,28 +127,18 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
     setIsSubmittingPackage(true);
     try {
-      const res = await fetch("/api/packages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: newPkgCode.trim().toUpperCase(),
-          name: newPkgName.trim(),
-          gradeLevel: newPkgGrade,
-          curriculumType: newPkgCurriculum,
-          academicYear: newPkgYear,
-          price: computedPkgPrice,
-          description: newPkgDescription.trim() || undefined,
-          items: newPkgItems,
-        }),
+      await createPackage({
+        code: newPkgCode.trim().toUpperCase(),
+        name: newPkgName.trim(),
+        gradeLevel: newPkgGrade,
+        curriculumType: newPkgCurriculum,
+        academicYear: newPkgYear,
+        price: computedPkgPrice,
+        description: newPkgDescription.trim() || undefined,
+        items: newPkgItems,
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal membuat paket baru.");
-      }
-
       setIsCreateModalOpen(false);
-      await loadPackagesData();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -250,6 +160,18 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
   return (
     <div className="space-y-5">
+      {loadError && !isLoading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => loadPackagesData()}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      )}
       {/* Editorial Header Section */}
       <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -378,7 +300,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                         {pkg.name}
                       </h3>
                       <p className="text-xs text-[#65676B] mt-0.5">
-                        Terdiri dari <span className="font-semibold text-[#050505]">{pkg.totalItemsCount} buku</span> berbeda &bull; Harga: <span className="font-semibold text-[#050505]">Rp {pkg.price.toLocaleString("id-ID")}</span>
+                        Terdiri dari <span className="font-semibold text-[#050505]">{pkg.totalItemsCount} buku</span> berbeda &bull; Harga: <span className="font-semibold text-[#050505]">{formatRupiah(pkg.price)}</span>
                       </p>
                     </div>
                   </div>
@@ -615,7 +537,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                     Harga Paket (Rp) — Otomatis
                   </label>
                   <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-bold text-[#050505]">
-                    Rp {computedPkgPrice.toLocaleString("id-ID")}
+                    {formatRupiah(computedPkgPrice)}
                   </div>
                   <p className="text-[10px] text-[#65676B] mt-1">
                     Dihitung otomatis: jumlah harga jual × qty tiap komponen.

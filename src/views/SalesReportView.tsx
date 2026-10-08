@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BarChart3, Download, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { School } from "../types";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { buildQuery, getJson } from "../lib/api";
 
 interface ChannelBreakdown {
   orderCount: number;
@@ -85,14 +86,12 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
     setIsLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ from, to });
-      if (schoolId) params.set("schoolId", schoolId);
-      const res = await fetch(`/api/sales-report?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal memuat laporan penjualan.");
-      }
-      setReport(data.data);
+      setReport(
+        await getJson<SalesReportPayload>(
+          buildQuery("/api/sales-report", { from, to, schoolId: schoolId || undefined }),
+          "Gagal memuat laporan penjualan."
+        )
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat laporan penjualan.");
     } finally {

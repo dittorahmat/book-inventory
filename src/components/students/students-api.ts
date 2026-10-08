@@ -1,4 +1,4 @@
-import { readJson } from "../../lib/api";
+import { buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
 
 export interface StudentRecord {
   id: string;
@@ -44,62 +44,27 @@ export interface StudentFormPayload {
   status?: string;
 }
 
-function toQuery(params: StudentListParams): string {
-  const q = new URLSearchParams();
-  if (params.schoolId) q.set("schoolId", params.schoolId);
-  if (params.status && params.status !== "all") q.set("status", params.status);
-  if (params.search?.trim()) q.set("search", params.search.trim());
-  const s = q.toString();
-  return s ? `?${s}` : "";
-}
+export const fetchSchools = (): Promise<SchoolOption[]> =>
+  getJson<SchoolOption[]>("/api/schools", "Gagal memuat daftar sekolah.");
 
-export async function fetchSchools(): Promise<SchoolOption[]> {
-  const res = await fetch("/api/schools");
-  const data = await readJson(res, "Gagal memuat daftar sekolah.");
-  return data.data;
-}
+export const fetchStudents = (params: StudentListParams): Promise<StudentRecord[]> =>
+  getJson<StudentRecord[]>(
+    buildQuery("/api/students", {
+      schoolId: params.schoolId,
+      status: params.status && params.status !== "all" ? params.status : undefined,
+      search: params.search?.trim() || undefined,
+    }),
+    "Gagal memuat data siswa."
+  );
 
-export async function fetchStudents(params: StudentListParams): Promise<StudentRecord[]> {
-  const res = await fetch(`/api/students${toQuery(params)}`);
-  const data = await readJson(res, "Gagal memuat data siswa.");
-  return data.data;
-}
+export const createStudent = (payload: StudentFormPayload): Promise<StudentRecord> =>
+  postJson<StudentRecord>("/api/students", payload, "Gagal menyimpan data siswa.");
 
-export async function createStudent(payload: StudentFormPayload): Promise<StudentRecord> {
-  const res = await fetch("/api/students", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await readJson(res, "Gagal menyimpan data siswa.");
-  return data.data;
-}
+export const updateStudent = (id: string, payload: Partial<StudentFormPayload>): Promise<StudentRecord> =>
+  putJson<StudentRecord>(`/api/students/${id}`, payload, "Gagal memperbarui data siswa.");
 
-export async function updateStudent(id: string, payload: Partial<StudentFormPayload>): Promise<StudentRecord> {
-  const res = await fetch(`/api/students/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await readJson(res, "Gagal memperbarui data siswa.");
-  return data.data;
-}
+export const deleteStudent = (id: string): Promise<void> =>
+  delJson<void>(`/api/students/${id}`, "Gagal menghapus data siswa.");
 
-export async function deleteStudent(id: string): Promise<void> {
-  const res = await fetch(`/api/students/${id}`, { method: "DELETE" });
-  await readJson(res, "Gagal menghapus data siswa.");
-}
-
-export async function verifyStudent(
-  id: string,
-  action: "approve" | "reject",
-  nis?: string
-): Promise<StudentRecord> {
-  const res = await fetch(`/api/students/${id}/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(nis ? { action, nis } : { action }),
-  });
-  const data = await readJson(res, "Gagal memverifikasi siswa.");
-  return data.data;
-}
+export const verifyStudent = (id: string, action: "approve" | "reject", nis?: string): Promise<StudentRecord> =>
+  postJson<StudentRecord>(`/api/students/${id}/verify`, nis ? { action, nis } : { action }, "Gagal memverifikasi siswa.");

@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
-import { sendPurchaseOrderEmail } from "../services/po-delivery";
-import { fetchEffectiveBuyPrices, calcPoHeader } from "../services/book-price";
+import { sendPo } from "../services/po-lifecycle";
+import { fetchEffectiveBuyPrices } from "../services/book-price";
+import { calcPoHeader } from "../../lib/book-pricing";
 import { evaluateSendGate, resolveWarehouseTarget, receivePurchaseOrder } from "../services/po-workflow";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
@@ -121,30 +122,41 @@ procurementRouter.get("/purchase-orders", async (c) => {
     .innerJoin(schools, eq(purchaseOrders.targetSchoolId, schools.id))
     .orderBy(desc(purchaseOrders.createdAt));
 
-  // Attach items
-  const results = await Promise.all(
-    pos.map(async (po: any) => {
-      const items = await db
-        .select({
-          id: purchaseOrderItems.id,
-          bookId: purchaseOrderItems.bookId,
-          title: books.title,
-          isbn: books.isbn,
-          quantityOrdered: purchaseOrderItems.quantityOrdered,
-          quantityReceived: purchaseOrderItems.quantityReceived,
-          unitPrice: purchaseOrderItems.unitPrice,
-          discountPercent: purchaseOrderItems.discountPercent,
-        })
-        .from(purchaseOrderItems)
-        .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))
-        .where(eq(purchaseOrderItems.purchaseOrderId, po.id));
-
-      return {
-        ...po,
-        items,
-      };
-    })
-  );
+  // Attach items — satu query batch untuk semua PO (bukan N+1 per PO).
+  const poIds = pos.map((po: any) => po.id as string);
+  const allItems = poIds.length > 0
+    ? await db
+      .select({
+        purchaseOrderId: purchaseOrderItems.purchaseOrderId,
+        id: purchaseOrderItems.id,
+        bookId: purchaseOrderItems.bookId,
+        title: books.title,
+        isbn: books.isbn,
+        quantityOrdered: purchaseOrderItems.quantityOrdered,
+        quantityReceived: purchaseOrderItems.quantityReceived,
+        unitPrice: purchaseOrderItems.unitPrice,
+        discountPercent: purchaseOrderItems.discountPercent,
+      })
+      .from(purchaseOrderItems)
+      .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))
+      .where(inArray(purchaseOrderItems.purchaseOrderId, poIds))
+    : [];
+  const itemsByPo = new Map<string, typeof allItems>();
+  for (const it of allItems) {
+    const list = itemsByPo.get(it.purchaseOrderId) ?? [];
+    list.push(it);
+    itemsByPo.set(it.purchaseOrderId, list);
+  }
+  const results = pos.map((po: any) => {
+    // Gerbang kirim milik server: klien menurunkannya dari field ini, bukan cerminan lokal.
+    const gate = evaluateSendGate(po);
+    return {
+      ...po,
+      items: itemsByPo.get(po.id) ?? [],
+      canSend: gate.allowed,
+      sendBlockedReason: gate.allowed ? null : (gate as { message: string }).message,
+    };
+  });
 
   const visible = scopedOnly ? results.filter((po: any) => scope.has(po.targetSchoolId)) : results;
   return c.json({ success: true, data: visible });
@@ -261,37 +273,31 @@ procurementRouter.post("/purchase-orders/:id/send", async (c) => {
     }
     assertLocationAllowed(actor, po.targetSchoolId, locations);
 
-    const gate = evaluateSendGate(po);
-    if (!gate.allowed) {
-      return c.json({ success: false, message: gate.message, data: { status: po.status } }, 400);
-    }
-
-    const outcome = await sendPurchaseOrderEmail(
+    const result = await sendPo(
       c.req.param("id"),
       c.env as unknown as EmailRuntimeEnv | undefined
     );
+    if (!result.ok) {
+      return c.json(
+        { success: false, message: result.message, data: { status: po.status } },
+        result.status
+      );
+    }
 
-  if (outcome.kind === "error") {
-    return c.json(
-      { success: false, message: outcome.message, data: { provider: outcome.provider } },
-      outcome.httpStatus
-    );
-  }
+    if (result.simulated) {
+      return c.json({
+        success: true,
+        simulated: true,
+        message: result.message,
+        data: result.data,
+      });
+    }
 
-  if (outcome.kind === "simulated") {
     return c.json({
       success: true,
-      simulated: true,
-      message: `PO ${outcome.poNumber} hanya disimulasikan ke ${outcome.sentTo} dan TIDAK benar-benar terkirim. ${outcome.detail}`,
-      data: outcome,
+      message: result.message,
+      data: result.data,
     });
-  }
-
-  return c.json({
-    success: true,
-    message: `PO ${outcome.poNumber} terkirim via ${outcome.provider} ke ${outcome.sentTo}`,
-    data: outcome,
-  });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

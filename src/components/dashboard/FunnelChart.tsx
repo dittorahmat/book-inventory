@@ -1,5 +1,7 @@
 import { ChevronRight, Clock, PackageCheck, UserCheck } from "lucide-react";
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
+import { formatCount } from "../../lib/transfer-pricing";
+import type { DashboardFunnel } from "../../lib/dashboard-types";
+import { ChartCard, ChartEmpty } from "./chart-kit";
 
 interface StepConfig {
   key: "waiting" | "ready" | "picked";
@@ -45,34 +47,31 @@ const STEPS: StepConfig[] = [
   },
 ];
 
-export function FunnelChart({ summary }: { summary: DashboardSchoolSummary }) {
-  const total = summary.funnel.waiting + summary.funnel.ready + summary.funnel.picked;
+export function FunnelChart({ funnel }: { funnel: DashboardFunnel }) {
+  const total = funnel.waiting + funnel.ready + funnel.picked;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 h-full flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-bold text-[#050505]">Alur Pemenuhan Pesanan</div>
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
-            {total} Total Pesanan
-          </span>
-        </div>
-        <div className="text-xs text-[#65676B] mt-1 mb-4">
-          {total === 0
-            ? "Belum ada pesanan siswa pada periode ini."
-            : "Pipeline distribusi buku dari perakitan paket hingga serah terima fisik"}
-        </div>
-      </div>
-
+    <ChartCard
+      title="Alur Pemenuhan Pesanan"
+      subtitle={
+        total === 0
+          ? "Belum ada pesanan siswa pada periode ini."
+          : "Pipeline distribusi buku dari perakitan paket hingga serah terima fisik"
+      }
+      className="h-full flex flex-col justify-between"
+      action={
+        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
+          {formatCount(total)} Total Pesanan
+        </span>
+      }
+    >
       {total === 0 ? (
-        <div className="py-8 text-center text-sm text-[#65676B]">
-          Belum ada pesanan siswa pada periode ini.
-        </div>
+        <ChartEmpty message="Belum ada pesanan siswa pada periode ini." hint="Pesanan dari portal publik akan mengalir di sini." />
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {STEPS.map((step, idx) => {
-              const count = summary.funnel[step.key];
+              const count = funnel[step.key];
               const pct = total > 0 ? Math.round((count / total) * 100) : 0;
               const Icon = step.icon;
 
@@ -93,7 +92,7 @@ export function FunnelChart({ summary }: { summary: DashboardSchoolSummary }) {
 
                     <div className="my-2">
                       <div className="text-2xl font-black text-[#050505]">
-                        {count.toLocaleString("id-ID")}
+                        {formatCount(count)}
                       </div>
                       <div className="text-[11px] text-[#65676B]">{step.desc}</div>
                     </div>
@@ -119,6 +118,6 @@ export function FunnelChart({ summary }: { summary: DashboardSchoolSummary }) {
           </div>
         </div>
       )}
-    </div>
+    </ChartCard>
   );
 }

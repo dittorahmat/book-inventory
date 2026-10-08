@@ -1,5 +1,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
+import { ChartCard, ChartEmpty, ChartTooltip } from "./chart-kit";
+import { formatCount } from "../../lib/transfer-pricing";
 
 const SLICES = [
   { key: "new", label: "Baru", fill: "#10B981" },
@@ -10,23 +11,16 @@ const SLICES = [
 
 function DonutTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number | string }> }) {
   if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-md px-3 py-2 text-xs">
-      <div className="font-bold text-[#050505]">{payload[0].name}</div>
-      <div className="text-[#65676B]">{payload[0].value} eksemplar</div>
-    </div>
-  );
+  return <ChartTooltip active title={String(payload[0].name)} rows={[{ label: "Jumlah", value: `${payload[0].value} eksemplar` }]} />;
 }
 
-export function ConditionDonut({ summary }: { summary: DashboardSchoolSummary }) {
-  const data = SLICES.map((s) => ({ name: s.label, value: summary.stock.byCondition[s.key], fill: s.fill }));
+export function ConditionDonut({ byCondition }: { byCondition: Record<string, number> }) {
+  const data = SLICES.map((s) => ({ name: s.label, value: byCondition[s.key] ?? 0, fill: s.fill }));
   const total = data.reduce((sum, d) => sum + d.value, 0);
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5">
-      <div className="text-sm font-bold text-[#050505]">Kondisi Fisik</div>
-      <div className="text-xs text-[#65676B] mb-1">Stok satuan yang tersedia di sekolah</div>
+    <ChartCard title="Kondisi Fisik" subtitle="Stok satuan yang tersedia di sekolah">
       {total === 0 ? (
-        <div className="py-8 text-sm text-[#65676B] text-center">Belum ada stok satuan tercatat.</div>
+        <ChartEmpty message="Belum ada stok satuan tercatat." hint="Tambahkan eksemplar lewat katalog atau terima PO." />
       ) : (
         <>
           <div className="min-h-[180px]">
@@ -46,12 +40,12 @@ export function ConditionDonut({ summary }: { summary: DashboardSchoolSummary })
               <li key={d.name} className="py-2 flex items-center gap-2 text-sm">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
                 <span className="text-[#65676B]">{d.name}</span>
-                <span className="ml-auto font-bold text-[#050505]">{d.value}</span>
+                <span className="ml-auto font-bold text-[#050505]">{formatCount(d.value)}</span>
               </li>
             ))}
           </ul>
         </>
       )}
-    </div>
+    </ChartCard>
   );
 }

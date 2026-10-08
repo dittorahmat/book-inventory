@@ -1,7 +1,15 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
-import { effectiveSellPrice } from "./book-price";
+import { effectiveSellPrice } from "../../lib/book-pricing";
+import {
+  emptyConditionBuckets,
+  emptyLooseStatusBuckets,
+  emptyPackageStatusBuckets,
+  isAvailableLoose,
+  isLooseInTransit,
+  isReadyBundle,
+} from "./stock-buckets";
 
 export interface LooseStockSummaryRow {
   schoolId: string;
@@ -32,9 +40,9 @@ export interface PackageStockSummaryRow {
   byStatus: { in_stock: number; reserved: number; dispatched: number; delivered: number };
 }
 
-const emptyCondition = () => ({ new: 0, good: 0, fair: 0, damaged: 0 });
-const emptyBookStatus = () => ({ in_stock: 0, in_transit: 0, disposed: 0, lost: 0 });
-const emptyPackageStatus = () => ({ in_stock: 0, reserved: 0, dispatched: 0, delivered: 0 });
+const emptyCondition = () => emptyConditionBuckets();
+const emptyBookStatus = () => emptyLooseStatusBuckets();
+const emptyPackageStatus = () => emptyPackageStatusBuckets();
 
 const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.set(k, mk()).get(k) as V);
 
@@ -84,8 +92,8 @@ export async function getLooseStockSummary(
     entry.totalQty += 1;
     entry.byCondition[row.condition as keyof typeof entry.byCondition] += 1;
     entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
-    if (row.status === "in_stock") entry.availableQty += 1;
-    if (row.status === "in_transit") entry.inTransitQty += 1;
+    if (isAvailableLoose(row.status)) entry.availableQty += 1;
+    if (isLooseInTransit(row.status)) entry.inTransitQty += 1;
   }
 
   return [...grouped.values()].sort(
@@ -133,7 +141,7 @@ export async function getPackageStockSummary(
       }));
     entry.totalQty += 1;
     entry.byStatus[row.status as keyof typeof entry.byStatus] += 1;
-    if (row.status === "in_stock") entry.readyQty += 1;
+    if (isReadyBundle(row.status)) entry.readyQty += 1;
   }
 
   return [...grouped.values()].sort(

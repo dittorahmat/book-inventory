@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { School } from "../types";
+import { formatRupiah } from "../lib/transfer-pricing";
 import { PoSendAction } from "../components/procurement/PoSendAction";
 import { PoWorkflowActions } from "../components/procurement/PoWorkflowActions";
 import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
@@ -32,6 +33,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
     suppliers,
     catalogBooks,
     isLoading,
+    loadError,
     defaultSupplierId,
     loadData,
     loadSuppliers,
@@ -178,6 +180,19 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
         onChanged={loadData}
       />
 
+      {loadError && !isLoading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => loadData()}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      )}
+
       {/* PO List Table */}
       <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -267,14 +282,15 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                           <div className="text-[11px] pt-0.5 border-t border-[#E4E6EB]">
                             <span className="text-[#65676B]">Netto: </span>
                             <span className="font-bold text-[#050505]">
-                              Rp {(po.subtotalGross !== undefined && po.discountTotal !== undefined
-                                ? po.subtotalGross - po.discountTotal
-                                : po.totalAmount
-                              ).toLocaleString("id-ID")}
+                              {formatRupiah(
+                                po.subtotalGross !== undefined && po.discountTotal !== undefined
+                                  ? po.subtotalGross - po.discountTotal
+                                  : po.totalAmount
+                              )}
                             </span>
                             {po.discountTotal !== undefined && po.discountTotal > 0 && (
                               <span className="text-[#65676B]">
-                                {" "}(kotor Rp {po.subtotalGross?.toLocaleString("id-ID")})
+                                {" "}(kotor {formatRupiah(po.subtotalGross)})
                               </span>
                             )}
                           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
+import { getJson, postJson } from "../lib/api";
 import { 
   Search, 
   RefreshCw, 
@@ -35,17 +36,15 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeReturn, setActiveReturn] = useState<BookReturn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadReturns = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const res = await fetch("/api/student-orders/returns");
-      const data = await res.json();
-      if (data.success) {
-        setReturns(data.data);
-      }
+      setReturns(await getJson<BookReturn[]>("/api/student-orders/returns", "Gagal memuat retur buku."));
     } catch (err) {
-      console.error("Failed to load book returns", err);
+      setLoadError(err instanceof Error ? err.message : "Gagal memuat retur buku.");
     } finally {
       setIsLoading(false);
     }
@@ -59,13 +58,11 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
     if (!activeReturn) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/student-orders/returns/${activeReturn.id}/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal memproses penggantian");
+      await postJson(
+        `/api/student-orders/returns/${activeReturn.id}/resolve`,
+        { action },
+        "Gagal memproses penggantian"
+      );
       setActiveReturn(null);
       loadReturns();
     } catch (err: any) {
@@ -87,6 +84,18 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
 
   return (
     <div className="space-y-5">
+      {loadError && !isLoading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => loadReturns()}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">

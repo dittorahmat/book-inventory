@@ -1,23 +1,24 @@
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
+import type { DashboardTierBreakdown } from "../../lib/dashboard-types";
+import { ChartCard, ChartEmpty, ChartTooltip } from "./chart-kit";
 
 function TierTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number | string; dataKey?: string | number }>; label?: string }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-md px-3 py-2 text-xs">
-      <div className="font-bold text-[#050505]">{label}</div>
-      {payload.map((entry) => (
-        <div key={String(entry.dataKey)} className="text-[#65676B]">
-          {entry.dataKey === "waiting" ? "Menunggu" : "Siap"}: {entry.value}
-        </div>
-      ))}
-    </div>
+    <ChartTooltip
+      active
+      title={label}
+      rows={payload.map((entry) => ({
+        label: entry.dataKey === "waiting" ? "Menunggu" : "Siap",
+        value: entry.value,
+      }))}
+    />
   );
 }
 
 /** Bar horizontal per jenjang: antrean menunggu vs stok siap. */
-export function TierStockBar({ summary }: { summary: DashboardSchoolSummary }) {
-  const rows = [...summary.breakdown]
+export function TierStockBar({ breakdown }: { breakdown: DashboardTierBreakdown[] }) {
+  const rows = [...breakdown]
     .sort((a, b) => b.waitingOrders - a.waitingOrders || b.readyStock - a.readyStock)
     .slice(0, 8)
     .map((r) => ({
@@ -27,11 +28,13 @@ export function TierStockBar({ summary }: { summary: DashboardSchoolSummary }) {
     }));
   const height = Math.max(200, rows.length * 52);
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 h-full">
-      <div className="text-sm font-bold text-[#050505]">Antrean vs Kesiapan per Jenjang</div>
-      <div className="text-xs text-[#65676B] mb-3">Pesanan menunggu (kuning) lawan stok siap (biru)</div>
+    <ChartCard
+      title="Antrean vs Kesiapan per Jenjang"
+      subtitle="Pesanan menunggu (kuning) lawan stok siap (biru)"
+      className="h-full"
+    >
       {rows.length === 0 ? (
-        <div className="py-8 text-sm text-[#65676B] text-center">Belum ada data siswa pada sekolah ini.</div>
+        <ChartEmpty message="Belum ada data siswa pada sekolah ini." hint="Daarkan siswa lewat tab Siswa atau portal publik." />
       ) : (
         <ResponsiveContainer width="100%" height={height}>
           <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
@@ -47,6 +50,6 @@ export function TierStockBar({ summary }: { summary: DashboardSchoolSummary }) {
           </BarChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </ChartCard>
   );
 }

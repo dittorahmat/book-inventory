@@ -1,19 +1,15 @@
 import { useState, useEffect } from "react";
 import { resolveLockedPackage } from "../../lib/resolve-package";
 import {
-  fetchSchools,
-  fetchPackages,
   searchStudents,
   registerStudent,
   submitFinalOrder,
-  fetchSatuanCatalog,
 } from "./portal-api";
+import { buildFinalOrderPayload } from "./order-payload";
+import { usePortalCatalog } from "./usePortalCatalog";
 import type { LooseSelection } from "./OrderItemStep";
-import type { SatuanBookOption } from "./portal-api";
 import type {
-  SchoolOption,
   StudentSearchResult,
-  BookPackageOption,
   NewStudentForm,
   FileUploadHandler,
 } from "../../lib/portal-types";
@@ -52,8 +48,9 @@ const EMPTY_NEW_STUDENT: NewStudentForm = {
 export function usePublicOrder() {
   const [activePortalTab, setActivePortalTab] = useState<PortalTab>("order");
 
-  const [schools, setSchools] = useState<SchoolOption[]>([]);
-  const [packages, setPackages] = useState<BookPackageOption[]>([]);
+  // Katalog server: milik usePortalCatalog, dipakai bersama alur retur.
+  const catalog = usePortalCatalog();
+  const { schools, packages, satuanBooks, satuanOpen } = catalog;
 
   // Step wizard: 1 = Student Selection, 2 = Locked Package Detail,
   // 3 = Payment / Scholarship, 4 = Success
@@ -77,9 +74,7 @@ export function usePublicOrder() {
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProofBase64, setScholarshipProofBase64] = useState<string>("");
 
-  // Order satuan (hanya tersedia saat periode satuan dibuka)
-  const [satuanBooks, setSatuanBooks] = useState<SatuanBookOption[]>([]);
-  const [satuanOpen, setSatuanOpen] = useState(false);
+  // Order satuan (hanya tersedia saat periode satuan dibuka; milik katalog).
   const [packageMode, setPackageMode] = useState(true);
   const [looseSelections, setLooseSelections] = useState<LooseSelection[]>([]);
 
@@ -136,38 +131,20 @@ export function usePublicOrder() {
     }
   };
 
-  // Load schools & packages on mount
+  // Default sekolah form murid baru + cermin error katalog ke banner.
   useEffect(() => {
-    fetchSchools()
-      .then((list) => {
-        setSchools(list);
-        if (list.length > 0) {
-          setNewStudent((prev) => ({ ...prev, schoolId: list[0].id }));
-        }
-      })
-      .catch((err: any) => {
-        setErrorMessage(err.message || "Gagal memuat daftar sekolah. Periksa koneksi Anda.");
-      });
+    if (schools.length > 0) {
+      setNewStudent((prev) => (prev.schoolId ? prev : { ...prev, schoolId: schools[0].id }));
+    }
+  }, [schools]);
 
-    fetchPackages()
-      .then((list) => setPackages(list))
-      .catch((err: any) => {
-        setErrorMessage(err.message || "Gagal memuat daftar paket buku. Periksa koneksi Anda.");
-      });
+  useEffect(() => {
+    if (!satuanOpen) setPackageMode(true);
+  }, [satuanOpen]);
 
-    // Keterbukaan order satuan ditentukan cut-off per tahun ajaran (WIB).
-    fetchSatuanCatalog()
-      .then((result) => {
-        setSatuanOpen(result.open);
-        setSatuanBooks(result.books);
-        if (!result.open) setPackageMode(true);
-      })
-      .catch(() => {
-        // Gagal memuat status satuan tidak boleh memblokir pemesanan paket.
-        setSatuanOpen(false);
-        setSatuanBooks([]);
-      });
-  }, []);
+  useEffect(() => {
+    if (catalog.loadError) setErrorMessage(catalog.loadError);
+  }, [catalog.loadError]);
 
   const handleLooseQuantityChange = (bookId: string, quantity: number) => {
     setLooseSelections((prev) => {
@@ -256,43 +233,27 @@ export function usePublicOrder() {
   const handleSubmitFinalOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) return;
-    const looseItems = looseSelections.filter((s) => s.quantity > 0);
-    if (packageMode && !selectedPackage) return;
-    if (!packageMode && looseItems.length === 0) return;
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      if (orderType === "scholarship" && !scholarshipProofBase64) {
-        throw new Error("Dokumen bukti surat tanda beasiswa wajib dilampirkan.");
-      }
-
-      const bookTotal = packageMode ? (selectedPackage?.price ?? 0) : looseTotal;
-      if (orderType === "regular" && bookAllocationAmount > 0 && bookAllocationAmount !== bookTotal) {
-        setBookAllocationAmount(bookTotal);
-        setTransferAmount(bookTotal);
-      }
-
-      const data = await submitFinalOrder({
+      const payload = buildFinalOrderPayload({
         studentId: selectedStudent.id,
-        ...(packageMode ? { packageId: selectedPackage!.id } : { looseItems }),
+        packageMode,
+        packageId: selectedPackage?.id,
+        packagePrice: selectedPackage?.price ?? 0,
+        looseItems: looseSelections,
+        looseTotal,
         orderType,
-        notes: notes.trim() || undefined,
-        ...(orderType === "scholarship"
-          ? { scholarshipProofBase64 }
-          : {}),
-        ...(orderType === "regular" && bookAllocationAmount > 0
-          ? {
-              payment: {
-                transferAmount: transferAmount || bookAllocationAmount,
-                bookAllocationAmount,
-                bankName,
-                referenceNumber: referenceNumber || undefined,
-                paymentProofBase64: paymentProofBase64 || undefined,
-              },
-            }
-          : {}),
+        scholarshipProofBase64,
+        transferAmount,
+        bookAllocationAmount,
+        bankName,
+        referenceNumber,
+        paymentProofBase64,
+        notes,
       });
+      const data = await submitFinalOrder(payload);
 
       setSubmittedOrder(data);
       setStep(4);

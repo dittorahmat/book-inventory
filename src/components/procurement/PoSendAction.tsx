@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Send, RotateCcw, CheckCircle2, AlertCircle } from "lucide-react";
+import { apiEnvelope } from "../../lib/api";
 
 export interface PoSendTarget {
   id: string;
@@ -8,6 +9,9 @@ export interface PoSendTarget {
   signedDocUrl?: string | null;
   sentTo?: string | null;
   sentAt?: string | null;
+  /** Gerbang kirim dari server — bila ada, dipakai; cerminan lokal hanya fallback. */
+  canSend?: boolean;
+  sendBlockedReason?: string | null;
 }
 
 /**
@@ -39,24 +43,26 @@ export function PoSendAction({ po, onSent }: PoSendActionProps) {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   const alreadySent = po.status === "sent";
-  // Kunci kirim sampai bukti TTD ada (server juga menolak via evaluateSendGate).
-  const needsTtd = !LEGACY_SEND_STATUSES.has(po.status) && !po.signedDocUrl;
+  // Gerbang kirim: server adalah pemilik (canSend); cerminan lokal hanya fallback
+  // selama respons API belum menyertakan gate.
+  const needsTtd = po.canSend === undefined
+    ? !LEGACY_SEND_STATUSES.has(po.status) && !po.signedDocUrl
+    : !po.canSend;
+  const blockedReason = po.sendBlockedReason ?? "Upload bukti TTD dan cap terlebih dahulu sebelum mengirim PO";
 
   const handleSend = async () => {
     setIsSending(true);
     setOutcome(null);
     try {
-      const res = await fetch(`/api/procurement/purchase-orders/${po.id}/send`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal mengirim PO ke supplier.");
-      }
+      const data = await apiEnvelope<{ success: boolean; simulated?: boolean; message?: string }>(
+        `/api/procurement/purchase-orders/${po.id}/send`,
+        { method: "POST" },
+        "Gagal mengirim PO ke supplier."
+      );
       if (data.simulated) {
-        setOutcome({ kind: "simulated", message: data.message });
+        setOutcome({ kind: "simulated", message: data.message ?? "PO disimulasikan." });
       } else {
-        setOutcome({ kind: "sent", message: data.message });
+        setOutcome({ kind: "sent", message: data.message ?? "PO terkirim." });
       }
       onSent();
     } catch (err: any) {
@@ -78,7 +84,7 @@ export function PoSendAction({ po, onSent }: PoSendActionProps) {
           type="button"
           onClick={handleSend}
           disabled={isSending || needsTtd}
-          title={needsTtd ? "Upload bukti TTD dan cap terlebih dahulu sebelum mengirim PO" : undefined}
+          title={needsTtd ? blockedReason : undefined}
           className="px-3 py-1.5 bg-white border border-[#1877F2] text-[#1877F2] hover:bg-[#E7F3FF] active:scale-[0.98] font-semibold rounded-xl text-xs transition-all inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {alreadySent ? (

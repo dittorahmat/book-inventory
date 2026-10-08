@@ -286,4 +286,48 @@ describe("Supplier Procurement & Purchase Order API", () => {
       globalThis.fetch = realFetch;
     }
   });
+
+  it("send gate milik server: draft tanpa bukti TTD ditolak + daftar membawa canSend", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-gate-${stamp}`;
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-GATE-${stamp}`,
+      title: "Buku Gate Test",
+      author: "Test",
+      publisher: "Test",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const supRes = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-GATE-${stamp}`, name: "Supplier Gate", email: "gate@supplier.co.id" }),
+    });
+    const supplierId = (await supRes.json()).data.id;
+
+    const poRes = await procurementRouter.request("/purchase-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId,
+        orderDate: "2026-09-28",
+        items: [{ bookId, quantityOrdered: 3, unitPrice: 20000 }],
+      }),
+    });
+    const poId = (await poRes.json()).data.id;
+
+    // Draft alur baru tanpa bukti: kirim ditolak gerbang server.
+    const blocked = await procurementRouter.request(`/purchase-orders/${poId}/send`, { method: "POST" });
+    expect(blocked.status).toBe(400);
+    expect((await blocked.json()).message).toMatch(/tanda tangan/i);
+
+    // Daftar PO menurunkan gate dari server untuk klien.
+    const list = await procurementRouter.request("/purchase-orders", { method: "GET" });
+    const row = (await list.json()).data.find((p: any) => p.id === poId);
+    expect(row.canSend).toBe(false);
+    expect(row.sendBlockedReason).toMatch(/tanda tangan/i);
+  });
 });

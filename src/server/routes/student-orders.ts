@@ -1,18 +1,17 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../../db";
-import { 
-  studentBookOrders, 
-  students, 
-  bookPackages, 
-  packageItems, 
-  bookReturns, 
-  books, 
-  bookItems 
+import {
+  studentBookOrders,
+  students,
+  bookPackages,
+  bookReturns,
+  books,
 } from "../../db/schema";
 import { reportReturn } from "../services/return-intake";
+import { handoverPackage, resolveReturn } from "../services/order-fulfilment";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -120,7 +119,6 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
-    const now = new Date().toISOString();
 
     const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
     if (!order) {
@@ -128,58 +126,16 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
     }
     assertLocationAllowed(actor, order.schoolId, locations);
 
-  // Generate unique Surat Jalan Delivery Number
-  const deliveryNumber = `SJ-SERAH-${Date.now().toString().slice(-8)}`;
-
-  // Find or use package item
-  let assignedItem = body.packageItemId;
-  if (!assignedItem && order.packageId) {
-    const [availableBundle] = await db
-      .select()
-      .from(packageItems)
-      .where(
-        and(
-          eq(packageItems.packageId, order.packageId),
-          eq(packageItems.currentSchoolId, order.schoolId),
-          eq(packageItems.status, "in_stock")
-        )
-      )
-      .limit(1);
-
-    if (availableBundle) {
-      assignedItem = availableBundle.id;
-      // Mark bundle delivered
-      await db
-        .update(packageItems)
-        .set({ status: "delivered", updatedAt: now })
-        .where(eq(packageItems.id, availableBundle.id));
+    const result = await handoverPackage(db, orderId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-  }
 
-  await db
-    .update(studentBookOrders)
-    .set({
-      fulfillmentStatus: "picked_up",
-      handoverDeliveryNumber: deliveryNumber,
-      handoverDate: now,
-      handoverRecipient: body.recipientName,
-      assignedPackageItemId: assignedItem || null,
-      notes: body.notes ? `${order.notes || ""} [Handover: ${body.notes}]`.trim() : order.notes,
-      updatedAt: now,
-    })
-    .where(eq(studentBookOrders.id, orderId));
-
-  return c.json({
-    success: true,
-    message: "Buku berhasil diserahkan kepada murid/orang tua",
-    data: {
-      orderId,
-      deliveryNumber,
-      handoverDate: now,
-      handoverRecipient: body.recipientName,
-      fulfillmentStatus: "picked_up",
-    },
-  });
+    return c.json({
+      success: true,
+      message: "Buku berhasil diserahkan kepada murid/orang tua",
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -251,7 +207,6 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
     const locations = await loadLocationIds(db);
     const returnId = c.req.param("id");
     const body = c.req.valid("json");
-    const now = new Date().toISOString();
 
     const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
     if (!ret) {
@@ -262,67 +217,23 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
       assertLocationAllowed(actor, retOrder.schoolId, locations);
     }
 
-  if (body.action === "replace") {
-    // If replacement item not provided, pick available loose stock
-    let replacementId = body.replacementBookItemId;
-    if (!replacementId) {
-      const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, ret.orderId));
-      if (order) {
-        const [availableLoose] = await db
-          .select()
-          .from(bookItems)
-          .where(
-            and(
-              eq(bookItems.bookId, ret.defectiveBookId),
-              eq(bookItems.currentSchoolId, order.schoolId),
-              eq(bookItems.status, "in_stock"),
-              eq(bookItems.condition, "new")
-            )
-          )
-          .limit(1);
-
-        if (availableLoose) {
-          replacementId = availableLoose.id;
-          // Mark loose item given to student
-          await db
-            .update(bookItems)
-            .set({ status: "disposed", notes: `Replaced defective book return ${returnId}`, updatedAt: now })
-            .where(eq(bookItems.id, availableLoose.id));
-        }
-      }
+    const result = await resolveReturn(db, returnId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
 
-    await db
-      .update(bookReturns)
-      .set({
-        status: "replaced",
-        replacementBookItemId: replacementId || null,
-        handledByUserId: body.handledByUserId || null,
-        resolvedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(bookReturns.id, returnId));
-
-    // Restore order to picked_up
-    await db
-      .update(studentBookOrders)
-      .set({ fulfillmentStatus: "picked_up", updatedAt: now })
-      .where(eq(studentBookOrders.id, ret.orderId));
-
-    return c.json({ success: true, message: "Penggantian buku cacat berhasil diproses" });
-  } else {
-    await db
-      .update(bookReturns)
-      .set({
-        status: "rejected",
-        handledByUserId: body.handledByUserId || null,
-        resolvedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(bookReturns.id, returnId));
-
-    return c.json({ success: true, message: "Laporan retur ditolak" });
-  }
+    if (result.data.status === "replaced") {
+      return c.json({
+        success: true,
+        message: "Penggantian buku cacat berhasil diproses",
+        data: result.data,
+      });
+    }
+    return c.json({
+      success: true,
+      message: "Laporan retur ditolak",
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

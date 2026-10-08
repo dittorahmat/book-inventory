@@ -1,0 +1,59 @@
+import { describe, expect, test } from "bun:test";
+import { buildFinalOrderPayload, type OrderTotalsInput } from "./order-payload";
+
+const base: OrderTotalsInput = {
+  studentId: "st-1",
+  packageMode: true,
+  packageId: "pkg-1",
+  packagePrice: 900000,
+  looseItems: [],
+  looseTotal: 0,
+  orderType: "regular",
+  scholarshipProofBase64: "",
+  transferAmount: 900000,
+  bookAllocationAmount: 900000,
+  bankName: "BCA",
+  referenceNumber: "REF1",
+  paymentProofBase64: "",
+  notes: "  ",
+};
+
+describe("buildFinalOrderPayload", () => {
+  test("paket reguler lolos dengan payment penuh", () => {
+    const payload = buildFinalOrderPayload(base);
+    expect(payload.studentId).toBe("st-1");
+    expect(payload.packageId).toBe("pkg-1");
+    expect(payload.payment?.bookAllocationAmount).toBe(900000);
+    expect(payload.notes).toBeUndefined();
+  });
+
+  test("alokasi tak sama total DITOLAK eksplisit (tanpa tulis-ulang diam)", () => {
+    expect(() =>
+      buildFinalOrderPayload({ ...base, bookAllocationAmount: 500000 })
+    ).toThrow(/tidak sama dengan total tagihan/);
+  });
+
+  test("beasiswa tanpa bukti ditolak", () => {
+    expect(() =>
+      buildFinalOrderPayload({ ...base, orderType: "scholarship", scholarshipProofBase64: "" })
+    ).toThrow(/beasiswa/i);
+  });
+
+  test("mode satuan tanpa item ditolak; dengan item lolos tanpa packageId", () => {
+    expect(() => buildFinalOrderPayload({ ...base, packageMode: false })).toThrow(/satuan/);
+    const payload = buildFinalOrderPayload({
+      ...base,
+      packageMode: false,
+      looseItems: [{ bookId: "b-1", quantity: 2 }],
+      looseTotal: 100000,
+      transferAmount: 100000,
+      bookAllocationAmount: 100000,
+    });
+    expect(payload.packageId).toBeUndefined();
+    expect(payload.looseItems).toEqual([{ bookId: "b-1", quantity: 2 }]);
+  });
+
+  test("paket belum terkunci ditolak", () => {
+    expect(() => buildFinalOrderPayload({ ...base, packageId: undefined })).toThrow(/terkunci/);
+  });
+});

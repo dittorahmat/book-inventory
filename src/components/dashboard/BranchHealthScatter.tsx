@@ -11,7 +11,9 @@ import {
   ZAxis,
 } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { coverageTone } from "./dashboard-format";
+import { ChartCard, ChartEmpty, ChartTooltip as KitTooltip } from "./chart-kit";
+import { coverageTone } from "./coverage-tone";
+import { formatCount } from "../../lib/transfer-pricing";
 
 interface PointData {
   schoolId: string;
@@ -35,23 +37,15 @@ function ScatterTooltip({
   if (!p) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-lg p-3 text-xs">
-      <div className="font-bold text-[#050505]">{p.name} ({p.code})</div>
-      <div className="mt-1.5 space-y-1 text-[#65676B]">
-        <div className="flex items-center justify-between gap-4">
-          <span>Kesiapan Stok:</span>
-          <span className="font-bold text-[#050505]">{p.coverage}%</span>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <span>Pelunasan Tagihan:</span>
-          <span className="font-bold text-[#050505]">{p.payment}%</span>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <span>Total Pesanan:</span>
-          <span className="font-semibold text-[#1877F2]">{p.orders} siswa</span>
-        </div>
-      </div>
-    </div>
+    <KitTooltip
+      active
+      title={`${p.name} (${p.code})`}
+      rows={[
+        { label: "Kesiapan Stok", value: `${p.coverage}%` },
+        { label: "Pelunasan Tagihan", value: `${p.payment}%` },
+        { label: "Total Pesanan", value: `${formatCount(p.orders)} siswa` },
+      ]}
+    />
   );
 }
 
@@ -80,23 +74,18 @@ export function BranchHealthScatter({
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 h-full flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-bold text-[#050505]">Matriks Kesehatan Cabang</div>
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
-            Stok vs Keuangan
-          </span>
-        </div>
-        <div className="text-xs text-[#65676B] mt-1 mb-2">
-          Pemetaan 4 kuadran: Kesiapan Paket (Sumbu X) vs Pelunasan Pembayaran (Sumbu Y). Klik titik untuk drill-down.
-        </div>
-      </div>
-
+    <ChartCard
+      title="Matriks Kesehatan Cabang"
+      subtitle="Pemetaan 4 kuadran: Kesiapan Paket (Sumbu X) vs Pelunasan Pembayaran (Sumbu Y). Klik titik untuk drill-down."
+      className="h-full flex flex-col justify-between"
+      action={
+        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
+          Stok vs Keuangan
+        </span>
+      }
+    >
       {points.length === 0 ? (
-        <div className="py-12 text-center text-sm text-[#65676B]">
-          Belum ada data sekolah untuk dibandingkan.
-        </div>
+        <ChartEmpty message="Belum ada data sekolah untuk dibandingkan." />
       ) : (
         <div className="relative">
           <div className="w-full h-[260px]">
@@ -167,6 +156,6 @@ export function BranchHealthScatter({
           </div>
         </div>
       )}
-    </div>
+    </ChartCard>
   );
 }

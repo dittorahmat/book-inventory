@@ -1,3 +1,4 @@
+/** Nada cakupan dasbor: satu-satunya pemilik ambang warna kesiapan paket. */
 export function coverageTone(ratio: number | null): { text: string; pill: string; bar: string } {
   if (ratio === null) return { text: "text-emerald-700", pill: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "#10B981" };
   if (ratio >= 1) return { text: "text-emerald-700", pill: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "#10B981" };
