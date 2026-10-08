@@ -3,6 +3,8 @@ import {
   emptyLooseStatusBuckets,
   emptyPackageStatusBuckets,
   isAvailableLoose,
+  isDamaged,
+  isDisposed,
   isLooseInTransit,
   isLost,
   isReadyBundle,
@@ -69,7 +71,7 @@ const bump = (buckets: Record<string, number>, key: string): void => {
 export function addLoose(tally: LooseTally, row: LooseCountRow): void {
   bump(tally.byStatus, row.status);
   bump(tally.byConditionAll, row.condition);
-  if (row.status !== "disposed") {
+  if (!isDisposed(row.status)) {
     tally.totalQty += 1;
   }
   if (isAvailableLoose(row.status)) {
@@ -77,7 +79,7 @@ export function addLoose(tally: LooseTally, row: LooseCountRow): void {
   }
   if (isAvailableLoose(row.status)) {
     bump(tally.byConditionAvailable, row.condition);
-    if (row.condition === "damaged") tally.damagedQty += 1;
+    if (isDamaged(row.condition)) tally.damagedQty += 1;
   }
   if (isLooseInTransit(row.status)) tally.inTransitQty += 1;
   if (isLost(row.status)) tally.lostQty += 1;
