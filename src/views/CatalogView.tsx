@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { School, Book } from "../types";
-import { Plus, Image as ImageIcon, BookOpen, Search, Upload } from "lucide-react";
+import { Book } from "../types";
+import { Plus, Image as ImageIcon, Search, Upload } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
-import { apiEnvelope, getJson, postForm, postJson } from "../lib/api";
+import { getJson, postForm, postJson } from "../lib/api";
 import { BookPriceFields } from "../components/catalog/BookPriceFields";
 import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
 
-export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
+export function CatalogView() {
   const [books, setBooks] = useState<Book[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -23,8 +23,6 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [generatingForBook, setGeneratingForBook] = useState<Book | null>(null);
-  const [generateCount, setGenerateCount] = useState(5);
   const [isSubmittingBook, setIsSubmittingBook] = useState(false);
 
   const fetchBooks = async () => {
@@ -100,30 +98,6 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     }
   };
 
-  const handleBatchGenerate = async () => {
-    if (!generatingForBook || !activeSchool) return;
-    try {
-      const data = await apiEnvelope<{ success: boolean; count?: number; message?: string }>(
-        "/api/book-items/batch-generate",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bookId: generatingForBook.id,
-            schoolId: activeSchool.id,
-            count: Number(generateCount),
-            barcodePrefix: generatingForBook.title.slice(0, 3).toUpperCase(),
-          }),
-        },
-        "Gagal generate eksemplar fisik"
-      );
-      alert(`Berhasil membuat ${data.count} eksemplar fisik untuk ${activeSchool.name}!`);
-      setGeneratingForBook(null);
-    } catch (err: any) {
-      alert(err?.message || "Terjadi kesalahan sistem: Koneksi terputus");
-    }
-  };
-
   const filteredBooks = books.filter((book) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -143,7 +117,7 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
             Central Book Catalog
           </h2>
           <p className="text-xs text-[#65676B] mt-0.5">
-            Master data buku global dan registrasi eksemplar fisik ({books.length} judul terdaftar).
+            Master data buku global ({books.length} judul terdaftar).
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
@@ -335,16 +309,6 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                     Pub: {book.publisher}
                   </div>
                 )}
-
-                <div className="mt-3 pt-2.5 border-t border-[#E4E6EB] flex justify-end">
-                  <button
-                    onClick={() => setGeneratingForBook(book)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#E7F3FF] text-[#1877F2] hover:bg-[#1877F2] hover:text-white rounded-lg transition-colors"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Cetak Fisik Eksemplar
-                  </button>
-                </div>
               </div>
             </div>
           ))
@@ -361,13 +325,12 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
               <th className="py-3 px-4">ISBN</th>
               <th className="py-3 px-4">Penerbit</th>
               <th className="py-3 px-4 text-right">Harga Beli / Jual</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
             {filteredBooks.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-[#65676B]">
+                <td colSpan={5} className="py-10 text-center text-[#65676B]">
                   {books.length === 0
                     ? 'Belum ada judul katalog. Klik "Tambah Buku" untuk membuat baru.'
                     : 'Tidak ada buku yang sesuai dengan pencarian.'}
@@ -403,15 +366,6 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
                     <div className="font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</div>
                     <div className="text-[10px] text-[#65676B] font-medium">Beli: {formatRupiah(effectiveBookPrice(book).buy)}</div>
                   </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => setGeneratingForBook(book)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#E7F3FF] text-[#1877F2] hover:bg-[#1877F2] hover:text-white rounded-lg transition-colors"
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Cetak Fisik Eksemplar
-                    </button>
-                  </td>
                 </tr>
               ))
             )}
@@ -419,46 +373,6 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
         </table>
       </div>
 
-      {/* Physical Copies Generator Modal */}
-      {generatingForBook && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[#CED0D4] rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-            <div className="font-bold text-lg text-[#050505]">Generate Physical Copies</div>
-            <div className="text-xs text-[#65676B]">
-              Cetak dan register barcode eksemplar buku <span className="font-bold text-[#1877F2]">{generatingForBook.title}</span> untuk cabang{" "}
-              <span className="font-bold text-[#050505]">{activeSchool?.name}</span>.
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">Jumlah Eksemplar</label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                placeholder="0"
-                value={generateCount === 0 ? "" : generateCount}
-                onChange={(e) => setGenerateCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-full border border-[#CED0D4] p-2.5 rounded-lg font-mono text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-              />
-            </div>
-
-            <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">
-              <button
-                onClick={() => setGeneratingForBook(null)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleBatchGenerate}
-                className="px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm"
-              >
-                Generate & Barcode
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

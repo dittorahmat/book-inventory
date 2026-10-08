@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { School } from "../types";
 import { formatRupiah } from "../lib/transfer-pricing";
-import { PoSendAction } from "../components/procurement/PoSendAction";
 import { PoWorkflowActions } from "../components/procurement/PoWorkflowActions";
 import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
 import { SupplierMasterSection, type SupplierRecord } from "../components/procurement/SupplierMasterSection";
@@ -84,6 +83,12 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Mode cetak terisolasi: saat pratinjau dibuka, DOM hanya berisi dokumen PO
+  // sehingga window.print() mencetak dokumen saja, bukan seluruh aplikasi.
+  if (printPo) {
+    return <PoPrintView po={printPo} onClose={() => setPrintPo(null)} onChanged={refreshAfterWorkflow} />;
+  }
 
   return (
     <div className="space-y-5">
@@ -355,7 +360,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
                             onChanged={loadData}
                             onPrint={() => setPrintPo(toPrintablePo(po))}
                           />
-                          <PoSendAction po={po} onSent={loadData} />
                           {!isFullyReceived ? (
                             <button
                               onClick={() => setActiveReceivingPO(po)}
@@ -417,8 +421,6 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
           onPrint={() => setPrintPo(toPrintablePo(detailPo))}
         />
       )}
-
-      {printPo && <PoPrintView po={printPo} onClose={() => setPrintPo(null)} onChanged={refreshAfterWorkflow} />}
     </div>
   );
 }

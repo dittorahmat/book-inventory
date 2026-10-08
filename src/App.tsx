@@ -336,8 +336,8 @@ export function App() {
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
-        {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} role={currentUser?.role} />}
-        {activeTab === "catalog" && <CatalogView activeSchool={selectedSchool} />}
+        {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
+        {activeTab === "catalog" && <CatalogView />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
         {activeTab === "reports" && (
           <SalesReportView

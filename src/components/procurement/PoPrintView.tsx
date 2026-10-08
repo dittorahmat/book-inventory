@@ -66,7 +66,7 @@ export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#F0F2F5] print:bg-white print:static">
+    <div className="po-print-root fixed inset-0 z-50 overflow-y-auto bg-[#F0F2F5] print:bg-white print:static">
       <div className="print:hidden sticky top-0 bg-white border-b border-[#E4E6EB] px-5 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <button
@@ -190,7 +190,7 @@ export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClo
           Langkah Berikutnya
         </p>
         <p className="mt-0.5 text-xs text-[#65676B]">
-          1. Cetak dokumen di atas &amp; bubuhkan TTD + cap &nbsp;&rarr;&nbsp; 2. Tandai dicetak &nbsp;&rarr;&nbsp; 3. Upload foto/scan bukti &nbsp;&rarr;&nbsp; 4. Kirim dari daftar PO.
+          1. Cetak dokumen di atas &amp; bubuhkan TTD + cap &nbsp;&rarr;&nbsp; 2. Tandai dicetak &nbsp;&rarr;&nbsp; 3. Upload foto/scan bukti.
         </p>
         <div className="mt-3">
           <PoWorkflowActions po={workflow} onChanged={onChanged} onPrint={() => window.print()} />

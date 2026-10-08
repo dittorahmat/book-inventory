@@ -3,7 +3,6 @@ import { calcPoHeader, calcPoLineNet } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { PoWorkflowActions } from "./PoWorkflowActions";
-import { PoSendAction } from "./PoSendAction";
 import type { PurchaseOrder } from "./procurement-types";
 
 interface PODetailModalProps {
@@ -99,19 +98,18 @@ export function PODetailModal({ po, onClose, onChanged, onPrint }: PODetailModal
               </div>
             ) : (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Belum ada berkas bukti. PO harus dicetak, ditandatangani, lalu diupload sebelum dikirim.
+                Belum ada berkas bukti. PO harus dicetak, ditandatangani, lalu diupload sebagai bukti.
               </p>
             )}
           </div>
         </div>
 
-        <footer className="px-5 py-3 border-t border-[#E4E6EB] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <footer className="px-5 py-3 border-t border-[#E4E6EB] flex items-center justify-start gap-3 shrink-0 flex-wrap">
           <PoWorkflowActions
             po={po}
             onChanged={onChanged}
             onPrint={onPrint}
           />
-          <PoSendAction po={po} onSent={onChanged} />
         </footer>
       </div>
     </div>

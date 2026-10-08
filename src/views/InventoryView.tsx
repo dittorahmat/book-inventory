@@ -4,22 +4,14 @@ import { School } from "../types";
 import type { StockOverviewPayload } from "../types/stock-summary";
 import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
 import { QuantityTransferModal, type TransferLinePreview } from "../components/inventory/QuantityTransferModal";
-import { PhysicalDrilldown } from "../components/inventory/PhysicalDrilldown";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
 
 interface InventoryViewProps {
   activeSchool: School | null;
-  /** Peran pengguna; drill-down fisik hanya untuk gudang & central. */
-  role?: string;
 }
 
-/** Peran yang boleh melihat identitas fisik per barcode (audit). */
-function canDrilldown(role: string | undefined): boolean {
-  return role === "central_admin" || role === "warehouse_admin";
-}
-
-export function InventoryView({ activeSchool, role }: InventoryViewProps) {
+export function InventoryView({ activeSchool }: InventoryViewProps) {
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [allSchools, setAllSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +19,6 @@ export function InventoryView({ activeSchool, role }: InventoryViewProps) {
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isTransferOpen, setIsTransferOpen] = useState(false);
-  const [drilldown, setDrilldown] = useState<{ open: boolean; bookId?: string }>({ open: false });
 
   const loadOverview = useCallback(async () => {
     if (!activeSchool) return;
@@ -177,8 +168,6 @@ export function InventoryView({ activeSchool, role }: InventoryViewProps) {
         packageRows={packageRows}
         quantities={quantities}
         onQuantityChange={(key, value) => setQuantities((prev) => ({ ...prev, [key]: value }))}
-        canDrilldown={canDrilldown(role)}
-        onDrilldown={(bookId) => setDrilldown({ open: true, bookId })}
       />
 
       <QuantityTransferModal
@@ -192,15 +181,6 @@ export function InventoryView({ activeSchool, role }: InventoryViewProps) {
           loadOverview();
         }}
       />
-
-      {activeSchool && (
-        <PhysicalDrilldown
-          open={drilldown.open}
-          schoolId={activeSchool.id}
-          bookId={drilldown.bookId}
-          onClose={() => setDrilldown({ open: false })}
-        />
-      )}
     </div>
   );
 }

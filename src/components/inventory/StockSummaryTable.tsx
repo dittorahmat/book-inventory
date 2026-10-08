@@ -1,4 +1,4 @@
-import { Boxes, Package, ScanLine } from "lucide-react";
+import { Boxes, Package } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import type { LooseSummaryRow, PackageSummaryRow } from "../../types/stock-summary";
 
@@ -7,8 +7,6 @@ interface StockSummaryTableProps {
   packageRows: PackageSummaryRow[];
   quantities: Record<string, number>;
   onQuantityChange: (key: string, value: number) => void;
-  canDrilldown: boolean;
-  onDrilldown: (bookId?: string) => void;
 }
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -31,8 +29,6 @@ export function StockSummaryTable({
   packageRows,
   quantities,
   onQuantityChange,
-  canDrilldown,
-  onDrilldown,
 }: StockSummaryTableProps) {
   if (looseRows.length === 0 && packageRows.length === 0) {
     return (
@@ -105,7 +101,7 @@ export function StockSummaryTable({
                         {formatRupiah(row.sellPrice)}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center">
                           <input
                             type="number"
                             min={0}
@@ -118,16 +114,6 @@ export function StockSummaryTable({
                             className={inputClass}
                             aria-label={`Jumlah pindah ${row.title}`}
                           />
-                          {canDrilldown && (
-                            <button
-                              type="button"
-                              onClick={() => onDrilldown(row.bookId)}
-                              title="Lihat rincian fisik (audit)"
-                              className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
-                            >
-                              <ScanLine className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -189,7 +175,7 @@ export function StockSummaryTable({
                       {row.readyQty} siap &bull; {row.totalQty} total &bull; {formatRupiah(row.price)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center shrink-0">
                     <input
                       type="number"
                       min={0}
@@ -202,16 +188,6 @@ export function StockSummaryTable({
                       className={inputClass}
                       aria-label={`Jumlah pindah ${row.name}`}
                     />
-                    {canDrilldown && (
-                      <button
-                        type="button"
-                        onClick={() => onDrilldown()}
-                        title="Lihat rincian fisik (audit)"
-                        className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
-                      >
-                        <ScanLine className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                 </li>
               );

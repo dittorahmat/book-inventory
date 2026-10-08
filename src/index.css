@@ -14,3 +14,28 @@
     letter-spacing: -0.015em;
   }
 }
+
+/* Cetak PO: hanya dokumen PO yang keluar; shell aplikasi disembunyikan. */
+@media print {
+  body {
+    background-color: #fff !important;
+  }
+  body header,
+  body nav {
+    display: none !important;
+  }
+  body main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+  .po-print-root {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  @page {
+    margin: 12mm;
+  }
+}
