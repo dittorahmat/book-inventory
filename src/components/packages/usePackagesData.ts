@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Book, School } from "../../types";
-import { buildQuery, getJson, postJson } from "../../lib/api";
+import { buildQuery, getJson, postJson, delJson } from "../../lib/api";
 import type { StockPotential } from "../../types/stock-summary";
 
 export interface PackageRow {
@@ -79,5 +79,13 @@ export function usePackagesData(activeSchool: School | null) {
     [loadPackagesData]
   );
 
-  return { packages, catalogBooks, stockMap, isLoading, loadError, loadPackagesData, createPackage };
+  const deletePackage = useCallback(
+    async (packageId: string) => {
+      await delJson(`/api/packages/${packageId}`, "Gagal menghapus paket.");
+      await loadPackagesData();
+    },
+    [loadPackagesData]
+  );
+
+  return { packages, catalogBooks, stockMap, isLoading, loadError, loadPackagesData, createPackage, deletePackage };
 }

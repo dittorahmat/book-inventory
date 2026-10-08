@@ -22,7 +22,7 @@ describe("stock-kernel tallies", () => {
       { status: "lost", condition: "good" },
       { status: "disposed", condition: "damaged" },
     ]);
-    expect(tally.totalQty).toBe(5);
+    expect(tally.totalQty).toBe(4);
     expect(tally.availableQty).toBe(2);
     expect(tally.inTransitQty).toBe(1);
     expect(tally.lostQty).toBe(1);

@@ -38,6 +38,7 @@ const createShipmentSchema = z.object({
   packageItemIds: z.array(z.string().min(1)).default([]),
   notes: z.string().optional(),
   reason: z.string().optional(),
+  instant: z.boolean().default(false),
 }).refine(
   (v) => v.items.length > 0 || v.bookItemIds.length > 0 || v.packageItemIds.length > 0,
   { message: "At least one book item or package item required" }
@@ -114,6 +115,7 @@ shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) =>
       packageItemIds: body.packageItemIds,
       notes: body.notes,
       reason: body.reason,
+      instant: body.instant,
     });
 
     if (!result.ok) {
@@ -171,3 +173,41 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     return accessErrorResponse(c, err);
   }
 });
+
+// DELETE shipment (khusus draft atau batalkan kiriman)
+shipmentsRouter.delete("/:id", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const id = c.req.param("id");
+    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
+
+    if (!shipment) {
+      return c.json({ success: false, message: "Shipment not found" }, 404);
+    }
+    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId) {
+      return c.json({ success: false, message: "Akses hapus transfer lokasi lain dilarang" }, 403);
+    }
+
+    // Jika in_transit, kembalikan status item fisik ke in_stock di asal
+    const { transferShipmentItems, bookItems, packageItems } = await import("../../db/schema");
+    const { inArray } = await import("drizzle-orm");
+    const items = await db.select().from(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, id));
+    const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId);
+    const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId);
+
+    if (looseIds.length > 0) {
+      await db.update(bookItems).set({ status: "in_stock" }).where(inArray(bookItems.id, looseIds));
+    }
+    if (bundleIds.length > 0) {
+      await db.update(packageItems).set({ status: "in_stock" }).where(inArray(packageItems.id, bundleIds));
+    }
+
+    await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, id));
+    await db.delete(transferShipments).where(eq(transferShipments.id, id));
+
+    return c.json({ success: true, message: "Pengiriman transfer berhasil dihapus" });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+

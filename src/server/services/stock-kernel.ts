@@ -67,11 +67,15 @@ const bump = (buckets: Record<string, number>, key: string): void => {
 
 /** Hitung satu eksemplar satuan ke dalam tally (idempoten per baris). */
 export function addLoose(tally: LooseTally, row: LooseCountRow): void {
-  tally.totalQty += 1;
   bump(tally.byStatus, row.status);
   bump(tally.byConditionAll, row.condition);
+  if (row.status !== "disposed") {
+    tally.totalQty += 1;
+  }
   if (isAvailableLoose(row.status)) {
     tally.availableQty += 1;
+  }
+  if (isAvailableLoose(row.status)) {
     bump(tally.byConditionAvailable, row.condition);
     if (row.condition === "damaged") tally.damagedQty += 1;
   }

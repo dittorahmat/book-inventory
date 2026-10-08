@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BookItem, School, TransferShipment } from "../../types";
-import { buildQuery, getJson, postJson } from "../../lib/api";
+import { buildQuery, getJson, postJson, delJson } from "../../lib/api";
 import { calcHeaderTotal, formatRupiah } from "../../lib/transfer-pricing";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import type { ReadyBundle } from "./PackagePicker";
@@ -89,6 +89,8 @@ export function useTransfers(activeSchool: School | null) {
     }
   }, []);
 
+  const [isInstant, setIsInstant] = useState(false);
+
   const handleCreateShipment = useCallback(async () => {
     if (!activeSchool || !destinationSchoolId) return;
     if (selectedItems.length === 0 && selectedPackages.length === 0) {
@@ -104,20 +106,26 @@ export function useTransfers(activeSchool: School | null) {
           bookItemIds: selectedItems,
           packageItemIds: selectedPackages,
           reason: transferReason.trim() || undefined,
-          notes: "Scheduled distribution",
+          notes: isInstant ? "Instant stock transfer" : "Scheduled distribution",
+          instant: isInstant,
         },
-        "Gagal menyimpan draf transfer"
+        "Gagal menyimpan transfer"
       );
-      alert(`Draf ${created.shipmentNumber} tersimpan! Nilai: ${formatRupiah(created.totalDeclaredValue || 0)}`);
+      alert(
+        isInstant
+          ? `Transfer ${created.shipmentNumber} berhasil! Stok langsung dipindahkan ke sekolah tujuan.`
+          : `Draf ${created.shipmentNumber} tersimpan! Nilai: ${formatRupiah(created.totalDeclaredValue || 0)}`
+      );
       setIsCreating(false);
+      setIsInstant(false);
       setSelectedItems([]);
       setSelectedPackages([]);
       setTransferReason("");
       await fetchShipments();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat menyimpan draf transfer");
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat menyimpan transfer");
     }
-  }, [activeSchool, destinationSchoolId, selectedItems, selectedPackages, transferReason, fetchShipments]);
+  }, [activeSchool, destinationSchoolId, selectedItems, selectedPackages, transferReason, isInstant, fetchShipments]);
 
   const handleDispatch = useCallback(
     async (id: string) => {
@@ -166,6 +174,20 @@ export function useTransfers(activeSchool: School | null) {
     [fetchShipments, openShipmentDetail]
   );
 
+  const handleDeleteShipment = useCallback(
+    async (id: string) => {
+      try {
+        await delJson(`/api/shipments/${id}`, "Gagal menghapus pengiriman transfer");
+        alert("Pengiriman transfer berhasil dihapus");
+        if (selectedShipment?.id === id) setSelectedShipment(null);
+        await fetchShipments();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Terjadi kesalahan sistem saat menghapus transfer");
+      }
+    },
+    [fetchShipments, selectedShipment?.id]
+  );
+
   return {
     shipments,
     allSchools,
@@ -179,6 +201,8 @@ export function useTransfers(activeSchool: School | null) {
     setTransferReason,
     isCreating,
     setIsCreating,
+    isInstant,
+    setIsInstant,
     selectedShipment,
     setSelectedShipment,
     looseTotal,
@@ -190,6 +214,7 @@ export function useTransfers(activeSchool: School | null) {
     handleCreateShipment,
     handleDispatch,
     handleReceive,
+    handleDeleteShipment,
     openShipmentDetail,
   };
 }

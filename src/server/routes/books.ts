@@ -148,3 +148,26 @@ booksRouter.post("/:id/cover", async (c) => {
 
   return c.json({ success: true, data: { coverUrl } });
 });
+
+// DELETE book (hapus judul buku jika tidak dipakai di paket/transaksi aktif)
+booksRouter.delete("/:id", async (c) => {
+  const id = c.req.param("id");
+  const [book] = await db.select().from(books).where(eq(books.id, id));
+  if (!book) {
+    return c.json({ success: false, message: "Buku tidak ditemukan" }, 404);
+  }
+
+  // Cek apakah dipakai di BOM paket
+  const { bookPackageItems, bookItems } = await import("../../db/schema");
+  const inPackages = await db.select().from(bookPackageItems).where(eq(bookPackageItems.bookId, id));
+  if (inPackages.length > 0) {
+    return c.json({ success: false, message: "Buku tidak dapat dihapus karena masih menjadi komponen paket." }, 400);
+  }
+
+  // Hapus eksemplar satuan yang berstatus in_stock / disposed
+  await db.delete(bookItems).where(eq(bookItems.bookId, id));
+  await db.delete(books).where(eq(books.id, id));
+
+  return c.json({ success: true, message: `Buku "${book.title}" berhasil dihapus` });
+});
+

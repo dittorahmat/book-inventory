@@ -249,3 +249,66 @@ export async function disassemblePackageBundles(
     },
   };
 }
+
+export type DeletePackageResult =
+  | {
+      ok: true;
+      data: {
+        packageId: string;
+        unbundledCount: number;
+        restoredLooseCount: number;
+      };
+    }
+  | AssemblyError;
+
+/**
+ * Deep module: hapus paket dengan auto-unbundle seluruh bundel fisik in_stock.
+ */
+export async function deletePackageWithAutoUnbundle(packageId: string): Promise<DeletePackageResult> {
+  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+  if (!pkg) {
+    return { ok: false, status: 404, message: "Package not found" };
+  }
+
+  // Cari semua bundel in_stock di seluruh sekolah
+  const activeBundles = await db
+    .select({ id: packageItems.id, schoolId: packageItems.currentSchoolId })
+    .from(packageItems)
+    .where(and(eq(packageItems.packageId, packageId), eq(packageItems.status, "in_stock")));
+
+  // Kelompokkan per sekolah
+  const bySchool = new Map<string, number>();
+  for (const b of activeBundles) {
+    bySchool.set(b.schoolId, (bySchool.get(b.schoolId) ?? 0) + 1);
+  }
+
+  let totalUnbundled = 0;
+  let totalRestored = 0;
+  for (const [schoolId, count] of bySchool.entries()) {
+    const res = await disassemblePackageBundles(packageId, schoolId, count, `Auto-unbundle saat penghapusan paket ${pkg.name}`);
+    if (!res.ok) return res;
+    totalUnbundled += res.data.unbundledCount;
+    totalRestored += res.data.restoredLooseCount;
+  }
+
+  // Hapus relasi BOM dan master paket
+  try {
+    await runWriteBatch(db, [
+      db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId)),
+      db.delete(bookPackages).where(eq(bookPackages.id, packageId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penghapusan paket");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return {
+    ok: true,
+    data: {
+      packageId,
+      unbundledCount: totalUnbundled,
+      restoredLooseCount: totalRestored,
+    },
+  };
+}

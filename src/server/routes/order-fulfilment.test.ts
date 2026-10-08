@@ -56,7 +56,7 @@ async function seedPackage(prefix: string) {
 }
 
 describe("handoverPackage langsung via seam modul (T5)", () => {
-  it("serah terima tanpa stok bundel tetap picked_up dengan assigned null eksplisit", async () => {
+  it("serah terima tanpa stok bundel ditolak 400 fail-closed", async () => {
     const schoolId = await seedSchool("handnull");
     const studentId = await seedStudent(schoolId);
     const packageId = await seedPackage("handnull");
@@ -69,15 +69,13 @@ describe("handoverPackage langsung via seam modul (T5)", () => {
       });
 
       const result = await handoverPackage(db, orderId, { recipientName: "Orang Tua" });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.fulfillmentStatus).toBe("picked_up");
-        expect(result.data.assignedPackageItemId).toBeNull();
-        expect(result.data.deliveryNumber).toContain("SJ-SERAH-");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(400);
+        expect(result.message).toContain("Stok paket tidak tersedia");
       }
       const [row] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-      expect(row.fulfillmentStatus).toBe("picked_up");
-      expect(row.assignedPackageItemId).toBeNull();
+      expect(row.fulfillmentStatus).toBe("waiting_preparation");
     } finally {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));

@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
 import { formatRupiah } from "../lib/transfer-pricing";
-import { buildQuery, getJson, postJson } from "../lib/api";
+import { buildQuery, getJson, postJson, delJson } from "../lib/api";
 import { 
   Search, 
   RefreshCw, 
   Award, 
   Truck, 
   Printer, 
-  X
+  X,
+  Trash2
 } from "lucide-react";
 
 interface StudentOrder {
@@ -384,27 +385,47 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        {!isPickedUp ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isPickedUp ? (
+                            <button
+                              onClick={() => {
+                                setActiveHandoverOrder(o);
+                                setHandoverRecipient(o.parentName || o.studentName);
+                              }}
+                              className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>Serahkan Buku</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => window.print()}
+                              className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
+                              title="Cetak Surat Jalan Serah Terima"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#65676B]" />
+                              <span>Surat Jalan</span>
+                            </button>
+                          )}
                           <button
-                            onClick={() => {
-                              setActiveHandoverOrder(o);
-                              setHandoverRecipient(o.parentName || o.studentName);
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Hapus pesanan ${o.orderNumber} (${o.studentName})? Data pesanan akan dihapus dari sistem.`)) {
+                                try {
+                                  await delJson(`/api/student-orders/${o.id}`, "Gagal menghapus pesanan.");
+                                  alert(`Pesanan ${o.orderNumber} berhasil dihapus.`);
+                                  loadOrders();
+                                } catch (err) {
+                                  alert(err instanceof Error ? err.message : "Gagal menghapus pesanan.");
+                                }
+                              }
                             }}
-                            className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5"
+                            title="Hapus pesanan siswa"
+                            className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
                           >
-                            <Truck className="w-3.5 h-3.5" />
-                            <span>Serahkan Buku</span>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => window.print()}
-                            className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
-                            title="Cetak Surat Jalan Serah Terima"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-[#65676B]" />
-                            <span>Surat Jalan</span>
-                          </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -560,6 +581,11 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
               </button>
             </div>
             <form onSubmit={handleHandoverSubmit} className="p-6 space-y-4 text-xs">
+              {errorMsg && (
+                <div className="text-red-700 bg-red-50 border border-red-200 p-3 rounded-xl font-medium">
+                  {errorMsg}
+                </div>
+              )}
               <div>
                 <span className="text-[#65676B]">Murid:</span>{" "}
                 <span className="font-bold text-[#050505]">{activeHandoverOrder.studentName}</span>

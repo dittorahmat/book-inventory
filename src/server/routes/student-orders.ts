@@ -7,6 +7,7 @@ import {
   studentBookOrders,
   students,
   bookPackages,
+  packageItems,
   bookReturns,
   books,
 } from "../../db/schema";
@@ -238,3 +239,35 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
     return accessErrorResponse(c, err);
   }
 });
+
+// DELETE student order (membatalkan/menghapus pesanan siswa)
+studentOrdersRouter.delete("/:id", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
+
+    // Jika order sudah di-pickup dan ada assignedPackageItemId, kembalikan status bundel ke in_stock
+    if (order.assignedPackageItemId) {
+      await db
+        .update(packageItems)
+        .set({ status: "in_stock", updatedAt: new Date().toISOString() })
+        .where(eq(packageItems.id, order.assignedPackageItemId));
+    }
+
+    // Hapus laporan retur terkait jika ada
+    await db.delete(bookReturns).where(eq(bookReturns.orderId, id));
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, id));
+
+    return c.json({ success: true, message: "Pesanan siswa berhasil dihapus" });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+

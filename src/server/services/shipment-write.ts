@@ -16,6 +16,7 @@ export interface CreateShipmentInput {
   packageItemIds?: string[];
   notes?: string;
   reason?: string;
+  instant?: boolean;
 }
 
 export interface LooseReceipt {
@@ -117,14 +118,34 @@ export async function createShipment(
   const total = calcHeaderTotal(valuedLines);
 
   try {
+    const initialStatus = input.instant ? "completed" : "draft";
+    const relocateLooseWrites = input.instant && looseLines.length > 0
+      ? [
+          database
+            .update(bookItems)
+            .set({ currentSchoolId: input.toSchoolId, status: "in_stock", updatedAt: now })
+            .where(inArray(bookItems.id, looseLines.map((l) => l.bookItemId))),
+        ]
+      : [];
+    const relocateBundleWrites = input.instant && bundleLines.length > 0
+      ? [
+          database
+            .update(packageItems)
+            .set({ currentSchoolId: input.toSchoolId, status: "in_stock", updatedAt: now })
+            .where(inArray(packageItems.id, bundleLines.map((l) => l.packageItemId))),
+        ]
+      : [];
+
     await runWriteBatch(database, [
       database.insert(transferShipments).values({
         id: shipmentId,
         shipmentNumber,
         fromSchoolId: input.fromSchoolId,
         toSchoolId: input.toSchoolId,
-        status: "draft",
+        status: initialStatus,
         totalDeclaredValue: total,
+        dispatchedAt: input.instant ? now : null,
+        receivedAt: input.instant ? now : null,
         notes: input.notes,
         reason: input.reason,
         createdAt: now,
@@ -140,6 +161,7 @@ export async function createShipment(
           packageItemId: null,
           quantity: 1,
           unitPriceSnapshot: l.snapshot,
+          receivedCondition: input.instant ? "good" : null,
           createdAt: now,
         })
       ),
@@ -153,9 +175,12 @@ export async function createShipment(
           packageItemId: l.packageItemId,
           quantity: 1,
           unitPriceSnapshot: l.meta.snapshot,
+          receivedCondition: input.instant ? "good" : null,
           createdAt: now,
         })
       ),
+      ...relocateLooseWrites,
+      ...relocateBundleWrites,
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "pembuatan transfer");

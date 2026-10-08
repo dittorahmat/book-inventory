@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { studentOrdersRouter } from "./student-orders";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, studentBookOrders, books } from "../../db/schema";
+import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, books } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
@@ -55,6 +55,16 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
       curriculumType: "international",
       academicYear: "2026/2027",
       price: 900000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(packageItems).values({
+      id: `pi-so-${Date.now()}`,
+      packageId: pkgId,
+      currentSchoolId: schoolId,
+      barcode: `PKG-SO-B-${Date.now()}`,
+      status: "in_stock",
       createdAt: now,
       updatedAt: now,
     });

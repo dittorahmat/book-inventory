@@ -204,4 +204,93 @@ describe("Packages & Bundling/Unbundling API", () => {
     expect(overRes.status).toBe(400);
     expect((await overRes.json()).message).toMatch(/Not enough assembled/);
   });
+
+  it("DELETE /:id berhasil membongkar bundel in_stock ke stok satuan dan menghapus paket", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-pkg-del-${stamp}`;
+    const bookId = `b-del-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Sekolah Hapus Paket",
+      code: `TDL-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-DEL-${stamp}`,
+      title: "Buku Uji Delete",
+      author: "Test",
+      publisher: "Test",
+      sellPrice: 50000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Seed 2 unit buku satuan
+    await db.insert(bookItems).values([
+      {
+        id: `bi-del-1-${stamp}`,
+        bookId,
+        currentSchoolId: schoolId,
+        barcode: `BC-DEL-1-${stamp}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `bi-del-2-${stamp}`,
+        bookId,
+        currentSchoolId: schoolId,
+        barcode: `BC-DEL-2-${stamp}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    const createRes = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `PKG-DEL-${stamp}`,
+        name: "Paket Mau Dihapus",
+        gradeLevel: "1",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        items: [{ bookId, quantity: 2 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const pkgId = (await createRes.json()).data.id;
+
+    // Rakit 1 bundel (menyerap 2 buku)
+    const bundleRes = await packagesRouter.request(`/${pkgId}/bundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, quantity: 1 }),
+    });
+    expect(bundleRes.status).toBe(200);
+
+    // Hapus paket dengan auto-unbundle
+    const delRes = await packagesRouter.request(`/${pkgId}`, {
+      method: "DELETE",
+    });
+    expect(delRes.status).toBe(200);
+    const delJson = await delRes.json();
+    expect(delJson.success).toBe(true);
+    expect(delJson.data.unbundledCount).toBe(1);
+    expect(delJson.data.restoredLooseCount).toBe(2);
+
+    // Verifikasi paket sudah tidak ada
+    const checkRes = await packagesRouter.request(`/${pkgId}/stock/${schoolId}`, { method: "GET" });
+    expect(checkRes.status).toBe(404);
+  });
 });
+

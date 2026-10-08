@@ -16,7 +16,8 @@ import {
   ChevronUp,
   BookOpen,
   Plus,
-  Send
+  Send,
+  Trash2,
 } from "lucide-react";
 
 type BookPackage = PackageRow;
@@ -37,6 +38,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
     loadError,
     loadPackagesData,
     createPackage,
+    deletePackage,
   } = usePackagesData(activeSchool);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>("all");
@@ -276,6 +278,26 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                       >
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         <span>{isExpanded ? "Tutup" : `Lihat ${pkg.totalItemsCount} Buku`}</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          const confirmMsg = readyCount > 0
+                            ? `Paket "${pkg.name}" memiliki ${readyCount} bundel siap serah. Menghapus paket akan otomatis membongkar seluruh bundel kembali menjadi buku satuan. Lanjutkan?`
+                            : `Hapus paket "${pkg.name}"?`;
+                          if (window.confirm(confirmMsg)) {
+                            try {
+                              await deletePackage(pkg.id);
+                              alert(`Paket "${pkg.name}" berhasil dihapus.`);
+                            } catch (err) {
+                              alert(err instanceof Error ? err.message : "Gagal menghapus paket.");
+                            }
+                          }
+                        }}
+                        title="Hapus paket buku"
+                        className="p-2 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>

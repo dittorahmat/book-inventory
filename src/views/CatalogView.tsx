@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Book } from "../types";
-import { Plus, Image as ImageIcon, Search, Upload } from "lucide-react";
+import { Plus, Image as ImageIcon, Search, Upload, Trash2 } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
-import { getJson, postForm, postJson } from "../lib/api";
+import { getJson, postForm, postJson, delJson } from "../lib/api";
 import { BookPriceFields } from "../components/catalog/BookPriceFields";
 import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
 
@@ -325,12 +325,13 @@ export function CatalogView() {
               <th className="py-3 px-4">ISBN</th>
               <th className="py-3 px-4">Penerbit</th>
               <th className="py-3 px-4 text-right">Harga Beli / Jual</th>
+              <th className="py-3 px-4 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
             {filteredBooks.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-10 text-center text-[#65676B]">
+                <td colSpan={6} className="py-10 text-center text-[#65676B]">
                   {books.length === 0
                     ? 'Belum ada judul katalog. Klik "Tambah Buku" untuk membuat baru.'
                     : 'Tidak ada buku yang sesuai dengan pencarian.'}
@@ -365,6 +366,26 @@ export function CatalogView() {
                   <td className="py-3 px-4 text-right">
                     <div className="font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</div>
                     <div className="text-[10px] text-[#65676B] font-medium">Beli: {formatRupiah(effectiveBookPrice(book).buy)}</div>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.confirm(`Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`)) {
+                          try {
+                            await delJson(`/api/books/${book.id}`, "Gagal menghapus buku.");
+                            alert(`Buku "${book.title}" berhasil dihapus.`);
+                            fetchBooks();
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : "Gagal menghapus buku.");
+                          }
+                        }
+                      }}
+                      title="Hapus buku"
+                      className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))

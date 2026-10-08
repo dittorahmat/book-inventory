@@ -13,7 +13,7 @@ import {
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
-import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
+import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
 import { getStockPotentials } from "../services/package-stock";
 
 export const packagesRouter = new Hono();
@@ -256,3 +256,26 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
     return accessErrorResponse(c, err);
   }
 });
+
+// DELETE Package with auto-unbundle of ready bundles
+packagesRouter.delete("/:id", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const packageId = c.req.param("id");
+
+    const result = await deletePackageWithAutoUnbundle(packageId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `Paket berhasil dihapus. ${result.data.unbundledCount} bundel dibongkar dan ${result.data.restoredLooseCount} buku dikembalikan ke stok satuan.`,
+      data: result.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+

@@ -494,4 +494,60 @@ describe("Inter-School Transfer Shipments API", () => {
       await db.delete(schools).where(eq(schools.id, toId));
     }
   });
+
+  it("instant transfer memindahkan stok langsung dan DELETE /:id menghapus shipment", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const fromId = `sch-inst-from-${stamp}`;
+    const toId = `sch-inst-to-${stamp}`;
+    const bookId = `b-inst-${stamp}`;
+    const copyId = `bi-inst-${stamp}`;
+
+    try {
+      await db.insert(schools).values([
+        { id: fromId, name: "Inst From", code: `IN-F-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+        { id: toId, name: "Inst To", code: `IN-T-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      ]);
+      await db.insert(books).values({
+        id: bookId, isbn: `ISBN-INST-${stamp}`, title: "Buku Instant", author: "QA", publisher: "QA",
+        sellPrice: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: copyId, bookId, currentSchoolId: fromId, barcode: `BC-INST-${stamp}`, status: "in_stock", condition: "new",
+        createdAt: now, updatedAt: now,
+      });
+
+      // 1. Buat Instant Transfer
+      const res = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: fromId,
+          toSchoolId: toId,
+          bookItemIds: [copyId],
+          instant: true,
+        }),
+      });
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.data.status).toBe("completed");
+
+      // Verifikasi stok langsung pindah ke toId
+      const [moved] = await db.select().from(bookItems).where(eq(bookItems.id, copyId));
+      expect(moved.currentSchoolId).toBe(toId);
+      expect(moved.status).toBe("in_stock");
+
+      // 2. Test DELETE shipment
+      const delRes = await shipmentsRouter.request(`/${json.data.id}`, { method: "DELETE" });
+      expect(delRes.status).toBe(200);
+      const [check] = await db.select().from(transferShipments).where(eq(transferShipments.id, json.data.id));
+      expect(check).toBeUndefined();
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.id, copyId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, fromId));
+      await db.delete(schools).where(eq(schools.id, toId));
+    }
+  });
 });
+

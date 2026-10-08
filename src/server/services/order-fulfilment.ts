@@ -67,13 +67,19 @@ export async function handoverPackage(
       )
       .limit(1);
 
-    if (availableBundle) {
-      assignedItem = availableBundle.id;
-      await database
-        .update(packageItems)
-        .set({ status: "delivered", updatedAt: now })
-        .where(eq(packageItems.id, availableBundle.id));
+    if (!availableBundle) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Stok paket tidak tersedia di cabang ini untuk diserahkan. Harap rakit paket atau lakukan transfer terlebih dahulu.",
+      };
     }
+
+    assignedItem = availableBundle.id;
+    await database
+      .update(packageItems)
+      .set({ status: "delivered", updatedAt: now })
+      .where(eq(packageItems.id, availableBundle.id));
   }
 
   await database
