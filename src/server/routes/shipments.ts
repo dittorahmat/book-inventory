@@ -187,6 +187,15 @@ shipmentsRouter.delete("/:id", async (c) => {
     if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId) {
       return c.json({ success: false, message: "Akses hapus transfer lokasi lain dilarang" }, 403);
     }
+    if (shipment.status === "completed" || shipment.status === "completed_with_discrepancy") {
+      return c.json(
+        {
+          success: false,
+          message: `Surat jalan transfer "${shipment.shipmentNumber}" tidak dapat dihapus karena sudah selesai diterima (Completed) oleh cabang tujuan. Data pergerakan stok telah resmi tercatat.`,
+        },
+        400
+      );
+    }
 
     // Jika in_transit, kembalikan status item fisik ke in_stock di asal
     const { transferShipmentItems, bookItems, packageItems } = await import("../../db/schema");

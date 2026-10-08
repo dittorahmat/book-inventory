@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { studentsRouter } from "./students";
 import { db } from "../../db";
 import { schools } from "../../db/schema";
@@ -203,5 +204,48 @@ describe("Students admin API", () => {
     const afterDel = await studentsRouter.request(`/?search=${encodeURIComponent(`Anak B ${stamp}`)}`);
     const afterDelJson = await afterDel.json();
     expect(afterDelJson.data.some((s: any) => s.name === `Anak B ${stamp}`)).toBe(false);
+  });
+
+  it("blocks deleting a student who has book orders and returns order numbers in message", async () => {
+    const { studentBookOrders } = await import("../../db/schema");
+    const stamp = Date.now();
+    const schoolId = `school-ord-${stamp}`;
+    await seedSchool(schoolId, `ALW-ORD-${stamp}`);
+
+    const res = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, nis: `ORD${stamp}`, name: "Siswa Berpesanan", gradeLevel: "5", academicYear: "2026/2027" }),
+    });
+    const { data: st } = await res.json();
+
+    const orderNumber = `ORD-TEST-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: `sbo-test-${stamp}`,
+      orderNumber,
+      studentId: st.id,
+      schoolId,
+      orderType: "regular",
+      paymentStatus: "unpaid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 150000,
+      paidAmount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Delete student -> must fail with 400 and state the order number
+    const delRes = await studentsRouter.request(`/${st.id}`, { method: "DELETE" });
+    const delJson = await delRes.json();
+    expect(delRes.status).toBe(400);
+    expect(delJson.success).toBe(false);
+    expect(delJson.message).toContain(orderNumber);
+
+    // Clean up order first
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `sbo-test-${stamp}`));
+
+    // Now delete succeeds
+    const delRes2 = await studentsRouter.request(`/${st.id}`, { method: "DELETE" });
+    expect(delRes2.status).toBe(200);
   });
 });

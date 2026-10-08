@@ -158,7 +158,7 @@ booksRouter.delete("/:id", async (c) => {
   }
 
   // Cek apakah dipakai di BOM paket
-  const { bookPackageItems, bookPackages, bookItems } = await import("../../db/schema");
+  const { bookPackageItems, bookPackages, bookItems, purchaseOrderItems, purchaseOrders } = await import("../../db/schema");
   const inPackages = await db
     .select({
       packageId: bookPackageItems.packageId,
@@ -174,6 +174,26 @@ booksRouter.delete("/:id", async (c) => {
       {
         success: false,
         message: `Buku tidak dapat dihapus karena masih menjadi komponen dalam paket: "${packageNames}". Silakan hapus atau ubah komponen paket tersebut terlebih dahulu.`,
+      },
+      400
+    );
+  }
+
+  // Cek apakah tercatat dalam riwayat Purchase Order (PO)
+  const inPOs = await db
+    .select({
+      poNumber: purchaseOrders.poNumber,
+    })
+    .from(purchaseOrderItems)
+    .innerJoin(purchaseOrders, eq(purchaseOrderItems.purchaseOrderId, purchaseOrders.id))
+    .where(eq(purchaseOrderItems.bookId, id));
+
+  if (inPOs.length > 0) {
+    const poNumbers = Array.from(new Set(inPOs.map((p: { poNumber: string }) => p.poNumber))).join(", ");
+    return c.json(
+      {
+        success: false,
+        message: `Buku tidak dapat dihapus karena tercatat dalam dokumen Purchase Order: ${poNumbers}. Buku ini memiliki riwayat pengadaan resmi.`,
       },
       400
     );

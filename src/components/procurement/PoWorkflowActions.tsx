@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Printer, Upload, FileCheck2, AlertCircle, ExternalLink } from "lucide-react";
-import { apiEnvelope, postForm } from "../../lib/api";
+import { Printer, Upload, FileCheck2, AlertCircle, ExternalLink, Trash2 } from "lucide-react";
+import { apiEnvelope, postForm, delJson } from "../../lib/api";
 
 export interface PoWorkflowTarget {
   id: string;
@@ -165,6 +165,27 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
         <Printer className="w-3 h-3" />
         <span>Lihat & Cetak PO</span>
       </button>
+
+      {(isDraft || po.status === "cancelled") && (
+        <button
+          type="button"
+          onClick={async () => {
+            if (window.confirm(`Hapus Purchase Order "${po.poNumber}"? Dokumen ini akan dihapus permanen.`)) {
+              try {
+                await delJson(`/api/procurement/purchase-orders/${po.id}`, "Gagal menghapus Purchase Order");
+                alert(`Purchase Order "${po.poNumber}" berhasil dihapus.`);
+                onChanged();
+              } catch (err: any) {
+                alert(err?.message || "Gagal menghapus Purchase Order.");
+              }
+            }
+          }}
+          className="px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline inline-flex items-center gap-1 active:scale-[0.98]"
+        >
+          <Trash2 className="w-3 h-3" />
+          <span>Hapus PO</span>
+        </button>
+      )}
 
       {feedback && (
         <div

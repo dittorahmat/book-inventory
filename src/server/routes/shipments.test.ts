@@ -537,11 +537,40 @@ describe("Inter-School Transfer Shipments API", () => {
       expect(moved.currentSchoolId).toBe(toId);
       expect(moved.status).toBe("in_stock");
 
-      // 2. Test DELETE shipment
-      const delRes = await shipmentsRouter.request(`/${json.data.id}`, { method: "DELETE" });
-      expect(delRes.status).toBe(200);
-      const [check] = await db.select().from(transferShipments).where(eq(transferShipments.id, json.data.id));
+      // 2. Test DELETE completed shipment -> should be rejected with 400
+      const delCompletedRes = await shipmentsRouter.request(`/${json.data.id}`, { method: "DELETE" });
+      const delCompletedJson = await delCompletedRes.json();
+      expect(delCompletedRes.status).toBe(400);
+      expect(delCompletedJson.success).toBe(false);
+      expect(delCompletedJson.message).toContain("Completed");
+
+      // 3. Test DELETE draft shipment -> should succeed
+      const copyId2 = `c-inst-2-${stamp}`;
+      await db.insert(bookItems).values({
+        id: copyId2, bookId, currentSchoolId: fromId, barcode: `BC-INST-2-${stamp}`, status: "in_stock", condition: "new",
+        createdAt: now, updatedAt: now,
+      });
+
+      const draftRes = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: fromId,
+          toSchoolId: toId,
+          bookItemIds: [copyId2],
+        }),
+      });
+      const draftJson = await draftRes.json();
+      expect(draftRes.status).toBe(201);
+
+      const delDraftRes = await shipmentsRouter.request(`/${draftJson.data.id}`, { method: "DELETE" });
+      expect(delDraftRes.status).toBe(200);
+      const [check] = await db.select().from(transferShipments).where(eq(transferShipments.id, draftJson.data.id));
       expect(check).toBeUndefined();
+
+      // Clean up completed shipment row manually
+      await db.delete(transferShipments).where(eq(transferShipments.id, json.data.id));
+      await db.delete(bookItems).where(eq(bookItems.id, copyId2));
     } finally {
       await db.delete(bookItems).where(eq(bookItems.id, copyId));
       await db.delete(books).where(eq(books.id, bookId));

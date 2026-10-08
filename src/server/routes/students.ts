@@ -191,6 +191,25 @@ studentsRouter.delete("/:id", async (c) => {
       return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
     }
     assertLocationAllowed(actor, existing.schoolId, locations);
+
+    // Guard: Cek apakah siswa memiliki riwayat pesanan buku
+    const { studentBookOrders } = await import("../../db/schema");
+    const existingOrders = await db
+      .select({ orderNumber: studentBookOrders.orderNumber })
+      .from(studentBookOrders)
+      .where(eq(studentBookOrders.studentId, id));
+
+    if (existingOrders.length > 0) {
+      const orderNumbers = existingOrders.map((o: { orderNumber: string }) => o.orderNumber).join(", ");
+      return c.json(
+        {
+          success: false,
+          message: `Data siswa "${existing.name}" tidak dapat dihapus karena memiliki riwayat pesanan buku: ${orderNumbers}. Silakan hapus pesanan tersebut terlebih dahulu di menu Pesanan Siswa.`,
+        },
+        400
+      );
+    }
+
     await db.delete(students).where(eq(students.id, id));
     return c.json({ success: true, message: "Data siswa berhasil dihapus" });
   } catch (err) {

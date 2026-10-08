@@ -413,5 +413,63 @@ describe("Supplier Procurement & Purchase Order API", () => {
     const row = (await list.json()).data.find((p: any) => p.id === poId);
     expect(row.canSend).toBe(false);
     expect(row.sendBlockedReason).toMatch(/tanda tangan/i);
+
+    // Test DELETE PO (draft tanpa penerimaan berhasil)
+    const delRes = await procurementRouter.request(`/purchase-orders/${poId}`, { method: "DELETE" });
+    expect(delRes.status).toBe(200);
+
+    const [poCheck] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    expect(poCheck).toBeUndefined();
+  });
+
+  it("blocks deleting a purchase order that has received goods", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-rec-${stamp}`;
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-REC-${stamp}`,
+      title: "Buku Rec Block",
+      author: "Test",
+      publisher: "Test",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const supRes = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-REC-${stamp}`, name: "Supplier Rec", email: "rec@supplier.co.id" }),
+    });
+    const supplierId = (await supRes.json()).data.id;
+
+    const poRes = await procurementRouter.request("/purchase-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId,
+        orderDate: "2026-09-28",
+        items: [{ bookId, quantityOrdered: 5, unitPrice: 10000 }],
+      }),
+    });
+    const poJson = await poRes.json();
+    const poId = poJson.data.id;
+
+    // Simulate goods received
+    await db.update(purchaseOrderItems).set({ quantityReceived: 3 }).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+    await db.update(purchaseOrders).set({ status: "partially_received" }).where(eq(purchaseOrders.id, poId));
+
+    // Attempt delete -> must be blocked
+    const delRes = await procurementRouter.request(`/purchase-orders/${poId}`, { method: "DELETE" });
+    const delJson = await delRes.json();
+    expect(delRes.status).toBe(400);
+    expect(delJson.success).toBe(false);
+    expect(delJson.message).toContain("sudah diterima");
+
+    // Clean up
+    await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+    await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    await db.delete(books).where(eq(books.id, bookId));
   });
 });

@@ -303,3 +303,42 @@ procurementRouter.post("/purchase-orders/:id/send", async (c) => {
     return accessErrorResponse(c, err);
   }
 });
+
+// 6. DELETE Purchase Order (khusus PO yang belum pernah menerima barang)
+procurementRouter.delete("/purchase-orders/:id", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
+    const locations = await loadLocationIds(db);
+    const poId = c.req.param("id");
+
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    if (!po) {
+      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.targetSchoolId, locations);
+
+    // Guard: Cek apakah ada barang yang sudah diterima
+    const items = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+    const totalReceived = items.reduce((sum: number, it: { quantityReceived: number }) => sum + (it.quantityReceived || 0), 0);
+    const totalOrdered = items.reduce((sum: number, it: { quantityOrdered: number }) => sum + (it.quantityOrdered || 0), 0);
+
+    if (totalReceived > 0 || po.status === "received" || po.status === "partially_received") {
+      return c.json(
+        {
+          success: false,
+          message: `Purchase Order "${po.poNumber}" tidak dapat dihapus karena barang sudah diterima ke gudang (${totalReceived}/${totalOrdered} eks). Stok fisik buku telah terbit ke inventaris.`,
+        },
+        400
+      );
+    }
+
+    // Hapus baris item PO (cascade) dan header PO
+    await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+    await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+
+    return c.json({ success: true, message: `Purchase Order "${po.poNumber}" berhasil dihapus` });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
