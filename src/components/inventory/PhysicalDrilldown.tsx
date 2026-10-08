@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X, ScanLine, Loader2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { buildQuery, getJson } from "../../lib/api";
 import { effectiveBookPrice } from "../../lib/book-pricing";
 
 interface PhysicalItem {
@@ -41,14 +42,11 @@ export function PhysicalDrilldown({ open, schoolId, bookId, onClose }: PhysicalD
     setIsLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ schoolId });
-      if (bookId) params.set("bookId", bookId);
-      const res = await fetch(`/api/book-items?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal memuat rincian fisik.");
-      }
-      setItems(data.data);
+      const rows = await getJson<PhysicalItem[]>(
+        buildQuery("/api/book-items", { schoolId, bookId }),
+        "Gagal memuat rincian fisik."
+      );
+      setItems(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat rincian fisik.");
     } finally {

@@ -132,5 +132,76 @@ describe("Packages & Bundling/Unbundling API", () => {
     const stockFinalJson = await stockFinal.json();
     expect(stockFinalJson.data.readyBundleCount).toBe(1);
     expect(stockFinalJson.data.maxPossibleBundles).toBe(2);
+
+    // 7. Batch endpoint setuju dengan endpoint per-paket (delegasi satu seam)
+    const batchRes = await packagesRouter.request(`/stock?schoolId=${schoolId}`, { method: "GET" });
+    expect(batchRes.status).toBe(200);
+    const batchJson = await batchRes.json();
+    expect(batchJson.data[pkgId].readyBundleCount).toBe(1);
+    expect(batchJson.data[pkgId].maxPossibleBundles).toBe(2);
+    expect(batchJson.data[pkgId].looseStockBreakdown.length).toBe(2);
+
+    // 8. schoolId wajib diisi
+    const missingRes = await packagesRouter.request("/stock", { method: "GET" });
+    expect(missingRes.status).toBe(400);
+  });
+
+  it("assembly batch gagal eksplisit saat stok kurang / bongkar berlebih", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-pkg-fail-${stamp}`;
+    const bookId = `b-fail-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Sekolah Gagal Rakit",
+      code: `TGF-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-FAIL-${stamp}`,
+      title: "Buku Langka",
+      author: "Test",
+      publisher: "Test",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const createRes = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `PKG-FAIL-${stamp}`,
+        name: "Paket Gagal",
+        gradeLevel: "1",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        price: 100000,
+        items: [{ bookId, quantity: 2 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const pkgId = (await createRes.json()).data.id;
+
+    // Tanpa stok satuan: rakit 1 (butuh 2) → 400 Insufficient.
+    const shortRes = await packagesRouter.request(`/${pkgId}/bundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, quantity: 1 }),
+    });
+    expect(shortRes.status).toBe(400);
+    expect((await shortRes.json()).message).toMatch(/Insufficient stock/);
+
+    // Tanpa bundel siap: bongkar 1 → 400.
+    const overRes = await packagesRouter.request(`/${pkgId}/unbundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, quantity: 1, reason: "uji berlebih" }),
+    });
+    expect(overRes.status).toBe(400);
+    expect((await overRes.json()).message).toMatch(/Not enough assembled/);
   });
 });

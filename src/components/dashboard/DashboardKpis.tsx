@@ -1,9 +1,14 @@
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { coverageTone } from "./dashboard-format";
+import type { DashboardCoverage, DashboardPayments, DashboardStock } from "../../lib/dashboard-types";
+import { coverageTone } from "./coverage-tone";
 import { formatRupiah } from "../../lib/transfer-pricing";
 
-export function DashboardKpis({ summary }: { summary: DashboardSchoolSummary }) {
-  const { coverage, stock, payments } = summary;
+interface DashboardKpisProps {
+  coverage: DashboardCoverage;
+  stock: DashboardStock;
+  payments: DashboardPayments;
+}
+
+export function DashboardKpis({ coverage, stock, payments }: DashboardKpisProps) {
   const tone = coverageTone(coverage.ratio);
   const display = coverage.ratio === null ? 100 : Math.min(100, Math.round(coverage.ratio * 100));
   const status = coverage.ratio === null || coverage.ratio >= 1 ? "Siap Layani" : coverage.shortfall > 0 ? `Kurang ${coverage.shortfall} paket` : "Perlu Perhatian";

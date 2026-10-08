@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
+import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS } from "./stock-buckets";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -59,51 +60,49 @@ export async function assemblePackageBundles(
     return { ok: false, status: 400, message: "Package has no BOM components" };
   }
 
-  // Verifikasi kecukupan stok semua komponen
+  // Verifikasi kecukupan stok semua komponen dalam SATU query batch.
+  const neededByBook = new Map<string, number>();
   for (const item of bom) {
-    const requiredTotal = item.quantity * quantity;
-    const loose = await db
-      .select({ id: bookItems.id })
-      .from(bookItems)
-      .where(
-        and(
-          eq(bookItems.bookId, item.bookId),
-          eq(bookItems.currentSchoolId, schoolId),
-          eq(bookItems.status, "in_stock"),
-          eq(bookItems.condition, "new")
-        )
-      );
-
-    if (loose.length < requiredTotal) {
+    neededByBook.set(item.bookId, (neededByBook.get(item.bookId) ?? 0) + item.quantity * quantity);
+  }
+  const candidates = await db
+    .select({ id: bookItems.id, bookId: bookItems.bookId })
+    .from(bookItems)
+    .where(
+      and(
+        inArray(bookItems.bookId, [...neededByBook.keys()]),
+        eq(bookItems.currentSchoolId, schoolId),
+        inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
+        inArray(bookItems.condition, [...KITTABLE_CONDITIONS])
+      )
+    );
+  const availableByBook = new Map<string, Array<{ id: string }>>();
+  for (const c of candidates) {
+    const list = availableByBook.get(c.bookId) ?? [];
+    list.push({ id: c.id });
+    availableByBook.set(c.bookId, list);
+  }
+  for (const item of bom) {
+    const requiredTotal = neededByBook.get(item.bookId) ?? 0;
+    const availableCount = availableByBook.get(item.bookId)?.length ?? 0;
+    if (availableCount < requiredTotal) {
       return {
         ok: false,
         status: 400,
-        message: `Insufficient stock for "${item.title}". Required: ${requiredTotal}, Available: ${loose.length}`,
+        message: `Insufficient stock for "${item.title}". Required: ${requiredTotal}, Available: ${availableCount}`,
       };
     }
   }
 
-  // Potong stok satuan & tandai diserap ke paket
+  // Potong stok satuan batch: satu UPDATE per komponen (bukan per eksemplar).
   for (const item of bom) {
-    const requiredTotal = item.quantity * quantity;
-    const looseToConsume = await db
-      .select({ id: bookItems.id })
-      .from(bookItems)
-      .where(
-        and(
-          eq(bookItems.bookId, item.bookId),
-          eq(bookItems.currentSchoolId, schoolId),
-          eq(bookItems.status, "in_stock"),
-          eq(bookItems.condition, "new")
-        )
-      )
-      .limit(requiredTotal);
-
-    for (const l of looseToConsume) {
+    const requiredTotal = neededByBook.get(item.bookId) ?? 0;
+    const idsToConsume = (availableByBook.get(item.bookId) ?? []).slice(0, requiredTotal).map((c) => c.id);
+    if (idsToConsume.length > 0) {
       await db
         .update(bookItems)
         .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
-        .where(eq(bookItems.id, l.id));
+        .where(inArray(bookItems.id, idsToConsume));
     }
   }
 
@@ -187,10 +186,13 @@ export async function disassemblePackageBundles(
     .from(bookPackageItems)
     .where(eq(bookPackageItems.packageId, packageId));
 
-  // Hapus paket fisik yang dibongkar
-  for (const b of availableBundles) {
-    await db.delete(packageItems).where(eq(packageItems.id, b.id));
-  }
+  // Hapus paket fisik yang dibongkar dalam satu query batch.
+  await db.delete(packageItems).where(
+    inArray(
+      packageItems.id,
+      availableBundles.map((b: { id: string }) => b.id)
+    )
+  );
 
   // Pulihkan eksemplar satuan komponen BOM
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];

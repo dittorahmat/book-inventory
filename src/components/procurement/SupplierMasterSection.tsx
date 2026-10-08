@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Building2, Plus, Pencil, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { patchJson, postJson } from "../../lib/api";
 
 export interface SupplierRecord {
   id: string;
@@ -76,24 +77,22 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
     setFeedback(null);
     try {
       const isEdit = !!form.id;
-      const res = await fetch(
-        isEdit ? `/api/procurement/suppliers/${form.id}` : "/api/procurement/suppliers",
-        {
-          method: isEdit ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: form.code.trim().toUpperCase(),
-            name: form.name.trim(),
-            contactPerson: form.contactPerson.trim(),
-            email: form.email.trim(),
-            phone: form.phone.trim(),
-            address: form.address.trim(),
-          }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menyimpan data supplier.");
+      const payload = {
+        code: form.code.trim().toUpperCase(),
+        name: form.name.trim(),
+        contactPerson: form.contactPerson.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        address: form.address.trim(),
+      };
+      if (isEdit) {
+        await patchJson(
+          `/api/procurement/suppliers/${form.id}`,
+          payload,
+          "Gagal menyimpan data supplier."
+        );
+      } else {
+        await postJson("/api/procurement/suppliers", payload, "Gagal menyimpan data supplier.");
       }
       setIsFormOpen(false);
       setForm(EMPTY_FORM);

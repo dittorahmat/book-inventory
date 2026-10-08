@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Printer, Upload, FileCheck2, AlertCircle, ExternalLink } from "lucide-react";
+import { apiEnvelope, postForm } from "../../lib/api";
 
 export interface PoWorkflowTarget {
   id: string;
@@ -41,12 +42,12 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
     setIsMarkingPrinted(true);
     setFeedback(null);
     try {
-      const res = await fetch(`/api/procurement/purchase-orders/${po.id}/print`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menandai PO sebagai dicetak.");
-      }
-      setFeedback({ kind: "ok", message: data.message });
+      const data = await apiEnvelope<{ message?: string }>(
+        `/api/procurement/purchase-orders/${po.id}/print`,
+        { method: "POST" },
+        "Gagal menandai PO sebagai dicetak."
+      );
+      setFeedback({ kind: "ok", message: data.message ?? `PO ${po.poNumber} ditandai dicetak.` });
       onChanged();
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Gagal menandai PO sebagai dicetak." });
@@ -61,15 +62,12 @@ export function PoWorkflowActions({ po, onChanged, onPrint }: PoWorkflowActionsP
     try {
       const form = new FormData();
       form.append("signedDoc", file);
-      const res = await fetch(`/api/procurement/purchase-orders/${po.id}/signed-doc`, {
-        method: "POST",
-        body: form,
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal mengunggah bukti tanda tangan.");
-      }
-      setFeedback({ kind: "ok", message: data.message });
+      const data = await postForm<{ message?: string }>(
+        `/api/procurement/purchase-orders/${po.id}/signed-doc`,
+        form,
+        "Gagal mengunggah bukti tanda tangan."
+      );
+      setFeedback({ kind: "ok", message: data.message ?? "Bukti tanda tangan tersimpan." });
       onChanged();
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Gagal mengunggah bukti tanda tangan." });

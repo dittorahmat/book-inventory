@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { signIn } from "../lib/auth-client";
+import { postJson } from "../lib/api";
 import { Shield, Sparkles, School, ArrowRight, Loader2 } from "lucide-react";
 
 interface LoginViewProps {
@@ -54,13 +55,10 @@ export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginVie
   const handleSeedDemo = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/demo/seed", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        alert("Data demo 4 kampus Al Wildan & Buku Cambridge berhasil di-load!");
-      }
-    } catch {
-      alert("Gagal memuat data demo.");
+      await postJson("/api/demo/seed", {}, "Gagal memuat data demo.");
+      alert("Data demo 4 kampus Al Wildan & Buku Cambridge berhasil di-load!");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal memuat data demo.");
     } finally {
       setIsLoading(false);
     }

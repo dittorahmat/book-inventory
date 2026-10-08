@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { School, Book } from "../types";
 import { Plus, Image as ImageIcon, BookOpen, Search, Upload } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { apiEnvelope, getJson, postForm, postJson } from "../lib/api";
 import { BookPriceFields } from "../components/catalog/BookPriceFields";
 import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
 
@@ -26,12 +27,12 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
   const [generateCount, setGenerateCount] = useState(5);
   const [isSubmittingBook, setIsSubmittingBook] = useState(false);
 
-  const fetchBooks = () => {
-    fetch("/api/books")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setBooks(data.data);
-      });
+  const fetchBooks = async () => {
+    try {
+      setBooks(await getJson<Book[]>("/api/books", "Gagal memuat katalog buku."));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal memuat katalog buku.");
+    }
   };
 
   useEffect(() => {
@@ -56,40 +57,31 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
       const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
       const legacyPrice = effectiveSellPrice({ price: buyPrice, buyPrice, sellPrice });
 
-      const res = await fetch("/api/books", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const created = await postJson<{ id: string }>(
+        "/api/books",
+        {
           ...formData,
           price: legacyPrice,
           buyPrice,
           sellPrice,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const newBookId = data.data.id;
-        if (coverFile) {
-          const coverFormData = new FormData();
-          coverFormData.append("cover", coverFile);
-          const coverRes = await fetch(`/api/books/${newBookId}/cover`, {
-            method: "POST",
-            body: coverFormData,
-          });
-          const coverData = await coverRes.json();
-          if (!coverRes.ok || !coverData.success) {
-            alert(coverData.message || "Buku tersimpan, tetapi upload cover gagal");
-          }
+        },
+        "Gagal mendaftarkan buku."
+      );
+      const newBookId = created.id;
+      if (coverFile) {
+        const coverFormData = new FormData();
+        coverFormData.append("cover", coverFile);
+        try {
+          await postForm(`/api/books/${newBookId}/cover`, coverFormData, "Buku tersimpan, tetapi upload cover gagal");
+        } catch (err) {
+          alert(err instanceof Error ? err.message : "Buku tersimpan, tetapi upload cover gagal");
         }
-        setIsAdding(false);
-        setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 });
-        setCoverFile(null);
-        setCoverPreviewUrl(null);
-        fetchBooks();
-      } else {
-        const errorMsg = data.message || (data.error && typeof data.error === "string" ? data.error : JSON.stringify(data.error)) || "Failed to create book";
-        alert(errorMsg);
       }
+      setIsAdding(false);
+      setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 });
+      setCoverFile(null);
+      setCoverPreviewUrl(null);
+      fetchBooks();
     } catch (err: any) {
       alert(`Gagal mendaftarkan buku: ${err?.message || "Terjadi kesalahan koneksi"}`);
     } finally {
@@ -101,43 +93,34 @@ export function CatalogView({ activeSchool }: { activeSchool: School | null }) {
     try {
       const data = new FormData();
       data.append("cover", file);
-      const res = await fetch(`/api/books/${bookId}/cover`, {
-        method: "POST",
-        body: data,
-      });
-      const resData = await res.json();
-      if (!resData.success) {
-        alert(resData.message || "Gagal mengunggah cover buku");
-      }
+      await postForm(`/api/books/${bookId}/cover`, data, "Gagal mengunggah cover buku");
       fetchBooks();
-    } catch {
-      alert("Gagal mengunggah cover buku");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal mengunggah cover buku");
     }
   };
 
   const handleBatchGenerate = async () => {
     if (!generatingForBook || !activeSchool) return;
     try {
-      const res = await fetch("/api/book-items/batch-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookId: generatingForBook.id,
-          schoolId: activeSchool.id,
-          count: Number(generateCount),
-          barcodePrefix: generatingForBook.title.slice(0, 3).toUpperCase(),
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`Berhasil membuat ${data.count} eksemplar fisik untuk ${activeSchool.name}!`);
-        setGeneratingForBook(null);
-      } else {
-        const errMsg = data.message || (data.error && typeof data.error === "string" ? data.error : "Gagal generate eksemplar fisik");
-        alert(`Gagal: ${errMsg}`);
-      }
+      const data = await apiEnvelope<{ success: boolean; count?: number; message?: string }>(
+        "/api/book-items/batch-generate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookId: generatingForBook.id,
+            schoolId: activeSchool.id,
+            count: Number(generateCount),
+            barcodePrefix: generatingForBook.title.slice(0, 3).toUpperCase(),
+          }),
+        },
+        "Gagal generate eksemplar fisik"
+      );
+      alert(`Berhasil membuat ${data.count} eksemplar fisik untuk ${activeSchool.name}!`);
+      setGeneratingForBook(null);
     } catch (err: any) {
-      alert(`Terjadi kesalahan sistem: ${err?.message || "Koneksi terputus"}`);
+      alert(err?.message || "Terjadi kesalahan sistem: Koneksi terputus");
     }
   };
 

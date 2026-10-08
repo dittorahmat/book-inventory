@@ -11,9 +11,14 @@ import {
 } from "../../db/schema";
 import { defaultStorage } from "../../services/storage";
 import { decodeBase64ToBytes } from "../base64";
-import { effectiveSellPrice } from "./book-price";
-import { calcHeaderTotal } from "../../lib/transfer-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import { getCurrentSatuanStatus } from "./satuan-cutoff";
+import {
+  derivePaymentStatus,
+  grossOrderAmount,
+  validateSatuanCutoff,
+  validateStudentForOrder,
+} from "./order-validation";
 
 export interface LooseOrderItemInput {
   bookId: string;
@@ -69,31 +74,17 @@ export async function submitPublicOrder(
   const orderId = crypto.randomUUID();
   const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
 
-  // 1. Verifikasi siswa
-  const [student] = await db.select().from(students).where(eq(students.id, input.studentId));
-  if (!student) {
-    return { ok: false, status: 404, message: "Data murid tidak ditemukan" };
-  }
+  // 1. Verifikasi siswa (aturan murni)
+  const [studentRow] = await db.select().from(students).where(eq(students.id, input.studentId));
+  const studentCheck = validateStudentForOrder(studentRow);
+  if (!studentCheck.ok) return studentCheck;
+  const student = studentCheck.student;
 
-  if (student.status !== "active" && student.status !== "promoted") {
-    return {
-      ok: false,
-      status: 403,
-      message: "Data siswa masih menunggu verifikasi admin sekolah. Silakan coba lagi setelah disetujui.",
-    };
-  }
-
-  // 2. Validasi cutoff order satuan
+  // 2. Validasi cutoff order satuan (aturan murni)
   const looseItems = input.looseItems ?? [];
   if (looseItems.length > 0) {
-    const status = await getCurrentSatuanStatus();
-    if (!status.open) {
-      return {
-        ok: false,
-        status: 403,
-        message: `Order satuan sedang ditutup. ${status.reason}`,
-      };
-    }
+    const cutoffCheck = validateSatuanCutoff(true, await getCurrentSatuanStatus());
+    if (!cutoffCheck.ok) return cutoffCheck;
   }
 
   // 3. Resolusi paket buku jika dipilih
@@ -138,19 +129,13 @@ export async function submitPublicOrder(
     scholarshipProofUrl = await defaultStorage.upload(key, buffer, "image/jpeg");
   }
 
-  // 6. Hitung nominal order dan status pembayaran
-  const looseSubtotal = calcHeaderTotal(
-    looseLines.map((l) => ({ unitPriceSnapshot: l.unitPrice, quantity: l.quantity }))
-  );
-  const grossAmount = (pkg?.price ?? 0) + looseSubtotal;
-  const totalAmount = isScholarship ? 0 : grossAmount;
-  let paidAmount = 0;
-  let paymentStatus: string = isScholarship ? "scholarship_pending" : "unpaid";
-
-  if (!isScholarship && input.payment && input.payment.bookAllocationAmount > 0) {
-    paidAmount = input.payment.bookAllocationAmount;
-    paymentStatus = paidAmount >= totalAmount ? "paid" : "partial";
-  }
+  // 6. Hitung nominal order dan status pembayaran (aturan murni)
+  const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);
+  const { totalAmount, paidAmount, paymentStatus } = derivePaymentStatus({
+    isScholarship,
+    grossAmount,
+    bookAllocationAmount: !isScholarship && input.payment ? input.payment.bookAllocationAmount : 0,
+  });
 
   // 7. Simpan entitas order utama
   await db.insert(studentBookOrders).values({

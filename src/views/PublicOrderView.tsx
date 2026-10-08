@@ -14,7 +14,7 @@ interface PublicOrderViewProps {
 
 export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps) {
   const order = usePublicOrder();
-  const returns = useReturnFlow(order.packages, order.setErrorMessage);
+  const returns = useReturnFlow(order.packages);
   const { activePortalTab, setActivePortalTab, step, errorMessage, setErrorMessage } = order;
 
   return (
@@ -265,7 +265,7 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
         {/* ===================== TAB 2: LAPOR RETUR BUKU RUSAK ===================== */}
         {activePortalTab === "return" && (
           <ReturnReportTab
-            errorMessage={order.errorMessage}
+            errorMessage={returns.returnErrorMessage}
             returnLookupQuery={returns.returnLookupQuery}
             setReturnLookupQuery={returns.setReturnLookupQuery}
             isLookingUpReturn={returns.isLookingUpReturn}

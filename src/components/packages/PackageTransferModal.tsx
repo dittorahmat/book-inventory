@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Send } from "lucide-react";
 import type { School } from "../../types";
 import { formatRupiah, calcHeaderTotal } from "../../lib/transfer-pricing";
+import { buildQuery, getJson, postJson } from "../../lib/api";
 import type { ReadyBundle } from "../transfers/PackagePicker";
 
 interface PackageTransferModalProps {
@@ -34,20 +35,23 @@ export function PackageTransferModal({
   useEffect(() => {
     if (!activeSchool) return;
     setIsLoading(true);
-    Promise.all([
-      fetch(`/api/packages/items/ready?schoolId=${activeSchool.id}`).then((r) => r.json()),
-      fetch("/api/schools").then((r) => r.json()),
-    ])
-      .then(([bData, sData]) => {
-        if (bData.success) {
-          setBundles(bData.data.filter((b: ReadyBundle) => b.packageId === packageId));
-        } else {
-          alert(bData.message || "Gagal memuat bundel ready");
-        }
-        if (sData.success) setAllSchools(sData.data);
-      })
-      .catch(() => alert("Terjadi kesalahan jaringan saat memuat data transfer"))
-      .finally(() => setIsLoading(false));
+    (async () => {
+      try {
+        const [ready, schools] = await Promise.all([
+          getJson<ReadyBundle[]>(
+            buildQuery("/api/packages/items/ready", { schoolId: activeSchool.id }),
+            "Gagal memuat bundel ready"
+          ),
+          getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah."),
+        ]);
+        setBundles(ready.filter((b) => b.packageId === packageId));
+        setAllSchools(schools);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat memuat data transfer");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, [activeSchool, packageId]);
 
   const total = calcHeaderTotal(
@@ -66,23 +70,19 @@ export function PackageTransferModal({
     if (!activeSchool || !destinationSchoolId || selectedIds.length === 0) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/shipments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const created = await postJson<{ shipmentNumber: string; totalDeclaredValue?: number }>(
+        "/api/shipments",
+        {
           fromSchoolId: activeSchool.id,
           toSchoolId: destinationSchoolId,
           bookItemIds: [],
           packageItemIds: selectedIds,
           reason: reason.trim() || undefined,
           notes: `Transfer paket ${packageCode} dari tab Bundling`,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal membuat draf transfer paket.");
-      }
-      alert(`Draf ${data.data.shipmentNumber} tersimpan! Nilai: ${formatRupiah(data.data.totalDeclaredValue || 0)}`);
+        },
+        "Gagal membuat draf transfer paket."
+      );
+      alert(`Draf ${created.shipmentNumber} tersimpan! Nilai: ${formatRupiah(created.totalDeclaredValue || 0)}`);
       onSuccess();
       onClose();
     } catch (err: any) {

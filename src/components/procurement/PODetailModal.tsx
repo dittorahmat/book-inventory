@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { calcPoHeader, calcPoLineNet } from "../../lib/book-pricing";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { PoWorkflowActions } from "./PoWorkflowActions";
 import { PoSendAction } from "./PoSendAction";
@@ -46,11 +47,11 @@ export function PODetailModal({ po, onClose, onChanged, onPrint }: PODetailModal
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-[#65676B]">
-                    {it.quantityReceived}/{it.quantityOrdered} eks &times; Rp {it.unitPrice.toLocaleString("id-ID")}
+                    {it.quantityReceived}/{it.quantityOrdered} eks &times; {formatRupiah(it.unitPrice)}
                     {it.discountPercent > 0 ? ` −${it.discountPercent}%` : ""}
                   </div>
                   <div className="font-bold text-[#050505]">
-                    Rp {calcPoLineNet(it).toLocaleString("id-ID")}
+                    {formatRupiah(calcPoLineNet(it))}
                   </div>
                 </div>
               </div>

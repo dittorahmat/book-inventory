@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Save, ShieldAlert, Loader2 } from "lucide-react";
+import { apiEnvelope, buildQuery, postJson } from "../../lib/api";
 import type { SatuanStatus } from "../../lib/portal-types";
 
 interface SatuanCutoffSettingsProps {
@@ -26,11 +27,11 @@ export function SatuanCutoffSettings({ academicYear }: SatuanCutoffSettingsProps
     setIsLoading(true);
     setFeedback(null);
     try {
-      const res = await fetch(`/api/settings/satuan-cutoff?academicYear=${encodeURIComponent(academicYear)}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal memuat pengaturan cut-off.");
-      }
+      const data = await apiEnvelope<{ data: SatuanStatus }>(
+        buildQuery("/api/settings/satuan-cutoff", { academicYear }),
+        undefined,
+        "Gagal memuat pengaturan cut-off."
+      );
       setStatus(data.data);
       setOpenFrom(data.data.openFrom ?? "");
     } catch (err) {
@@ -52,17 +53,13 @@ export function SatuanCutoffSettings({ academicYear }: SatuanCutoffSettingsProps
     setIsSavingDate(true);
     setFeedback(null);
     try {
-      const res = await fetch("/api/settings/satuan-cutoff/open-from", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ academicYear, openFrom }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menyimpan tanggal efektif.");
-      }
+      const data = await postJson<{ message?: string; data: SatuanStatus }>(
+        "/api/settings/satuan-cutoff/open-from",
+        { academicYear, openFrom },
+        "Gagal menyimpan tanggal efektif."
+      );
       setStatus(data.data);
-      setFeedback({ kind: "ok", message: data.message });
+      setFeedback({ kind: "ok", message: data.message ?? "Tanggal efektif tersimpan." });
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Gagal menyimpan tanggal efektif." });
     } finally {
@@ -73,17 +70,13 @@ export function SatuanCutoffSettings({ academicYear }: SatuanCutoffSettingsProps
   const saveOverride = async (override: "open" | "closed" | "auto") => {
     setFeedback(null);
     try {
-      const res = await fetch("/api/settings/satuan-cutoff/override", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ academicYear, override }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menyimpan override.");
-      }
+      const data = await postJson<{ message?: string; data: SatuanStatus }>(
+        "/api/settings/satuan-cutoff/override",
+        { academicYear, override },
+        "Gagal menyimpan override."
+      );
       setStatus(data.data);
-      setFeedback({ kind: "ok", message: data.message });
+      setFeedback({ kind: "ok", message: data.message ?? "Override tersimpan." });
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Gagal menyimpan override." });
     }

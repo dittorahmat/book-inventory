@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AlertCircle, PackageCheck, X } from "lucide-react";
+import { postJson } from "../../lib/api";
 import type { PurchaseOrder } from "./procurement-types";
 
 interface ReceivingModalProps {
@@ -30,13 +31,11 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/procurement/purchase-orders/${po.id}/receive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receivedItems }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal mencatat penerimaan");
+      await postJson(
+        `/api/procurement/purchase-orders/${po.id}/receive`,
+        { receivedItems },
+        "Gagal mencatat penerimaan"
+      );
       await onReceived();
       onClose();
     } catch (err: any) {

@@ -5,8 +5,7 @@ import { books, bookPackageItems, bookPackages } from "../../db/schema";
 import { effectiveBuyPrice, effectiveSellPrice } from "../../lib/book-pricing";
 import type { PriceLike } from "../../lib/book-pricing";
 
-export { calcPoHeader, calcPoLineNet, effectiveBookPrice, effectiveBuyPrice, effectiveSellPrice } from "../../lib/book-pricing";
-export type { PoLineInput, PriceLike } from "../../lib/book-pricing";
+/** Helper DB harga paket — bukan shim presentasi. Fungsi murni diimpor dari lib/book-pricing langsung. */
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
 export async function recalcPackagePrice(packageId: string): Promise<number> {

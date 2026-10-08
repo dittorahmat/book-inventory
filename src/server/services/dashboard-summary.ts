@@ -24,6 +24,15 @@ import {
   type AccessActor,
   type StaffRole,
 } from "./access-scope";
+import {
+  emptyConditionBuckets,
+  isAvailableLoose,
+  isLooseInTransit,
+  isLost,
+  isOpenOrder,
+  isReadyBundle,
+  outstandingOf,
+} from "./stock-buckets";
 
 export type { StaffRole };
 export type DashboardActor = AccessActor;
@@ -94,20 +103,20 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
   const shipments = shipmentRows.filter((r) => r.fromSchoolId === schoolId || r.toSchoolId === schoolId);
   const pos = poRows.filter((r) => r.targetSchoolId === schoolId);
 
-  const byCondition = { new: 0, good: 0, fair: 0, damaged: 0 };
+  const byCondition = emptyConditionBuckets();
   let inTransit = 0;
   let lost = 0;
   let damaged = 0;
   for (const it of items) {
-    if (it.status === "in_stock") {
+    if (isAvailableLoose(it.status)) {
       if (isKnownCondition(it.condition)) byCondition[it.condition] += 1;
       if (it.condition === "damaged") damaged += 1;
     }
-    if (it.status === "in_transit") inTransit += 1;
-    if (it.status === "lost") lost += 1;
+    if (isLooseInTransit(it.status)) inTransit += 1;
+    if (isLost(it.status)) lost += 1;
   }
 
-  const readyPackages = pkgs.filter((p) => p.status === "in_stock").length;
+  const readyPackages = pkgs.filter((p) => isReadyBundle(p.status)).length;
 
   // Ringkasan per judul & per jenis paket, tanpa identitas fisik (spec: inventory-summary).
   const bookTitle = new Map(bookRows.map((b) => [b.id, b.title]));
@@ -126,11 +135,11 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
       titleMap.set(it.bookId, entry);
     }
     entry.totalQty += 1;
-    if (it.status === "in_stock") {
+    if (isAvailableLoose(it.status)) {
       entry.availableQty += 1;
       if (isKnownCondition(it.condition)) entry.byCondition[it.condition] += 1;
     }
-    if (it.status === "in_transit") entry.inTransitQty += 1;
+    if (isLooseInTransit(it.status)) entry.inTransitQty += 1;
   }
   const byTitle = [...titleMap.values()].sort((a, b) => b.totalQty - a.totalQty);
 
@@ -149,7 +158,7 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
       packageMap.set(p.packageId, entry);
     }
     entry.totalQty += 1;
-    if (p.status === "in_stock") entry.readyQty += 1;
+    if (isReadyBundle(p.status)) entry.readyQty += 1;
   }
   const byPackage = [...packageMap.values()].sort((a, b) => b.totalQty - a.totalQty);
 
@@ -159,8 +168,8 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
   const paid = orders.filter((o) => o.paymentStatus === "paid").length;
   const partialCount = orders.filter((o) => o.paymentStatus === "partial").length;
   const unpaidOnlyCount = orders.filter((o) => o.paymentStatus === "unpaid").length;
-  const openOrders = orders.filter((o) => o.paymentStatus === "unpaid" || o.paymentStatus === "partial");
-  const outstandingRp = openOrders.reduce((sum, o) => sum + (o.totalAmount - o.paidAmount), 0);
+  const openOrders = orders.filter((o) => isOpenOrder(o.paymentStatus));
+  const outstandingRp = openOrders.reduce((sum, o) => sum + outstandingOf(o), 0);
 
   const tiers = new Map<string, { gradeLevel: string; curriculumType: string; students: number; waitingOrders: number; readyStock: number }>();
   for (const s of schoolStudents) {
@@ -176,7 +185,7 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
     if (key) tiers.get(key)!.waitingOrders += 1;
   }
   for (const p of pkgs) {
-    if (p.status !== "in_stock") continue;
+    if (!isReadyBundle(p.status)) continue;
     const def = pkgTier.get(p.packageId);
     if (!def) continue;
     const key = `${def.gradeLevel}|${def.curriculumType}`;

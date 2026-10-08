@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { studentOrdersRouter } from "./student-orders";
 import { db } from "../../db";
-import { schools, students, bookPackages, studentBookOrders, books } from "../../db/schema";
+import { bookItems, bookReturns, schools, students, bookPackages, studentBookOrders, books } from "../../db/schema";
+import { eq } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
   it("hands over book package with surat jalan and reports/resolves defective book return", async () => {
@@ -118,8 +119,7 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     expect(resolveJson.success).toBe(true);
   });
 
-  it("rejects return reports for unknown orders on both staff and public paths", async () => {
-    const payload = {
+  it("rejects return reports for unknown orders on both staff and public paths", async () => {    const payload = {
       orderId: `ord-ghost-${Date.now()}`,
       studentId: `st-ghost-${Date.now()}`,
       defectiveBookId: `b-ghost-${Date.now()}`,
@@ -133,5 +133,120 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     });
     expect(staffRes.status).toBe(404);
     expect(((await staffRes.json()) as { success: boolean }).success).toBe(false);
+  });
+
+  it("resolveReturn lewat seam fulfilment: auto-pick stok + reject", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-so-rej-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Sekolah Resolve Test",
+      code: `ALW-REJ-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const studentId = `st-rej-${stamp}`;
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `NIS-REJ-${stamp}`,
+      name: "Siswa Resolve",
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const bookId = `b-rej-${stamp}`;
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-REJ-${stamp}`,
+      title: "Math Primary 2",
+      author: "Cambridge",
+      publisher: "CUP",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Satu eksemplar layak ganti di sekolah yang sama (jalur auto-pick).
+    const looseId = `bi-rej-${stamp}`;
+    await db.insert(bookItems).values({
+      id: looseId,
+      bookId,
+      currentSchoolId: schoolId,
+      barcode: `REJ-${stamp}`,
+      condition: "new",
+      status: "in_stock",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const orderId = `ord-rej-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-REJ-${String(stamp).slice(-6)}`,
+      studentId,
+      schoolId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "picked_up",
+      totalAmount: 100000,
+      paidAmount: 100000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const report = async () => {
+      const res = await studentOrdersRouter.request("/returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, studentId, defectiveBookId: bookId, reason: "Sampul sobek" }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json()).data.id as string;
+    };
+
+    // 1. Replace tanpa id pengganti → auto-pick memakai stok layak + tandai disposed.
+    const autoId = await report();
+    const autoRes = await studentOrdersRouter.request(`/returns/${autoId}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "replace" }),
+    });
+    expect(autoRes.status).toBe(200);
+    const autoJson = await autoRes.json();
+    expect(autoJson.success).toBe(true);
+    expect(autoJson.data.status).toBe("replaced");
+    expect(autoJson.data.replacementBookItemId).toBe(looseId);
+    const [consumed] = await db.select().from(bookItems).where(eq(bookItems.id, looseId));
+    expect(consumed.status).toBe("disposed");
+
+    // 2. Reject → status rejected, order tidak berubah ke picked_up ulang.
+    const rejId = await report();
+    const rejRes = await studentOrdersRouter.request(`/returns/${rejId}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reject" }),
+    });
+    expect(rejRes.status).toBe(200);
+    const rejJson = await rejRes.json();
+    expect(rejJson.success).toBe(true);
+    expect(rejJson.data.status).toBe("rejected");
+    const [rejected] = await db.select().from(bookReturns).where(eq(bookReturns.id, rejId));
+    expect(rejected.status).toBe("rejected");
+
+    // 3. Retur tidak ada → 404 lewat seam yang sama.
+    const missing = await studentOrdersRouter.request(`/returns/ret-ghost-${stamp}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reject" }),
+    });
+    expect(missing.status).toBe(404);
   });
 });

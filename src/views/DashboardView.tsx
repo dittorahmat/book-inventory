@@ -4,7 +4,7 @@ import type { School } from "../types";
 import type { DashboardSchoolSummary } from "../lib/dashboard-types";
 import { useDashboard } from "../components/dashboard/useDashboard";
 import { DashboardKpis } from "../components/dashboard/DashboardKpis";
-import { coverageTone } from "../components/dashboard/dashboard-format";
+import { coverageTone } from "../components/dashboard/coverage-tone";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { CoverageChart } from "../components/dashboard/CoverageChart";
 import { BranchHealthScatter } from "../components/dashboard/BranchHealthScatter";
@@ -33,31 +33,31 @@ function DetailSection({ summary, onNavigateTab }: { summary: DashboardSchoolSum
   return (
     <div className="grid gap-4 md:grid-cols-12">
       <div className="md:col-span-12">
-        <DashboardKpis summary={summary} />
+        <DashboardKpis coverage={summary.coverage} stock={summary.stock} payments={summary.payments} />
       </div>
       <div className="md:col-span-12 lg:col-span-8">
-        <FunnelChart summary={summary} />
+        <FunnelChart funnel={summary.funnel} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
-        <CoverageGauge summary={summary} />
+        <CoverageGauge coverage={summary.coverage} />
       </div>
       <div className="md:col-span-12 lg:col-span-8">
-        <StockTreemap summary={summary} />
+        <StockTreemap titles={summary.stock.byTitle} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
-        <ConditionDonut summary={summary} />
+        <ConditionDonut byCondition={summary.stock.byCondition} />
       </div>
       <div className="md:col-span-12 lg:col-span-8">
-        <TierStockBar summary={summary} />
+        <TierStockBar breakdown={summary.breakdown} />
       </div>
       <div className="md:col-span-12 lg:col-span-4">
-        <PaymentsMeter summary={summary} />
+        <PaymentsMeter payments={summary.payments} />
       </div>
       <div className="md:col-span-12 lg:col-span-5">
-        <GradeBreakdown summary={summary} />
+        <GradeBreakdown breakdown={summary.breakdown} />
       </div>
       <div className="md:col-span-12 lg:col-span-7">
-        <AttentionList summary={summary} onNavigate={onNavigateTab} />
+        <AttentionList attention={summary.attention} onNavigate={onNavigateTab} />
       </div>
     </div>
   );

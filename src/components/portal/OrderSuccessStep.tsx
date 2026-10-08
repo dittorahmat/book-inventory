@@ -1,4 +1,5 @@
 import { CheckCircle2 } from "lucide-react";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
 interface OrderSuccessStepProps {
@@ -40,7 +41,7 @@ export function OrderSuccessStep({ submittedOrder, packageItems, onOrderAnother 
         </div>
         <div className="flex justify-between border-t border-[#E4E6EB] pt-2 font-bold">
           <span>Total Tagihan:</span>
-          <span>Rp {submittedOrder.totalAmount.toLocaleString("id-ID")}</span>
+          <span>{formatRupiah(submittedOrder.totalAmount)}</span>
         </div>
       </div>
 

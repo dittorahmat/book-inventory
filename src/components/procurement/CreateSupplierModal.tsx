@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Building2, X } from "lucide-react";
+import { postJson } from "../../lib/api";
 
 interface CreateSupplierModalProps {
   onClose: () => void;
@@ -24,23 +25,19 @@ export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalP
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/procurement/suppliers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const created = await postJson<{ id: string }>(
+        "/api/procurement/suppliers",
+        {
           code: code.trim().toUpperCase(),
           name: name.trim(),
           contactPerson: contact.trim() || undefined,
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           address: address.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal mendaftarkan supplier.");
-      }
-      await onCreated(data.data.id);
+        },
+        "Gagal mendaftarkan supplier."
+      );
+      await onCreated(created.id);
     } catch (err: any) {
       alert(err.message);
     } finally {

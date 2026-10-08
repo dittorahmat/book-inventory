@@ -1,8 +1,10 @@
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { coverageTone } from "./dashboard-format";
+import { ChartCard, ChartEmpty, ChartTooltip as KitTooltip } from "./chart-kit";
+import { coverageTone } from "./coverage-tone";
+import { formatCount } from "../../lib/transfer-pricing";
 
-function ChartTooltip({
+function CoverageTooltip({
   active,
   payload,
 }: {
@@ -14,11 +16,14 @@ function ChartTooltip({
   if (!data) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-md px-3 py-2 text-xs">
-      <div className="font-bold text-[#050505]">{data.fullName}</div>
-      <div className="text-[#65676B] mt-1">Cakupan Paket: <strong className="text-[#050505]">{data.value}%</strong></div>
-      <div className="text-[#65676B]">{data.ready} paket siap / {data.waiting} pesanan</div>
-    </div>
+    <KitTooltip
+      active
+      title={data.fullName}
+      rows={[
+        { label: "Cakupan Paket", value: `${data.value}%` },
+        { label: "Kesiapan", value: `${formatCount(data.ready)} paket siap / ${formatCount(data.waiting)} pesanan` },
+      ]}
+    />
   );
 }
 
@@ -47,28 +52,25 @@ export function CoverageChart({
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 text-sm text-[#65676B]">
-        Belum ada data sekolah untuk dibandingkan.
-      </div>
+      <ChartCard title="Peringkat Kesiapan per Sekolah">
+        <ChartEmpty message="Belum ada data sekolah untuk dibandingkan." />
+      </ChartCard>
     );
   }
 
   const height = Math.max(220, data.length * 38);
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 h-full flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-bold text-[#050505]">Peringkat Kesiapan per Sekolah</div>
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
-            Urutan Kritis ke Aman
-          </span>
-        </div>
-        <div className="text-xs text-[#65676B] mt-1 mb-3">
-          Persentase kesiapan paket buku terhadap antrean pesanan di masing-masing cabang
-        </div>
-      </div>
-
+    <ChartCard
+      title="Peringkat Kesiapan per Sekolah"
+      subtitle="Persentase kesiapan paket buku terhadap antrean pesanan di masing-masing cabang"
+      className="h-full flex flex-col justify-between"
+      action={
+        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
+          Urutan Kritis ke Aman
+        </span>
+      }
+    >
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -92,7 +94,7 @@ export function CoverageChart({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F0F2F5" }} />
+            <Tooltip content={<CoverageTooltip />} cursor={{ fill: "#F0F2F5" }} />
             <Bar
               dataKey="value"
               radius={[0, 6, 6, 0]}
@@ -112,6 +114,6 @@ export function CoverageChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </ChartCard>
   );
 }

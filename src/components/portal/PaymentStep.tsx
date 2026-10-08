@@ -1,4 +1,5 @@
 import { CreditCard, Award, CheckCircle2 } from "lucide-react";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import type {
   BookPackageOption,
   FileUploadHandler,
@@ -62,7 +63,7 @@ export function PaymentStep({
           Pilih Jalur: Reguler atau Beasiswa
         </h2>
         <p className="text-xs text-[#65676B] mt-0.5">
-          Paket: <span className="font-semibold text-[#050505]">{pkg.name}</span> (Normal: Rp {pkg.price.toLocaleString("id-ID")})
+          Paket: <span className="font-semibold text-[#050505]">{pkg.name}</span> (Normal: {formatRupiah(pkg.price)})
         </p>
         {pkg.items.length > 0 && (
           <div className="mt-1 text-left">
@@ -238,8 +239,8 @@ export function PaymentStep({
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]"
               />
               <div className="flex justify-between text-[10px] text-[#65676B] mt-0.5">
-                <span>Tagihan: Rp {pkg.price.toLocaleString("id-ID")}</span>
-                <span>Sisa: Rp {Math.max(0, pkg.price - bookAllocationAmount).toLocaleString("id-ID")}</span>
+                <span>Tagihan: {formatRupiah(pkg.price)}</span>
+                <span>Sisa: {formatRupiah(Math.max(0, pkg.price - bookAllocationAmount))}</span>
               </div>
             </div>
 

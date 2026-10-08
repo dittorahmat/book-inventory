@@ -1,16 +1,12 @@
 import { ChevronRight, Clock, PackageCheck, UserCheck } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
-import { formatRupiah } from "../../lib/transfer-pricing";
+import { ChartTooltip as KitTooltip } from "./chart-kit";
+import { formatCount, formatRupiah } from "../../lib/transfer-pricing";
 
 function MiniTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number | string }> }) {
   if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="bg-white rounded-xl border border-[#E4E6EB] shadow-md px-3 py-2 text-xs">
-      <div className="font-bold text-[#050505]">{payload[0].name}</div>
-      <div className="text-[#65676B]">{payload[0].value}</div>
-    </div>
-  );
+  return <KitTooltip active title={String(payload[0].name)} rows={[{ label: "Jumlah", value: formatCount(payload[0].value) }]} />;
 }
 
 function AggregateDonut({ title, subtitle, unit, data }: {
@@ -47,7 +43,7 @@ function AggregateDonut({ title, subtitle, unit, data }: {
               <li key={d.name} className="py-1.5 flex items-center gap-2 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
                 <span className="text-[#65676B] truncate">{d.name}</span>
-                <span className="ml-auto font-bold text-[#050505] shrink-0">{d.value.toLocaleString("id-ID")} {unit}</span>
+                <span className="ml-auto font-bold text-[#050505] shrink-0">{formatCount(d.value)} {unit}</span>
               </li>
             ))}
           </ul>
@@ -110,7 +106,7 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
           <div>
             <div className="text-sm font-bold text-[#050505]">Alur Pemenuhan Nasional (Semua Cabang)</div>
             <div className="text-xs text-[#65676B]">
-              Total {funnelTotal.toLocaleString("id-ID")} pesanan mengalir di {summaries.length} sekolah
+              Total {formatCount(funnelTotal)} pesanan mengalir di {summaries.length} sekolah
             </div>
           </div>
           <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
@@ -133,7 +129,7 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
                     <span className="text-xs font-semibold text-[#65676B]">{pct}%</span>
                   </div>
                   <div className="my-2">
-                    <div className="text-2xl font-black text-[#050505]">{st.count.toLocaleString("id-ID")}</div>
+                    <div className="text-2xl font-black text-[#050505]">{formatCount(st.count)}</div>
                     <div className="text-[11px] text-[#65676B]">{st.desc}</div>
                   </div>
                   <div className="w-full bg-white/80 rounded-full h-1.5 overflow-hidden">
@@ -182,15 +178,15 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
               <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-[#E4E6EB] text-center text-xs">
                 <div>
                   <div className="text-[#65676B]">Lunas</div>
-                  <div className="font-bold text-[#050505]">{pay.Lunas.toLocaleString("id-ID")}</div>
+                  <div className="font-bold text-[#050505]">{formatCount(pay.Lunas)}</div>
                 </div>
                 <div>
                   <div className="text-[#65676B]">Cicilan</div>
-                  <div className="font-bold text-[#050505]">{pay.Cicilan.toLocaleString("id-ID")}</div>
+                  <div className="font-bold text-[#050505]">{formatCount(pay.Cicilan)}</div>
                 </div>
                 <div>
                   <div className="text-[#65676B]">Belum</div>
-                  <div className="font-bold text-[#050505]">{pay["Belum Bayar"].toLocaleString("id-ID")}</div>
+                  <div className="font-bold text-[#050505]">{formatCount(pay["Belum Bayar"])}</div>
                 </div>
               </div>
             </div>

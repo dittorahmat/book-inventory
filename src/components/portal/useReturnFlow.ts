@@ -10,12 +10,10 @@ import type {
   PackageBookChoice,
 } from "../../lib/portal-types";
 
-export function useReturnFlow(
-  packages: BookPackageOption[],
-  setErrorMessage: (msg: string | null) => void
-) {
+export function useReturnFlow(packages: BookPackageOption[]) {
   const [returnLookupQuery, setReturnLookupQuery] = useState("");
   const [isLookingUpReturn, setIsLookingUpReturn] = useState(false);
+  const [returnErrorMessage, setReturnErrorMessage] = useState<string | null>(null);
   const [matchedOrders, setMatchedOrders] = useState<MatchedOrder[]>([]);
   const [selectedReturnOrder, setSelectedReturnOrder] = useState<MatchedOrder | null>(null);
   const [packageBookList, setPackageBookList] = useState<PackageBookChoice[]>([]);
@@ -29,7 +27,7 @@ export function useReturnFlow(
     e.preventDefault();
     if (returnLookupQuery.trim().length < 3) return;
     setIsLookingUpReturn(true);
-    setErrorMessage(null);
+    setReturnErrorMessage(null);
     setSelectedReturnOrder(null);
     setPackageBookList([]);
 
@@ -37,7 +35,7 @@ export function useReturnFlow(
       const orders = await lookupOrders(returnLookupQuery);
       setMatchedOrders(orders);
     } catch (err: any) {
-      setErrorMessage(err.message || "Gagal mencari pesanan. Periksa koneksi atau nomor pesanan.");
+      setReturnErrorMessage(err.message || "Gagal mencari pesanan. Periksa koneksi atau nomor pesanan.");
       setMatchedOrders([]);
     } finally {
       setIsLookingUpReturn(false);
@@ -46,7 +44,7 @@ export function useReturnFlow(
 
   const handleSelectOrderForReturn = async (order: MatchedOrder) => {
     setSelectedReturnOrder(order);
-    setErrorMessage(null);
+    setReturnErrorMessage(null);
 
     try {
       const pkg = packages.find((p) => p.id === order.packageId);
@@ -69,7 +67,7 @@ export function useReturnFlow(
         }
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Gagal memuat pilihan buku. Silakan coba lagi.");
+      setReturnErrorMessage(err.message || "Gagal memuat pilihan buku. Silakan coba lagi.");
     }
   };
 
@@ -77,7 +75,7 @@ export function useReturnFlow(
     e.preventDefault();
     if (!selectedReturnOrder || !selectedDefectiveBookId) return;
     setIsSubmittingReturn(true);
-    setErrorMessage(null);
+    setReturnErrorMessage(null);
 
     try {
       if (!defectPhotoBase64) {
@@ -94,7 +92,7 @@ export function useReturnFlow(
 
       setReturnSuccessData(data);
     } catch (err: any) {
-      setErrorMessage(err.message || "Gagal mengajukan retur buku.");
+      setReturnErrorMessage(err.message || "Gagal mengajukan retur buku.");
     } finally {
       setIsSubmittingReturn(false);
     }
@@ -110,7 +108,7 @@ export function useReturnFlow(
   };
 
   return {
-    returnLookupQuery, setReturnLookupQuery, isLookingUpReturn,
+    returnLookupQuery, setReturnLookupQuery, isLookingUpReturn, returnErrorMessage,
     matchedOrders, selectedReturnOrder, setSelectedReturnOrder,
     packageBookList, selectedDefectiveBookId, setSelectedDefectiveBookId,
     returnReason, setReturnReason, defectPhotoBase64, setDefectPhotoBase64,

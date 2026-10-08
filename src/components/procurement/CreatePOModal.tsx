@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import type { Book } from "../../types";
 import { calcPoHeader, effectiveBookPrice } from "../../lib/book-pricing";
+import { postJson } from "../../lib/api";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { CreateSupplierModal } from "./CreateSupplierModal";
 import type { NewPOItemInput, Supplier } from "./procurement-types";
@@ -86,21 +87,17 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
 
     setIsSubmittingPO(true);
     try {
-      const res = await fetch("/api/procurement/purchase-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await postJson(
+        "/api/procurement/purchase-orders",
+        {
           supplierId: poSupplierId,
           orderDate: poOrderDate,
           expectedArrivalDate: poExpectedArrival || undefined,
           notes: poNotes.trim() || undefined,
           items: poItems,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Gagal menerbitkan Purchase Order.");
-      }
+        },
+        "Gagal menerbitkan Purchase Order."
+      );
       await onCreated();
       onClose();
     } catch (err: any) {

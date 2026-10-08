@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
+import { formatRupiah } from "../lib/transfer-pricing";
+import { buildQuery, getJson, postJson } from "../lib/api";
 import { 
   Search, 
   RefreshCw, 
@@ -67,13 +69,14 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     if (!activeSchool) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/student-orders?schoolId=${activeSchool.id}`);
-      const data = await res.json();
-      if (data.success) {
-        setOrders(data.data);
-      }
+      setOrders(
+        await getJson<StudentOrder[]>(
+          buildQuery("/api/student-orders", { schoolId: activeSchool.id }),
+          "Gagal memuat pesanan siswa."
+        )
+      );
     } catch (err) {
-      console.error("Failed to load student orders", err);
+      setErrorMsg(err instanceof Error ? err.message : "Gagal memuat pesanan siswa.");
     } finally {
       setIsLoading(false);
     }
@@ -102,18 +105,16 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/payments/orders/${activePaymentOrder.id}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await postJson(
+        `/api/payments/orders/${activePaymentOrder.id}/pay`,
+        {
           transferAmount: cashierTransferAmount,
           bookAllocationAmount: cashierBookAllocation,
           bankName: cashierBankName,
           referenceNumber: cashierRefNo,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal mencatat pembayaran");
+        },
+        "Gagal mencatat pembayaran"
+      );
       setActivePaymentOrder(null);
       loadOrders();
     } catch (err: any) {
@@ -129,13 +130,11 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/payments/orders/${activeScholarshipOrder.id}/scholarship`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal memproses approval");
+      await postJson(
+        `/api/payments/orders/${activeScholarshipOrder.id}/scholarship`,
+        { action },
+        "Gagal memproses approval"
+      );
       setActiveScholarshipOrder(null);
       loadOrders();
     } catch (err: any) {
@@ -152,16 +151,14 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/student-orders/${activeHandoverOrder.id}/handover`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await postJson(
+        `/api/student-orders/${activeHandoverOrder.id}/handover`,
+        {
           recipientName: handoverRecipient,
           notes: handoverNotes,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Gagal memproses serah terima");
+        },
+        "Gagal memproses serah terima"
+      );
       setActiveHandoverOrder(null);
       loadOrders();
     } catch (err: any) {
@@ -202,6 +199,18 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
       </div>
 
       {/* Filter and Search Bar */}
+      {errorMsg && !activePaymentOrder && !activeHandoverOrder && !activeScholarshipOrder && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center justify-between gap-3">
+          <span>{errorMsg}</span>
+          <button
+            type="button"
+            onClick={() => { setErrorMsg(null); loadOrders(); }}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
@@ -293,7 +302,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                       <td className="py-3.5 px-4">
                         <div className="font-medium text-[#050505]">{o.packageName || "Paket Khusus"}</div>
                         <div className="text-[11px] text-[#65676B]">
-                          Tagihan: <span className="font-semibold text-[#050505]">Rp {o.totalAmount.toLocaleString("id-ID")}</span>
+                          Tagihan: <span className="font-semibold text-[#050505]">{formatRupiah(o.totalAmount)}</span>
                         </div>
                       </td>
 
@@ -301,12 +310,12 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                         <div className="flex flex-col items-start gap-1">
                           {o.paymentStatus === "paid" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              LUNAS (Rp {o.paidAmount.toLocaleString("id-ID")})
+                              LUNAS ({formatRupiah(o.paidAmount)})
                             </span>
                           )}
                           {o.paymentStatus === "partial" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                              CICILAN (Terbayar: Rp {o.paidAmount.toLocaleString("id-ID")})
+                              CICILAN (Terbayar: {formatRupiah(o.paidAmount)})
                             </span>
                           )}
                           {o.paymentStatus === "unpaid" && (
@@ -423,9 +432,9 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
                 <span className="font-bold text-[#050505]">{activePaymentOrder.studentName}</span>
               </div>
               <div className="flex justify-between bg-[#F0F2F5] p-3 rounded-xl">
-                <span>Total Tagihan: Rp {activePaymentOrder.totalAmount.toLocaleString("id-ID")}</span>
+                <span>Total Tagihan: {formatRupiah(activePaymentOrder.totalAmount)}</span>
                 <span className="font-bold text-[#1877F2]">
-                  Sisa: Rp {(activePaymentOrder.totalAmount - activePaymentOrder.paidAmount).toLocaleString("id-ID")}
+                  Sisa: {formatRupiah(activePaymentOrder.totalAmount - activePaymentOrder.paidAmount)}
                 </span>
               </div>
               <div>

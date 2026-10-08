@@ -16,6 +16,7 @@ import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 import { useSession, signOut } from "./lib/auth-client";
+import { getJson, postJson } from "./lib/api";
 import { BookOpen, Layers, Package, Users, GraduationCap, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard, BarChart3 } from "lucide-react";
 
 const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "students", "student_orders", "procurement", "returns", "transfers", "reports", "settings"] as const;
@@ -32,24 +33,19 @@ export function App() {
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
-  const loadSchools = useCallback(() => {
-    fetch("/api/schools")
-      .then((res) => res.json())
-      .then(async (data) => {
-        if (data.success) {
-          if (data.data.length === 0) {
-            // Auto seed Cambridge & Al Wildan demo
-            await fetch("/api/demo/seed", { method: "POST" });
-            const reRes = await fetch("/api/schools");
-            const reData = await reRes.json();
-            if (reData.success) {
-              setSchools(reData.data);
-            }
-          } else {
-            setSchools(data.data);
-          }
-        }
-      });
+  const loadSchools = useCallback(async () => {
+    try {
+      const list = await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.");
+      if (list.length === 0) {
+        // Auto seed Cambridge & Al Wildan demo
+        await postJson("/api/demo/seed", {}, "Gagal memuat data demo.");
+        setSchools(await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah."));
+      } else {
+        setSchools(list);
+      }
+    } catch {
+      // Biarkan layar publik tampil; view mandiri menampilkan errornya sendiri.
+    }
   }, []);
 
   useEffect(() => {

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
+import { bookPackages, bookPackageItems, packageItems, books } from "../../db/schema";
 import { recalcPackagePrice } from "../services/book-price";
 import {
   accessErrorResponse,
@@ -14,6 +14,7 @@ import {
   resolveRequestActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
+import { getStockPotentials } from "../services/package-stock";
 
 export const packagesRouter = new Hono();
 
@@ -111,7 +112,26 @@ packagesRouter.get("/items/ready", async (c) => {
   }
 });
 
-// GET package inventory summary per school (bundle ready count & potential assembly count)
+// GET potensi stok SEMUA paket untuk satu sekolah dalam 3 query batch.
+// Satu-satunya pemilik agregasi potensi; endpoint per-paket di bawah mendelegasikan ke sini.
+packagesRouter.get("/stock", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const schoolId = c.req.query("schoolId");
+    if (!schoolId) {
+      return c.json({ success: false, message: "schoolId wajib diisi" }, 400);
+    }
+    assertLocationAllowed(actor, schoolId, locations);
+
+    const potentials = await getStockPotentials(db, schoolId);
+    const map: Record<string, (typeof potentials)[number]> = {};
+    for (const p of potentials) map[p.packageId] = p;
+    return c.json({ success: true, data: map });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
 packagesRouter.get("/:id/stock/:schoolId", async (c) => {
   try {
     const actor = await resolveRequestActor(c);
@@ -125,71 +145,15 @@ packagesRouter.get("/:id/stock/:schoolId", async (c) => {
     return c.json({ success: false, message: "Package not found" }, 404);
   }
 
-  // Count physically pre-assembled packages in this school
-  const readyPackages = await db
-    .select()
-    .from(packageItems)
-    .where(
-      and(
-        eq(packageItems.packageId, packageId),
-        eq(packageItems.currentSchoolId, schoolId),
-        eq(packageItems.status, "in_stock")
-      )
-    );
-
-  // Get BOM
-  const bom = await db
-    .select({
-      bookId: bookPackageItems.bookId,
-      quantityNeeded: bookPackageItems.quantity,
-      title: books.title,
-      isbn: books.isbn,
-    })
-    .from(bookPackageItems)
-    .innerJoin(books, eq(bookPackageItems.bookId, books.id))
-    .where(eq(bookPackageItems.packageId, packageId));
-
-  // Check loose stock availability for each BOM component in this school
-  let maxPossibleBundles = Infinity;
-  const looseStockBreakdown = await Promise.all(
-    bom.map(async (item: any) => {
-      const looseItems = await db
-        .select()
-        .from(bookItems)
-        .where(
-          and(
-            eq(bookItems.bookId, item.bookId),
-            eq(bookItems.currentSchoolId, schoolId),
-            eq(bookItems.status, "in_stock"),
-            eq(bookItems.condition, "new")
-          )
-        );
-
-      const availableCount = looseItems.length;
-      const canMake = Math.floor(availableCount / item.quantityNeeded);
-      if (canMake < maxPossibleBundles) {
-        maxPossibleBundles = canMake;
-      }
-
-      return {
-        bookId: item.bookId,
-        title: item.title,
-        isbn: item.isbn,
-        quantityNeeded: item.quantityNeeded,
-        availableLooseStock: availableCount,
-        maxBundlesFromComponent: canMake,
-      };
-    })
-  );
-
+  const [potential] = await getStockPotentials(db, schoolId, packageId);
   return c.json({
     success: true,
-    data: {
+    data: potential ?? {
       packageId,
       schoolId,
-      readyBundleCount: readyPackages.length,
-      maxPossibleBundles: maxPossibleBundles === Infinity ? 0 : maxPossibleBundles,
-      looseStockBreakdown,
+      readyBundleCount: 0,
+      maxPossibleBundles: 0,
+      looseStockBreakdown: [],
     },
   });
   } catch (err) {
