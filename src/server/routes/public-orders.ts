@@ -67,7 +67,7 @@ publicOrdersRouter.get("/satuan-status", async (c) => {
   return c.json({ success: true, data: status });
 });
 
-publicOrdersRouter.get("/satable-catalog", async (c) => {
+publicOrdersRouter.get("/satuan-catalog", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
   const catalog = await getSatuanCatalogIfOpen(academicYear || undefined);
   return c.json({ success: true, data: catalog });

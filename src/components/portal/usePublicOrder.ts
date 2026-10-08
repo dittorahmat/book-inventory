@@ -109,17 +109,19 @@ export function usePublicOrder() {
   // Locked package resolution: single package matching
   // (targetGradeLevel, curriculumType), preferring latest academicYear.
   // Re-runs when the package list arrives after a student was selected.
+  // Nominal pembayaran hanya diisi otomatis saat masih murni (0): reload
+  // katalog di background tidak boleh menimpa edit manual orang tua.
   useEffect(() => {
     if (!selectedStudent || packages.length === 0 || step < 2) return;
     const matched = resolveLockedPackage(selectedStudent, packages);
     const nextId = matched ? matched.id : "";
     if (nextId === selectedPackageId) return;
     setSelectedPackageId(nextId);
-    if (matched) {
+    if (matched && transferAmount === 0 && bookAllocationAmount === 0) {
       setTransferAmount(matched.price);
       setBookAllocationAmount(matched.price);
     }
-  }, [packages, selectedStudent, step, selectedPackageId]);
+  }, [packages, selectedStudent, step, selectedPackageId, transferAmount, bookAllocationAmount]);
 
   const applyLockedPackage = (st: StudentSearchResult) => {
     const matched = resolveLockedPackage(st, packages);
@@ -140,7 +142,10 @@ export function usePublicOrder() {
   }, [schools]);
 
   useEffect(() => {
-    if (!satuanOpen) setPackageMode(true);
+    if (!satuanOpen) {
+      setPackageMode(true);
+      setLooseSelections([]);
+    }
   }, [satuanOpen]);
 
   useEffect(() => {
