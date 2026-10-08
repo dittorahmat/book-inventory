@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { publicOrdersRouter } from "./public-orders";
 import { db } from "../../db";
-import { schools, students, bookPackages } from "../../db/schema";
+import { schools, students, bookPackages, studentBookOrders } from "../../db/schema";
 
 describe("Public Orders & Student Search API", () => {
   it("searches student with promotion detection and submits order with payment or scholarship", async () => {
@@ -127,7 +127,11 @@ describe("Public Orders & Student Search API", () => {
     expect(lookupJson.data.length).toBeGreaterThan(0);
     expect(lookupJson.data[0].studentName).toBe("Hendra Wahyudi");
 
-    // 8. Test Public Return Submission for Defective Book
+    // 8. Test Public Return Submission for Defective Book (T3: report requires picked_up)
+    await db
+      .update(studentBookOrders)
+      .set({ fulfillmentStatus: "picked_up", updatedAt: now })
+      .where(eq(studentBookOrders.id, orderJson.data.order.id));
     const returnSubmitRes = await publicOrdersRouter.request("/submit-return", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
