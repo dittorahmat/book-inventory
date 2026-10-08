@@ -5,9 +5,7 @@ import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
 import { sendPo } from "../services/po-lifecycle";
-import { fetchEffectiveBuyPrices } from "../services/book-price";
-import { calcPoHeader } from "../../lib/book-pricing";
-import { evaluateSendGate, resolveWarehouseTarget, receivePurchaseOrder } from "../services/po-workflow";
+import { evaluateSendGate, resolveWarehouseTarget, createPurchaseOrder, receivePurchaseOrder } from "../services/po-workflow";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -165,7 +163,7 @@ procurementRouter.get("/purchase-orders", async (c) => {
   }
 });
 
-// 3. POST Create Purchase Order
+// 3. POST Create Purchase Order (thin caller di atas seam modul PO)
 procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), async (c) => {
   try {
     const actor = await resolveRequestActor(c);
@@ -177,55 +175,15 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
       return c.json({ success: false, message: target.message }, 400);
     }
     assertLocationAllowed(actor, target.warehouseId, locations);
-    const now = new Date().toISOString();
-    const id = crypto.randomUUID();
-    const poNumber = `PO-${Date.now().toString().slice(-8)}`;
-
-  // Default harga satuan item PO = harga beli efektif buku (bila tidak diisi manual).
-  const buyPrices = await fetchEffectiveBuyPrices(body.items.map((i) => i.bookId));
-  const resolvedItems = body.items.map((item) => ({
-    ...item,
-    unitPrice: item.unitPrice ?? buyPrices.get(item.bookId) ?? 0,
-  }));
-
-  // Tiga angka header: kotor, diskon, netto (kanonik server-side).
-  const { subtotalGross, discountTotal, totalAmount } = calcPoHeader(resolvedItems);
-
-  await db.insert(purchaseOrders).values({
-    id,
-    poNumber,
-    supplierId: body.supplierId,
-    targetSchoolId: target.warehouseId,
-    status: "draft",
-    orderDate: body.orderDate,
-    expectedArrivalDate: body.expectedArrivalDate || null,
-    subtotalGross,
-    discountTotal,
-    totalAmount,
-    notes: body.notes || null,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  for (const item of resolvedItems) {
-    await db.insert(purchaseOrderItems).values({
-      id: crypto.randomUUID(),
-      purchaseOrderId: id,
-      bookId: item.bookId,
-      quantityOrdered: item.quantityOrdered,
-      quantityReceived: 0,
-      unitPrice: item.unitPrice,
-      discountPercent: item.discountPercent,
-      createdAt: now,
-    });
-  }
-
-  const [created] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
-  return c.json({
-    success: true,
-    message: "Purchase Order berhasil diterbitkan",
-    data: { ...created, items: resolvedItems },
-  }, 201);
+    const result = await createPurchaseOrder(db, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({
+      success: true,
+      message: "Purchase Order berhasil diterbitkan",
+      data: result.data,
+    }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);
   }
