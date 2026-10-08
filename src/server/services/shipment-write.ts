@@ -4,7 +4,7 @@ import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import { d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
@@ -136,6 +136,31 @@ export async function createShipment(
         ]
       : [];
 
+    const looseRows = looseLines.map((l) => ({
+      id: crypto.randomUUID(),
+      shipmentId,
+      itemType: "loose",
+      bookItemId: l.bookItemId,
+      packageId: null,
+      packageItemId: null,
+      quantity: 1,
+      unitPriceSnapshot: l.snapshot,
+      receivedCondition: input.instant ? "good" : null,
+      createdAt: now,
+    }));
+    const bundleRows = bundleLines.map((l) => ({
+      id: crypto.randomUUID(),
+      shipmentId,
+      itemType: "package",
+      bookItemId: null,
+      packageId: l.meta.packageId,
+      packageItemId: l.packageItemId,
+      quantity: 1,
+      unitPriceSnapshot: l.meta.snapshot,
+      receivedCondition: input.instant ? "good" : null,
+      createdAt: now,
+    }));
+
     await runWriteBatch(database, [
       database.insert(transferShipments).values({
         id: shipmentId,
@@ -151,34 +176,8 @@ export async function createShipment(
         createdAt: now,
         updatedAt: now,
       }),
-      ...looseLines.map((l) =>
-        database.insert(transferShipmentItems).values({
-          id: crypto.randomUUID(),
-          shipmentId,
-          itemType: "loose",
-          bookItemId: l.bookItemId,
-          packageId: null,
-          packageItemId: null,
-          quantity: 1,
-          unitPriceSnapshot: l.snapshot,
-          receivedCondition: input.instant ? "good" : null,
-          createdAt: now,
-        })
-      ),
-      ...bundleLines.map((l) =>
-        database.insert(transferShipmentItems).values({
-          id: crypto.randomUUID(),
-          shipmentId,
-          itemType: "package",
-          bookItemId: null,
-          packageId: l.meta.packageId,
-          packageItemId: l.packageItemId,
-          quantity: 1,
-          unitPriceSnapshot: l.meta.snapshot,
-          receivedCondition: input.instant ? "good" : null,
-          createdAt: now,
-        })
-      ),
+      ...chunkRows(looseRows).map((rows) => database.insert(transferShipmentItems).values(rows)),
+      ...chunkRows(bundleRows).map((rows) => database.insert(transferShipmentItems).values(rows)),
       ...relocateLooseWrites,
       ...relocateBundleWrites,
     ]);

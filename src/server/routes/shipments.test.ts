@@ -412,7 +412,7 @@ describe("Inter-School Transfer Shipments API", () => {
     const fromId = `school-qty-from-${stamp}`;
     const toId = `school-qty-to-${stamp}`;
     const bookId = `b-qty-${stamp}`;
-    const copyIds = [1, 2, 3, 4, 5, 6, 7].map((n) => `copy-qty-${stamp}-${n}`);
+    const copyIds = Array.from({ length: 30 }, (_, i) => `copy-qty-${stamp}-${i + 1}`);
 
     try {
       await db.insert(schools).values([
@@ -436,19 +436,19 @@ describe("Inter-School Transfer Shipments API", () => {
         body: JSON.stringify({
           fromSchoolId: fromId,
           toSchoolId: toId,
-          items: [{ itemType: "loose", bookId, quantity: 7 }],
+          items: [{ itemType: "loose", bookId, quantity: 30 }],
           reason: "pindah stock",
           notes: "stock pindah",
         }),
       });
       expect(res.status).toBe(201);
       const json = await res.json();
-      expect(json.data.totalDeclaredValue).toBe(700000);
+      expect(json.data.totalDeclaredValue).toBe(3000000);
       const shipmentId = json.data.id;
 
       const lines = await db.select().from(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
-      expect(lines.length).toBe(7);
-      expect(new Set(lines.map((l: any) => l.bookItemId)).size).toBe(7);
+      expect(lines.length).toBe(30);
+      expect(new Set(lines.map((l: any) => l.bookItemId)).size).toBe(30);
 
       await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
       await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
