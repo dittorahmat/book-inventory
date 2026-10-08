@@ -293,6 +293,77 @@ describe("Inter-School Transfer Shipments API", () => {
     await db.delete(schools).where(eq(schools.id, branchId));
   });
 
+  it("creates via quantity lines FIFO with effective-price snapshot and receives with discrepancy (T2)", async () => {
+    const hqId = crypto.randomUUID();
+    const branchId = crypto.randomUUID();
+    const bookId = crypto.randomUUID();
+    const old1 = crypto.randomUUID();
+    const old2 = crypto.randomUUID();
+    const new3 = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: hqId, name: "HQ FIFO", code: "HQ-FIFO", type: "main", createdAt: now, updatedAt: now },
+      { id: branchId, name: "Branch FIFO", code: "BR-FIFO", type: "branch", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(books).values({
+      id: bookId, isbn: "978-0000000144", title: "FIFO Priced Book", author: "QA", publisher: "QA Press",
+      price: 50000, sellPrice: 80000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookItems).values([
+      { id: old1, bookId, currentSchoolId: hqId, barcode: "FIFO-001", condition: "new", status: "in_stock", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: now },
+      { id: old2, bookId, currentSchoolId: hqId, barcode: "FIFO-002", condition: "new", status: "in_stock", createdAt: "2026-01-02T00:00:00.000Z", updatedAt: now },
+      { id: new3, bookId, currentSchoolId: hqId, barcode: "FIFO-003", condition: "new", status: "in_stock", createdAt: "2026-01-03T00:00:00.000Z", updatedAt: now },
+    ]);
+
+    // Quantity lines: 2 oldest allocated, snapshot = effective sell price (80000, bukan price 50000)
+    const draftRes = await shipmentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromSchoolId: hqId,
+        toSchoolId: branchId,
+        items: [{ itemType: "loose", bookId, quantity: 2 }],
+      }),
+    });
+    const draftJson = await draftRes.json();
+    expect(draftRes.status).toBe(201);
+    expect(draftJson.data.totalDeclaredValue).toBe(160000);
+    const shipmentId = draftJson.data.id;
+
+    const detailRes = await shipmentsRouter.request(`/${shipmentId}`);
+    const detailJson = await detailRes.json();
+    const barcodes = detailJson.data.items.map((i: any) => i.barcode).sort();
+    expect(barcodes).toEqual(["FIFO-001", "FIFO-002"]);
+    expect(detailJson.data.items[0].unitPriceSnapshot).toBe(80000);
+
+    await shipmentsRouter.request(`/${shipmentId}/dispatch`, { method: "POST" });
+    const receiveRes = await shipmentsRouter.request(`/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        itemReceipts: [
+          { bookItemId: old1, condition: "good" },
+          { bookItemId: old2, condition: "missing" },
+        ],
+      }),
+    });
+    const receiveJson = await receiveRes.json();
+    expect(receiveJson.data.status).toBe("completed_with_discrepancy");
+    const [lost] = await db.select().from(bookItems).where(eq(bookItems.id, old2));
+    expect(lost.status).toBe("lost");
+    const [moved] = await db.select().from(bookItems).where(eq(bookItems.id, old1));
+    expect(moved.currentSchoolId).toBe(branchId);
+
+    // Cleanup
+    await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
+    await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
+    await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, hqId));
+    await db.delete(schools).where(eq(schools.id, branchId));
+  });
+
   it("rejects empty drafts and unknown packages", async () => {
     const fromId = crypto.randomUUID();
     const toId = crypto.randomUUID();
