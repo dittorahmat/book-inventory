@@ -4,7 +4,7 @@ import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
@@ -214,28 +214,31 @@ export async function dispatchShipment(
     .from(transferShipmentItems)
     .where(eq(transferShipmentItems.shipmentId, id));
 
-  const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId);
-  const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId);
+  const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId as string);
+  const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId as string);
 
-  if (looseIds.length > 0) {
-    await database
-      .update(bookItems)
-      .set({ status: "in_transit", updatedAt: now })
-      .where(inArray(bookItems.id, looseIds));
+  // Satu batch atomik via seam lib/d1-write (batch di D1, sekuensial di
+  // bun-sqlite); IN-list di-chunk agar D1-safe pada volume produksi.
+  try {
+    await runWriteBatch(database, [
+      ...chunkRows<string>(looseIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
+        database.update(bookItems).set({ status: "in_transit", updatedAt: now }).where(inArray(bookItems.id, ids))
+      ),
+      ...chunkRows<string>(bundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
+        database.update(packageItems).set({ status: "dispatched", updatedAt: now }).where(inArray(packageItems.id, ids))
+      ),
+      database
+        .update(transferShipments)
+        .set({ status: "in_transit", dispatchedAt: now, updatedAt: now })
+        .where(eq(transferShipments.id, id)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pengiriman transfer");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
   }
 
-  if (bundleIds.length > 0) {
-    await database
-      .update(packageItems)
-      .set({ status: "dispatched", updatedAt: now })
-      .where(inArray(packageItems.id, bundleIds));
-  }
-
-  const [updated] = await database
-    .update(transferShipments)
-    .set({ status: "in_transit", dispatchedAt: now, updatedAt: now })
-    .where(eq(transferShipments.id, id))
-    .returning();
+  const [updated] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
 
   return { ok: true, shipment: updated };
 }
@@ -255,97 +258,128 @@ export async function receiveShipment(
     return { ok: false, status: 400, message: "Only in_transit shipments can be received" };
   }
 
+  // Validasi pra-tulis: receipt asing ditolak 400 sebelum tulis apa pun.
+  const lines = await database
+    .select()
+    .from(transferShipmentItems)
+    .where(eq(transferShipmentItems.shipmentId, id));
+  const looseSet = new Set(lines.filter((l: any) => l.bookItemId).map((l: any) => l.bookItemId as string));
+  const bundleSet = new Set(lines.filter((l: any) => l.packageItemId).map((l: any) => l.packageItemId as string));
+  const badLoose = looseReceipts.find((r) => !looseSet.has(r.bookItemId));
+  if (badLoose) return { ok: false, status: 400, message: `Item ${badLoose.bookItemId} is not part of this shipment` };
+  const badBundle = bundleReceipts.find((r) => !bundleSet.has(r.packageItemId));
+  if (badBundle) return { ok: false, status: 400, message: `Package ${badBundle.packageItemId} is not part of this shipment` };
+
   const now = new Date().toISOString();
-  let hasDiscrepancy = false;
+  const hasDiscrepancy = [...looseReceipts, ...bundleReceipts].some((r) => r.condition !== "good");
 
-  for (const receipt of looseReceipts) {
-    await database
-      .update(transferShipmentItems)
-      .set({ receivedCondition: receipt.condition, notes: receipt.notes })
-      .where(
-        and(
-          eq(transferShipmentItems.shipmentId, id),
-          eq(transferShipmentItems.bookItemId, receipt.bookItemId)
-        )
-      );
+  // Kumpulkan seluruh tulis (kondisi per baris berbeda) lalu satu batch atomik
+  // via seam lib/d1-write — tanpa await-per-baris, tanpa .returning() (§10 D1).
+  const lineWrites = [
+    ...looseReceipts.map((r) =>
+      database
+        .update(transferShipmentItems)
+        .set({ receivedCondition: r.condition, notes: r.notes })
+        .where(and(eq(transferShipmentItems.shipmentId, id), eq(transferShipmentItems.bookItemId, r.bookItemId)))
+    ),
+    ...bundleReceipts.map((r) =>
+      database
+        .update(transferShipmentItems)
+        .set({ receivedCondition: r.condition, notes: r.notes })
+        .where(and(eq(transferShipmentItems.shipmentId, id), eq(transferShipmentItems.packageItemId, r.packageItemId)))
+    ),
+  ];
+  const looseWrites = looseReceipts.map((r) => {
+    const patch: any =
+      r.condition === "missing"
+        ? { status: "lost", updatedAt: now }
+        : r.condition === "damaged"
+          ? { currentSchoolId: shipment.toSchoolId, status: "in_stock", condition: "damaged", updatedAt: now }
+          : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };
+    return database.update(bookItems).set(patch).where(eq(bookItems.id, r.bookItemId));
+  });
+  const missingBundleIds = bundleReceipts.filter((r) => r.condition === "missing").map((r) => r.packageItemId);
+  const bundleWrites = [
+    ...chunkRows<string>(missingBundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
+      database.delete(packageItems).where(inArray(packageItems.id, ids))
+    ),
+    ...bundleReceipts.filter((r) => r.condition !== "missing").map((r) => {
+      const patch: any =
+        r.condition === "damaged"
+          ? { currentSchoolId: shipment.toSchoolId, status: "in_stock", notes: r.notes ? `Rusak saat transit: ${r.notes}` : "Rusak saat transit", updatedAt: now }
+          : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };
+      return database.update(packageItems).set(patch).where(eq(packageItems.id, r.packageItemId));
+    }),
+  ];
 
-    if (receipt.condition === "missing") {
-      hasDiscrepancy = true;
-      await database
-        .update(bookItems)
-        .set({ status: "lost", updatedAt: now })
-        .where(eq(bookItems.id, receipt.bookItemId));
-    } else if (receipt.condition === "damaged") {
-      hasDiscrepancy = true;
-      await database
-        .update(bookItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          condition: "damaged",
-          updatedAt: now,
-        })
-        .where(eq(bookItems.id, receipt.bookItemId));
-    } else {
-      await database
-        .update(bookItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          updatedAt: now,
-        })
-        .where(eq(bookItems.id, receipt.bookItemId));
-    }
+  try {
+    await runWriteBatch(database, [
+      ...lineWrites,
+      ...looseWrites,
+      ...bundleWrites,
+      database
+        .update(transferShipments)
+        .set({ status: hasDiscrepancy ? "completed_with_discrepancy" : "completed", receivedAt: now, updatedAt: now })
+        .where(eq(transferShipments.id, id)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penerimaan transfer");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
   }
 
-  for (const receipt of bundleReceipts) {
-    await database
-      .update(transferShipmentItems)
-      .set({ receivedCondition: receipt.condition, notes: receipt.notes })
-      .where(
-        and(
-          eq(transferShipmentItems.shipmentId, id),
-          eq(transferShipmentItems.packageItemId, receipt.packageItemId)
-        )
-      );
-
-    if (receipt.condition === "missing") {
-      hasDiscrepancy = true;
-      await database.delete(packageItems).where(eq(packageItems.id, receipt.packageItemId));
-    } else if (receipt.condition === "damaged") {
-      hasDiscrepancy = true;
-      await database
-        .update(packageItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          notes: receipt.notes ? `Rusak saat transit: ${receipt.notes}` : "Rusak saat transit",
-          updatedAt: now,
-        })
-        .where(eq(packageItems.id, receipt.packageItemId));
-    } else {
-      await database
-        .update(packageItems)
-        .set({
-          currentSchoolId: shipment.toSchoolId,
-          status: "in_stock",
-          updatedAt: now,
-        })
-        .where(eq(packageItems.id, receipt.packageItemId));
-    }
-  }
-
-  const finalStatus = hasDiscrepancy ? "completed_with_discrepancy" : "completed";
-
-  const [completed] = await database
-    .update(transferShipments)
-    .set({
-      status: finalStatus,
-      receivedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(transferShipments.id, id))
-    .returning();
+  const [completed] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
 
   return { ok: true, shipment: completed };
+}
+
+/**
+ * Deep module: rollback penghapusan shipment (ganti logika inline di route).
+ * In_transit dikembalikan ke in_stock di asal, lalu lines + header dihapus —
+ * seluruhnya satu batch atomik via seam lib/d1-write (§10 D1).
+ */
+export async function rollbackShipment(
+  database: AppDatabase,
+  id: string
+): Promise<{ ok: true } | ServiceError> {
+  const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
+  if (!shipment) return { ok: false, status: 404, message: "Shipment not found" };
+  if (shipment.status === "completed" || shipment.status === "completed_with_discrepancy") {
+    return {
+      ok: false,
+      status: 400,
+      message: `Surat jalan transfer "${shipment.shipmentNumber}" tidak dapat dihapus karena sudah selesai diterima (Completed) oleh cabang tujuan. Data pergerakan stok telah resmi tercatat.`,
+    };
+  }
+
+  const items = await database
+    .select()
+    .from(transferShipmentItems)
+    .where(eq(transferShipmentItems.shipmentId, id));
+  const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId as string);
+  const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId as string);
+  const restore = shipment.status === "in_transit";
+
+  try {
+    await runWriteBatch(database, [
+      ...(restore
+        ? chunkRows<string>(looseIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
+            database.update(bookItems).set({ status: "in_stock" }).where(inArray(bookItems.id, ids))
+          )
+        : []),
+      ...(restore
+        ? chunkRows<string>(bundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
+            database.update(packageItems).set({ status: "in_stock" }).where(inArray(packageItems.id, ids))
+          )
+        : []),
+      database.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, id)),
+      database.delete(transferShipments).where(eq(transferShipments.id, id)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penghapusan transfer");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return { ok: true };
 }
