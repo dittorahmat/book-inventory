@@ -1,5 +1,6 @@
 import { Package, BookOpen, Minus, Plus, Lock } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import type { SatuanBookOption } from "./portal-api";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
@@ -50,7 +51,7 @@ export function OrderItemStep({
   const totalQty = selections.reduce((s, sel) => s + sel.quantity, 0);
   const totalSatuan = selections.reduce((sum, sel) => {
     const book = books.find((b) => b.id === sel.bookId);
-    return sum + (book?.sellPrice ?? 0) * sel.quantity;
+    return sum + effectiveSellPrice(book ?? {}) * sel.quantity;
   }, 0);
 
   const canContinue = packageMode ? !!selectedPackageName : totalQty > 0;

@@ -2,7 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import type { BookItem, School, TransferShipment } from "../../types";
 import { buildQuery, getJson, postJson } from "../../lib/api";
 import { calcHeaderTotal, formatRupiah } from "../../lib/transfer-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import type { ReadyBundle } from "./PackagePicker";
+
+export type ReceiptCondition = "good" | "damaged" | "missing";
+
+export interface LooseConditionPick {
+  bookItemId: string;
+  condition: ReceiptCondition;
+}
+
+export interface BundleConditionPick {
+  packageItemId: string;
+  condition: ReceiptCondition;
+}
 
 const toggleIn =
   (setter: React.Dispatch<React.SetStateAction<string[]>>) =>
@@ -25,7 +38,7 @@ export function useTransfers(activeSchool: School | null) {
   const looseTotal = calcHeaderTotal(
     selectedItems.map((id) => {
       const item = availableItems.find((i) => i.id === id);
-      return { unitPriceSnapshot: item?.book?.price || 0, quantity: 1 };
+      return { unitPriceSnapshot: effectiveSellPrice(item?.book ?? {}), quantity: 1 };
     })
   );
   const packageTotal = calcHeaderTotal(
@@ -121,23 +134,29 @@ export function useTransfers(activeSchool: School | null) {
   );
 
   const handleReceive = useCallback(
-    async (shipment: TransferShipment) => {
+    async (shipment: TransferShipment, loosePicks?: LooseConditionPick[], bundlePicks?: BundleConditionPick[]) => {
       const looseItems = (shipment.items || []).filter((item) => item.itemType !== "package" && item.bookItemId);
       const bundleItems = (shipment.items || []).filter((item) => item.itemType === "package" && item.packageItemId);
       if (looseItems.length === 0 && bundleItems.length === 0) {
         alert("Tidak ada item manifest pada transfer ini");
         return;
       }
+      const looseById = new Map((loosePicks ?? []).map((p) => [p.bookItemId, p.condition]));
+      const bundleById = new Map((bundlePicks ?? []).map((p) => [p.packageItemId, p.condition]));
       try {
-        await postJson(
+        const data = await postJson<{ status: string }>(
           `/api/shipments/${shipment.id}/receive`,
           {
-            itemReceipts: looseItems.map((item) => ({ bookItemId: item.bookItemId as string, condition: "good" })),
-            packageReceipts: bundleItems.map((item) => ({ packageItemId: item.packageItemId as string, condition: "good" })),
+            itemReceipts: looseItems.map((item) => ({ bookItemId: item.bookItemId as string, condition: looseById.get(item.bookItemId as string) ?? "good" })),
+            packageReceipts: bundleItems.map((item) => ({ packageItemId: item.packageItemId as string, condition: bundleById.get(item.packageItemId as string) ?? "good" })),
           },
           "Gagal mengonfirmasi penerimaan transfer"
         );
-        alert("Penerimaan transfer berhasil dikonfirmasi! Stok buku telah dialokasikan ke cabang ini.");
+        alert(
+          data.status === "completed_with_discrepancy"
+            ? "Penerimaan dicatat dengan selisih (rusak/hilang). Periksa status shipment."
+            : "Penerimaan transfer berhasil dikonfirmasi! Stok buku telah dialokasikan ke cabang ini."
+        );
         await fetchShipments();
         await openShipmentDetail(shipment.id);
       } catch (err) {

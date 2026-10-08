@@ -25,14 +25,20 @@ import {
   type StaffRole,
 } from "./access-scope";
 import {
-  emptyConditionBuckets,
-  isAvailableLoose,
-  isLooseInTransit,
-  isLost,
   isOpenOrder,
   isReadyBundle,
   outstandingOf,
 } from "./stock-buckets";
+import {
+  addLoose,
+  addPackage,
+  newLooseTally,
+  newPackageTally,
+  tallyLoose,
+  tallyPackages,
+  type LooseTally,
+  type PackageTally,
+} from "./stock-kernel";
 
 export type { StaffRole };
 export type DashboardActor = AccessActor;
@@ -86,10 +92,6 @@ async function fetchDashboardRows(database: typeof db): Promise<DashboardRows> {
   return { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows };
 }
 
-function isKnownCondition(value: string): value is keyof { new: number; good: number; fair: number; damaged: number } {
-  return value === "new" || value === "good" || value === "fair" || value === "damaged";
-}
-
 function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSchoolSummary {
   const schoolId = school.id;
   const { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows } = rows;
@@ -103,64 +105,64 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
   const shipments = shipmentRows.filter((r) => r.fromSchoolId === schoolId || r.toSchoolId === schoolId);
   const pos = poRows.filter((r) => r.targetSchoolId === schoolId);
 
-  const byCondition = emptyConditionBuckets();
-  let inTransit = 0;
-  let lost = 0;
-  let damaged = 0;
-  for (const it of items) {
-    if (isAvailableLoose(it.status)) {
-      if (isKnownCondition(it.condition)) byCondition[it.condition] += 1;
-      if (it.condition === "damaged") damaged += 1;
-    }
-    if (isLooseInTransit(it.status)) inTransit += 1;
-    if (isLost(it.status)) lost += 1;
-  }
+  const stockTally = tallyLoose(items);
+  const byCondition = stockTally.byConditionAvailable;
+  const inTransit = stockTally.inTransitQty;
+  const lost = stockTally.lostQty;
+  const damaged = stockTally.damagedQty;
 
-  const readyPackages = pkgs.filter((p) => isReadyBundle(p.status)).length;
+  const packageTally = tallyPackages(pkgs);
+  const readyPackages = packageTally.readyQty;
 
   // Ringkasan per judul & per jenis paket, tanpa identitas fisik (spec: inventory-summary).
   const bookTitle = new Map(bookRows.map((b) => [b.id, b.title]));
-  const titleMap = new Map<string, DashboardTitleStock>();
+  const titleMap = new Map<string, { entry: DashboardTitleStock; tally: LooseTally }>();
   for (const it of items) {
-    let entry = titleMap.get(it.bookId);
-    if (!entry) {
-      entry = {
-        bookId: it.bookId,
-        title: bookTitle.get(it.bookId) ?? it.bookId,
-        totalQty: 0,
-        availableQty: 0,
-        inTransitQty: 0,
-        byCondition: { new: 0, good: 0, fair: 0, damaged: 0 },
+    let slot = titleMap.get(it.bookId);
+    if (!slot) {
+      slot = {
+        entry: {
+          bookId: it.bookId,
+          title: bookTitle.get(it.bookId) ?? it.bookId,
+          totalQty: 0,
+          availableQty: 0,
+          inTransitQty: 0,
+          byCondition: { new: 0, good: 0, fair: 0, damaged: 0 },
+        },
+        tally: newLooseTally(),
       };
-      titleMap.set(it.bookId, entry);
+      titleMap.set(it.bookId, slot);
     }
-    entry.totalQty += 1;
-    if (isAvailableLoose(it.status)) {
-      entry.availableQty += 1;
-      if (isKnownCondition(it.condition)) entry.byCondition[it.condition] += 1;
-    }
-    if (isLooseInTransit(it.status)) entry.inTransitQty += 1;
+    addLoose(slot.tally, it);
+    slot.entry.totalQty = slot.tally.totalQty;
+    slot.entry.availableQty = slot.tally.availableQty;
+    slot.entry.inTransitQty = slot.tally.inTransitQty;
+    slot.entry.byCondition = slot.tally.byConditionAvailable;
   }
-  const byTitle = [...titleMap.values()].sort((a, b) => b.totalQty - a.totalQty);
+  const byTitle = [...titleMap.values()].map((s) => s.entry).sort((a, b) => b.totalQty - a.totalQty);
 
-  const packageMap = new Map<string, DashboardPackageStock>();
+  const packageMap = new Map<string, { entry: DashboardPackageStock; tally: PackageTally }>();
   for (const p of pkgs) {
     const def = pkgTier.get(p.packageId);
-    let entry = packageMap.get(p.packageId);
-    if (!entry) {
-      entry = {
-        packageId: p.packageId,
-        code: def?.code ?? p.packageId,
-        name: def?.name ?? p.packageId,
-        totalQty: 0,
-        readyQty: 0,
+    let slot = packageMap.get(p.packageId);
+    if (!slot) {
+      slot = {
+        entry: {
+          packageId: p.packageId,
+          code: def?.code ?? p.packageId,
+          name: def?.name ?? p.packageId,
+          totalQty: 0,
+          readyQty: 0,
+        },
+        tally: newPackageTally(),
       };
-      packageMap.set(p.packageId, entry);
+      packageMap.set(p.packageId, slot);
     }
-    entry.totalQty += 1;
-    if (isReadyBundle(p.status)) entry.readyQty += 1;
+    addPackage(slot.tally, p);
+    slot.entry.totalQty = slot.tally.totalQty;
+    slot.entry.readyQty = slot.tally.readyQty;
   }
-  const byPackage = [...packageMap.values()].sort((a, b) => b.totalQty - a.totalQty);
+  const byPackage = [...packageMap.values()].map((s) => s.entry).sort((a, b) => b.totalQty - a.totalQty);
 
   const waitingOrders = orders.filter((o) => o.fulfillmentStatus === "waiting_preparation").length;
   const shortfall = Math.max(0, waitingOrders - readyPackages);
@@ -197,7 +199,7 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
   return {
     school: { id: school.id, name: school.name, code: school.code, type: school.type },
     stock: {
-      looseInStock: items.filter((i) => i.status === "in_stock").length,
+      looseInStock: stockTally.availableQty,
       packagesReady: readyPackages,
       byCondition,
       inTransit,

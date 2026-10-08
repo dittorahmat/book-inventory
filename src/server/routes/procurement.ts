@@ -274,6 +274,7 @@ procurementRouter.post("/purchase-orders/:id/send", async (c) => {
     assertLocationAllowed(actor, po.targetSchoolId, locations);
 
     const result = await sendPo(
+      db,
       c.req.param("id"),
       c.env as unknown as EmailRuntimeEnv | undefined
     );

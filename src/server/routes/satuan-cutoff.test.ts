@@ -154,7 +154,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
     const bookId = await seedBook(stamp, 45000);
 
     try {
-      const catalog = await publicOrdersRouter.request("/satable-catalog");
+      const catalog = await publicOrdersRouter.request("/satuan-catalog");
       const catalogJson = await catalog.json();
       expect(catalogJson.data.open).toBe(false);
       expect(catalogJson.data.books).toHaveLength(0);
@@ -185,7 +185,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
     const createdOrderIds: string[] = [];
 
     try {
-      const catalog = await publicOrdersRouter.request("/satable-catalog");
+      const catalog = await publicOrdersRouter.request("/satuan-catalog");
       const catalogJson = await catalog.json();
       expect(catalogJson.data.open).toBe(true);
       const listed = catalogJson.data.books.find((b: any) => b.id === bookA);
@@ -250,7 +250,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
       const status = await publicOrdersRouter.request("/satuan-status");
       expect((await status.json()).data.open).toBe(false);
 
-      const catalog = await publicOrdersRouter.request("/satable-catalog");
+      const catalog = await publicOrdersRouter.request("/satuan-catalog");
       expect((await catalog.json()).data.books).toHaveLength(0);
 
       const res = await publicOrdersRouter.request("/submit", {
@@ -363,14 +363,14 @@ describe("Katalog satuan terpadu cut-off (spec: c4-single-capability)", () => {
     });
     try {
       await clearSettings(FUTURE_YEAR);
-      const closedRes = await publicOrdersRouter.request(`/satable-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
+      const closedRes = await publicOrdersRouter.request(`/satuan-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
       expect(closedRes.status).toBe(200);
       const closed = await closedRes.json();
       expect(closed.data.open).toBe(false);
       expect(closed.data.books).toEqual([]);
 
       await setSatuanOverride(FUTURE_YEAR, "open");
-      const openRes = await publicOrdersRouter.request(`/satable-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
+      const openRes = await publicOrdersRouter.request(`/satuan-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
       expect(openRes.status).toBe(200);
       const opened = await openRes.json();
       expect(opened.data.open).toBe(true);

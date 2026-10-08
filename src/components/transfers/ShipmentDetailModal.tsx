@@ -1,16 +1,40 @@
+import { useState } from "react";
 import { Send, CheckCircle } from "lucide-react";
 import type { TransferShipment } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import type { BundleConditionPick, LooseConditionPick, ReceiptCondition } from "./useTransfers";
 
 interface ShipmentDetailModalProps {
   shipment: TransferShipment;
   onClose: () => void;
   onDispatch: (id: string) => void;
-  onReceive: (shipment: TransferShipment) => void;
+  onReceive: (shipment: TransferShipment, loosePicks?: LooseConditionPick[], bundlePicks?: BundleConditionPick[]) => void;
 }
+
+const RECEIPT_OPTIONS: Array<{ value: ReceiptCondition; label: string }> = [
+  { value: "good", label: "Baik" },
+  { value: "damaged", label: "Rusak" },
+  { value: "missing", label: "Hilang" },
+];
 
 /** Rincian manifest + aksi dispatch/receive satu shipment. Murni presentasi. */
 export function ShipmentDetailModal({ shipment, onClose, onDispatch, onReceive }: ShipmentDetailModalProps) {
+  const [conditions, setConditions] = useState<Record<string, ReceiptCondition>>({});
+  const isReceivable = shipment.status === "in_transit";
+  const pickFor = (key: string): ReceiptCondition => conditions[key] ?? "good";
+  const setPick = (key: string, value: ReceiptCondition) =>
+    setConditions((prev) => ({ ...prev, [key]: value }));
+  const flaggedCount = Object.values(conditions).filter((c) => c !== "good").length;
+
+  const handleConfirmReceive = () => {
+    const loosePicks: LooseConditionPick[] = (shipment.items || [])
+      .filter((item) => item.itemType !== "package" && item.bookItemId)
+      .map((item) => ({ bookItemId: item.bookItemId as string, condition: pickFor(`loose:${item.bookItemId}`) }));
+    const bundlePicks: BundleConditionPick[] = (shipment.items || [])
+      .filter((item) => item.itemType === "package" && item.packageItemId)
+      .map((item) => ({ packageItemId: item.packageItemId as string, condition: pickFor(`pkg:${item.packageItemId}`) }));
+    onReceive(shipment, loosePicks, bundlePicks);
+  };
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
       <div className="bg-white border border-[#CED0D4] rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
@@ -71,6 +95,28 @@ export function ShipmentDetailModal({ shipment, onClose, onDispatch, onReceive }
                     Diterima: {item.receivedCondition}
                   </span>
                 )}
+                {isReceivable && !item.receivedCondition && (
+                  <label className="flex flex-col gap-0.5 shrink-0">
+                    <span className="text-[9px] font-bold uppercase text-[#65676B]">Kondisi terima</span>
+                    <select
+                      aria-label={`Kondisi terima ${item.barcode}`}
+                      value={pickFor(`${item.itemType === "package" ? "pkg:" : "loose:"}${item.itemType === "package" ? item.packageItemId : item.bookItemId}`)}
+                      onChange={(e) =>
+                        setPick(
+                          `${item.itemType === "package" ? "pkg:" : "loose:"}${item.itemType === "package" ? item.packageItemId : item.bookItemId}`,
+                          e.target.value as ReceiptCondition
+                        )
+                      }
+                      className="text-[11px] font-semibold border border-[#CED0D4] rounded-lg px-1.5 py-1 bg-white text-[#050505] focus:outline-none focus:border-[#1877F2]"
+                    >
+                      {RECEIPT_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             ))}
           </div>
@@ -99,13 +145,20 @@ export function ShipmentDetailModal({ shipment, onClose, onDispatch, onReceive }
           )}
 
           {shipment.status === "in_transit" && (
-            <button
-              onClick={() => onReceive(shipment)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-[#31A24C] hover:bg-[#2B8F42] text-white rounded-lg transition-colors shadow-sm"
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              Konfirmasi Penerimaan
-            </button>
+            <div className="flex flex-col gap-1.5 items-end">
+              {flaggedCount > 0 && (
+                <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                  {flaggedCount} item ditandai rusak/hilang &rarr; status selisih
+                </span>
+              )}
+              <button
+                onClick={handleConfirmReceive}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-[#31A24C] hover:bg-[#2B8F42] text-white rounded-lg transition-colors shadow-sm active:scale-[0.98]"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Konfirmasi Penerimaan
+              </button>
+            </div>
           )}
         </div>
       </div>

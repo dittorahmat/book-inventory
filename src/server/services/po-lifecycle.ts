@@ -104,9 +104,12 @@ export type SendPoResult =
   | LifecycleError;
 
 /** Gerbang kirim + pengiriman dalam satu seam: route tidak lagi memanggil gate manual. */
-export async function sendPo(poId: string, env?: EmailRuntimeEnv): Promise<SendPoResult> {
-  const { db } = await import("../../db");
-  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+export async function sendPo(
+  database: AppDatabase,
+  poId: string,
+  env?: EmailRuntimeEnv
+): Promise<SendPoResult> {
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
   if (!po) return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
 
   const gate = evaluateSendGate(po);

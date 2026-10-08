@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "../../lib/transfer-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
@@ -68,8 +69,11 @@ export async function createShipment(
     }
 
     const bookIds = [...new Set(selectedItems.map((i: any) => i.bookId as string))] as string[];
-    const priceRows = await database.select({ id: books.id, price: books.price }).from(books).where(inArray(books.id, bookIds));
-    const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
+    const priceRows = await database
+      .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
+      .from(books)
+      .where(inArray(books.id, bookIds));
+    const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, effectiveSellPrice(r)]));
     selectedItems.forEach((item: any) => looseSnapshots.set(item.id, priceMap.get(item.bookId) || 0));
   }
 

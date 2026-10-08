@@ -49,6 +49,7 @@ export interface SatuanBookOption {
   category: string | null;
   coverUrl: string | null;
   sellPrice: number;
+  price?: number | null;
 }
 
 /** Status keterbukaan order satuan (public, tanpa login). */
@@ -57,7 +58,7 @@ export const fetchSatuanStatus = (): Promise<SatuanStatus> =>
 
 /** Katalog satuan; kosong saat periode tertutup. */
 export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanStatus; books: SatuanBookOption[] }> =>
-  getJson("/api/public/orders/satable-catalog", "Gagal memuat daftar buku satuan");
+  getJson("/api/public/orders/satuan-catalog", "Gagal memuat daftar buku satuan");
 
 export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");

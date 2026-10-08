@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildFinalOrderPayload, type OrderTotalsInput } from "./order-payload";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 
 const base: OrderTotalsInput = {
   studentId: "st-1",
@@ -55,5 +56,30 @@ describe("buildFinalOrderPayload", () => {
 
   test("paket belum terkunci ditolak", () => {
     expect(() => buildFinalOrderPayload({ ...base, packageId: undefined })).toThrow(/terkunci/);
+  });
+
+  test("looseTotal paritas effectiveSellPrice (fallback harga lama) — T1", () => {
+    const catalog = [
+      { id: "b-new", sellPrice: 50000, price: 0 },
+      { id: "b-legacy", sellPrice: 0, price: 42000 },
+    ];
+    const selections = [
+      { bookId: "b-new", quantity: 1 },
+      { bookId: "b-legacy", quantity: 2 },
+    ];
+    const looseTotal = selections.reduce((sum, sel) => {
+      const book = catalog.find((b) => b.id === sel.bookId);
+      return sum + effectiveSellPrice(book ?? {}) * sel.quantity;
+    }, 0);
+    expect(looseTotal).toBe(50000 + 2 * 42000);
+    const payload = buildFinalOrderPayload({
+      ...base,
+      packageMode: false,
+      looseItems: selections,
+      looseTotal,
+      transferAmount: looseTotal,
+      bookAllocationAmount: looseTotal,
+    });
+    expect(payload.looseItems).toEqual(selections);
   });
 });

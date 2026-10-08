@@ -20,7 +20,6 @@ const EXCLUDE = [
 // Daftar ini hanya boleh menyusut.
 const GRANDFATHERED = [
   "src/views/ProcurementView.tsx",
-  "src/views/PackagesView.tsx",
   "src/views/SettingsView.tsx",
   "src/views/StudentOrdersView.tsx",
   "src/views/InventoryView.tsx",

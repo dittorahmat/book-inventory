@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
+import { evaluateSendGate, validateSignedDoc } from "../services/po-workflow";
 import { db } from "../../db";
 import { purchaseOrders, suppliers, books, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
@@ -368,5 +369,32 @@ describe("Master supplier di tab PO", () => {
     }
     const [row] = await db.select().from(suppliers).limit(1);
     expect(row).toBeDefined();
+  });
+});
+
+describe("Gerbang kirim PO murni (T4)", () => {
+  it("melewatkan semua status lama tanpa bukti (legacy exemption)", () => {
+    for (const status of ["ordered", "sent", "partially_received", "received", "cancelled"] as const) {
+      const gate = evaluateSendGate({ status, signedDocUrl: null, poNumber: "PO-X" });
+      expect(gate.allowed).toBe(true);
+    }
+  });
+
+  it("melewatkan alur baru yang sudah punya bukti dan menolak yang belum", () => {
+    expect(evaluateSendGate({ status: "signed_uploaded", signedDocUrl: "r2://bukti.pdf", poNumber: "PO-X" }).allowed).toBe(true);
+    const blocked = evaluateSendGate({ status: "printed", signedDocUrl: null, poNumber: "PO-9" });
+    expect(blocked.allowed).toBe(false);
+    if (!blocked.allowed) expect(blocked.message).toContain("PO-9");
+    expect(evaluateSendGate({ status: "draft", signedDocUrl: null, poNumber: "PO-1" }).allowed).toBe(false);
+  });
+
+  it("memvalidasi berkas bukti: kosong, raksasa, tipe asing ditolak", () => {
+    const pdf = (size: number, type: string) => new File([new Uint8Array(size)], "bukti.pdf", { type });
+    expect(validateSignedDoc(pdf(0, "application/pdf")).ok).toBe(false);
+    expect(validateSignedDoc(pdf(11 * 1024 * 1024, "application/pdf")).ok).toBe(false);
+    expect(validateSignedDoc(pdf(10, "text/plain")).ok).toBe(false);
+    const ok = validateSignedDoc(pdf(10, "application/pdf"));
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.contentType).toBe("application/pdf");
   });
 });

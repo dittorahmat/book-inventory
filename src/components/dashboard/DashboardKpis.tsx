@@ -1,5 +1,5 @@
 import type { DashboardCoverage, DashboardPayments, DashboardStock } from "../../lib/dashboard-types";
-import { coverageTone } from "./coverage-tone";
+import { coverageTone } from "../../lib/dashboard-tone";
 import { formatRupiah } from "../../lib/transfer-pricing";
 
 interface DashboardKpisProps {
