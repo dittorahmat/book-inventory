@@ -175,4 +175,39 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("rakit 25 bundel sekaligus tanpa 500: insert ter-chunk (§10 D1 regression)", async () => {
+    const schoolId = await seedSchool("kitbulk");
+    const bookId = await seedBook("kitbulk");
+    const packageId = await seedPackage("kitbulk");
+    const bomId = `bom-ful-${stamp()}`;
+    try {
+      await db.insert(bookPackageItems).values({ id: bomId, packageId, bookId, quantity: 1, createdAt: now });
+      await db.insert(bookItems).values(
+        Array.from({ length: 25 }, (_, i) => ({
+          id: `bi-kitbulk-${stamp()}-${i}`, bookId, currentSchoolId: schoolId,
+          barcode: `KITBULK-${stamp()}-${i}`, condition: "new", status: "in_stock",
+          createdAt: now, updatedAt: now,
+        }))
+      );
+
+      const assembled = await assemblePackageBundles(packageId, schoolId, 25);
+      expect(assembled.ok).toBe(true);
+      if (!assembled.ok) return;
+      expect(assembled.data.quantityAssembled).toBe(25);
+
+      const bundles = await db
+        .select({ id: packageItems.id })
+        .from(packageItems)
+        .where(eq(packageItems.packageId, packageId));
+      expect(bundles).toHaveLength(25);
+    } finally {
+      await db.delete(packageItems).where(eq(packageItems.currentSchoolId, schoolId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

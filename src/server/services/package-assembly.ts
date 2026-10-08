@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
+import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS } from "./stock-buckets";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
@@ -94,15 +95,19 @@ export async function assemblePackageBundles(
     }
   }
 
-  // Potong stok satuan batch: satu UPDATE per komponen (bukan per eksemplar).
+  // Potong stok satuan batch: satu UPDATE per komponen per chunk id (bukan per
+  // eksemplar, bukan satu IN raksasa) + insert bundel di-chunk — §10 D1.
+  const consumeWrites = [];
   for (const item of bom) {
     const requiredTotal = neededByBook.get(item.bookId) ?? 0;
     const idsToConsume = (availableByBook.get(item.bookId) ?? []).slice(0, requiredTotal).map((c) => c.id);
-    if (idsToConsume.length > 0) {
-      await db
-        .update(bookItems)
-        .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
-        .where(inArray(bookItems.id, idsToConsume));
+    for (const ids of chunkRows(idsToConsume, D1_INLIST_CHUNK_SIZE)) {
+      consumeWrites.push(
+        db
+          .update(bookItems)
+          .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
+          .where(inArray(bookItems.id, ids))
+      );
     }
   }
 
@@ -126,8 +131,15 @@ export async function assemblePackageBundles(
     createdPackageItems.push({ id: pItemId, barcode: itemBarcode });
   }
 
-  if (itemsToInsert.length > 0) {
-    await db.insert(packageItems).values(itemsToInsert);
+  try {
+    await runWriteBatch(db, [
+      ...consumeWrites,
+      ...chunkRows(itemsToInsert).map((rows) => db.insert(packageItems).values(rows)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "perakitan paket");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
   }
 
   return {
@@ -186,13 +198,11 @@ export async function disassemblePackageBundles(
     .from(bookPackageItems)
     .where(eq(bookPackageItems.packageId, packageId));
 
-  // Hapus paket fisik yang dibongkar dalam satu query batch.
-  await db.delete(packageItems).where(
-    inArray(
-      packageItems.id,
-      availableBundles.map((b: { id: string }) => b.id)
-    )
-  );
+  // Hapus paket fisik yang dibongkar bertahap + pulihkan satuan via seam §10 D1.
+  const unbundleWrites = chunkRows<string>(
+    availableBundles.map((b: { id: string }) => b.id),
+    D1_INLIST_CHUNK_SIZE
+  ).map((ids) => db.delete(packageItems).where(inArray(packageItems.id, ids)));
 
   // Pulihkan eksemplar satuan komponen BOM
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
@@ -217,8 +227,17 @@ export async function disassemblePackageBundles(
     }
   }
 
-  if (restoredBookItems.length > 0) {
-    await db.insert(bookItems).values(restoredBookItems);
+  if (restoredBookItems.length > 0 || unbundleWrites.length > 0) {
+    try {
+      await runWriteBatch(db, [
+        ...unbundleWrites,
+        ...chunkRows(restoredBookItems).map((rows) => db.insert(bookItems).values(rows)),
+      ]);
+    } catch (err) {
+      const mapped = d1WriteErrorStatus(err, "pembongkaran paket");
+      if (mapped) return { ok: false, ...mapped };
+      throw err;
+    }
   }
 
   return {

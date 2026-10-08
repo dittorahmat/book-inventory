@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { purchaseOrders, schools } from "../../db/schema";
+import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 
 /**
  * Status PO yang berasal dari sebelum alur cetak–TTD–upload. PO pada status ini
@@ -107,14 +108,20 @@ export type ReceivePoResult =
     }
   | {
       ok: false;
+      status: 400;
+      message: string;
+    }
+  | {
+      ok: false;
       status: 404;
       message: string;
     };
 
 /**
  * Deep module: proses penerimaan barang fisik inbound dari PO.
- * Mengenkapsulasi update kuantitas item PO, pembuatan nomor barcode batch,
- * penambahan eksemplar fisik ke book_items, dan penentuan status akhir PO.
+ * Validasi keanggotaan item + sisa kuantitas dilakukan sebelum tulis apa pun
+ * (400, bukan 500); tulis induk + anak dieksekusi atomik via seam
+ * `lib/d1-write` (batch di D1, sekuensial di bun-sqlite, insert di-chunk).
  */
 export async function receivePurchaseOrder(
   poId: string,
@@ -128,24 +135,32 @@ export async function receivePurchaseOrder(
     return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
   }
 
+  // Satu query baca untuk semua item PO: validasi sebelum tulis apa pun.
+  const poItems: any[] = await db
+    .select()
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
+  const poItemById = new Map<string, any>(poItems.map((it: any) => [it.id, it]));
+
+  const increments = new Map<string, number>();
+  for (const rec of receivedItems) {
+    const poItem = poItemById.get(rec.poItemId);
+    if (!poItem) {
+      return { ok: false, status: 400, message: `Item PO tidak valid untuk ${po.poNumber}` };
+    }
+    const next = (increments.get(rec.poItemId) ?? 0) + rec.quantityToReceive;
+    const remaining = poItem.quantityOrdered - poItem.quantityReceived;
+    if (next > remaining) {
+      return { ok: false, status: 400, message: `Jumlah terima melebihi sisa ${remaining} eks untuk PO ${po.poNumber}` };
+    }
+    increments.set(rec.poItemId, next);
+  }
+
   let totalReceivedThisBatch = 0;
   const newBookItemsToInsert: Array<typeof bookItems.$inferInsert> = [];
-
-  for (const rec of receivedItems) {
-    const [poItem] = await db
-      .select()
-      .from(purchaseOrderItems)
-      .where(eq(purchaseOrderItems.id, rec.poItemId));
-
-    if (!poItem) continue;
-
-    const newReceived = poItem.quantityReceived + rec.quantityToReceive;
-    await db
-      .update(purchaseOrderItems)
-      .set({ quantityReceived: newReceived })
-      .where(eq(purchaseOrderItems.id, rec.poItemId));
-
-    for (let k = 0; k < rec.quantityToReceive; k++) {
+  for (const [poItemId, qty] of increments) {
+    const poItem = poItemById.get(poItemId)!;
+    for (let k = 0; k < qty; k++) {
       const barcode = `INB-PO-${Date.now().toString().slice(-6)}-${k + 1}-${crypto.randomUUID().slice(0, 6)}`;
       newBookItemsToInsert.push({
         id: crypto.randomUUID(),
@@ -161,23 +176,38 @@ export async function receivePurchaseOrder(
       totalReceivedThisBatch++;
     }
   }
-
-  if (newBookItemsToInsert.length > 0) {
-    await db.insert(bookItems).values(newBookItemsToInsert);
+  if (totalReceivedThisBatch === 0) {
+    return { ok: false, status: 400, message: "Tidak ada item yang diterima" };
   }
 
-  const allPoItems = await db
-    .select()
-    .from(purchaseOrderItems)
-    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
+  const newStatus: "received" | "partially_received" = poItems.every(
+    (item: any) => item.quantityReceived + (increments.get(item.id) ?? 0) >= item.quantityOrdered
+  )
+    ? "received"
+    : "partially_received";
 
-  const isAllReceived = allPoItems.every((item: any) => item.quantityReceived >= item.quantityOrdered);
-  const newStatus: "received" | "partially_received" = isAllReceived ? "received" : "partially_received";
-
-  await db
-    .update(purchaseOrders)
-    .set({ status: newStatus, updatedAt: now })
-    .where(eq(purchaseOrders.id, poId));
+  try {
+    const writes = [
+      ...[...increments].map(([poItemId, qty]) =>
+        db
+          .update(purchaseOrderItems)
+          .set({ quantityReceived: poItemById.get(poItemId)!.quantityReceived + qty })
+          .where(eq(purchaseOrderItems.id, poItemId))
+      ),
+      ...chunkRows(newBookItemsToInsert, D1_WRITE_CHUNK_SIZE).map((rows) =>
+        db.insert(bookItems).values(rows)
+      ),
+      db
+        .update(purchaseOrders)
+        .set({ status: newStatus, updatedAt: now })
+        .where(eq(purchaseOrders.id, poId)),
+    ];
+    await runWriteBatch(db, writes);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
 
   return {
     ok: true,

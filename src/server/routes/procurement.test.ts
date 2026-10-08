@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { db } from "../../db";
-import { books } from "../../db/schema";
+import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers } from "../../db/schema";
 
 /** Bawa PO dari draft ke signed_uploaded: tandai dicetak lalu upload bukti TTD. */
 async function advanceToSignedUploaded(poId: string) {
@@ -118,6 +119,89 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(recFinalRes.status).toBe(200);
     const recFinalJson = await recFinalRes.json();
     expect(recFinalJson.data.status).toBe("received");
+  });
+
+  it("receives 30 units in one batch without 500 and rejects over-receive with 400 (§10 D1 regression)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-bulk-${stamp}`;
+    let poId = "";
+    let supplierId = "";
+
+    try {
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-BULK-${stamp}`,
+        title: "Buku Bulk 30 Test",
+        author: "QA",
+        publisher: "QA",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const supRes = await procurementRouter.request("/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: `SUP-BULK-${stamp}`, name: "Supplier Bulk Test" }),
+      });
+      expect(supRes.status).toBe(201);
+      supplierId = (await supRes.json()).data.id;
+
+      const poRes = await procurementRouter.request("/purchase-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplierId,
+          orderDate: "2026-10-08",
+          items: [{ bookId, quantityOrdered: 30, unitPrice: 300000 }],
+        }),
+      });
+      expect(poRes.status).toBe(201);
+      poId = (await poRes.json()).data.id;
+
+      const listJson = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+      const poItemId = listJson.data.find((p: any) => p.id === poId).items[0].id;
+
+      // 30 eks sekaligus: satu panggilan, wajib 200 + 30 barcode tercipta.
+      const bulkRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receivedItems: [{ poItemId, quantityToReceive: 30 }] }),
+      });
+      expect(bulkRes.status).toBe(200);
+      const bulkJson = await bulkRes.json();
+      expect(bulkJson.data.status).toBe("received");
+      expect(bulkJson.data.totalReceivedThisBatch).toBe(30);
+
+      const created = await db.select().from(bookItems).where(eq(bookItems.bookId, bookId));
+      expect(created.length).toBe(30);
+      expect(new Set(created.map((b: any) => b.barcode)).size).toBe(30);
+
+      // Over-receive setelah lunas: 400, bukan 500.
+      const overRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receivedItems: [{ poItemId, quantityToReceive: 1 }] }),
+      });
+      expect(overRes.status).toBe(400);
+      expect((await overRes.json()).message).toMatch(/melebihi sisa/);
+
+      // poItemId asing: 400, bukan 500.
+      const foreignRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receivedItems: [{ poItemId: `po-item-asing-${stamp}`, quantityToReceive: 1 }] }),
+      });
+      expect(foreignRes.status).toBe(400);
+    } finally {
+      if (poId) {
+        await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+        await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      }
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
   });
 
   it("sends PO to supplier email with trail, rejects missing email, resend updates trail", async () => {

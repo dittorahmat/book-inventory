@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { db } from "../../db";
+import { db, type AppDatabase } from "../../db";
 import { bookItems, packageItems } from "../../db/schema";
 
 /** Kondisi yang boleh dialokasikan otomatis untuk serah terima (design D5). */
@@ -33,14 +33,17 @@ const byOldest = (a: { createdAt: string }, b: { createdAt: string }): number =>
  * Alokasi FIFO eksemplar satuan: pilih N eksemplar tertua yang tersedia
  * di lokasi asal tanpa pengguna memilih barcode (spec: inventory-summary).
  */
-export async function allocateLooseStock(input: {
-  bookId: string;
-  schoolId: string;
-  quantity: number;
-  conditions?: readonly AllocatableCondition[];
-}): Promise<AllocationResult<{ id: string; barcode: string; condition: string }>> {
+export async function allocateLooseStock(
+  input: {
+    bookId: string;
+    schoolId: string;
+    quantity: number;
+    conditions?: readonly AllocatableCondition[];
+  },
+  database: AppDatabase = db
+): Promise<AllocationResult<{ id: string; barcode: string; condition: string }>> {
   const conditions = input.conditions ?? ALLOCATABLE_CONDITIONS;
-  const candidates: LooseCandidate[] = await db
+  const candidates: LooseCandidate[] = await database
     .select({
       id: bookItems.id,
       barcode: bookItems.barcode,
@@ -78,12 +81,15 @@ export async function allocateLooseStock(input: {
 }
 
 /** Alokasi FIFO bundel fisik untuk satu jenis paket di lokasi asal. */
-export async function allocatePackages(input: {
-  packageId: string;
-  schoolId: string;
-  quantity: number;
-}): Promise<AllocationResult<{ id: string; barcode: string; packageId: string }>> {
-  const candidates: PackageCandidate[] = await db
+export async function allocatePackages(
+  input: {
+    packageId: string;
+    schoolId: string;
+    quantity: number;
+  },
+  database: AppDatabase = db
+): Promise<AllocationResult<{ id: string; barcode: string; packageId: string }>> {
+  const candidates: PackageCandidate[] = await database
     .select({
       id: packageItems.id,
       barcode: packageItems.barcode,
@@ -136,7 +142,8 @@ export type ResolvedShipmentLines =
  */
 export async function resolveShipmentLines(
   fromSchoolId: string,
-  lines: ShipmentLineInput[]
+  lines: ShipmentLineInput[],
+  database: AppDatabase = db
 ): Promise<ResolvedShipmentLines> {
   const looseIds: string[] = [];
   const bundleIds: string[] = [];
@@ -146,11 +153,14 @@ export async function resolveShipmentLines(
       if (!line.bookId) {
         return { ok: false, status: 400, message: "Baris buku satuan harus menyertakan bookId." };
       }
-      const result = await allocateLooseStock({
-        bookId: line.bookId,
-        schoolId: fromSchoolId,
-        quantity: line.quantity,
-      });
+      const result = await allocateLooseStock(
+        {
+          bookId: line.bookId,
+          schoolId: fromSchoolId,
+          quantity: line.quantity,
+        },
+        database
+      );
       if (!result.ok) return result;
       looseIds.push(...result.items.map((i) => i.id));
       continue;
@@ -159,11 +169,14 @@ export async function resolveShipmentLines(
     if (!line.packageId) {
       return { ok: false, status: 400, message: "Baris paket harus menyertakan packageId." };
     }
-    const result = await allocatePackages({
-      packageId: line.packageId,
-      schoolId: fromSchoolId,
-      quantity: line.quantity,
-    });
+    const result = await allocatePackages(
+      {
+        packageId: line.packageId,
+        schoolId: fromSchoolId,
+        quantity: line.quantity,
+      },
+      database
+    );
     if (!result.ok) return result;
     bundleIds.push(...result.items.map((i) => i.id));
   }

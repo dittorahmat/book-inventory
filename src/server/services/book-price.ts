@@ -35,7 +35,8 @@ export async function recalcPackagesUsingBook(bookId: string): Promise<number> {
     .from(bookPackageItems)
     .where(eq(bookPackageItems.bookId, bookId));
   const packageIds = [...new Set(rows.map((r) => r.packageId))];
-  await Promise.all(packageIds.map((packageId) => recalcPackagePrice(packageId)));
+  // Sekuensial: tulis konkuren via Promise.all dilarang untuk D1 (§10).
+  for (const packageId of packageIds) await recalcPackagePrice(packageId);
   return packageIds.length;
 }
 

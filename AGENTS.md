@@ -95,7 +95,8 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 
 8. **YAGNI & One-Liner Discipline (WAJIB)**
    - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` untuk harga efektif, `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari.
-   - **Prefer one-liner solutions**: guard/loop verbose yang setara **wajib** jadi `map`/`filter`/`reduce`/`??`/`||`/ternary satu baris bila tidak mengubah perilaku (contoh: `pick` → `.find(...) ?? fallback`, `readSettingsMap` → `Object.fromEntries`, toggle → `toggleIn(setter)`, 5x `return` status → hitung `open`+`reason` + single return, N+1 `await insert` di loop → `Promise.all`).
+   - **Prefer one-liner solutions**: guard/loop verbose yang setara **wajib** jadi `map`/`filter`/`reduce`/`??`/`||`/ternary satu baris bila tidak mengubah perilaku (contoh: `pick` → `.find(...) ?? fallback`, `readSettingsMap` → `Object.fromEntries`, toggle → `toggleIn(setter)`, 5x `return` status → hitung `open`+`reason` + single return).
+  - **Pengecualian D1 (lihat §10)**: panduan "N+1 `await insert` di loop → `Promise.all`" di atas **hanya berlaku untuk query BACA independen**. Untuk query TULIS (`insert`/`update`/`delete`) ke Cloudflare D1, `Promise.all` **dilarang** — wajib sekuensial atau satu `db.batch()` atomik.
    - **Aman**: refactor penyederhanaan dilarang mengubah perilaku — public API yang dipakai route/test (`selectProviderName`, `getSmtpConfig`, `sendEmailNotification`, `resolveScope`, `DashboardHttpError`) dipertahankan sebagai alias tipis bila perlu kompatibilitas.
 
 ---
@@ -167,6 +168,18 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 2. **Disiplin tulis ke D1 production** (mencegah insiden 180 sekolah sampah berisi data test):
    - **DILARANG** QA manual / skrip / test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dan pola sampah sejenis. QA destruktif hanya di dev lokal.
    - Setiap `wrangler d1 execute ... --remote` yang bersifat tulis (terutama `DELETE` massal) **WAJIB** didahului: (a) verifikasi target (`database_name`/`database_id`), (b) `SELECT COUNT(*)` + contoh baris dengan predikat yang sama, (c) cek nol relasi anak di semua tabel yang mereferensikan (`students`, `student_book_orders`, `book_items`, `package_items`, `transfer_shipments`, `purchase_orders`, `users` untuk tabel `schools`).
+
+---
+
+## 10. Cloudflare D1 & Workers Write Discipline (Anti-500 Rule)
+
+Latar insiden (Okt 2026): terima inbound 30 eks dan buat transfer 7 unit mengembalikan 500 di production padahal test lokal hijau. Forensik D1 menunjukkan baris induk tertulis tetapi baris anak tidak — bulk insert dan insert konkuren gagal di D1. Batas ini adalah sifat D1 secara umum (bukan khusus free tier): SQLite lokal (bun-sqlite) jauh lebih permisif sehingga **test hijau lokal bukan bukti aman di D1**.
+
+1. **Chunked multi-row insert (WAJIB)**: satu statement `INSERT ... VALUES` **dilarang** melebihi **10 baris** sekaligus (batas bound-parameter D1). Wajib di-chunk (maks 10 baris/statement), dieksekusi sekuensial.
+2. **Dilarang `Promise.all` untuk tulis**: query TULIS (`insert`/`update`/`delete`) ke D1 **wajib** sekuensial atau satu `db.batch()` atomik. `Promise.all` hanya boleh untuk query BACA independen (lihat pengecualian §8).
+3. **Atomisitas multi-tulis (WAJIB)**: setiap alur yang menulis induk + anak (PO → `book_items`, shipment → item lines) wajib atomik — gunakan `db.batch()` saat runtime D1 dengan fallback sekuensial di bun-sqlite — atau idempoten dengan validasi pra-tulis yang mengembalikan 400, bukan 500.
+4. **Pemetaan error D1 (WAJIB)**: error mentah D1 (`D1_ERROR`, `UNIQUE constraint`, `FOREIGN KEY constraint`) **wajib dipetakan** ke respons 4xx berpesan jelas. Dilarang membiarkan jatuh ke `onError` 500 generik.
+5. **Uji volume produksi (WAJIB)**: setiap endpoint tulis bervolume wajib diuji pada volume produksi (minimal 30 baris sekaligus) di `src/server/routes/*.test.ts`. Chunking membuat test yang sama lolos di kedua runtime.
 
 ---
 

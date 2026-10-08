@@ -4,6 +4,7 @@ import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
 import { calcHeaderTotal } from "../../lib/transfer-pricing";
 import { effectiveSellPrice } from "../../lib/book-pricing";
+import { d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
 
 export interface CreateShipmentInput {
@@ -44,7 +45,7 @@ export async function createShipment(
   let looseIds = input.bookItemIds ?? [];
   let bundleIds = [...new Set(input.packageItemIds ?? [])];
   if (input.items && input.items.length > 0) {
-    const resolved = await resolveShipmentLines(input.fromSchoolId, input.items);
+    const resolved = await resolveShipmentLines(input.fromSchoolId, input.items, database);
     if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
     looseIds = dedupe(looseIds, resolved.looseIds);
     bundleIds = dedupe(bundleIds, resolved.bundleIds);
@@ -101,19 +102,9 @@ export async function createShipment(
     selectedBundles.forEach((b: any) => bundleSnapshots.set(b.id, { packageId: b.packageId, snapshot: masterMap.get(b.packageId) || 0 }));
   }
 
-  await database.insert(transferShipments).values({
-    id: shipmentId,
-    shipmentNumber,
-    fromSchoolId: input.fromSchoolId,
-    toSchoolId: input.toSchoolId,
-    status: "draft",
-    totalDeclaredValue: 0,
-    notes: input.notes,
-    reason: input.reason,
-    createdAt: now,
-    updatedAt: now,
-  });
-
+  // Tulis induk + anak atomik via seam lib/d1-write (batch di D1, sekuensial
+  // di bun-sqlite). Total dihitung dulu agar cukup satu INSERT shipment —
+  // tanpa update susulan + .returning() yang rapuh di D1.
   const looseLines = looseIds.map((bookItemId) => ({ bookItemId, snapshot: looseSnapshots.get(bookItemId) || 0 }));
   const bundleLines = bundleIds.flatMap((packageItemId) => {
     const meta = bundleSnapshots.get(packageItemId);
@@ -123,43 +114,61 @@ export async function createShipment(
     ...looseLines.map((l) => ({ unitPriceSnapshot: l.snapshot, quantity: 1 })),
     ...bundleLines.map((l) => ({ unitPriceSnapshot: l.meta.snapshot, quantity: 1 })),
   ];
-  await Promise.all([
-    ...looseLines.map((l) =>
-      database.insert(transferShipmentItems).values({
-        id: crypto.randomUUID(),
-        shipmentId,
-        itemType: "loose",
-        bookItemId: l.bookItemId,
-        packageId: null,
-        packageItemId: null,
-        quantity: 1,
-        unitPriceSnapshot: l.snapshot,
-        createdAt: now,
-      })
-    ),
-    ...bundleLines.map((l) =>
-      database.insert(transferShipmentItems).values({
-        id: crypto.randomUUID(),
-        shipmentId,
-        itemType: "package",
-        bookItemId: null,
-        packageId: l.meta.packageId,
-        packageItemId: l.packageItemId,
-        quantity: 1,
-        unitPriceSnapshot: l.meta.snapshot,
-        createdAt: now,
-      })
-    ),
-  ]);
-
   const total = calcHeaderTotal(valuedLines);
-  const [withTotal] = await database
-    .update(transferShipments)
-    .set({ totalDeclaredValue: total, updatedAt: now })
-    .where(eq(transferShipments.id, shipmentId))
-    .returning();
 
-  return { ok: true, shipment: withTotal };
+  try {
+    await runWriteBatch(database, [
+      database.insert(transferShipments).values({
+        id: shipmentId,
+        shipmentNumber,
+        fromSchoolId: input.fromSchoolId,
+        toSchoolId: input.toSchoolId,
+        status: "draft",
+        totalDeclaredValue: total,
+        notes: input.notes,
+        reason: input.reason,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      ...looseLines.map((l) =>
+        database.insert(transferShipmentItems).values({
+          id: crypto.randomUUID(),
+          shipmentId,
+          itemType: "loose",
+          bookItemId: l.bookItemId,
+          packageId: null,
+          packageItemId: null,
+          quantity: 1,
+          unitPriceSnapshot: l.snapshot,
+          createdAt: now,
+        })
+      ),
+      ...bundleLines.map((l) =>
+        database.insert(transferShipmentItems).values({
+          id: crypto.randomUUID(),
+          shipmentId,
+          itemType: "package",
+          bookItemId: null,
+          packageId: l.meta.packageId,
+          packageItemId: l.packageItemId,
+          quantity: 1,
+          unitPriceSnapshot: l.meta.snapshot,
+          createdAt: now,
+        })
+      ),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pembuatan transfer");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  const [created] = await database
+    .select()
+    .from(transferShipments)
+    .where(eq(transferShipments.id, shipmentId));
+
+  return { ok: true, shipment: created };
 }
 
 export async function dispatchShipment(

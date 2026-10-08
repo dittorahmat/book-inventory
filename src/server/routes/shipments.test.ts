@@ -405,4 +405,93 @@ describe("Inter-School Transfer Shipments API", () => {
     await db.delete(schools).where(eq(schools.id, fromId));
     await db.delete(schools).where(eq(schools.id, toId));
   });
+
+  it("creates quantity-based draft via FIFO allocation with header total (§10 D1 regression)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const fromId = `school-qty-from-${stamp}`;
+    const toId = `school-qty-to-${stamp}`;
+    const bookId = `b-qty-${stamp}`;
+    const copyIds = [1, 2, 3, 4, 5, 6, 7].map((n) => `copy-qty-${stamp}-${n}`);
+
+    try {
+      await db.insert(schools).values([
+        { id: fromId, name: "Qty From", code: `QTY-F-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+        { id: toId, name: "Qty To", code: `QTY-T-${stamp}`, type: "main", createdAt: now, updatedAt: now },
+      ]);
+      await db.insert(books).values({
+        id: bookId, isbn: `ISBN-QTY-${stamp}`, title: "Buku FIFO Test", author: "QA", publisher: "QA",
+        price: 100000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values(
+        copyIds.map((id, i) => ({
+          id, bookId, currentSchoolId: fromId, barcode: `QTY-${stamp}-${i}`,
+          condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+        }))
+      );
+
+      const res = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: fromId,
+          toSchoolId: toId,
+          items: [{ itemType: "loose", bookId, quantity: 7 }],
+          reason: "pindah stock",
+          notes: "stock pindah",
+        }),
+      });
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.data.totalDeclaredValue).toBe(700000);
+      const shipmentId = json.data.id;
+
+      const lines = await db.select().from(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
+      expect(lines.length).toBe(7);
+      expect(new Set(lines.map((l: any) => l.bookItemId)).size).toBe(7);
+
+      await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
+      await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, fromId));
+      await db.delete(schools).where(eq(schools.id, toId));
+    }
+  });
+
+  it("rejects quantity draft exceeding available stock with 400 (not 500)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const fromId = `school-short-from-${stamp}`;
+    const toId = `school-short-to-${stamp}`;
+    const bookId = `b-short-${stamp}`;
+
+    try {
+      await db.insert(schools).values([
+        { id: fromId, name: "Short From", code: `SHORT-F-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+        { id: toId, name: "Short To", code: `SHORT-T-${stamp}`, type: "main", createdAt: now, updatedAt: now },
+      ]);
+      await db.insert(books).values({
+        id: bookId, isbn: `ISBN-SHORT-${stamp}`, title: "Buku Short Test", author: "QA", publisher: "QA",
+        price: 50000, createdAt: now, updatedAt: now,
+      });
+
+      const res = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: fromId,
+          toSchoolId: toId,
+          items: [{ itemType: "loose", bookId, quantity: 7 }],
+        }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toMatch(/Stok tidak cukup/);
+    } finally {
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, fromId));
+      await db.delete(schools).where(eq(schools.id, toId));
+    }
+  });
 });
