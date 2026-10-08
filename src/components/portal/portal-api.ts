@@ -49,6 +49,7 @@ export interface SatuanBookOption {
   category: string | null;
   coverUrl: string | null;
   sellPrice: number;
+  price?: number | null;
 }
 
 /** Status keterbukaan order satuan (public, tanpa login). */

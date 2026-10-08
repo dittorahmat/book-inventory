@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { resolveLockedPackage } from "../../lib/resolve-package";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import {
   searchStudents,
   registerStudent,
@@ -80,7 +81,7 @@ export function usePublicOrder() {
 
   const looseTotal = looseSelections.reduce((sum, sel) => {
     const book = satuanBooks.find((b) => b.id === sel.bookId);
-    return sum + (book?.sellPrice ?? 0) * sel.quantity;
+    return sum + effectiveSellPrice(book ?? {}) * sel.quantity;
   }, 0);
 
   // Payment details (Regular)

@@ -13,6 +13,7 @@ import {
   users,
 } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 
 const SEEDED_PACKAGE_IDS = ["pkg-sd1-int", "pkg-sd1-nas", "pkg-sd2-int", "pkg-sd2-nas"];
 
@@ -92,7 +93,7 @@ describe("Revamped Demo Seeding API", () => {
 
       expect(components.length).toBeGreaterThan(0);
       const expected = components.reduce(
-        (sum, c) => sum + (c.sellPrice > 0 ? c.sellPrice : c.price) * c.quantity,
+        (sum, c) => sum + effectiveSellPrice(c) * c.quantity,
         0
       );
       expect(pkg.price).toBe(expected);
