@@ -1,7 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookReturns, packageItems, studentBookOrders } from "../../db/schema";
+import {
+  AVAILABLE_LOOSE_STATUSES,
+  READY_BUNDLE_STATUSES,
+  RETURNABLE_CONDITIONS,
+} from "./stock-buckets";
 
 export type FulfilmentError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -62,7 +67,7 @@ export async function handoverPackage(
         and(
           eq(packageItems.packageId, order.packageId),
           eq(packageItems.currentSchoolId, order.schoolId),
-          eq(packageItems.status, "in_stock")
+          inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
         )
       )
       .limit(1);
@@ -136,8 +141,8 @@ export async function resolveReturn(
             and(
               eq(bookItems.bookId, ret.defectiveBookId),
               eq(bookItems.currentSchoolId, order.schoolId),
-              eq(bookItems.status, "in_stock"),
-              eq(bookItems.condition, "new")
+              inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
+              inArray(bookItems.condition, [...RETURNABLE_CONDITIONS])
             )
           )
           .limit(1);

@@ -8,14 +8,39 @@
 export const AVAILABLE_LOOSE_STATUSES = ["in_stock"] as const;
 export const LOOSE_IN_TRANSIT_STATUSES = ["in_transit"] as const;
 export const LOST_STATUSES = ["lost"] as const;
+export const DISPOSED_STATUSES = ["disposed"] as const;
 export const READY_BUNDLE_STATUSES = ["in_stock"] as const;
 export const OPEN_ORDER_PAYMENT_STATUSES = ["unpaid", "partial"] as const;
 
+/** Kondisi layak alokasi otomatis untuk serah terima (design D5). */
+export const ALLOCATABLE_CONDITIONS = ["new", "good"] as const;
+export type AllocatableCondition = (typeof ALLOCATABLE_CONDITIONS)[number];
+
 /** Kondisi layak rakit ke paket (kitting hanya menyerap eksemplar baru). */
 export const KITTABLE_CONDITIONS = ["new"] as const;
+export type KittableCondition = (typeof KITTABLE_CONDITIONS)[number];
+
+/** Kondisi layak pengganti retur (hanya eksemplar baru). */
+export const RETURNABLE_CONDITIONS = ["new"] as const;
+export type ReturnableCondition = (typeof RETURNABLE_CONDITIONS)[number];
+
+/** Kondisi rusak untuk aturan attention dasbor/kernel. */
+export const DAMAGED_CONDITIONS = ["damaged"] as const;
+
+export const isAllocatable = (condition: string): boolean =>
+  (ALLOCATABLE_CONDITIONS as readonly string[]).includes(condition);
 
 export const isKittable = (condition: string): boolean =>
   (KITTABLE_CONDITIONS as readonly string[]).includes(condition);
+
+export const isReturnable = (condition: string): boolean =>
+  (RETURNABLE_CONDITIONS as readonly string[]).includes(condition);
+
+export const isDamaged = (condition: string): boolean =>
+  (DAMAGED_CONDITIONS as readonly string[]).includes(condition);
+
+export const isDisposed = (status: string): boolean =>
+  (DISPOSED_STATUSES as readonly string[]).includes(status);
 
 export const isAvailableLoose = (status: string): boolean =>
   (AVAILABLE_LOOSE_STATUSES as readonly string[]).includes(status);

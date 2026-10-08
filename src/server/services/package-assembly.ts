@@ -3,7 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS } from "./stock-buckets";
+import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock-buckets";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -177,7 +177,7 @@ export async function disassemblePackageBundles(
       and(
         eq(packageItems.packageId, packageId),
         eq(packageItems.currentSchoolId, schoolId),
-        eq(packageItems.status, "in_stock")
+        inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
       )
     )
     .limit(quantity);
@@ -270,11 +270,11 @@ export async function deletePackageWithAutoUnbundle(packageId: string): Promise<
     return { ok: false, status: 404, message: "Package not found" };
   }
 
-  // Cari semua bundel in_stock di seluruh sekolah
+  // Cari semua bundel ready di seluruh sekolah (seam: READY_BUNDLE_STATUSES)
   const activeBundles = await db
     .select({ id: packageItems.id, schoolId: packageItems.currentSchoolId })
     .from(packageItems)
-    .where(and(eq(packageItems.packageId, packageId), eq(packageItems.status, "in_stock")));
+    .where(and(eq(packageItems.packageId, packageId), inArray(packageItems.status, [...READY_BUNDLE_STATUSES])));
 
   // Kelompokkan per sekolah
   const bySchool = new Map<string, number>();

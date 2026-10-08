@@ -4,6 +4,7 @@ import {
   bookItems,
   bookPackageItems,
   bookPackages,
+  bookReturns,
   books,
   packageItems,
   schools,
@@ -11,7 +12,7 @@ import {
   students,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { handoverPackage } from "../services/order-fulfilment";
+import { handoverPackage, resolveReturn } from "../services/order-fulfilment";
 import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
 
 const now = new Date().toISOString();
@@ -201,6 +202,80 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       expect(bundles).toHaveLength(25);
     } finally {
       await db.delete(packageItems).where(eq(packageItems.currentSchoolId, schoolId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("stock condition seam regression (T2)", () => {
+  it("resolveReturn auto-picks new-only replacement, ignores good/damaged", async () => {
+    const schoolId = await seedSchool("retseam");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("retseam");
+    const orderId = `ord-ret-${stamp()}`;
+    const returnId = `ret-${stamp()}`;
+    const newId = `bi-ret-new-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-RET-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "return_in_progress",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: newId, bookId, currentSchoolId: schoolId,
+        barcode: `RET-NEW-${stamp()}`, condition: "new", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: `bi-ret-good-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `RET-GOOD-${stamp()}`, condition: "good", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: `bi-ret-dmg-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `RET-DMG-${stamp()}`, condition: "damaged", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: returnId, orderId, studentId, defectiveBookId: bookId,
+        reason: "cacat cetak", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const result = await resolveReturn(db, returnId, { action: "replace" });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.replacementBookItemId).toBe(newId);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("assemble rejects good-only stock: kitting requires new via seam", async () => {
+    const schoolId = await seedSchool("kitseam");
+    const bookId = await seedBook("kitseam");
+    const packageId = await seedPackage("kitseam");
+    const bomId = `bom-seam-${stamp()}`;
+    try {
+      await db.insert(bookPackageItems).values({ id: bomId, packageId, bookId, quantity: 1, createdAt: now });
+      await db.insert(bookItems).values({
+        id: `bi-seam-good-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `SEAM-GOOD-${stamp()}`, condition: "good", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+
+      const result = await assemblePackageBundles(packageId, schoolId, 1);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    } finally {
       await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
       await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
       await db.delete(bookPackages).where(eq(bookPackages.id, packageId));

@@ -2,10 +2,15 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { db, type AppDatabase } from "../../db";
 import { bookItems, packageItems } from "../../db/schema";
+import {
+  ALLOCATABLE_CONDITIONS,
+  AVAILABLE_LOOSE_STATUSES,
+  READY_BUNDLE_STATUSES,
+  type AllocatableCondition,
+} from "./stock-buckets";
 
-/** Kondisi yang boleh dialokasikan otomatis untuk serah terima (design D5). */
-export const ALLOCATABLE_CONDITIONS = ["new", "good"] as const;
-export type AllocatableCondition = (typeof ALLOCATABLE_CONDITIONS)[number];
+/** Re-ekspor seam kondisi agar satu perubahan status menyentuh satu modul. */
+export { ALLOCATABLE_CONDITIONS, type AllocatableCondition };
 
 export type AllocationError = { ok: false; status: ContentfulStatusCode; message: string };
 export type AllocationResult<T> = { ok: true; items: T[] } | AllocationError;
@@ -56,7 +61,7 @@ export async function allocateLooseStock(
       and(
         eq(bookItems.bookId, input.bookId),
         eq(bookItems.currentSchoolId, input.schoolId),
-        eq(bookItems.status, "in_stock"),
+        inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
         inArray(bookItems.condition, [...conditions])
       )
     );
@@ -102,7 +107,7 @@ export async function allocatePackages(
       and(
         eq(packageItems.packageId, input.packageId),
         eq(packageItems.currentSchoolId, input.schoolId),
-        eq(packageItems.status, "in_stock")
+        inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
       )
     );
 
