@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { studentOrdersRouter } from "./student-orders";
 import { db } from "../../db";
 import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, books } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
   it("hands over book package with surat jalan and reports/resolves defective book return", async () => {
@@ -359,5 +359,90 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     expect(allowedHandover.status).toBe(200);
     const allowedJson = await allowedHandover.json();
     expect(allowedJson.data.fulfillmentStatus).toBe("picked_up");
+  });
+});
+
+describe("Student orders search partition (§11 anti full-scan)", () => {
+  it("filters search+payment server-side within school partition", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-oa-${stamp}`;
+    const schoolB = `school-ob-${stamp}`;
+    const now = new Date().toISOString();
+    for (const [id, code] of [[schoolA, `ALW-OA-${stamp}`], [schoolB, `ALW-OB-${stamp}`]]) {
+      await db.insert(schools).values({ id, name: `Sekolah ${id}`, code, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    }
+    try {
+      await db.insert(students).values({
+        id: `st-oa-${stamp}`, schoolId: schoolA, nis: `OAN${stamp}`, name: `Order Salsa ${stamp}`,
+        gradeLevel: "4", curriculumType: "international", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: `st-ob-${stamp}`, schoolId: schoolB, nis: `OBN${stamp}`, name: `Order Salsa ${stamp}`,
+        gradeLevel: "4", curriculumType: "international", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-oa-${stamp}`, orderNumber: `ORD-OA-${String(stamp).slice(-6)}`, studentId: `st-oa-${stamp}`, schoolId: schoolA,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 200000, paidAmount: 200000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-ob-${stamp}`, orderNumber: `ORD-OB-${String(stamp).slice(-6)}`, studentId: `st-ob-${stamp}`, schoolId: schoolB,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 200000, paidAmount: 0, createdAt: now, updatedAt: now,
+      });
+
+      const res = await studentOrdersRouter.request(`/?schoolId=${schoolA}&search=${encodeURIComponent(`Order Salsa ${stamp}`)}`);
+      const json = await res.json();
+      expect(json.data.length).toBe(1);
+      expect(json.data[0].id).toBe(`ord-oa-${stamp}`);
+
+      const paidOnly = await studentOrdersRouter.request(`/?schoolId=${schoolA}&paymentStatus=unpaid`);
+      const paidJson = await paidOnly.json();
+      expect(paidJson.data.some((o: any) => o.id === `ord-oa-${stamp}`)).toBe(false);
+    } finally {
+      await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [`ord-oa-${stamp}`, `ord-ob-${stamp}`]));
+      await db.delete(students).where(inArray(students.id, [`st-oa-${stamp}`, `st-ob-${stamp}`]));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+    }
+  });
+
+  it("filters returns by status server-side", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-or-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({ id: schoolId, name: `Sekolah ${schoolId}`, code: `ALW-OR-${stamp}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-or-${stamp}`, schoolId, nis: `ORN${stamp}`, name: `Retur Anak ${stamp}`,
+        gradeLevel: "2", curriculumType: "national", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: `b-or-${stamp}`, isbn: `ISBN-OR-${stamp}`, title: `Buku Retur ${stamp}`,
+        author: "Anon", publisher: "Penerbit", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-or-${stamp}`, orderNumber: `ORD-OR-${String(stamp).slice(-6)}`, studentId: `st-or-${stamp}`, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: `ret-or-${stamp}`, orderId: `ord-or-${stamp}`, studentId: `st-or-${stamp}`, defectiveBookId: `b-or-${stamp}`,
+        reason: "Sampul sobek", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const reported = await studentOrdersRouter.request(`/returns?status=reported&search=${encodeURIComponent(`Retur Anak ${stamp}`)}`);
+      const reportedJson = await reported.json();
+      expect(reportedJson.data.some((r: any) => r.id === `ret-or-${stamp}`)).toBe(true);
+
+      const replaced = await studentOrdersRouter.request(`/returns?status=replaced&search=${encodeURIComponent(`Retur Anak ${stamp}`)}`);
+      const replacedJson = await replaced.json();
+      expect(replacedJson.data.some((r: any) => r.id === `ret-or-${stamp}`)).toBe(false);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, `ret-or-${stamp}`));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-or-${stamp}`));
+      await db.delete(books).where(eq(books.id, `b-or-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-or-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 });

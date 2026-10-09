@@ -12,6 +12,7 @@ import type {
 
 export function useReturnFlow(packages: BookPackageOption[]) {
   const [returnLookupQuery, setReturnLookupQuery] = useState("");
+  const [returnLookupSchoolId, setReturnLookupSchoolId] = useState("");
   const [isLookingUpReturn, setIsLookingUpReturn] = useState(false);
   const [returnErrorMessage, setReturnErrorMessage] = useState<string | null>(null);
   const [matchedOrders, setMatchedOrders] = useState<MatchedOrder[]>([]);
@@ -32,7 +33,7 @@ export function useReturnFlow(packages: BookPackageOption[]) {
     setPackageBookList([]);
 
     try {
-      const orders = await lookupOrders(returnLookupQuery);
+      const orders = await lookupOrders(returnLookupQuery, returnLookupSchoolId || undefined);
       setMatchedOrders(orders);
     } catch (err: any) {
       setReturnErrorMessage(err.message || "Gagal mencari pesanan. Periksa koneksi atau nomor pesanan.");
@@ -102,13 +103,14 @@ export function useReturnFlow(packages: BookPackageOption[]) {
     setReturnSuccessData(null);
     setSelectedReturnOrder(null);
     setReturnLookupQuery("");
+    setReturnLookupSchoolId("");
     setMatchedOrders([]);
     setReturnReason("");
     setDefectPhotoBase64("");
   };
 
   return {
-    returnLookupQuery, setReturnLookupQuery, isLookingUpReturn, returnErrorMessage,
+    returnLookupQuery, setReturnLookupQuery, returnLookupSchoolId, setReturnLookupSchoolId, isLookingUpReturn, returnErrorMessage,
     matchedOrders, selectedReturnOrder, setSelectedReturnOrder,
     packageBookList, selectedDefectiveBookId, setSelectedDefectiveBookId,
     returnReason, setReturnReason, defectPhotoBase64, setDefectPhotoBase64,

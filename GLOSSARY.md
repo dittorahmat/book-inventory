@@ -31,3 +31,15 @@ _Avoid_: Bulk insert, multi-row besar
 **Write Batch**:
 Tulis induk+anak atomik via satu `db.batch()` di D1 dengan fallback sekuensial di bun-sqlite; `Promise.all` untuk tulis dilarang.
 _Avoid_: Concurrent write, parallel insert
+
+**Pencarian Partisi**:
+Pencarian substring (`LIKE '%q%'`) yang didahului kesetaraan terindeks (`school_id = ?`); "Salsa" tetap ketemu "Annisa Salsabila" dalam satu sekolah tanpa pindai global.
+_Avoid_: Pencarian global, substring tanpa sekolah
+
+**Pindai Penuh**:
+Eksekusi `SCAN` tanpa indeks: `SELECT`-all + filter JS atau `LIKE '%q%'` tanpa `schoolId`. Dilarang oleh §11 kecuali katalog kecil.
+_Avoid_: Full table scan, filter memori
+
+**FTS**:
+Pencarian full-text SQLite (virtual table + trigger) dengan query token-prefix (`salsa*`); hanya Tahap 2 untuk pencarian global bervolume, bukan default.
+_Avoid_: LIKE persen-depan global, pencarian fuzzy spekulatif

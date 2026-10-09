@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, like, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { students, schools } from "../../db/schema";
 import {
@@ -55,8 +55,20 @@ studentsRouter.get("/", async (c) => {
   const conditions = [];
   if (schoolId) conditions.push(eq(students.schoolId, schoolId));
   if (status && status !== "all") conditions.push(eq(students.status, status as any));
+  // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
+  const q = search?.trim().toLowerCase();
+  if (q) {
+    const pattern = `%${q}%`;
+    conditions.push(
+      or(
+        like(sql`lower(${students.name})`, pattern),
+        like(sql`lower(${students.nis})`, pattern),
+        like(sql`lower(${students.parentName})`, pattern)
+      )
+    );
+  }
 
-  const rows = await db
+  const data = await db
     .select({
       id: students.id,
       nis: students.nis,
@@ -78,17 +90,8 @@ studentsRouter.get("/", async (c) => {
     .from(students)
     .innerJoin(schools, eq(students.schoolId, schools.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(students.createdAt));
-
-  const q = search?.trim().toLowerCase();
-  const data = q
-    ? rows.filter(
-        (s: any) =>
-          s.name.toLowerCase().includes(q) ||
-          s.nis.toLowerCase().includes(q) ||
-          (s.parentName || "").toLowerCase().includes(q)
-      )
-    : rows;
+    .orderBy(desc(students.createdAt))
+    .limit(50);
 
   return c.json({ success: true, data });
   } catch (err) {

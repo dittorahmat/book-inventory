@@ -161,6 +161,8 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
             {step === 1 && !order.verificationPending && (
               <StudentSearchStep
                 schools={order.schools}
+                searchSchoolId={order.searchSchoolId}
+                setSearchSchoolId={order.setSearchSchoolId}
                 searchQuery={order.searchQuery}
                 setSearchQuery={order.setSearchQuery}
                 isSearching={order.isSearching}
@@ -266,8 +268,11 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
         {activePortalTab === "return" && (
           <ReturnReportTab
             errorMessage={returns.returnErrorMessage}
+            schools={order.schools}
             returnLookupQuery={returns.returnLookupQuery}
             setReturnLookupQuery={returns.setReturnLookupQuery}
+            returnLookupSchoolId={returns.returnLookupSchoolId}
+            setReturnLookupSchoolId={returns.setReturnLookupSchoolId}
             isLookingUpReturn={returns.isLookingUpReturn}
             matchedOrders={returns.matchedOrders}
             selectedReturnOrder={returns.selectedReturnOrder}

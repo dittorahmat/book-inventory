@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { studentsRouter } from "./students";
 import { db } from "../../db";
-import { schools } from "../../db/schema";
+import { schools, students } from "../../db/schema";
 
 const now = () => new Date().toISOString();
 
@@ -299,5 +299,123 @@ describe("Students admin API", () => {
     expect(bulkJson.success).toBe(true);
     expect(bulkJson.data.insertedCount).toBe(1);
     expect(bulkJson.data.updatedCount).toBe(1);
+  });
+});
+
+describe("Students search partition (§11 anti full-scan)", () => {
+  it("finds nickname substring within school partition, excludes other schools, caps at 50", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-pa-${stamp}`;
+    const schoolB = `school-pb-${stamp}`;
+    await seedSchool(schoolA, `ALW-PA-${stamp}`);
+    await seedSchool(schoolB, `ALW-PB-${stamp}`);
+    const now = new Date().toISOString();
+    const later = new Date(Date.now() + 1000).toISOString();
+    try {
+      for (let i = 0; i < 55; i++) {
+        await db.insert(students).values({
+          id: `st-pab-${stamp}-${i}`,
+          schoolId: schoolA,
+          nis: `PAB${stamp}${i}`,
+          name: `Salsa Batch ${i} ${stamp}`,
+          gradeLevel: "1",
+          curriculumType: "international",
+          academicYear: "2026/2027",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      // Nama lengkap dengan panggilan "Salsa", dibuat paling baru agar lolos LIMIT.
+      await db.insert(students).values({
+        id: `st-pann-${stamp}`,
+        schoolId: schoolA,
+        nis: `PAN${stamp}`,
+        name: `Annisa Salsabila ${stamp}`,
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: later,
+        updatedAt: later,
+      });
+      await db.insert(students).values({
+        id: `st-pbl-${stamp}`,
+        schoolId: schoolB,
+        nis: `PBL${stamp}`,
+        name: `Salsa Lain ${stamp}`,
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await studentsRouter.request(`/?schoolId=${schoolA}&search=salsa`);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.length).toBe(50);
+      expect(json.data.every((s: any) => s.schoolId === schoolA)).toBe(true);
+      expect(json.data.some((s: any) => s.id === `st-pann-${stamp}`)).toBe(true);
+    } finally {
+      await db.delete(students).where(inArray(students.schoolId, [schoolA, schoolB]));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+    }
+  });
+
+  it("holds partition correctness at production volume (1000 rows)", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-va-${stamp}`;
+    const schoolB = `school-vb-${stamp}`;
+    await seedSchool(schoolA, `ALW-VA-${stamp}`);
+    await seedSchool(schoolB, `ALW-VB-${stamp}`);
+    const now = new Date().toISOString();
+    const chunkedInsert = async (rows: any[]) => {
+      for (let i = 0; i < rows.length; i += 10) {
+        await db.insert(students).values(rows.slice(i, i + 10));
+      }
+    };
+    try {
+      const rowsA = [];
+      for (let i = 0; i < 950; i++) {
+        rowsA.push({
+          id: `st-va-${stamp}-${i}`,
+          schoolId: schoolA,
+          nis: `VA${stamp}${i}`,
+          name: `Vol${stamp} Anak ${i}`,
+          gradeLevel: "2",
+          curriculumType: "national",
+          academicYear: "2026/2027",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      await chunkedInsert(rowsA);
+      const rowsB = [];
+      for (let i = 0; i < 50; i++) {
+        rowsB.push({
+          id: `st-vb-${stamp}-${i}`,
+          schoolId: schoolB,
+          nis: `VB${stamp}${i}`,
+          name: `Vol${stamp} Anak ${i}`,
+          gradeLevel: "2",
+          curriculumType: "national",
+          academicYear: "2026/2027",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      await chunkedInsert(rowsB);
+      const res = await studentsRouter.request(`/?schoolId=${schoolA}&search=${encodeURIComponent(`Vol${stamp}`)}`);
+      const json = await res.json();
+      expect(json.data.length).toBe(50);
+      expect(json.data.every((s: any) => s.schoolId === schoolA)).toBe(true);
+    } finally {
+      await db.delete(students).where(inArray(students.schoolId, [schoolA, schoolB]));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+    }
   });
 });
