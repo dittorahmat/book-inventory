@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BookItem, School, TransferShipment } from "../../types";
 import { buildQuery, getJson, postJson, delJson } from "../../lib/api";
-import { calcHeaderTotal, formatRupiah } from "../../lib/transfer-pricing";
-import { effectiveSellPrice } from "../../lib/book-pricing";
+import {
+  buildCreateShipmentPayload,
+  buildReceiveShipmentPayload,
+  calcTransferLooseTotal,
+  calcTransferPackageTotal,
+  formatRupiah,
+  type ReceiptCondition,
+} from "../../lib/transfer-pricing";
 import type { ReadyBundle } from "./PackagePicker";
 
-export type ReceiptCondition = "good" | "damaged" | "missing";
+export type { ReceiptCondition } from "../../lib/transfer-pricing";
 
 export interface LooseConditionPick {
   bookItemId: string;
@@ -34,19 +40,10 @@ export function useTransfers(activeSchool: School | null) {
   const [transferReason, setTransferReason] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
+  const [schoolsError, setSchoolsError] = useState<string | null>(null);
 
-  const looseTotal = calcHeaderTotal(
-    selectedItems.map((id) => {
-      const item = availableItems.find((i) => i.id === id);
-      return { unitPriceSnapshot: effectiveSellPrice(item?.book ?? {}), quantity: 1 };
-    })
-  );
-  const packageTotal = calcHeaderTotal(
-    selectedPackages.map((id) => {
-      const b = bundles.find((x) => x.id === id);
-      return { unitPriceSnapshot: b?.packagePrice || 0, quantity: 1 };
-    })
-  );
+  const looseTotal = calcTransferLooseTotal(selectedItems, availableItems);
+  const packageTotal = calcTransferPackageTotal(selectedPackages, bundles);
 
   const fetchShipments = useCallback(async () => {
     try {
@@ -76,10 +73,21 @@ export function useTransfers(activeSchool: School | null) {
     }
   }, [activeSchool]);
 
+  const fetchSchools = useCallback(async () => {
+    try {
+      setSchoolsError(null);
+      setAllSchools(await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah."));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat memuat sekolah";
+      setSchoolsError(message);
+      alert(message);
+    }
+  }, []);
+
   useEffect(() => {
     fetchShipments();
-    getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.").then(setAllSchools).catch(() => {});
-  }, [fetchShipments]);
+    fetchSchools();
+  }, [fetchShipments, fetchSchools]);
 
   const openShipmentDetail = useCallback(async (id: string) => {
     try {
@@ -93,22 +101,24 @@ export function useTransfers(activeSchool: School | null) {
 
   const handleCreateShipment = useCallback(async () => {
     if (!activeSchool || !destinationSchoolId) return;
-    if (selectedItems.length === 0 && selectedPackages.length === 0) {
-      alert("Pilih minimal 1 buku satuan atau 1 bundel paketan");
+    let payload: ReturnType<typeof buildCreateShipmentPayload>;
+    try {
+      payload = buildCreateShipmentPayload({
+        fromSchoolId: activeSchool.id,
+        toSchoolId: destinationSchoolId,
+        bookItemIds: selectedItems,
+        packageItemIds: selectedPackages,
+        reason: transferReason,
+        instant: isInstant,
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Pilih minimal 1 buku satuan atau 1 bundel paketan");
       return;
     }
     try {
       const created = await postJson<{ shipmentNumber: string; totalDeclaredValue?: number }>(
         "/api/shipments",
-        {
-          fromSchoolId: activeSchool.id,
-          toSchoolId: destinationSchoolId,
-          bookItemIds: selectedItems,
-          packageItemIds: selectedPackages,
-          reason: transferReason.trim() || undefined,
-          notes: isInstant ? "Instant stock transfer" : "Scheduled distribution",
-          instant: isInstant,
-        },
+        payload,
         "Gagal menyimpan transfer"
       );
       alert(
@@ -143,21 +153,17 @@ export function useTransfers(activeSchool: School | null) {
 
   const handleReceive = useCallback(
     async (shipment: TransferShipment, loosePicks?: LooseConditionPick[], bundlePicks?: BundleConditionPick[]) => {
-      const looseItems = (shipment.items || []).filter((item) => item.itemType !== "package" && item.bookItemId);
-      const bundleItems = (shipment.items || []).filter((item) => item.itemType === "package" && item.packageItemId);
-      if (looseItems.length === 0 && bundleItems.length === 0) {
-        alert("Tidak ada item manifest pada transfer ini");
+      let payload: ReturnType<typeof buildReceiveShipmentPayload>;
+      try {
+        payload = buildReceiveShipmentPayload(shipment.items || [], loosePicks ?? [], bundlePicks ?? []);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Tidak ada item manifest pada transfer ini");
         return;
       }
-      const looseById = new Map((loosePicks ?? []).map((p) => [p.bookItemId, p.condition]));
-      const bundleById = new Map((bundlePicks ?? []).map((p) => [p.packageItemId, p.condition]));
       try {
         const data = await postJson<{ status: string }>(
           `/api/shipments/${shipment.id}/receive`,
-          {
-            itemReceipts: looseItems.map((item) => ({ bookItemId: item.bookItemId as string, condition: looseById.get(item.bookItemId as string) ?? "good" })),
-            packageReceipts: bundleItems.map((item) => ({ packageItemId: item.packageItemId as string, condition: bundleById.get(item.packageItemId as string) ?? "good" })),
-          },
+          payload,
           "Gagal mengonfirmasi penerimaan transfer"
         );
         alert(
@@ -191,6 +197,8 @@ export function useTransfers(activeSchool: School | null) {
   return {
     shipments,
     allSchools,
+    schoolsError,
+    fetchSchools,
     availableItems,
     selectedItems,
     bundles,

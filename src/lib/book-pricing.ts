@@ -25,6 +25,22 @@ export const effectiveBookPrice = (book: PriceLike): { buy: number; sell: number
   sell: effectiveSellPrice(book),
 });
 
+export interface LooseOrderSelection {
+  bookId: string;
+  quantity: number;
+}
+
+export interface LooseCatalogBook extends PriceLike {
+  id: string;
+}
+
+/** Total optimistik order satuan portal: harga jual efektif × qty (satu-satunya pemilik aturan ini di klien). */
+export const calcLooseOrderTotal = (selections: LooseOrderSelection[], catalog: LooseCatalogBook[]): number =>
+  selections.reduce((sum, sel) => {
+    const book = catalog.find((b) => b.id === sel.bookId);
+    return sum + effectiveSellPrice(book ?? {}) * Math.max(0, Math.floor(sel.quantity || 0));
+  }, 0);
+
 export interface PoLineInput {
   quantityOrdered: number;
   unitPrice: number;
