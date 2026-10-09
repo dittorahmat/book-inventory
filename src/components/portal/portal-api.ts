@@ -1,3 +1,10 @@
+/**
+ * Satu-satunya adapter tipis portal publik di atas fetch kanonik (`lib/api`).
+ * Modul ini dilarang menyimpan state, menghitung total, atau merakit payload —
+ * hanya pemetaan endpoint → getJson/postJson dengan pesan error Bahasa Indonesia.
+ * Total optimistik tinggal di `lib/book-pricing` + `lib/transfer-pricing`,
+ * resolusi paket di `lib/resolve-package`, perakitan payload di `order-payload`.
+ */
 import { buildQuery, getJson, postJson } from "../../lib/api";
 import type {
   SchoolOption,
