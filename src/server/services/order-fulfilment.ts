@@ -80,6 +80,16 @@ export async function handoverPackage(
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
   }
 
+  const isPaidOrApproved = order.paymentStatus === "paid" || order.paymentStatus === "scholarship_approved";
+  if (!isPaidOrApproved && !order.financeHandoverApproved) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "Buku belum dapat diserahkan karena pembayaran belum lunas dan belum ada diskresi persetujuan dari Finance.",
+    };
+  }
+
   const deliveryNumber = `SJ-SERAH-${Date.now().toString().slice(-8)}`;
   const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
 

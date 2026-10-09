@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { School } from "./types";
-import { BranchSelector } from "./components/BranchSelector";
 import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
 import { PackagesView } from "./views/PackagesView";
@@ -14,13 +13,13 @@ import { SettingsView } from "./views/SettingsView";
 import { SalesReportView } from "./views/SalesReportView";
 import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
-const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
+import { AppHeader } from "./components/layout/AppHeader";
+import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, type ActiveTab } from "./components/layout/AppTabsNavigation";
 import { useSession, signOut } from "./lib/auth-client";
 import { getJson, postJson } from "./lib/api";
-import { BookOpen, Layers, Package, Users, GraduationCap, RotateCcw, ShoppingBag, Globe, Truck, Settings, LogOut, Shield, School as SchoolIcon, Loader2, LayoutDashboard, BarChart3 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-const TAB_IDS = ["dashboard", "catalog", "packages", "inventory", "students", "student_orders", "procurement", "returns", "transfers", "reports", "settings"] as const;
-type ActiveTab = typeof TAB_IDS[number];
+const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
 export function App() {
   const { data: session, isPending } = useSession();
@@ -115,207 +114,21 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
-      {/* Staff Header: solid blue top band + white nav band (portal ortu tetap putih) */}
+      {/* Staff Header: solid blue top band + white nav band */}
       <header className="sticky top-0 z-40 shadow-xs">
-        <div className="bg-[#1877F2]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            {/* Al Wildan Logistics Crest Icon */}
-            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
-            <div className="truncate">
-              <span className="text-base sm:text-lg tracking-tight font-bold text-white truncate block sm:inline">
-                School Logistics
-              </span>
-              <span className="hidden sm:inline-block ml-2 text-[11px] font-semibold text-white bg-white/15 border border-white/30 px-2 py-0.5 rounded-full">
-                Al Wildan
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Branch Selector */}
-            {isCentralAdmin ? (
-              <div className="max-w-[160px] sm:max-w-none">
-                <BranchSelector
-                  selectedSchool={selectedSchool}
-                  onSelectSchool={(school) => setSelectedSchool(school)}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
-                <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="truncate max-w-[110px] sm:max-w-none">{selectedSchool?.name || "Assigned Branch"}</span>
-              </div>
-            )}
-
-              {/* User Badge & Logout */}
-              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/25">
-                <button
-                  type="button"
-                  onClick={() => setIsPublicMode(true)}
-                  title="Lihat Portal Orang Tua"
-                  className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1 border border-emerald-200"
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Portal Ortu</span>
-                </button>
-
-                <div className="text-right hidden md:block">
-                  <div className="text-xs font-semibold text-white">{currentUser.name}</div>
-                  <div className="text-[11px] text-white/75 flex items-center justify-end gap-1">
-                    {isCentralAdmin ? (
-                      <span className="text-white flex items-center gap-1 font-semibold">
-                        <Shield className="w-3 h-3 text-white" /> HQ Central Admin
-                      </span>
-                    ) : (
-                      <span>Branch Admin</span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => signOut()}
-                  title="Sign Out"
-                  className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition-colors bg-white/15"
-                  aria-label="Sign Out"
-                >
-                  <LogOut className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            </div>
-          </div>
-          </div>
-
-          {/* Navigation Tabs for Desktop */}
-          <div className="bg-white border-b border-[#E4E6EB]">
-          <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "dashboard"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("students")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "students"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <GraduationCap className="w-4 h-4" />
-              Database Siswa
-            </button>
-            <button
-              onClick={() => setActiveTab("student_orders")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "student_orders"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              Pesanan Siswa
-            </button>
-            <button
-              onClick={() => setActiveTab("packages")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "packages"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              Paket & Bundling
-            </button>
-            <button
-              onClick={() => setActiveTab("procurement")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "procurement"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <ShoppingBag className="w-4 h-4" />
-              Pengadaan PO
-            </button>
-            <button
-              onClick={() => setActiveTab("returns")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "returns"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <RotateCcw className="w-4 h-4" />
-              Retur Buku
-            </button>
-            <button
-              onClick={() => setActiveTab("inventory")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "inventory"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              Stok Satuan
-            </button>
-            <button
-              onClick={() => setActiveTab("catalog")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "catalog"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              Katalog
-            </button>
-            <button
-              onClick={() => setActiveTab("transfers")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "transfers"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <Truck className="w-4 h-4" />
-              Transfer
-            </button>
-            <button
-              onClick={() => setActiveTab("reports")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "reports"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              Laporan
-            </button>
-          {isCentralAdmin && (
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 ${
-                activeTab === "settings"
-                  ? "text-[#1877F2] border-b-[3px] border-[#1877F2]"
-                  : "text-[#65676B] hover:bg-[#F0F2F5] rounded-lg my-1 py-2 border-b-[3px] border-transparent"
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              Pengaturan
-            </button>
-          )}
-          </div>
-        </div>
+        <AppHeader
+          selectedSchool={selectedSchool}
+          onSelectSchool={(school) => setSelectedSchool(school)}
+          isCentralAdmin={isCentralAdmin}
+          userName={currentUser.name}
+          onOpenPublicPortal={() => setIsPublicMode(true)}
+          onSignOut={() => signOut()}
+        />
+        <AppTabsNavigation
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          isCentralAdmin={isCentralAdmin}
+        />
       </header>
 
       {/* Main Content Area */}
@@ -351,95 +164,11 @@ export function App() {
       </main>
 
       {/* Bottom Navigation Bar for Mobile (< md) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-        <div className="grid grid-cols-6 auto-cols-fr gap-1.5">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "dashboard"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Dashboard</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("inventory")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "inventory"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <Layers className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Inventory</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("packages")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "packages"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <Package className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Paket</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("catalog")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "catalog"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <BookOpen className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Catalog</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("students")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "students"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <GraduationCap className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Siswa</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("transfers")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-              activeTab === "transfers"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <Truck className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Transfers</span>
-          </button>
-
-          {isCentralAdmin && (
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`col-span-6 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors ${
-                activeTab === "settings"
-                  ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                  : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-              }`}
-            >
-              <Settings className="w-5 h-5 mb-1" />
-              <span className="text-[11px] font-semibold">Settings</span>
-            </button>
-          )}
-        </div>
-      </nav>
+      <AppMobileNavigation
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        isCentralAdmin={isCentralAdmin}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   students,
   bookPackages,
   packageItems,
+  bookItems,
   bookReturns,
   books,
 } from "../../db/schema";
@@ -39,10 +40,11 @@ const returnBookSchema = z.object({
   photoProofBase64: z.string().optional(),
 });
 
-// Schema for resolving return with replacement loose item
+// Schema for resolving return with replacement loose item or parent refund
 const resolveReturnSchema = z.object({
-  action: z.enum(["replace", "reject"]),
+  action: z.enum(["replace", "reject", "refund"]),
   replacementBookItemId: z.string().optional(),
+  refundAmount: z.number().int().min(0).optional(),
   handledByUserId: z.string().optional(),
 });
 
@@ -218,7 +220,44 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
       assertLocationAllowed(actor, retOrder.schoolId, locations);
     }
 
-    const result = await resolveReturn(db, returnId, body);
+    // Tangani refund dana orang tua di Gudang Pusat
+    if (body.action === "refund") {
+      const now = new Date().toISOString();
+      const refundAmt = body.refundAmount ?? 0;
+
+      await db
+        .update(bookReturns)
+        .set({
+          status: "refunded",
+          refundAmount: refundAmt,
+          handledByUserId: body.handledByUserId || null,
+          resolvedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(bookReturns.id, returnId));
+
+      // Kembalikan/tambah 1 stok fisik ke gudang dengan status in_stock
+      const bookItemId = crypto.randomUUID();
+      await db.insert(bookItems).values({
+        id: bookItemId,
+        bookId: ret.defectiveBookId,
+        currentSchoolId: retOrder ? retOrder.schoolId : locations[0],
+        barcode: `RFD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`,
+        condition: "good",
+        status: "in_stock",
+        notes: `Restored to stock from parent refund (Return #${returnId})`,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return c.json({
+        success: true,
+        message: `Permohonan refund berhasil disetujui. Dana sebesar Rp ${refundAmt.toLocaleString("id-ID")} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`,
+        data: { status: "refunded", refundAmount: refundAmt, restoredBookItemId: bookItemId },
+      });
+    }
+
+    const result = await resolveReturn(db, returnId, body as any);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -270,4 +309,69 @@ studentOrdersRouter.delete("/:id", async (c) => {
     return accessErrorResponse(c, err);
   }
 });
+
+// 6. POST Finance Discretion (Potong harga, Beasiswa 100%, atau Izin Ambil Handover)
+const discretionSchema = z.object({
+  discretionType: z.enum(["discount", "scholarship", "handover_override"]),
+  discountAmount: z.number().min(0).default(0),
+  discretionNotes: z.string().min(1, "Catatan/alasan diskresi finance wajib diisi"),
+});
+
+studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema), async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
+
+    const now = new Date().toISOString();
+    let patch: Record<string, unknown> = {
+      discretionType: body.discretionType,
+      discretionNotes: body.discretionNotes,
+      discretionByUserId: null,
+      updatedAt: now,
+    };
+
+    if (body.discretionType === "scholarship") {
+      patch = {
+        ...patch,
+        orderType: "scholarship",
+        totalAmount: 0,
+        paymentStatus: "scholarship_approved",
+        financeHandoverApproved: true,
+      };
+    } else if (body.discretionType === "discount") {
+      const newTotal = Math.max(0, order.totalAmount - body.discountAmount);
+      patch = {
+        ...patch,
+        discountAmount: body.discountAmount,
+        totalAmount: newTotal,
+        paymentStatus: order.paidAmount >= newTotal ? "paid" : "partial",
+      };
+    } else if (body.discretionType === "handover_override") {
+      patch = {
+        ...patch,
+        financeHandoverApproved: true,
+      };
+    }
+
+    await db.update(studentBookOrders).set(patch as any).where(eq(studentBookOrders.id, id));
+    const [updated] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
+
+    return c.json({
+      success: true,
+      message: "Diskresi Finance berhasil diterapkan pada pesanan.",
+      data: updated,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 

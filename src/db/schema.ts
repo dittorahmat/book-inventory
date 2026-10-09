@@ -247,6 +247,13 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   handoverDate: text("handover_date"),
   handoverRecipient: text("handover_recipient"),
   scholarshipProofUrl: text("scholarship_proof_url"),
+  financeHandoverApproved: integer("finance_handover_approved", { mode: "boolean" }).notNull().default(false),
+  discountAmount: integer("discount_amount").notNull().default(0),
+  discretionType: text("discretion_type", { 
+    enum: ["none", "discount", "scholarship", "handover_override"] 
+  }).notNull().default("none"),
+  discretionNotes: text("discretion_notes"),
+  discretionByUserId: text("discretion_by_user_id").references(() => users.id),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -277,7 +284,103 @@ export const studentOrderItems = sqliteTable("student_order_items", {
 });
 
 // ==========================================
-// 5. BOOK COMPLAINTS & RETURNS (DEFECT EXCHANGE)
+// 5. INBOUND RECEIPTS (SUPPLIER SURAT JALAN)
+// ==========================================
+export const purchaseOrderReceipts = sqliteTable("purchase_order_receipts", {
+  id: text("id").primaryKey(),
+  purchaseOrderId: text("purchase_order_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  deliveryNoteNumber: text("delivery_note_number").notNull(), // No Surat Jalan Supplier
+  receivedDate: text("received_date").notNull(),
+  receivedByUserId: text("received_by_user_id").references(() => users.id),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const purchaseOrderReceiptItems = sqliteTable("purchase_order_receipt_items", {
+  id: text("id").primaryKey(),
+  receiptId: text("receipt_id").notNull().references(() => purchaseOrderReceipts.id, { onDelete: "cascade" }),
+  bookId: text("book_id").notNull().references(() => books.id),
+  quantityReceived: integer("quantity_received").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// ==========================================
+// 6. INTERNAL PO (CABANG KE GUDANG PUSAT)
+// ==========================================
+export const internalPurchaseOrders = sqliteTable("internal_purchase_orders", {
+  id: text("id").primaryKey(),
+  poNumber: text("po_number").notNull().unique(), // e.g. "IPO-202610-0001"
+  schoolId: text("school_id").notNull().references(() => schools.id), // Cabang pemesan
+  status: text("status", { 
+    enum: ["draft", "submitted", "processing", "partial_fulfilled", "completed", "cancelled"] 
+  }).notNull().default("draft"),
+  notes: text("notes"),
+  createdByUserId: text("created_by_user_id").references(() => users.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const internalPurchaseOrderItems = sqliteTable("internal_purchase_order_items", {
+  id: text("id").primaryKey(),
+  internalPoId: text("internal_po_id").notNull().references(() => internalPurchaseOrders.id, { onDelete: "cascade" }),
+  packageId: text("package_id").notNull().references(() => bookPackages.id),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  quantityFulfilled: integer("quantity_fulfilled").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});
+
+export const internalShipments = sqliteTable("internal_shipments", {
+  id: text("id").primaryKey(),
+  internalPoId: text("internal_po_id").notNull().references(() => internalPurchaseOrders.id, { onDelete: "cascade" }),
+  deliveryNoteNumber: text("delivery_note_number").notNull().unique(), // Surat Jalan Pengiriman Internal
+  shippedDate: text("shipped_date").notNull(),
+  receivedDate: text("received_date"),
+  status: text("status", { enum: ["in_transit", "delivered", "discrepancy"] }).notNull().default("in_transit"),
+  shippedByUserId: text("shipped_by_user_id").references(() => users.id),
+  receivedByUserId: text("received_by_user_id").references(() => users.id),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const internalShipmentItems = sqliteTable("internal_shipment_items", {
+  id: text("id").primaryKey(),
+  shipmentId: text("shipment_id").notNull().references(() => internalShipments.id, { onDelete: "cascade" }),
+  packageId: text("package_id").references(() => bookPackages.id),
+  packageItemId: text("package_item_id").references(() => packageItems.id),
+  bookId: text("book_id").references(() => books.id), // untuk pengiriman outstanding / susulan satuan
+  quantity: integer("quantity").notNull().default(1),
+  isOutstandingFollowup: integer("is_outstanding_followup", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+// ==========================================
+// 7. RETURN TO VENDOR (RETUR KE SUPPLIER)
+// ==========================================
+export const vendorReturns = sqliteTable("vendor_returns", {
+  id: text("id").primaryKey(),
+  returnNumber: text("return_number").notNull().unique(), // e.g. "RTV-202610-0001"
+  supplierId: text("supplier_id").notNull().references(() => suppliers.id),
+  purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+  status: text("status", { enum: ["draft", "submitted", "completed", "rejected"] }).notNull().default("draft"),
+  reason: text("reason").notNull(),
+  creditNoteAmount: integer("credit_note_amount").notNull().default(0),
+  handledByUserId: text("handled_by_user_id").references(() => users.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const vendorReturnItems = sqliteTable("vendor_return_items", {
+  id: text("id").primaryKey(),
+  vendorReturnId: text("vendor_return_id").notNull().references(() => vendorReturns.id, { onDelete: "cascade" }),
+  bookId: text("book_id").notNull().references(() => books.id),
+  quantity: integer("quantity").notNull(),
+  reason: text("reason"),
+  createdAt: text("created_at").notNull(),
+});
+
+// ==========================================
+// 8. BOOK COMPLAINTS & RETURNS / REFUNDS
 // ==========================================
 export const bookReturns = sqliteTable("book_returns", {
   id: text("id").primaryKey(),
@@ -287,7 +390,8 @@ export const bookReturns = sqliteTable("book_returns", {
   replacementBookItemId: text("replacement_book_item_id").references(() => bookItems.id),
   reason: text("reason").notNull(),
   photoProofUrl: text("photo_proof_url"),
-  status: text("status", { enum: ["reported", "approved", "replaced", "rejected"] }).notNull().default("reported"),
+  status: text("status", { enum: ["reported", "approved", "replaced", "rejected", "refunded"] }).notNull().default("reported"),
+  refundAmount: integer("refund_amount").notNull().default(0),
   handledByUserId: text("handled_by_user_id").references(() => users.id),
   resolvedAt: text("resolved_at"),
   createdAt: text("created_at").notNull(),
@@ -295,7 +399,7 @@ export const bookReturns = sqliteTable("book_returns", {
 });
 
 // ==========================================
-// 6. SYSTEM CONFIGURATION & SMTP SETTINGS
+// 9. SYSTEM CONFIGURATION & SMTP / WA SETTINGS
 // ==========================================
 export const systemSettings = sqliteTable("system_settings", {
   key: text("key").primaryKey(),

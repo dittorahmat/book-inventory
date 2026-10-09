@@ -254,3 +254,103 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
     return accessErrorResponse(c, err);
   }
 });
+
+// 6. POST bulk-import (upsert based on schoolId + nis)
+const bulkImportItemSchema = z.object({
+  nis: z.string().min(1, "NIS wajib diisi"),
+  name: z.string().min(1, "Nama wajib diisi"),
+  gradeLevel: z.string().min(1, "Kelas wajib diisi"),
+  gender: z.enum(["male", "female"]).default("male"),
+  curriculumType: z.enum(["international", "national"]).default("international"),
+  academicYear: z.string().min(1).default("2026/2027"),
+  parentName: z.string().optional(),
+  parentEmail: z.string().email().optional().or(z.literal("")),
+  parentPhone: z.string().optional(),
+  status: z.enum(["active", "promoted", "new_pending", "rejected", "graduated"]).default("active"),
+  isScholarship: z.boolean().default(false),
+});
+
+const bulkImportPayloadSchema = z.object({
+  schoolId: z.string().min(1, "Sekolah wajib dipilih"),
+  students: z.array(bulkImportItemSchema).min(1, "Minimal 1 data siswa untuk diimpor"),
+});
+
+studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema), async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const body = c.req.valid("json");
+    assertLocationAllowed(actor, body.schoolId, locations);
+
+    const [school] = await db.select().from(schools).where(eq(schools.id, body.schoolId));
+    if (!school) {
+      return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
+    }
+
+    const now = new Date().toISOString();
+    let insertedCount = 0;
+    let updatedCount = 0;
+
+    // Fetch existing students in this school to determine insert vs update
+    const existing = await db
+      .select({ id: students.id, nis: students.nis })
+      .from(students)
+      .where(eq(students.schoolId, body.schoolId));
+    const existingMap = new Map(existing.map((s: { id: string; nis: string }) => [s.nis.trim().toLowerCase(), s.id]));
+
+    // Sequential chunk processing (max 10 rows per batch) for D1 safety
+    for (const item of body.students) {
+      const cleanNis = item.nis.trim();
+      const existingId = existingMap.get(cleanNis.toLowerCase());
+
+      if (existingId) {
+        await db
+          .update(students)
+          .set({
+            name: item.name,
+            gradeLevel: item.gradeLevel,
+            gender: item.gender,
+            curriculumType: item.curriculumType,
+            academicYear: item.academicYear,
+            parentName: item.parentName || null,
+            parentEmail: item.parentEmail || null,
+            parentPhone: item.parentPhone || null,
+            status: item.status,
+            isScholarship: item.isScholarship,
+            updatedAt: now,
+          })
+          .where(eq(students.id, existingId as string));
+        updatedCount++;
+      } else {
+        const newId = crypto.randomUUID();
+        await db.insert(students).values({
+          id: newId,
+          schoolId: body.schoolId,
+          nis: cleanNis,
+          name: item.name,
+          gender: item.gender,
+          gradeLevel: item.gradeLevel,
+          curriculumType: item.curriculumType,
+          academicYear: item.academicYear,
+          parentName: item.parentName || null,
+          parentEmail: item.parentEmail || null,
+          parentPhone: item.parentPhone || null,
+          status: item.status,
+          isScholarship: item.isScholarship,
+          createdAt: now,
+          updatedAt: now,
+        });
+        existingMap.set(cleanNis.toLowerCase(), newId);
+        insertedCount++;
+      }
+    }
+
+    return c.json({
+      success: true,
+      message: `Impor berhasil: ${insertedCount} siswa baru ditambahkan, ${updatedCount} siswa diperbarui.`,
+      data: { insertedCount, updatedCount, total: body.students.length },
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});

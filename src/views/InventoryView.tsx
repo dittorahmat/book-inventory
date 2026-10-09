@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, RefreshCw, Search, Truck } from "lucide-react";
+import { Boxes, RefreshCw, Search, Truck, ShoppingBag } from "lucide-react";
 import { School } from "../types";
 import type { StockOverviewPayload } from "../types/stock-summary";
 import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
 import { QuantityTransferModal, type TransferLinePreview } from "../components/inventory/QuantityTransferModal";
+import { DirectSaleModal } from "../components/inventory/DirectSaleModal";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
 
@@ -19,6 +20,7 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
 
   const loadOverview = useCallback(async () => {
     if (!activeSchool) return;
@@ -151,6 +153,16 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
             >
               Batal
             </button>
+            {activeSchool?.type === "warehouse" && (
+              <button
+                type="button"
+                onClick={() => setIsDirectSaleOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Jual ke Ortu</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsTransferOpen(true)}
@@ -177,6 +189,17 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
         lines={transferLines}
         onClose={() => setIsTransferOpen(false)}
         onCreated={() => {
+          setQuantities({});
+          loadOverview();
+        }}
+      />
+
+      <DirectSaleModal
+        open={isDirectSaleOpen}
+        school={activeSchool}
+        lines={transferLines}
+        onClose={() => setIsDirectSaleOpen(false)}
+        onSuccess={() => {
           setQuantities({});
           loadOverview();
         }}

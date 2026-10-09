@@ -208,14 +208,21 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   }
 });
 
-// POST Assembly / Bundling (Kitting)
+// POST Assembly / Bundling (Kitting) - HANYA DI GUDANG PUSAT
 packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async (c) => {
   try {
     const actor = await resolveRequestActor(c);
+    requireLogisticsRole(actor);
     const locations = await loadLocationIds(db);
     const packageId = c.req.param("id");
     const { schoolId, quantity } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
+
+    const { schools } = await import("../../db/schema");
+    const [targetLoc] = await db.select({ type: schools.type }).from(schools).where(eq(schools.id, schoolId));
+    if (targetLoc?.type !== "warehouse") {
+      return c.json({ success: false, message: "Perakitan paket hanya dapat dilakukan di Gudang Pusat." }, 403);
+    }
 
     const result = await assemblePackageBundles(packageId, schoolId, quantity);
     if (!result.ok) {

@@ -28,10 +28,13 @@ describe("buildFinalOrderPayload", () => {
     expect(payload.notes).toBeUndefined();
   });
 
-  test("alokasi tak sama total DITOLAK eksplisit (tanpa tulis-ulang diam)", () => {
+  test("alokasi parsial diterima; alokasi melebihi total DITOLAK", () => {
+    const partial = buildFinalOrderPayload({ ...base, bookAllocationAmount: 500000 });
+    expect(partial.payment?.bookAllocationAmount).toBe(500000);
+
     expect(() =>
-      buildFinalOrderPayload({ ...base, bookAllocationAmount: 500000 })
-    ).toThrow(/tidak sama dengan total tagihan/);
+      buildFinalOrderPayload({ ...base, bookAllocationAmount: 1200000 })
+    ).toThrow(/melebihi total tagihan/);
   });
 
   test("beasiswa tanpa bukti ditolak", () => {

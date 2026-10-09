@@ -87,11 +87,12 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(createdPO).toBeDefined();
     const poItemId = createdPO.items[0].id;
 
-    // 4. Inbound receiving (Partial 20 units)
+    // 4. Inbound receiving (Partial 20 units) with Surat Jalan
     const recRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        deliveryNoteNumber: "SJ-PARTIAL-1",
         receivedItems: [
           {
             poItemId,
@@ -105,11 +106,12 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(recJson.data.status).toBe("partially_received");
     expect(recJson.data.totalReceivedThisBatch).toBe(20);
 
-    // 5. Inbound receiving remainder (30 units) -> status should become received
+    // 5. Inbound receiving remainder (30 units) with Surat Jalan 2 -> status should become received
     const recFinalRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        deliveryNoteNumber: "SJ-PARTIAL-2",
         receivedItems: [
           {
             poItemId,
@@ -121,6 +123,14 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(recFinalRes.status).toBe(200);
     const recFinalJson = await recFinalRes.json();
     expect(recFinalJson.data.status).toBe("received");
+
+    // 6. Verifikasi histori Surat Jalan
+    const receiptsRes = await procurementRouter.request(`/purchase-orders/${poId}/receipts`, { method: "GET" });
+    expect(receiptsRes.status).toBe(200);
+    const receiptsJson = await receiptsRes.json();
+    expect(receiptsJson.data.length).toBe(2);
+    expect(receiptsJson.data.some((r: any) => r.deliveryNoteNumber === "SJ-PARTIAL-1")).toBe(true);
+    expect(receiptsJson.data.some((r: any) => r.deliveryNoteNumber === "SJ-PARTIAL-2")).toBe(true);
   });
 
   it("receives 30 units in one batch without 500 and rejects over-receive with 400 (§10 D1 regression)", async () => {
@@ -168,7 +178,10 @@ describe("Supplier Procurement & Purchase Order API", () => {
       const bulkRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receivedItems: [{ poItemId, quantityToReceive: 30 }] }),
+        body: JSON.stringify({
+          deliveryNoteNumber: "SJ-BULK-01",
+          receivedItems: [{ poItemId, quantityToReceive: 30 }],
+        }),
       });
       expect(bulkRes.status).toBe(200);
       const bulkJson = await bulkRes.json();
@@ -183,7 +196,10 @@ describe("Supplier Procurement & Purchase Order API", () => {
       const overRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receivedItems: [{ poItemId, quantityToReceive: 1 }] }),
+        body: JSON.stringify({
+          deliveryNoteNumber: "SJ-BULK-OVER",
+          receivedItems: [{ poItemId, quantityToReceive: 1 }],
+        }),
       });
       expect(overRes.status).toBe(400);
       expect((await overRes.json()).message).toMatch(/melebihi sisa/);
@@ -341,6 +357,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            deliveryNoteNumber: "SJ-EMAIL-TEST-1",
             receivedItems: [{ poItemId: sentItemId, quantityToReceive: 4 }],
           }),
         }
@@ -354,6 +371,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            deliveryNoteNumber: "SJ-EMAIL-TEST-2",
             receivedItems: [{ poItemId: sentItemId, quantityToReceive: 6 }],
           }),
         }

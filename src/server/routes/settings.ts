@@ -10,6 +10,11 @@ import {
   setSatuanOverride,
   type SatuanOverride,
 } from "../services/satuan-cutoff";
+import {
+  getWhatsAppConfig,
+  saveWhatsAppConfig,
+  sendWhatsAppMessage,
+} from "../services/whatsapp";
 import { accessErrorResponse, requireLogisticsRole, resolveRequestActor } from "../services/access-scope";
 
 export const settingsRouter = new Hono();
@@ -161,3 +166,56 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
     data: result,
   });
 });
+
+// GET current WhatsApp gateway config (API Key masked)
+settingsRouter.get("/whatsapp", async (c) => {
+  const config = await getWhatsAppConfig();
+  return c.json({
+    success: true,
+    data: {
+      ...config,
+      apiKey: config.apiKey ? "********" : "",
+      isConfigured: Boolean(config.gatewayUrl),
+    },
+  });
+});
+
+const updateWhatsAppSchema = z.object({
+  gatewayUrl: z.string().url("URL Gateway WhatsApp harus berformat valid (https://...)"),
+  apiKey: z.string().optional().default(""),
+  senderNumber: z.string().optional(),
+  isEnabled: z.boolean().default(true),
+});
+
+// POST save WhatsApp config
+settingsRouter.post("/whatsapp", zValidator("json", updateWhatsAppSchema), async (c) => {
+  const body = c.req.valid("json");
+  const existing = await getWhatsAppConfig();
+  await saveWhatsAppConfig({
+    ...body,
+    apiKey: body.apiKey === "********" ? existing.apiKey : body.apiKey,
+  });
+  return c.json({ success: true, message: "Pengaturan WhatsApp gateway berhasil disimpan" });
+});
+
+// POST send test WhatsApp message
+const testWhatsAppSchema = z.object({
+  phone: z.string().min(6, "Nomor tujuan WhatsApp minimal 6 karakter"),
+  message: z.string().default("Ini adalah pesan uji coba dari sistem Inventaris Buku Al Wildan."),
+});
+
+settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), async (c) => {
+  const { phone, message } = c.req.valid("json");
+  const result = await sendWhatsAppMessage(phone, message);
+  if (!result.success) {
+    return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
+  }
+  return c.json({
+    success: true,
+    message: result.simulated
+      ? "Pesan uji coba disimulasikan (gateway belum diisi atau dinonaktifkan)."
+      : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
+    data: result,
+  });
+});
+

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { AlertCircle, PackageCheck, X } from "lucide-react";
-import { postJson } from "../../lib/api";
+import { useState, useEffect } from "react";
+import { AlertCircle, PackageCheck, X, FileText } from "lucide-react";
+import { postJson, getJson } from "../../lib/api";
 import type { PurchaseOrder } from "./procurement-types";
 
 interface ReceivingModalProps {
@@ -9,8 +9,11 @@ interface ReceivingModalProps {
   onReceived: () => void | Promise<void>;
 }
 
-/** Modal penerimaan fisik inbound: input jumlah diterima per item PO. */
+/** Modal penerimaan fisik inbound: input jumlah diterima per item PO dengan No Surat Jalan. */
 export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps) {
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
+  const [receivingNotes, setReceivingNotes] = useState("");
+  const [receiptHistory, setReceiptHistory] = useState<any[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     po.items.forEach((item) => {
@@ -20,8 +23,18 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    getJson<any[]>(`/api/procurement/purchase-orders/${po.id}/receipts`)
+      .then(setReceiptHistory)
+      .catch(() => {});
+  }, [po.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!deliveryNoteNumber.trim()) {
+      alert("Nomor Surat Jalan supplier wajib diisi.");
+      return;
+    }
     const receivedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
       .map(([poItemId, quantityToReceive]) => ({ poItemId, quantityToReceive }));
@@ -33,7 +46,11 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
     try {
       await postJson(
         `/api/procurement/purchase-orders/${po.id}/receive`,
-        { receivedItems },
+        {
+          deliveryNoteNumber: deliveryNoteNumber.trim(),
+          notes: receivingNotes.trim() || undefined,
+          receivedItems,
+        },
         "Gagal mencatat penerimaan"
       );
       await onReceived();
@@ -67,6 +84,56 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
             <span>No. PO: <strong className="font-mono">{po.poNumber}</strong></span>
             <span>Supplier: <strong>{po.supplierName}</strong></span>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold mb-1 text-[#050505]">
+                No. Surat Jalan Supplier (Wajib)
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Contoh: SJ-2026/09/001"
+                value={deliveryNoteNumber}
+                onChange={(e) => setDeliveryNoteNumber(e.target.value)}
+                className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-medium text-[#050505]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1 text-[#050505]">
+                Catatan Penerimaan (Opsional)
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: Dus kondisi baik / Pengiriman tahap 1"
+                value={receivingNotes}
+                onChange={(e) => setReceivingNotes(e.target.value)}
+                className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl text-[#050505]"
+              />
+            </div>
+          </div>
+
+          {receiptHistory.length > 0 && (
+            <div className="p-3 bg-gray-50 border border-[#CED0D4] rounded-xl space-y-2">
+              <div className="font-bold text-[#050505] flex items-center gap-1.5 text-[11px]">
+                <FileText className="w-3.5 h-3.5 text-[#1877F2]" />
+                Riwayat Surat Jalan Sebelumnya ({receiptHistory.length} kali pengiriman):
+              </div>
+              <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                {receiptHistory.map((rc: any) => (
+                  <div key={rc.id} className="text-[11px] bg-white p-2 rounded-lg border border-[#E4E6EB]">
+                    <div className="flex justify-between font-semibold text-[#050505]">
+                      <span>SJ: {rc.deliveryNoteNumber}</span>
+                      <span className="text-[#65676B]">{rc.receivedDate}</span>
+                    </div>
+                    <div className="text-[10px] text-[#65676B] mt-0.5">
+                      Item: {rc.items?.map((it: any) => `${it.title} (${it.quantityReceived} eks)`).join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold mb-2 text-[#050505]">

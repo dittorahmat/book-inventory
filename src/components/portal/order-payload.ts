@@ -37,9 +37,9 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   }
 
   const bookTotal = input.packageMode ? input.packagePrice : input.looseTotal;
-  if (input.orderType === "regular" && input.bookAllocationAmount > 0 && input.bookAllocationAmount !== bookTotal) {
+  if (input.orderType === "regular" && input.bookAllocationAmount > bookTotal) {
     throw new Error(
-      `Alokasi buku ${formatRupiah(input.bookAllocationAmount)} tidak sama dengan total tagihan ${formatRupiah(bookTotal)}. Sesuaikan nominal lalu kirim ulang.`
+      `Alokasi buku ${formatRupiah(input.bookAllocationAmount)} melebihi total tagihan ${formatRupiah(bookTotal)}. Sesuaikan nominal lalu kirim ulang.`
     );
   }
 

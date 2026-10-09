@@ -54,14 +54,14 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
     loadReturns();
   }, [loadReturns]);
 
-  const handleResolve = async (action: "replace" | "reject") => {
+  const handleResolve = async (action: "replace" | "reject" | "refund", refundAmount?: number) => {
     if (!activeReturn) return;
     setIsSubmitting(true);
     try {
       await postJson(
         `/api/student-orders/returns/${activeReturn.id}/resolve`,
-        { action },
-        "Gagal memproses penggantian"
+        { action, refundAmount },
+        "Gagal memproses tindakan retur/refund"
       );
       setActiveReturn(null);
       loadReturns();
@@ -256,23 +256,39 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
                   />
                 </div>
               )}
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="pt-2 flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => handleResolve("reject")}
-                  className="px-4 py-2 bg-red-50 text-red-700 rounded-xl font-semibold hover:bg-red-100"
+                  className="px-3.5 py-2 bg-red-50 text-red-700 rounded-xl font-semibold hover:bg-red-100 active:scale-[0.98]"
                 >
-                  Tolak Retur
+                  Tolak
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    const input = prompt("Masukkan nominal pengembalian dana (Rp):", "50000");
+                    if (input !== null) {
+                      const amt = parseInt(input, 10);
+                      if (!isNaN(amt) && amt >= 0) {
+                        handleResolve("refund", amt);
+                      }
+                    }
+                  }}
+                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold active:scale-[0.98]"
+                >
+                  Setujui Refund Dana
                 </button>
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => handleResolve("replace")}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 flex items-center gap-1.5 active:scale-[0.98]"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Ganti Buku Baru (Dari Stok Loose)</span>
+                  <span>Ganti Buku Fisik</span>
                 </button>
               </div>
             </div>

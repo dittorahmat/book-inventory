@@ -15,19 +15,8 @@ const EXCLUDE = [
   /\.d\.ts$/,
 ];
 
-// Utang lama (>300 baris sebelum gate ada). Boleh disentuh untuk wiring
-// kecil, tapi kode fitur BARU wajib tinggal di file baru yang patuh batas.
-// Daftar ini hanya boleh menyusut.
-const GRANDFATHERED = [
-  "src/views/ProcurementView.tsx",
-  "src/views/SettingsView.tsx",
-  "src/views/StudentOrdersView.tsx",
-  "src/views/InventoryView.tsx",
-  "src/views/CatalogView.tsx",
-  "src/views/TransfersView.tsx",
-  "src/App.tsx",
-  "src/server/routes/student-orders.ts",
-];
+// Utang lama (>300 baris sebelum gate ada). Seluruh file telah dilunasi!
+const GRANDFATHERED: string[] = [];
 
 const norm = (p: string) => p.replace(/\\/g, "/");
 
