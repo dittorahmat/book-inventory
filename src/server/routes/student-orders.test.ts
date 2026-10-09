@@ -259,4 +259,105 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     });
     expect(missing.status).toBe(404);
   });
+
+  it("applies finance discretion and allows handover when approved", async () => {
+    const stamp = Date.now();
+    const schoolId = `sch-disc-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Discretion Test",
+      code: `ALW-DISC-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const studentId = `st-disc-${stamp}`;
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `NIS-DISC-${stamp}`,
+      name: "Siswa Belum Lunas",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const pkgId = `pkg-disc-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      code: `PKG-DISC-${stamp}`,
+      name: "Paket Kelas 1 Disc",
+      gradeLevel: "1",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      price: 500000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(packageItems).values({
+      id: `pi-disc-${stamp}`,
+      packageId: pkgId,
+      currentSchoolId: schoolId,
+      barcode: `BAR-DISC-${stamp}`,
+      status: "in_stock",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const orderId = `ord-disc-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-DISC-${String(stamp).slice(-6)}`,
+      studentId,
+      schoolId,
+      packageId: pkgId,
+      orderType: "regular",
+      paymentStatus: "partial",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 500000,
+      paidAmount: 200000,
+      financeHandoverApproved: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // 1. Handover harus DIBLOKIR karena belum lunas dan belum di-ACC finance
+    const blockedHandover = await studentOrdersRouter.request(`/${orderId}/handover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipientName: "Bpk. Wali" }),
+    });
+    expect(blockedHandover.status).toBe(400);
+    const blockedJson = await blockedHandover.json();
+    expect(blockedJson.message).toContain("belum ada diskresi");
+
+    // 2. Beri diskresi: handover_override
+    const overrideRes = await studentOrdersRouter.request(`/${orderId}/discretion`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        discretionType: "handover_override",
+        discretionNotes: "Diizinkan ambil oleh Kabag Finance",
+      }),
+    });
+    expect(overrideRes.status).toBe(200);
+    const overrideJson = await overrideRes.json();
+    expect(overrideJson.data.financeHandoverApproved).toBe(true);
+
+    // 3. Sekarang Handover berhasil!
+    const allowedHandover = await studentOrdersRouter.request(`/${orderId}/handover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipientName: "Bpk. Wali" }),
+    });
+    expect(allowedHandover.status).toBe(200);
+    const allowedJson = await allowedHandover.json();
+    expect(allowedJson.data.fulfillmentStatus).toBe("picked_up");
+  });
 });

@@ -15,7 +15,7 @@ export interface NewUserInput {
   email: string;
   password: string;
   role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-  schoolId: string;
+  schoolId?: string;
 }
 
 /** Data organisasi: daftar sekolah + staf, beserta aksi tambah via seam fetch kanonik. */

@@ -7,6 +7,7 @@ import { students, studentBookOrders, bookPackages, schools } from "../../db/sch
 import { getCurrentSatuanStatus, getSatuanCatalogIfOpen, getSatuanStatus } from "../services/satuan-cutoff";
 import { reportReturn } from "../services/return-intake";
 import { submitPublicOrder } from "../services/public-order";
+import { sendWhatsAppMessage } from "../services/whatsapp";
 
 export const publicOrdersRouter = new Hono();
 
@@ -164,6 +165,13 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
 
   if (!result.ok) {
     return c.json({ success: false, message: result.message }, result.status);
+  }
+
+  // Trigger notifikasi WhatsApp non-blocking ke orang tua
+  const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
+  if (st?.parentPhone) {
+    const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: Rp ${result.data.totalAmount.toLocaleString("id-ID")}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
+    sendWhatsAppMessage(st.parentPhone, waText).catch((e) => console.error("[WA error]", e));
   }
 
   return c.json({

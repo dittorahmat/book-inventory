@@ -1,640 +1,142 @@
-import { useState, useEffect, useCallback } from "react";
-import { School } from "../types";
-import { formatRupiah } from "../lib/transfer-pricing";
-import { buildQuery, getJson, postJson, delJson } from "../lib/api";
-import { 
-  Search, 
-  RefreshCw, 
-  Award, 
-  Truck, 
-  Printer, 
-  X,
-  Trash2
-} from "lucide-react";
-
-interface StudentOrder {
-  id: string;
-  orderNumber: string;
-  studentId: string;
-  studentName: string;
-  nis: string;
-  gradeLevel: string;
-  parentName?: string;
-  parentEmail?: string;
-  parentPhone?: string;
-  schoolId: string;
-  packageId?: string;
-  packageName?: string;
-  packageCode?: string;
-  orderType: "regular" | "scholarship";
-  paymentStatus: "unpaid" | "partial" | "paid" | "scholarship_pending" | "scholarship_approved" | "scholarship_rejected";
-  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress";
-  totalAmount: number;
-  paidAmount: number;
-  handoverDeliveryNumber?: string;
-  handoverDate?: string;
-  handoverRecipient?: string;
-  scholarshipProofUrl?: string;
-  notes?: string;
-  createdAt: string;
-}
+import { useState } from "react";
+import type { School } from "../types";
+import { Search, RefreshCw, AlertCircle } from "lucide-react";
+import { useStudentOrders } from "../components/orders/useStudentOrders";
+import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
+import { CashierPaymentModal } from "../components/orders/CashierPaymentModal";
+import { ScholarshipApprovalModal } from "../components/orders/ScholarshipApprovalModal";
+import { OrderHandoverModal } from "../components/orders/OrderHandoverModal";
+import { FinanceDiscretionModal } from "../components/orders/FinanceDiscretionModal";
+import type { StudentOrder } from "../components/orders/order-types";
 
 interface StudentOrdersViewProps {
   activeSchool: School | null;
 }
 
 export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
-  const [orders, setOrders] = useState<StudentOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState("all");
-  const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
+  const {
+    filteredOrders,
+    isLoading,
+    searchQuery,
+    setSearchQuery,
+    paymentFilter,
+    setPaymentFilter,
+    fulfillmentFilter,
+    setFulfillmentFilter,
+    errorMsg,
+    loadOrders,
+    removeOrder,
+  } = useStudentOrders(activeSchool?.id ?? null);
 
-  // Modals
   const [activePaymentOrder, setActivePaymentOrder] = useState<StudentOrder | null>(null);
-  const [activeHandoverOrder, setActiveHandoverOrder] = useState<StudentOrder | null>(null);
   const [activeScholarshipOrder, setActiveScholarshipOrder] = useState<StudentOrder | null>(null);
-
-  // Form states
-  const [cashierTransferAmount, setCashierTransferAmount] = useState(0);
-  const [cashierBookAllocation, setCashierBookAllocation] = useState(0);
-  const [cashierBankName, setCashierBankName] = useState("BCA");
-  const [cashierRefNo, setCashierRefNo] = useState("");
-  const [handoverRecipient, setHandoverRecipient] = useState("");
-  const [handoverNotes, setHandoverNotes] = useState("");
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const loadOrders = useCallback(async () => {
-    if (!activeSchool) return;
-    setIsLoading(true);
-    try {
-      setOrders(
-        await getJson<StudentOrder[]>(
-          buildQuery("/api/student-orders", { schoolId: activeSchool.id }),
-          "Gagal memuat pesanan siswa."
-        )
-      );
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Gagal memuat pesanan siswa.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeSchool]);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
-  const filteredOrders = orders.filter((o) => {
-    const matchesSearch =
-      o.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.nis.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesPayment = paymentFilter === "all" || o.paymentStatus === paymentFilter;
-    const matchesFulfillment = fulfillmentFilter === "all" || o.fulfillmentStatus === fulfillmentFilter;
-
-    return matchesSearch && matchesPayment && matchesFulfillment;
-  });
-
-  // Cashier Payment Submit
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePaymentOrder) return;
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      await postJson(
-        `/api/payments/orders/${activePaymentOrder.id}/pay`,
-        {
-          transferAmount: cashierTransferAmount,
-          bookAllocationAmount: cashierBookAllocation,
-          bankName: cashierBankName,
-          referenceNumber: cashierRefNo,
-        },
-        "Gagal mencatat pembayaran"
-      );
-      setActivePaymentOrder(null);
-      loadOrders();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Scholarship Action
-  const handleScholarshipAction = async (action: "approve" | "reject") => {
-    if (!activeScholarshipOrder) return;
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      await postJson(
-        `/api/payments/orders/${activeScholarshipOrder.id}/scholarship`,
-        { action },
-        "Gagal memproses approval"
-      );
-      setActiveScholarshipOrder(null);
-      loadOrders();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Handover Submit
-  const handleHandoverSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeHandoverOrder) return;
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      await postJson(
-        `/api/student-orders/${activeHandoverOrder.id}/handover`,
-        {
-          recipientName: handoverRecipient,
-          notes: handoverNotes,
-        },
-        "Gagal memproses serah terima"
-      );
-      setActiveHandoverOrder(null);
-      loadOrders();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const [activeHandoverOrder, setActiveHandoverOrder] = useState<StudentOrder | null>(null);
+  const [activeDiscretionOrder, setActiveDiscretionOrder] = useState<StudentOrder | null>(null);
 
   return (
-    <div className="space-y-5">
-      {/* Editorial Header */}
-      <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-md">
-              Fulfillment & Kasir
-            </span>
-            <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Pilih Cabang"}</span>
-          </div>
-          <h1 className="text-xl font-bold text-[#050505] tracking-tight mt-1">
-            Matriks Pemesanan Siswa & Serah Terima Buku
-          </h1>
-          <p className="text-xs text-[#65676B] max-w-2xl mt-0.5">
-            Pelacakan status murid (pembayaran lunas/parsial/beasiswa) dan status penyerahan fisik paket buku (surat jalan serah terima).
+          <h1 className="text-base sm:text-lg font-bold text-[#050505]">Pesanan Buku Siswa</h1>
+          <p className="text-xs text-[#65676B]">
+            Kelola transaksi, status bayar & serah terima buku &bull; {activeSchool?.name || "Semua Sekolah"}
           </p>
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => loadOrders()}
-            className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={loadOrders}
+          className="px-3.5 py-2 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-[#1877F2] ${isLoading ? "animate-spin" : ""}`} />
+          <span>Refresh Data</span>
+        </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      {errorMsg && !activePaymentOrder && !activeHandoverOrder && !activeScholarshipOrder && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center justify-between gap-3">
-          <span>{errorMsg}</span>
-          <button
-            type="button"
-            onClick={() => { setErrorMsg(null); loadOrders(); }}
-            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
-          >
-            Coba Lagi
-          </button>
-        </div>
-      )}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input
             type="text"
-            placeholder="Cari murid, NIS, no. pesanan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] placeholder-[#65676B] focus:outline-hidden focus:border-[#1877F2]"
+            placeholder="Cari nama murid, NIS, atau nomor order..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
           />
         </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-          <select
-            value={paymentFilter}
-            onChange={(e) => setPaymentFilter(e.target.value)}
-            className="px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-          >
-            <option value="all">Semua Status Bayar</option>
-            <option value="unpaid">Belum Bayar (Unpaid)</option>
-            <option value="partial">Cicilan (Partial)</option>
-            <option value="paid">Lunas (Paid)</option>
-            <option value="scholarship_pending">Beasiswa (Menunggu Verifikasi)</option>
-            <option value="scholarship_approved">Beasiswa (Approved 100%)</option>
-          </select>
-
-          <select
-            value={fulfillmentFilter}
-            onChange={(e) => setFulfillmentFilter(e.target.value)}
-            className="px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-          >
-            <option value="all">Semua Status Serah</option>
-            <option value="waiting_preparation">Belum Diambil</option>
-            <option value="ready_for_pickup">Siap Diambil</option>
-            <option value="picked_up">Sudah Ambil (Selesai)</option>
-            <option value="return_in_progress">Retur Cacat</option>
-          </select>
-        </div>
+        <select
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value)}
+          className="px-3 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
+        >
+          <option value="all">Semua Status Bayar</option>
+          <option value="unpaid">Belum Bayar</option>
+          <option value="partial">Cicilan (Parsial)</option>
+          <option value="paid">Lunas</option>
+          <option value="scholarship_pending">Verifikasi Beasiswa</option>
+        </select>
+        <select
+          value={fulfillmentFilter}
+          onChange={(e) => setFulfillmentFilter(e.target.value)}
+          className="px-3 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
+        >
+          <option value="all">Semua Status Buku</option>
+          <option value="waiting_preparation">Belum Diambil</option>
+          <option value="picked_up">Sudah Diambil</option>
+        </select>
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="py-3 px-4">Murid & No. Pesanan</th>
-                <th className="py-3 px-4">Paket Buku</th>
-                <th className="py-3 px-4">Status Pembayaran</th>
-                <th className="py-3 px-4">Status Fisik Buku</th>
-                <th className="py-3 px-4 text-right">Aksi Operasional</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E6EB]">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-[#65676B]">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-1 text-[#1877F2]" />
-                    Memuat daftar pemesanan murid...
-                  </td>
-                </tr>
-              ) : filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-[#65676B]">
-                    Tidak ada pesanan murid yang sesuai filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredOrders.map((o) => {
-                  const isPaidOrScholarship =
-                    o.paymentStatus === "paid" || o.paymentStatus === "scholarship_approved";
-                  const isPickedUp = o.fulfillmentStatus === "picked_up";
-
-                  return (
-                    <tr key={o.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-sm text-[#050505]">{o.studentName}</div>
-                        <div className="text-[11px] text-[#65676B] flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[10px]">
-                            {o.nis}
-                          </span>
-                          <span>&bull;</span>
-                          <span>Kelas {o.gradeLevel}</span>
-                          <span>&bull;</span>
-                          <span className="font-mono text-[10px] text-[#1877F2]">{o.orderNumber}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-medium text-[#050505]">{o.packageName || "Paket Khusus"}</div>
-                        <div className="text-[11px] text-[#65676B]">
-                          Tagihan: <span className="font-semibold text-[#050505]">{formatRupiah(o.totalAmount)}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col items-start gap-1">
-                          {o.paymentStatus === "paid" && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              LUNAS ({formatRupiah(o.paidAmount)})
-                            </span>
-                          )}
-                          {o.paymentStatus === "partial" && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                              CICILAN (Terbayar: {formatRupiah(o.paidAmount)})
-                            </span>
-                          )}
-                          {o.paymentStatus === "unpaid" && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
-                              BELUM BAYAR
-                            </span>
-                          )}
-                          {o.paymentStatus === "scholarship_pending" && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                              <Award className="w-3 h-3" /> BEASISWA PENDING
-                            </span>
-                          )}
-                          {o.paymentStatus === "scholarship_approved" && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1">
-                              <Award className="w-3 h-3" /> BEASISWA 100% (FREE)
-                            </span>
-                          )}
-
-                          {o.orderType === "regular" && o.paymentStatus !== "paid" && (
-                            <button
-                              onClick={() => {
-                                setActivePaymentOrder(o);
-                                setCashierTransferAmount(o.totalAmount - o.paidAmount);
-                                setCashierBookAllocation(o.totalAmount - o.paidAmount);
-                              }}
-                              className="text-[11px] text-[#1877F2] hover:underline font-semibold"
-                            >
-                              + Verifikasi Bayar
-                            </button>
-                          )}
-
-                          {o.paymentStatus === "scholarship_pending" && (
-                            <button
-                              onClick={() => setActiveScholarshipOrder(o)}
-                              className="text-[11px] text-purple-700 hover:underline font-semibold"
-                            >
-                              Periksa Bukti Beasiswa &rarr;
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        {isPickedUp ? (
-                          <div>
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              SUDAH DIAMBIL
-                            </span>
-                            <div className="text-[10px] font-mono text-[#65676B] mt-1">
-                              {o.handoverDeliveryNumber}
-                            </div>
-                            <div className="text-[10px] text-[#65676B]">
-                              Penerima: {o.handoverRecipient || "-"}
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gray-100 text-gray-700">
-                              BELUM DIAMBIL
-                            </span>
-                            <div className="text-[10px] text-[#65676B] mt-0.5">
-                              {isPaidOrScholarship ? "Siap diserahkan" : "Menunggu pelunasan"}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {!isPickedUp ? (
-                            <button
-                              onClick={() => {
-                                setActiveHandoverOrder(o);
-                                setHandoverRecipient(o.parentName || o.studentName);
-                              }}
-                              className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>Serahkan Buku</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => window.print()}
-                              className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
-                              title="Cetak Surat Jalan Serah Terima"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-[#65676B]" />
-                              <span>Surat Jalan</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (window.confirm(`Hapus pesanan ${o.orderNumber} (${o.studentName})? Data pesanan akan dihapus dari sistem.`)) {
-                                try {
-                                  await delJson(`/api/student-orders/${o.id}`, "Gagal menghapus pesanan.");
-                                  alert(`Pesanan ${o.orderNumber} berhasil dihapus.`);
-                                  loadOrders();
-                                } catch (err) {
-                                  alert(err instanceof Error ? err.message : "Gagal menghapus pesanan.");
-                                }
-                              }
-                            }}
-                            title="Hapus pesanan siswa"
-                            className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+      {errorMsg && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
         </div>
-      </div>
+      )}
 
-      {/* CASHIER VERIFY PAYMENT MODAL */}
+      {isLoading ? (
+        <div className="bg-white rounded-2xl border border-[#E4E6EB] p-10 text-center text-xs text-[#65676B]">
+          Memuat data pesanan buku siswa...
+        </div>
+      ) : (
+        <StudentOrdersTable
+          orders={filteredOrders}
+          onOpenPayment={setActivePaymentOrder}
+          onOpenScholarship={setActiveScholarshipOrder}
+          onOpenHandover={setActiveHandoverOrder}
+          onOpenDiscretion={setActiveDiscretionOrder}
+          onDeleteOrder={removeOrder}
+        />
+      )}
+
       {activePaymentOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#050505]">Verifikasi Pembayaran Kasir</h3>
-              <button onClick={() => setActivePaymentOrder(null)} className="text-[#65676B] hover:text-[#050505]">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleRecordPayment} className="p-6 space-y-4 text-xs">
-              {errorMsg && <div className="text-red-600 bg-red-50 p-2 rounded-lg">{errorMsg}</div>}
-              <div>
-                <span className="text-[#65676B]">Murid:</span>{" "}
-                <span className="font-bold text-[#050505]">{activePaymentOrder.studentName}</span>
-              </div>
-              <div className="flex justify-between bg-[#F0F2F5] p-3 rounded-xl">
-                <span>Total Tagihan: {formatRupiah(activePaymentOrder.totalAmount)}</span>
-                <span className="font-bold text-[#1877F2]">
-                  Sisa: {formatRupiah(activePaymentOrder.totalAmount - activePaymentOrder.paidAmount)}
-                </span>
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Nominal Struk Transfer Bank (Rp)</label>
-                <input
-                  type="number"
-                  required
-                  placeholder="0"
-                  value={cashierTransferAmount === 0 ? "" : cashierTransferAmount}
-                  onChange={(e) => setCashierTransferAmount(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-semibold"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Alokasi Khusus untuk Buku Ini (Rp)</label>
-                <input
-                  type="number"
-                  required
-                  placeholder="0"
-                  value={cashierBookAllocation === 0 ? "" : cashierBookAllocation}
-                  onChange={(e) => setCashierBookAllocation(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-bold text-[#1877F2]"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Bank</label>
-                <input
-                  type="text"
-                  value={cashierBankName}
-                  onChange={(e) => setCashierBankName(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Nomor Referensi Transfer</label>
-                <input
-                  type="text"
-                  value={cashierRefNo}
-                  onChange={(e) => setCashierRefNo(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
-                  placeholder="TRX-129381923"
-                />
-              </div>
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActivePaymentOrder(null)}
-                  className="px-4 py-2 bg-[#F0F2F5] rounded-xl font-semibold text-[#65676B]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-[#1877F2] text-white rounded-xl font-semibold"
-                >
-                  {isSubmitting ? "Menyimpan..." : "Konfirmasi Pembayaran"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CashierPaymentModal
+          order={activePaymentOrder}
+          onClose={() => setActivePaymentOrder(null)}
+          onSuccess={loadOrders}
+        />
       )}
 
-      {/* SCHOLARSHIP APPROVAL MODAL */}
       {activeScholarshipOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#050505]">Pemeriksaan Surat Beasiswa</h3>
-              <button onClick={() => setActiveScholarshipOrder(null)} className="text-[#65676B] hover:text-[#050505]">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4 text-xs">
-              <div>
-                <span className="text-[#65676B]">Murid:</span>{" "}
-                <span className="font-bold text-[#050505]">{activeScholarshipOrder.studentName}</span>
-              </div>
-              {activeScholarshipOrder.scholarshipProofUrl ? (
-                <div>
-                  <span className="font-semibold block mb-1">Lampiran Berkas:</span>
-                  <img
-                    src={activeScholarshipOrder.scholarshipProofUrl}
-                    alt="Bukti beasiswa"
-                    className="h-44 w-full object-contain rounded-xl border border-[#E4E6EB] bg-gray-50 p-1"
-                  />
-                </div>
-              ) : (
-                <div className="p-4 bg-amber-50 text-amber-700 rounded-xl">
-                  Tidak ada foto bukti beasiswa yang dilampirkan.
-                </div>
-              )}
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleScholarshipAction("reject")}
-                  className="px-4 py-2 bg-red-50 text-red-700 rounded-xl font-semibold hover:bg-red-100"
-                >
-                  Tolak Beasiswa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScholarshipAction("approve")}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700"
-                >
-                  Setujui Beasiswa (100% Free)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ScholarshipApprovalModal
+          order={activeScholarshipOrder}
+          onClose={() => setActiveScholarshipOrder(null)}
+          onSuccess={loadOrders}
+        />
       )}
 
-      {/* HANDOVER SURAT JALAN MODAL */}
       {activeHandoverOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#050505]">Serah Terima Buku & Terbitkan Surat Jalan</h3>
-              <button onClick={() => setActiveHandoverOrder(null)} className="text-[#65676B] hover:text-[#050505]">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleHandoverSubmit} className="p-6 space-y-4 text-xs">
-              {errorMsg && (
-                <div className="text-red-700 bg-red-50 border border-red-200 p-3 rounded-xl font-medium">
-                  {errorMsg}
-                </div>
-              )}
-              <div>
-                <span className="text-[#65676B]">Murid:</span>{" "}
-                <span className="font-bold text-[#050505]">{activeHandoverOrder.studentName}</span>
-              </div>
-              <div>
-                <span className="text-[#65676B]">Paket:</span>{" "}
-                <span className="font-semibold text-[#050505]">{activeHandoverOrder.packageName}</span>
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Nama Penerima Buku (Orang Tua / Siswa)</label>
-                <input
-                  type="text"
-                  required
-                  value={handoverRecipient}
-                  onChange={(e) => setHandoverRecipient(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
-                  placeholder="Contoh: Hendra Wahyudi (Ayah)"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Catatan Serah Terima (Opsional)</label>
-                <textarea
-                  rows={2}
-                  value={handoverNotes}
-                  onChange={(e) => setHandoverNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
-                  placeholder="Diserahkan dalam kondisi baik dan tersegel rapi..."
-                />
-              </div>
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveHandoverOrder(null)}
-                  className="px-4 py-2 bg-[#F0F2F5] rounded-xl font-semibold text-[#65676B]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-[#1877F2] text-white rounded-xl font-semibold flex items-center gap-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? "Memproses..." : "Konfirmasi & Terbitkan Surat Jalan"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <OrderHandoverModal
+          order={activeHandoverOrder}
+          onClose={() => setActiveHandoverOrder(null)}
+          onSuccess={loadOrders}
+        />
+      )}
+
+      {activeDiscretionOrder && (
+        <FinanceDiscretionModal
+          order={activeDiscretionOrder}
+          onClose={() => setActiveDiscretionOrder(null)}
+          onSuccess={loadOrders}
+        />
       )}
     </div>
   );

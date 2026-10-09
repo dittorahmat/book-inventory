@@ -7,6 +7,8 @@ import type { SchoolOption } from "../components/students/students-api";
 import { StudentTable } from "../components/students/StudentTable";
 import { VerificationQueue } from "../components/students/VerificationQueue";
 import { StudentFormModal } from "../components/students/StudentFormModal";
+import { StudentBulkUploadModal } from "../components/students/StudentBulkUploadModal";
+import { Upload } from "lucide-react";
 
 interface StudentsViewProps {
   activeSchool: School | null;
@@ -15,6 +17,7 @@ interface StudentsViewProps {
 export function StudentsView({ activeSchool }: StudentsViewProps) {
   const s = useStudents(activeSchool?.id ?? null);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [showBulkUpload, setShowBulkUpload] = useState<boolean>(false);
   const { setError } = s;
 
   useEffect(() => {
@@ -39,14 +42,24 @@ export function StudentsView({ activeSchool }: StudentsViewProps) {
             Kelola master siswa &bull; {activeSchool?.name || "Semua Sekolah"}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={s.openCreate}
-          className="px-4 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Siswa</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowBulkUpload(true)}
+            className="px-3.5 py-2.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Upload className="w-4 h-4 text-[#1877F2]" />
+            <span>Bulk Upload</span>
+          </button>
+          <button
+            type="button"
+            onClick={s.openCreate}
+            className="px-4 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tambah Siswa</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -120,6 +133,16 @@ export function StudentsView({ activeSchool }: StudentsViewProps) {
           saving={s.isSaving}
           onClose={() => s.setShowForm(false)}
           onSave={s.save}
+        />
+      )}
+
+      {showBulkUpload && (
+        <StudentBulkUploadModal
+          schoolId={activeSchool?.id ?? (schools[0]?.id || null)}
+          onClose={() => setShowBulkUpload(false)}
+          onSuccess={() => {
+            s.load();
+          }}
         />
       )}
     </div>

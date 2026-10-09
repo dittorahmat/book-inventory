@@ -248,4 +248,56 @@ describe("Students admin API", () => {
     const delRes2 = await studentsRouter.request(`/${st.id}`, { method: "DELETE" });
     expect(delRes2.status).toBe(200);
   });
+
+  it("handles bulk-import with upsert logic", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-bulk-${stamp}`;
+    await seedSchool(schoolId, `ALW-BLK-${stamp}`);
+
+    // Pre-insert one student
+    await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId,
+        nis: `NIS-BULK-1-${stamp}`,
+        name: "Nama Lama",
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+      }),
+    });
+
+    // Bulk import: 1 existing NIS (to update), 1 new NIS (to insert)
+    const bulkRes = await studentsRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId,
+        students: [
+          {
+            nis: `NIS-BULK-1-${stamp}`,
+            name: "Nama Baru Terupdate",
+            gradeLevel: "2",
+            academicYear: "2026/2027",
+            gender: "male",
+            parentPhone: "+6281111111",
+          },
+          {
+            nis: `NIS-BULK-2-${stamp}`,
+            name: "Siswa Baru",
+            gradeLevel: "3",
+            academicYear: "2026/2027",
+            gender: "female",
+            parentPhone: "+6282222222",
+          },
+        ],
+      }),
+    });
+
+    expect(bulkRes.status).toBe(200);
+    const bulkJson = await bulkRes.json();
+    expect(bulkJson.success).toBe(true);
+    expect(bulkJson.data.insertedCount).toBe(1);
+    expect(bulkJson.data.updatedCount).toBe(1);
+  });
 });

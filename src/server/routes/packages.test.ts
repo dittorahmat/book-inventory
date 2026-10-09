@@ -11,12 +11,12 @@ describe("Packages & Bundling/Unbundling API", () => {
     const pkgCode = `PKG-TEST-${Date.now()}`;
     const now = new Date().toISOString();
 
-    // 1. Setup school & books
+    // 1. Setup school & books (tipe warehouse karena perakitan eksklusif di Gudang)
     await db.insert(schools).values({
       id: schoolId,
-      name: "Test Package School",
+      name: "Test Package Warehouse",
       code: `TPS-${Date.now()}`,
-      type: "branch",
+      type: "warehouse",
       createdAt: now,
       updatedAt: now,
     }).onConflictDoNothing();
@@ -156,7 +156,7 @@ describe("Packages & Bundling/Unbundling API", () => {
       id: schoolId,
       name: "Sekolah Gagal Rakit",
       code: `TGF-${stamp}`,
-      type: "branch",
+      type: "warehouse",
       createdAt: now,
       updatedAt: now,
     }).onConflictDoNothing();
@@ -215,7 +215,7 @@ describe("Packages & Bundling/Unbundling API", () => {
       id: schoolId,
       name: "Sekolah Hapus Paket",
       code: `TDL-${stamp}`,
-      type: "branch",
+      type: "warehouse",
       createdAt: now,
       updatedAt: now,
     }).onConflictDoNothing();

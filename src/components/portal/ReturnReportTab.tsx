@@ -56,10 +56,10 @@ export function ReturnReportTab({
     <div className="space-y-6">
       <div className="text-center mb-6">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#050505]">
-          Layanan Pengaduan & Retur Buku Cacat
+          Layanan Permohonan Retur & Refund Orang Tua
         </h1>
         <p className="text-xs text-[#65676B] mt-1 max-w-lg mx-auto">
-          Buku yang diterima cacat produksi (halaman sobek, cetakan buram, jilid lepas) dapat diganti dengan copy fisik baru secara gratis.
+          Buku yang cacat produksi atau permohonan pengembalian dana (refund) dapat diajukan di sini dan diverifikasi oleh tim logistik Gudang Pusat.
         </p>
       </div>
 

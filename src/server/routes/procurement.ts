@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
-import { sendPo, resolveWarehouseTarget, createPurchaseOrder, receivePurchaseOrder, withSendReadiness } from "../services/po-lifecycle";
+import { sendPo, resolveWarehouseTarget, createPurchaseOrder, withSendReadiness } from "../services/po-lifecycle";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -42,6 +42,9 @@ const createPOSchema = z.object({
 });
 
 const receivePOSchema = z.object({
+  deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan supplier wajib diisi"),
+  receivedDate: z.string().optional(),
+  notes: z.string().optional(),
   receivedItems: z.array(
     z.object({
       poItemId: z.string().min(1),
@@ -184,14 +187,14 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
   }
 });
 
-// 4. POST Receive Goods from PO into Loose Inventory
+// 4. POST Receive Goods from PO with Delivery Note (Surat Jalan)
 procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receivePOSchema), async (c) => {
   try {
     const actor = await resolveRequestActor(c);
     requireLogisticsRole(actor);
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
-    const { receivedItems } = c.req.valid("json");
+    const body = c.req.valid("json");
 
     const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
     if (!po) {
@@ -199,16 +202,38 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
     }
     assertLocationAllowed(actor, po.targetSchoolId, locations);
 
-    const result = await receivePurchaseOrder(poId, receivedItems);
-    if (!result.ok) {
-      return c.json({ success: false, message: result.message }, result.status);
+    const { recordPoReceipt } = await import("../services/po-receipt");
+    const result = await recordPoReceipt(poId, body);
+    if (!result.ok || !result.data) {
+      return c.json({ success: false, message: result.message || "Gagal mencatat penerimaan" }, (result as any).status || 400);
     }
 
     return c.json({
       success: true,
-      message: `Berhasil menerima ${result.data.totalReceivedThisBatch} eksamplar buku ke dalam stok satuan`,
+      message: `Surat Jalan ${body.deliveryNoteNumber} tercatat: berhasil menerima ${result.data.totalReceivedThisBatch} eksemplar buku`,
       data: result.data,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 4b. GET Delivery Receipts History for PO
+procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
+  try {
+    const actor = await resolveRequestActor(c);
+    const locations = await loadLocationIds(db);
+    const poId = c.req.param("id");
+
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    if (!po) {
+      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.targetSchoolId, locations);
+
+    const { getPoReceiptHistory } = await import("../services/po-receipt");
+    const history = await getPoReceiptHistory(poId);
+    return c.json({ success: true, data: history });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

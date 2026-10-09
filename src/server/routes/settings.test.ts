@@ -148,4 +148,26 @@ describe("Settings SMTP jujur (masking + provider)", () => {
     expect(json.data.simulated).toBe(true);
     expect(json.message).toMatch(/disimulasikan/);
   });
+
+  it("GET and POST /whatsapp saves configuration and masks apiKey", async () => {
+    const postRes = await settingsRouter.request("/whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gatewayUrl: "https://wa.test.internal/send",
+        apiKey: "secret-token-123",
+        senderNumber: "628123456789",
+        isEnabled: true,
+      }),
+    });
+    expect(postRes.status).toBe(200);
+
+    const getRes = await settingsRouter.request("/whatsapp", { method: "GET" });
+    expect(getRes.status).toBe(200);
+    const getJson = await getRes.json();
+    expect(getJson.success).toBe(true);
+    expect(getJson.data.gatewayUrl).toBe("https://wa.test.internal/send");
+    expect(getJson.data.apiKey).toBe("********");
+    expect(getJson.data.isConfigured).toBe(true);
+  });
 });
