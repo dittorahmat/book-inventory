@@ -160,7 +160,7 @@ publicOrdersRouter.post("/register-student", zValidator("json", createNewStudent
 // 3. Submit Order (Regular or Scholarship 100%)
 publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async (c) => {
   const body = c.req.valid("json");
-  const result = await submitPublicOrder(body);
+  const result = await submitPublicOrder(body, { database: db });
 
   if (!result.ok) {
     return c.json({ success: false, message: result.message }, result.status);
