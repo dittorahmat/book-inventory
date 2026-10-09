@@ -290,7 +290,7 @@ export async function receiveShipment(
     ),
   ];
   const looseWrites = looseReceipts.map((r) => {
-    const patch: any =
+    const patch: Partial<typeof bookItems.$inferInsert> =
       r.condition === "missing"
         ? { status: "lost", updatedAt: now }
         : r.condition === "damaged"
@@ -304,7 +304,7 @@ export async function receiveShipment(
       database.delete(packageItems).where(inArray(packageItems.id, ids))
     ),
     ...bundleReceipts.filter((r) => r.condition !== "missing").map((r) => {
-      const patch: any =
+      const patch: Partial<typeof packageItems.$inferInsert> =
         r.condition === "damaged"
           ? { currentSchoolId: shipment.toSchoolId, status: "in_stock", notes: r.notes ? `Rusak saat transit: ${r.notes}` : "Rusak saat transit", updatedAt: now }
           : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };

@@ -13,6 +13,8 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
   const {
     shipments,
     allSchools,
+    schoolsError,
+    fetchSchools,
     availableItems,
     selectedItems,
     bundles,
@@ -99,6 +101,18 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
                   </option>
                 ))}
             </select>
+            {schoolsError && (
+              <div className="flex items-center justify-between gap-2 mt-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5">
+                <p className="text-xs text-red-700">{schoolsError}</p>
+                <button
+                  type="button"
+                  onClick={fetchSchools}
+                  className="shrink-0 text-xs font-bold text-red-700 underline underline-offset-2 active:scale-[0.98]"
+                >
+                  Coba lagi
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

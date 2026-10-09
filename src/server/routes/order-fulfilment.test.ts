@@ -533,4 +533,55 @@ describe("T3 return state machine (report/resolve share guard, double-resolve id
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("failed report compensates uploaded photo (no orphan) via injected storage", async () => {
+    const { MemoryStorageService } = await import("../../services/storage");
+    class TrackingStorage extends MemoryStorageService {
+      uploads: string[] = [];
+      deletes: string[] = [];
+      override async upload(key: string, file: Uint8Array | ArrayBuffer | Buffer, contentType: string): Promise<string> {
+        this.uploads.push(key);
+        return super.upload(key, file, contentType);
+      }
+      override async delete(key: string): Promise<void> {
+        this.deletes.push(key);
+        return super.delete(key);
+      }
+    }
+    const schoolId = await seedSchool("t3orphan");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("t3orphan");
+    const orderId = `ord-t3-orphan-${stamp()}`;
+    const returnId = `ret-t3-orphan-${stamp()}`;
+    const storage = new TrackingStorage();
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      const input = {
+        orderId, studentId, defectiveBookId: bookId, reason: "robek",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr", source: "staff" as const,
+      };
+      const first = await reportReturn(db, input, { storage, generateId: () => returnId });
+      expect(first.ok).toBe(true);
+
+      const second = await reportReturn(db, input, { storage, generateId: () => returnId });
+      expect(second.ok).toBe(false);
+      if (second.ok) return;
+      expect(second.status).toBe(400);
+      expect(storage.uploads).toHaveLength(2);
+      expect(storage.deletes).toHaveLength(1);
+      expect(storage.deletes[0]).toBe(storage.uploads[1]);
+      expect(await storage.getFile(storage.uploads[1])).toBeNull();
+      expect(await storage.getFile(storage.uploads[0])).not.toBeNull();
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });
