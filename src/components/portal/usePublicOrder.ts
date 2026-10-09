@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { resolveLockedPackage } from "../../lib/resolve-package";
-import { effectiveSellPrice } from "../../lib/book-pricing";
+import { calcLooseOrderTotal } from "../../lib/book-pricing";
 import {
   searchStudents,
   registerStudent,
@@ -79,10 +79,7 @@ export function usePublicOrder() {
   const [packageMode, setPackageMode] = useState(true);
   const [looseSelections, setLooseSelections] = useState<LooseSelection[]>([]);
 
-  const looseTotal = looseSelections.reduce((sum, sel) => {
-    const book = satuanBooks.find((b) => b.id === sel.bookId);
-    return sum + effectiveSellPrice(book ?? {}) * sel.quantity;
-  }, 0);
+  const looseTotal = calcLooseOrderTotal(looseSelections, satuanBooks);
 
   // Payment details (Regular)
   const [paymentChoice, setPaymentChoice] = useState<"full" | "partial">("full");

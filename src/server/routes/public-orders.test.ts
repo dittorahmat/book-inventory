@@ -1,8 +1,19 @@
 import { describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { publicOrdersRouter } from "./public-orders";
+import { submitPublicOrder } from "../services/public-order";
+import { MemoryStorageService } from "../../services/storage";
 import { db } from "../../db";
-import { schools, students, bookPackages } from "../../db/schema";
+import {
+  bookItems,
+  books,
+  bookPackages,
+  orderPayments,
+  schools,
+  studentBookOrders,
+  studentOrderItems,
+  students,
+} from "../../db/schema";
 
 describe("Public Orders & Student Search API", () => {
   it("searches student with promotion detection and submits order with payment or scholarship", async () => {
@@ -127,7 +138,11 @@ describe("Public Orders & Student Search API", () => {
     expect(lookupJson.data.length).toBeGreaterThan(0);
     expect(lookupJson.data[0].studentName).toBe("Hendra Wahyudi");
 
-    // 8. Test Public Return Submission for Defective Book
+    // 8. Test Public Return Submission for Defective Book (T3: report requires picked_up)
+    await db
+      .update(studentBookOrders)
+      .set({ fulfillmentStatus: "picked_up", updatedAt: now })
+      .where(eq(studentBookOrders.id, orderJson.data.order.id));
     const returnSubmitRes = await publicOrdersRouter.request("/submit-return", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -396,5 +411,458 @@ describe("Public Orders & Student Search API", () => {
     });
     expect(res.status).toBe(404);
     expect(((await res.json()) as { success: boolean }).success).toBe(false);
+  });
+});
+
+class TrackingStorage extends MemoryStorageService {
+  uploads: string[] = [];
+  deletes: string[] = [];
+  override async upload(
+    key: string,
+    file: Uint8Array | ArrayBuffer | Buffer,
+    contentType: string
+  ): Promise<string> {
+    this.uploads.push(key);
+    return super.upload(key, file, contentType);
+  }
+  override async delete(key: string): Promise<void> {
+    this.deletes.push(key);
+    return super.delete(key);
+  }
+}
+
+const openSatuan = () => async () => ({
+  academicYear: "2026/2027",
+  open: true,
+  todayWIB: "2026-10-09",
+  openFrom: "2026-01-01",
+  override: null,
+  reason: "Dibuka untuk test.",
+});
+
+describe("T6 public intake seam (injected db+storage, reserve-before-upload, orphan compensation)", () => {
+  it("writes loose order via injected adapters with deterministic ids and batch", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t6-${stamp}`;
+    const studentId = crypto.randomUUID();
+    const bookId = `book-t6-${stamp}`;
+    const orderId = `ord-t6-${stamp}`;
+    const orderNo = `ORD-T6-${stamp}`;
+    const now = new Date().toISOString();
+    const storage = new TrackingStorage();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: `T6 School ${stamp}`,
+      code: `T6-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `T6${String(stamp).slice(-6)}`,
+      name: `T6 Kid ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      parentName: "Ortu T6",
+      parentEmail: "t6@example.com",
+      parentPhone: "+628100000006",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-T6-${stamp}`,
+      title: `T6 Book ${stamp}`,
+      author: "Pengarang",
+      publisher: "Penerbit",
+      price: 50000,
+      sellPrice: 60000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookItems).values([
+      {
+        id: `bi-t6-a-${stamp}`,
+        bookId,
+        currentSchoolId: schoolId,
+        barcode: `T6-A-${stamp}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `bi-t6-b-${stamp}`,
+        bookId,
+        currentSchoolId: schoolId,
+        barcode: `T6-B-${stamp}`,
+        condition: "good",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    try {
+      let itemSeq = 0;
+      const result = await submitPublicOrder(
+        {
+          studentId,
+          looseItems: [{ bookId, quantity: 2 }],
+          orderType: "regular",
+          payment: {
+            transferAmount: 200000,
+            bookAllocationAmount: 120000,
+            bankName: "BCA",
+            paymentProofBase64: "data:image/jpeg;base64,dGVzdC1wcm9vZg==",
+          },
+        },
+        {
+          database: db,
+          storage,
+          now: () => now,
+          generateId: () => orderId,
+          generateOrderNumber: () => orderNo,
+          generateItemId: () => `oi-t6-${stamp}-${++itemSeq}`,
+          generatePaymentId: () => `pay-t6-${stamp}`,
+          getSatuanStatus: openSatuan(),
+        }
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.order.id).toBe(orderId);
+      expect(result.data.order.orderNumber).toBe(orderNo);
+      expect(result.data.totalAmount).toBe(120000);
+      expect(result.data.paidAmount).toBe(120000);
+      expect(result.data.paymentStatus).toBe("paid");
+
+      const items = await db
+        .select()
+        .from(studentOrderItems)
+        .where(eq(studentOrderItems.orderId, orderId));
+      expect(items).toHaveLength(1);
+      expect(items[0].unitPriceSnapshot).toBe(60000);
+
+      const payments = await db
+        .select()
+        .from(orderPayments)
+        .where(eq(orderPayments.orderId, orderId));
+      expect(payments).toHaveLength(1);
+      expect(payments[0].paymentProofUrl).toContain("/api/media/payments/");
+
+      const proof = payments[0].paymentProofUrl ?? "";
+      const proofKey = proof.replace("/api/media/", "");
+      expect(await storage.getFile(proofKey)).not.toBeNull();
+    } finally {
+      await db.delete(orderPayments).where(eq(orderPayments.orderId, orderId));
+      await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(bookItems).where(inArray(bookItems.id, [`bi-t6-a-${stamp}`, `bi-t6-b-${stamp}`]));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("reserves stock before upload: insufficient quantity returns 400 with zero uploads", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t6-short-${stamp}`;
+    const studentId = `std-t6-short-${stamp}`;
+    const bookId = `book-t6-short-${stamp}`;
+    const now = new Date().toISOString();
+    const storage = new TrackingStorage();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: `T6 Short School ${stamp}`,
+      code: `T6-SHORT-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `T6S${String(stamp).slice(-6)}`,
+      name: `T6 Short Kid ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      parentName: "Ortu T6",
+      parentEmail: "t6short@example.com",
+      parentPhone: "+628100000007",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-T6-SHORT-${stamp}`,
+      title: `T6 Short Book ${stamp}`,
+      author: "Pengarang",
+      publisher: "Penerbit",
+      price: 40000,
+      sellPrice: 45000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookItems).values({
+      id: `bi-t6-short-${stamp}`,
+      bookId,
+      currentSchoolId: schoolId,
+      barcode: `T6-SHORT-${stamp}`,
+      condition: "new",
+      status: "in_stock",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      const result = await submitPublicOrder(
+        {
+          studentId,
+          looseItems: [{ bookId, quantity: 5 }],
+          orderType: "regular",
+          payment: {
+            transferAmount: 500000,
+            bookAllocationAmount: 225000,
+            paymentProofBase64: "data:image/jpeg;base64,dGVzdC1wcm9vZg==",
+          },
+        },
+        {
+          database: db,
+          storage,
+          now: () => now,
+          generateId: () => `ord-t6-short-${stamp}`,
+          generateOrderNumber: () => `ORD-T6-SHORT-${stamp}`,
+          getSatuanStatus: openSatuan(),
+        }
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.status).toBe(400);
+      expect(result.message).toContain("Stok tidak cukup");
+      expect(storage.uploads).toHaveLength(0);
+
+      const leaked = await db
+        .select()
+        .from(studentBookOrders)
+        .where(eq(studentBookOrders.id, `ord-t6-short-${stamp}`));
+      expect(leaked).toHaveLength(0);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.id, `bi-t6-short-${stamp}`));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("compensates orphans: duplicate order number maps D1 error to 400 with no leftover objects", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t6-orphan-${stamp}`;
+    const studentId = `std-t6-orphan-${stamp}`;
+    const pkgId = `pkg-t6-orphan-${stamp}`;
+    const firstOrderId = `ord-t6-orphan-1-${stamp}`;
+    const secondOrderId = `ord-t6-orphan-2-${stamp}`;
+    const dupOrderNo = `ORD-T6-DUP-${stamp}`;
+    const now = new Date().toISOString();
+    const storage = new TrackingStorage();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: `T6 Orphan School ${stamp}`,
+      code: `T6-ORPHAN-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `T6O${String(stamp).slice(-6)}`,
+      name: `T6 Orphan Kid ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      parentName: "Ortu T6",
+      parentEmail: "t6orphan@example.com",
+      parentPhone: "+628100000008",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      code: `PKG-T6-ORPHAN-${stamp}`,
+      name: `Paket T6 Orphan ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      price: 1500000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      const first = await submitPublicOrder(
+        {
+          studentId,
+          packageId: pkgId,
+          orderType: "scholarship",
+          scholarshipProofBase64: "data:image/jpeg;base64,cHJvb2YtcGVydGFtYQ==",
+        },
+        {
+          database: db,
+          storage,
+          now: () => now,
+          generateId: () => firstOrderId,
+          generateOrderNumber: () => dupOrderNo,
+        }
+      );
+      expect(first.ok).toBe(true);
+      const uploadsAfterFirst = storage.uploads.length;
+      expect(uploadsAfterFirst).toBe(1);
+
+      const second = await submitPublicOrder(
+        {
+          studentId,
+          packageId: pkgId,
+          orderType: "scholarship",
+          scholarshipProofBase64: "data:image/jpeg;base64,cHJvb2Yta2VkdWE=",
+        },
+        {
+          database: db,
+          storage,
+          now: () => now,
+          generateId: () => secondOrderId,
+          generateOrderNumber: () => dupOrderNo,
+        }
+      );
+
+      expect(second.ok).toBe(false);
+      if (second.ok) return;
+      expect(second.status).toBe(400);
+      expect(second.message.length).toBeGreaterThan(0);
+
+      expect(storage.deletes.length).toBeGreaterThanOrEqual(1);
+      for (const key of storage.deletes) {
+        expect(await storage.getFile(key)).toBeNull();
+      }
+      const surviving = await db
+        .select()
+        .from(studentBookOrders)
+        .where(eq(studentBookOrders.orderNumber, dupOrderNo));
+      expect(surviving).toHaveLength(1);
+      expect(surviving[0].id).toBe(firstOrderId);
+    } finally {
+      await db
+        .delete(studentBookOrders)
+        .where(inArray(studentBookOrders.id, [firstOrderId, secondOrderId]));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("writes 30 loose lines in one chunked batch without N+1 failure", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t6-vol-${stamp}`;
+    const studentId = `std-t6-vol-${stamp}`;
+    const orderId = `ord-t6-vol-${stamp}`;
+    const now = new Date().toISOString();
+    const storage = new TrackingStorage();
+    const bookIds: string[] = Array.from({ length: 30 }, (_, i) => `book-t6-vol-${stamp}-${i}`);
+    const itemIds: string[] = Array.from({ length: 30 }, (_, i) => `bi-t6-vol-${stamp}-${i}`);
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: `T6 Volume School ${stamp}`,
+      code: `T6-VOL-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `T6V${String(stamp).slice(-6)}`,
+      name: `T6 Volume Kid ${stamp}`,
+      gradeLevel: "2",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      status: "active",
+      parentName: "Ortu T6",
+      parentEmail: "t6vol@example.com",
+      parentPhone: "+628100000009",
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [i, bookId] of bookIds.entries()) {
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-T6-VOL-${stamp}-${i}`,
+        title: `T6 Volume Book ${stamp}-${i}`,
+        author: "Pengarang",
+        publisher: "Penerbit",
+        price: 10000,
+        sellPrice: 10000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: itemIds[i],
+        bookId,
+        currentSchoolId: schoolId,
+        barcode: `T6-VOL-${stamp}-${i}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    try {
+      let itemSeq = 0;
+      const result = await submitPublicOrder(
+        {
+          studentId,
+          looseItems: bookIds.map((bookId) => ({ bookId, quantity: 1 })),
+          orderType: "regular",
+        },
+        {
+          database: db,
+          storage,
+          now: () => now,
+          generateId: () => orderId,
+          generateOrderNumber: () => `ORD-T6-VOL-${stamp}`,
+          generateItemId: () => `oi-t6-vol-${stamp}-${++itemSeq}`,
+          getSatuanStatus: openSatuan(),
+        }
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.totalAmount).toBe(300000);
+
+      const items = await db
+        .select()
+        .from(studentOrderItems)
+        .where(eq(studentOrderItems.orderId, orderId));
+      expect(items).toHaveLength(30);
+    } finally {
+      await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(bookItems).where(inArray(bookItems.id, itemIds));
+      await db.delete(books).where(inArray(books.id, bookIds));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 });

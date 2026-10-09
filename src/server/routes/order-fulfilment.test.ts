@@ -4,6 +4,7 @@ import {
   bookItems,
   bookPackageItems,
   bookPackages,
+  bookReturns,
   books,
   packageItems,
   schools,
@@ -11,7 +12,8 @@ import {
   students,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { handoverPackage } from "../services/order-fulfilment";
+import { handoverPackage, resolveReturn } from "../services/order-fulfilment";
+import { reportReturn } from "../services/return-intake";
 import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
 
 const now = new Date().toISOString();
@@ -204,6 +206,380 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
       await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
       await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("stock condition seam regression (T2)", () => {
+  it("resolveReturn auto-picks new-only replacement, ignores good/damaged", async () => {
+    const schoolId = await seedSchool("retseam");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("retseam");
+    const orderId = `ord-ret-${stamp()}`;
+    const returnId = `ret-${stamp()}`;
+    const newId = `bi-ret-new-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-RET-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "return_in_progress",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: newId, bookId, currentSchoolId: schoolId,
+        barcode: `RET-NEW-${stamp()}`, condition: "new", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: `bi-ret-good-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `RET-GOOD-${stamp()}`, condition: "good", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: `bi-ret-dmg-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `RET-DMG-${stamp()}`, condition: "damaged", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: returnId, orderId, studentId, defectiveBookId: bookId,
+        reason: "cacat cetak", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const result = await resolveReturn(db, returnId, { action: "replace" });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.replacementBookItemId).toBe(newId);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("assemble rejects good-only stock: kitting requires new via seam", async () => {
+    const schoolId = await seedSchool("kitseam");
+    const bookId = await seedBook("kitseam");
+    const packageId = await seedPackage("kitseam");
+    const bomId = `bom-seam-${stamp()}`;
+    try {
+      await db.insert(bookPackageItems).values({ id: bomId, packageId, bookId, quantity: 1, createdAt: now });
+      await db.insert(bookItems).values({
+        id: `bi-seam-good-${stamp()}`, bookId, currentSchoolId: schoolId,
+        barcode: `SEAM-GOOD-${stamp()}`, condition: "good", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+
+      const result = await assemblePackageBundles(packageId, schoolId, 1);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("T3 handover explicit-ID guard (stolen/reserved -> 400)", () => {
+  it("rejects stolen bundle from another school with 400", async () => {
+    const schoolA = await seedSchool("t3a");
+    const schoolB = await seedSchool("t3b");
+    const packageId = await seedPackage("t3stolen");
+    const bundleId = `pi-t3-stolen-${stamp()}`;
+    const orderId = `ord-t3-stolen-${stamp()}`;
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolB, barcode: `T3-STOLEN-${stamp()}`,
+        status: "in_stock", createdAt: now, updatedAt: now,
+      });
+      const studentId = await seedStudent(schoolA);
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId: schoolA, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000, createdAt: now, updatedAt: now,
+      });
+
+      const result = await handoverPackage(db, orderId, { recipientName: "Orang Tua", packageItemId: bundleId });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+      const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, bundleId));
+      expect(bundle.status).toBe("in_stock");
+      const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(order.fulfillmentStatus).toBe("waiting_preparation");
+
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+    } finally {
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolA));
+      await db.delete(schools).where(eq(schools.id, schoolB));
+    }
+  });
+
+  it("rejects reserved bundle with 400 via stock-buckets seam", async () => {
+    const schoolId = await seedSchool("t3res");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("t3res");
+    const bundleId = `pi-t3-res-${stamp()}`;
+    const orderId = `ord-t3-res-${stamp()}`;
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolId, barcode: `T3-RES-${stamp()}`,
+        status: "reserved", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000, createdAt: now, updatedAt: now,
+      });
+
+      const result = await handoverPackage(db, orderId, { recipientName: "Orang Tua", packageItemId: bundleId });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+      const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, bundleId));
+      expect(bundle.status).toBe("reserved");
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("rejects delivered bundle and unknown id (delivered -> 400, unknown -> 404)", async () => {
+    const schoolId = await seedSchool("t3done");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("t3done");
+    const bundleId = `pi-t3-done-${stamp()}`;
+    const orderId = `ord-t3-done-${stamp()}`;
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolId, barcode: `T3-DONE-${stamp()}`,
+        status: "delivered", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000, createdAt: now, updatedAt: now,
+      });
+
+      const used = await handoverPackage(db, orderId, { recipientName: "X", packageItemId: bundleId });
+      expect(used.ok).toBe(false);
+      if (!used.ok) expect(used.status).toBe(400);
+
+      const ghost = await handoverPackage(db, orderId, { recipientName: "X", packageItemId: `pi-ghost-${stamp()}` });
+      expect(ghost.ok).toBe(false);
+      if (!ghost.ok) expect(ghost.status).toBe(404);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("accepts explicit ready bundle and marks it delivered", async () => {
+    const schoolId = await seedSchool("t3ok");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("t3ok");
+    const bundleId = `pi-t3-ok-${stamp()}`;
+    const orderId = `ord-t3-ok-${stamp()}`;
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolId, barcode: `T3-OK-${stamp()}`,
+        status: "in_stock", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000, createdAt: now, updatedAt: now,
+      });
+
+      const result = await handoverPackage(db, orderId, { recipientName: "Orang Tua", packageItemId: bundleId });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.assignedPackageItemId).toBe(bundleId);
+      const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, bundleId));
+      expect(bundle.status).toBe("delivered");
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("T3 return state machine (report/resolve share guard, double-resolve idempotent)", () => {
+  it("report on non-handed-over order returns 400", async () => {
+    const schoolId = await seedSchool("t3rep");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("t3rep");
+    const orderId = `ord-t3-rep-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      const result = await reportReturn(db, {
+        orderId, studentId, defectiveBookId: bookId, reason: "robek", source: "staff",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("rejects stolen explicit replacement with 400", async () => {
+    const schoolA = await seedSchool("t3ra");
+    const schoolB = await seedSchool("t3rb");
+    const studentId = await seedStudent(schoolA);
+    const bookId = await seedBook("t3repl");
+    const orderId = `ord-t3-repl-${stamp()}`;
+    const returnId = `ret-t3-repl-${stamp()}`;
+    const foreignId = `bi-t3-foreign-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId: schoolA,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "return_in_progress",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: foreignId, bookId, currentSchoolId: schoolB,
+        barcode: `T3-FOR-${stamp()}`, condition: "new", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: returnId, orderId, studentId, defectiveBookId: bookId,
+        reason: "cacat", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const result = await resolveReturn(db, returnId, { action: "replace", replacementBookItemId: foreignId });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+      const [item] = await db.select().from(bookItems).where(eq(bookItems.id, foreignId));
+      expect(item.status).toBe("in_stock");
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(bookItems).where(eq(bookItems.id, foreignId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolA));
+      await db.delete(schools).where(eq(schools.id, schoolB));
+    }
+  });
+
+  it("double-resolve same action is idempotent, cross action is 400", async () => {
+    const schoolId = await seedSchool("t3idem");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("t3idem");
+    const orderId = `ord-t3-idem-${stamp()}`;
+    const returnId = `ret-t3-idem-${stamp()}`;
+    const looseId = `bi-t3-idem-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "return_in_progress",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: looseId, bookId, currentSchoolId: schoolId,
+        barcode: `T3-IDEM-${stamp()}`, condition: "new", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: returnId, orderId, studentId, defectiveBookId: bookId,
+        reason: "cacat", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const first = await resolveReturn(db, returnId, { action: "replace" });
+      expect(first.ok).toBe(true);
+      if (!first.ok) return;
+      expect(first.data.replacementBookItemId).toBe(looseId);
+
+      const second = await resolveReturn(db, returnId, { action: "replace" });
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.data.replacementBookItemId).toBe(looseId);
+
+      const cross = await resolveReturn(db, returnId, { action: "reject" });
+      expect(cross.ok).toBe(false);
+      if (!cross.ok) expect(cross.status).toBe(400);
+
+      const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
+      expect(ret.status).toBe("replaced");
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("failed report compensates uploaded photo (no orphan) via injected storage", async () => {
+    const { MemoryStorageService } = await import("../../services/storage");
+    class TrackingStorage extends MemoryStorageService {
+      uploads: string[] = [];
+      deletes: string[] = [];
+      override async upload(key: string, file: Uint8Array | ArrayBuffer | Buffer, contentType: string): Promise<string> {
+        this.uploads.push(key);
+        return super.upload(key, file, contentType);
+      }
+      override async delete(key: string): Promise<void> {
+        this.deletes.push(key);
+        return super.delete(key);
+      }
+    }
+    const schoolId = await seedSchool("t3orphan");
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook("t3orphan");
+    const orderId = `ord-t3-orphan-${stamp()}`;
+    const returnId = `ret-t3-orphan-${stamp()}`;
+    const storage = new TrackingStorage();
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T3-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      const input = {
+        orderId, studentId, defectiveBookId: bookId, reason: "robek",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr", source: "staff" as const,
+      };
+      const first = await reportReturn(db, input, { storage, generateId: () => returnId });
+      expect(first.ok).toBe(true);
+
+      const second = await reportReturn(db, input, { storage, generateId: () => returnId });
+      expect(second.ok).toBe(false);
+      if (second.ok) return;
+      expect(second.status).toBe(400);
+      expect(storage.uploads).toHaveLength(2);
+      expect(storage.deletes).toHaveLength(1);
+      expect(storage.deletes[0]).toBe(storage.uploads[1]);
+      expect(await storage.getFile(storage.uploads[1])).toBeNull();
+      expect(await storage.getFile(storage.uploads[0])).not.toBeNull();
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }

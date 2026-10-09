@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
+import { createPurchaseOrder } from "../services/po-workflow";
+import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
 import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers } from "../../db/schema";
 
@@ -422,8 +424,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(poCheck).toBeUndefined();
   });
 
-  it("blocks deleting a purchase order that has received goods", async () => {
-    const stamp = Date.now();
+  it("blocks deleting a purchase order that has received goods", async () => {    const stamp = Date.now();
     const now = new Date().toISOString();
     const bookId = `b-rec-${stamp}`;
     await db.insert(books).values({
@@ -471,5 +472,142 @@ describe("Supplier Procurement & Purchase Order API", () => {
     await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
     await db.delete(suppliers).where(eq(suppliers.id, supplierId));
     await db.delete(books).where(eq(books.id, bookId));
+  });
+
+  it("creates PO via deep module with injectable deterministic IDs/numbers (T4 seam)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-t4mod-${stamp}`;
+    const supplierCode = `SUP-T4MOD-${stamp}`;
+    let supplierId = "";
+    const createdPoIds: string[] = [];
+    try {
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-T4MOD-${stamp}`,
+        title: "Buku T4 Modul",
+        author: "QA",
+        publisher: "QA",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const supRes = await procurementRouter.request("/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: supplierCode, name: "Supplier T4 Modul" }),
+      });
+      expect(supRes.status).toBe(201);
+      supplierId = (await supRes.json()).data.id;
+
+      const fixedNow = "2026-10-08T00:00:00.000Z";
+      let seq = 0;
+      const result = await createPurchaseOrder(
+        db,
+        {
+          supplierId,
+          orderDate: "2026-10-08",
+          notes: "PO modul deterministik",
+          items: [{ bookId, quantityOrdered: 2, discountPercent: 10 }],
+        },
+        {
+          now: () => fixedNow,
+          generateId: () => `po-t4-det-${stamp}`,
+          generatePoNumber: () => `PO-T4DET-${stamp}`,
+          generateItemId: () => `po-item-t4-det-${stamp}-${(seq += 1)}`,
+        }
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.id).toBe(`po-t4-det-${stamp}`);
+      expect(result.data.poNumber).toBe(`PO-T4DET-${stamp}`);
+      expect(result.data.items[0].id).toBe(`po-item-t4-det-${stamp}-1`);
+      createdPoIds.push(result.data.id);
+
+      const expected = calcPoHeader(result.data.items.map((i) => ({
+        quantityOrdered: i.quantityOrdered,
+        unitPrice: i.unitPrice,
+        discountPercent: i.discountPercent,
+      })));
+      expect(result.data.subtotalGross).toBe(expected.subtotalGross);
+      expect(result.data.discountTotal).toBe(expected.discountTotal);
+      expect(result.data.totalAmount).toBe(expected.totalAmount);
+    } finally {
+      for (const poId of createdPoIds) {
+        await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+        await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      }
+      await db.delete(books).where(eq(books.id, bookId));
+      if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
+
+  it("creates 30-line PO in one call without 500 via chunked batch (§10 D1 regression)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookIds = Array.from({ length: 30 }, (_, i) => `b-t4blk-${stamp}-${i}`);
+    let supplierId = "";
+    let poId = "";
+    try {
+      for (const [i, id] of bookIds.entries()) {
+        await db.insert(books).values({
+          id,
+          isbn: `ISBN-T4BLK-${stamp}-${i}`,
+          title: `Buku T4 Bulk ${i}`,
+          author: "QA",
+          publisher: "QA",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      const supRes = await procurementRouter.request("/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: `SUP-T4BLK-${stamp}`, name: "Supplier T4 Bulk" }),
+      });
+      expect(supRes.status).toBe(201);
+      supplierId = (await supRes.json()).data.id;
+
+      const poRes = await procurementRouter.request("/purchase-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplierId,
+          orderDate: "2026-10-08",
+          notes: "PO 30 baris T4",
+          items: bookIds.map((bookId) => ({ bookId, quantityOrdered: 1, unitPrice: 10000 })),
+        }),
+      });
+      expect(poRes.status).toBe(201);
+      const poJson = await poRes.json();
+      poId = poJson.data.id;
+      expect(poJson.data.status).toBe("draft");
+
+      const listJson = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+      const created = listJson.data.find((p: { id: string }) => p.id === poId);
+      expect(created).toBeDefined();
+      expect(created.items.length).toBe(30);
+      expect(new Set(created.items.map((i: { id: string }) => i.id)).size).toBe(30);
+
+      const expected = calcPoHeader(created.items.map((i: { quantityOrdered: number; unitPrice: number; discountPercent: number }) => ({
+        quantityOrdered: i.quantityOrdered,
+        unitPrice: i.unitPrice,
+        discountPercent: i.discountPercent,
+      })));
+      expect(created.subtotalGross).toBe(expected.subtotalGross);
+      expect(created.discountTotal).toBe(expected.discountTotal);
+      expect(created.totalAmount).toBe(expected.totalAmount);
+
+      const stored = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+      expect(stored.length).toBe(30);
+    } finally {
+      if (poId) {
+        await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+        await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      }
+      for (const id of bookIds) {
+        await db.delete(books).where(eq(books.id, id));
+      }
+      if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
   });
 });

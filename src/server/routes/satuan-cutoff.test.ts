@@ -2,6 +2,7 @@ import { describe, expect, it, afterAll, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import {
+  bookItems,
   books,
   schools,
   students,
@@ -183,6 +184,35 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
     const bookA = await seedBook(stamp, 45000);
     const bookB = await seedBook(stamp, 30000);
     const createdOrderIds: string[] = [];
+    // T6: intake publik mereservasi stok satuan via seam alokasi sebelum
+    // upload — sediakan satu eksemplar in_stock per judul di sekolah murid.
+    const [owner] = await db
+      .select({ schoolId: students.schoolId })
+      .from(students)
+      .where(eq(students.id, studentId));
+    const stockNow = new Date().toISOString();
+    await db.insert(bookItems).values([
+      {
+        id: `bi-sat-a-${stamp}`,
+        bookId: bookA,
+        currentSchoolId: owner.schoolId,
+        barcode: `SAT-A-${stamp}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: stockNow,
+        updatedAt: stockNow,
+      },
+      {
+        id: `bi-sat-b-${stamp}`,
+        bookId: bookB,
+        currentSchoolId: owner.schoolId,
+        barcode: `SAT-B-${stamp}`,
+        condition: "new",
+        status: "in_stock",
+        createdAt: stockNow,
+        updatedAt: stockNow,
+      },
+    ]);
 
     try {
       const catalog = await publicOrdersRouter.request("/satuan-catalog");
@@ -230,6 +260,8 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
         await db.delete(studentBookOrders).where(eq(studentBookOrders.id, id));
       }
       await clearSettings(year);
+      await db.delete(bookItems).where(eq(bookItems.id, `bi-sat-a-${stamp}`));
+      await db.delete(bookItems).where(eq(bookItems.id, `bi-sat-b-${stamp}`));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(books).where(eq(books.id, bookA));
       await db.delete(books).where(eq(books.id, bookB));

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { purchaseOrders } from "../../db/schema";
-import { defaultStorage } from "../../services/storage";
+import { defaultStorage, type StorageService } from "../../services/storage";
 import {
   LEGACY_PO_STATUSES,
   PRINTED_STATUS,
@@ -10,10 +10,41 @@ import {
   evaluateSendGate,
   validateSignedDoc,
 } from "./po-workflow";
-import { sendPurchaseOrderEmail } from "./po-delivery";
+import { deliverPurchaseOrder } from "./po-delivery";
+import type { PoMailSender } from "./po-mail";
 import type { EmailRuntimeEnv } from "./email/types";
 
-export { LEGACY_PO_STATUSES, PRINTED_STATUS, SIGNED_UPLOADED_STATUS, evaluateSendGate, validateSignedDoc };
+export {
+  LEGACY_PO_STATUSES,
+  PRINTED_STATUS,
+  SIGNED_UPLOADED_STATUS,
+  evaluateSendGate,
+  validateSignedDoc,
+};
+/** Satu seam publik: pemanggil (route) melintasi modul ini, bukan po-workflow/po-delivery langsung. */
+export {
+  createPurchaseOrder,
+  receivePurchaseOrder,
+  resolveWarehouseId,
+  resolveWarehouseTarget,
+} from "./po-workflow";
+export type {
+  CreatePoDeps,
+  CreatePoInput,
+  CreatePoItemInput,
+  CreatePoResult,
+  CreatedPo,
+  CreatedPoItem,
+  ReceivedItemInput,
+  ReceivePoResult,
+  SendGate,
+  SignedDocValidation,
+  WarehouseTargetResult,
+} from "./po-workflow";
+export { deliverPurchaseOrder } from "./po-delivery";
+export type { PoDeliveryDeps, PoSendOutcome } from "./po-delivery";
+export { InMemoryPoMailSender, RealPoMailSender } from "./po-mail";
+export type { PoMailRequest, PoMailSender } from "./po-mail";
 
 export type LifecycleError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -21,9 +52,9 @@ type LifecycleFile = Pick<File, "name" | "type" | "size" | "arrayBuffer">;
 
 /**
  * Satu-satunya pemilik siklus hidup PO cetak → tanda tangan → kirim.
- * Route hanya validasi + scope; transisi, gerbang kirim, dan jejak
- * pengiriman tinggal di sini. Pengiriman email didelegasikan ke
- * adapter po-delivery (satu seam, dua adapter: terkirim vs simulasi).
+ * Route hanya validasi + scope; gate, transisi, dan delivery tinggal di sini.
+ * Storage dan mail diterima sebagai seam (default produksi), sehingga test
+ * memakai adapter in-memory tanpa mock env/storage global.
  */
 export async function markPrinted(
   database: AppDatabase,
@@ -55,7 +86,8 @@ export async function markPrinted(
 export async function uploadSignedDoc(
   database: AppDatabase,
   poId: string,
-  file: LifecycleFile | undefined
+  file: LifecycleFile | undefined,
+  storage?: StorageService
 ): Promise<
   | { ok: true; data: { id: string; status: string; signedDocUrl: string; signedDocName: string; poNumber: string } }
   | LifecycleError
@@ -78,7 +110,8 @@ export async function uploadSignedDoc(
 
   const extension = (file.name.split(".").pop() || "pdf").toLowerCase();
   const key = `po-signed/${po.id}-${Date.now()}.${extension}`;
-  const signedDocUrl = await defaultStorage.upload(key, await file.arrayBuffer(), validation.contentType);
+  const store: StorageService = storage ?? defaultStorage;
+  const signedDocUrl = await store.upload(key, await file.arrayBuffer(), validation.contentType);
 
   const now = new Date().toISOString();
   await database
@@ -107,7 +140,8 @@ export type SendPoResult =
 export async function sendPo(
   database: AppDatabase,
   poId: string,
-  env?: EmailRuntimeEnv
+  env?: EmailRuntimeEnv,
+  deps?: { mail?: PoMailSender }
 ): Promise<SendPoResult> {
   const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
   if (!po) return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
@@ -117,7 +151,7 @@ export async function sendPo(
     return { ok: false, status: 400, message: gate.message };
   }
 
-  const outcome = await sendPurchaseOrderEmail(poId, env);
+  const outcome = await deliverPurchaseOrder(database, poId, { mail: deps?.mail, env });
   if (outcome.kind === "error") {
     return { ok: false, status: outcome.httpStatus, message: outcome.message };
   }
@@ -136,3 +170,24 @@ export async function sendPo(
     data: outcome,
   };
 }
+
+export interface PoSendReadiness {
+  canSend: boolean;
+  sendBlockedReason: string | null;
+}
+
+/**
+ * Derivasi kelayakan kirim sekali untuk seluruh baris list: route memanggil
+ * satu kali ini, bukan `evaluateSendGate` per baris.
+ */
+export const withSendReadiness = <
+  T extends Pick<typeof purchaseOrders.$inferSelect, "status" | "signedDocUrl" | "poNumber">,
+>(
+  rows: T[]
+): Array<T & PoSendReadiness> =>
+  rows.map((row): T & PoSendReadiness => {
+    const gate = evaluateSendGate(row);
+    return gate.allowed
+      ? { ...row, canSend: true, sendBlockedReason: null }
+      : { ...row, canSend: false, sendBlockedReason: gate.message };
+  });
