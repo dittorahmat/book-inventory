@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc, or, like, sql, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import {
   studentBookOrders,
@@ -60,7 +60,23 @@ studentOrdersRouter.get("/", async (c) => {
   const fulfillmentStatus = c.req.query("fulfillmentStatus");
   const search = c.req.query("search");
 
-  const query = db
+  const conditions = [];
+  if (schoolId) conditions.push(eq(studentBookOrders.schoolId, schoolId));
+  if (paymentStatus && paymentStatus !== "all") conditions.push(eq(studentBookOrders.paymentStatus, paymentStatus as any));
+  if (fulfillmentStatus && fulfillmentStatus !== "all") conditions.push(eq(studentBookOrders.fulfillmentStatus, fulfillmentStatus as any));
+  // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
+  if (search?.trim()) {
+    const pattern = `%${search.trim().toLowerCase()}%`;
+    conditions.push(
+      or(
+        like(sql`lower(${students.name})`, pattern),
+        like(sql`lower(${students.nis})`, pattern),
+        like(sql`lower(${studentBookOrders.orderNumber})`, pattern)
+      )
+    );
+  }
+
+  const filtered = await db
     .select({
       id: studentBookOrders.id,
       orderNumber: studentBookOrders.orderNumber,
@@ -90,24 +106,9 @@ studentOrdersRouter.get("/", async (c) => {
     .from(studentBookOrders)
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))
     .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
-    .orderBy(desc(studentBookOrders.createdAt));
-
-  const allOrders = await query;
-
-  const filtered = allOrders.filter((o: any) => {
-    if (schoolId && o.schoolId !== schoolId) return false;
-    if (paymentStatus && paymentStatus !== "all" && o.paymentStatus !== paymentStatus) return false;
-    if (fulfillmentStatus && fulfillmentStatus !== "all" && o.fulfillmentStatus !== fulfillmentStatus) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const match =
-        o.studentName.toLowerCase().includes(q) ||
-        o.nis.toLowerCase().includes(q) ||
-        o.orderNumber.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-    return true;
-  });
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(studentBookOrders.createdAt))
+    .limit(50);
 
   return c.json({ success: true, data: filtered });
   } catch (err) {
@@ -171,7 +172,24 @@ studentOrdersRouter.get("/returns", async (c) => {
     const locations = await loadLocationIds(db);
     const scope = new Set(resolveLocationScope(actor, undefined, locations));
     const scopedOnly = scope.size < locations.length;
-    const allReturns = await db
+    const returnStatus = c.req.query("status");
+    const returnSearch = c.req.query("search")?.trim().toLowerCase();
+    // Pencarian Partisi (§11): status + substring di dalam partisi sekolah.
+    const returnConditions = [];
+    if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, [...scope]));
+    if (returnStatus && returnStatus !== "all") returnConditions.push(eq(bookReturns.status, returnStatus as any));
+    if (returnSearch) {
+      const pattern = `%${returnSearch}%`;
+      returnConditions.push(
+        or(
+          like(sql`lower(${students.name})`, pattern),
+          like(sql`lower(${students.nis})`, pattern),
+          like(sql`lower(${studentBookOrders.orderNumber})`, pattern),
+          like(sql`lower(${books.title})`, pattern)
+        )
+      );
+    }
+    const visible = await db
     .select({
       id: bookReturns.id,
       orderId: bookReturns.orderId,
@@ -194,9 +212,10 @@ studentOrdersRouter.get("/returns", async (c) => {
     .innerJoin(studentBookOrders, eq(bookReturns.orderId, studentBookOrders.id))
     .innerJoin(students, eq(bookReturns.studentId, students.id))
     .innerJoin(books, eq(bookReturns.defectiveBookId, books.id))
-    .orderBy(desc(bookReturns.createdAt));
+    .where(returnConditions.length > 0 ? and(...returnConditions) : undefined)
+    .orderBy(desc(bookReturns.createdAt))
+    .limit(50);
 
-  const visible = scopedOnly ? allReturns.filter((r: any) => scope.has(r.orderSchoolId)) : allReturns;
   return c.json({ success: true, data: visible });
   } catch (err) {
     return accessErrorResponse(c, err);

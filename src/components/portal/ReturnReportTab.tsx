@@ -2,13 +2,17 @@ import { Search, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
 import type {
   MatchedOrder,
   PackageBookChoice,
+  SchoolOption,
   FileUploadHandler,
 } from "../../lib/portal-types";
 
 interface ReturnReportTabProps {
   errorMessage: string | null;
+  schools: SchoolOption[];
   returnLookupQuery: string;
   setReturnLookupQuery: (val: string) => void;
+  returnLookupSchoolId: string;
+  setReturnLookupSchoolId: (val: string) => void;
   isLookingUpReturn: boolean;
   matchedOrders: MatchedOrder[];
   selectedReturnOrder: MatchedOrder | null;
@@ -31,8 +35,11 @@ interface ReturnReportTabProps {
 
 export function ReturnReportTab({
   errorMessage,
+  schools,
   returnLookupQuery,
   setReturnLookupQuery,
+  returnLookupSchoolId,
+  setReturnLookupSchoolId,
   isLookingUpReturn,
   matchedOrders,
   selectedReturnOrder,
@@ -113,7 +120,24 @@ export function ReturnReportTab({
               Masukkan Nomor Pesanan (contoh: <code className="bg-[#F0F2F5] px-1 py-0.5 rounded">ORD-202609-001</code>) atau NIS Siswa untuk memeriksa riwayat pengambilan buku.
             </p>
 
-            <form onSubmit={onLookupOrder} className="flex gap-2">
+            <form onSubmit={onLookupOrder} className="space-y-3">
+              <div>
+                <label htmlFor="portal-return-lookup-school" className="block text-xs font-semibold text-[#050505] mb-1">
+                  Sekolah / Unit (opsional)
+                </label>
+                <select
+                  id="portal-return-lookup-school"
+                  value={returnLookupSchoolId}
+                  onChange={(e) => setReturnLookupSchoolId(e.target.value)}
+                  className="w-full px-3 py-3 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-2xl text-xs sm:text-sm text-[#050505] transition-colors"
+                >
+                  <option value="">Semua sekolah</option>
+                  {schools.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
                 <input
@@ -132,6 +156,7 @@ export function ReturnReportTab({
               >
                 {isLookingUpReturn ? "Mencari..." : "Temukan Pesanan"}
               </button>
+              </div>
             </form>
 
             {/* Matched Orders List */}

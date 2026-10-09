@@ -57,7 +57,8 @@ export function usePublicOrder() {
   // 3 = Payment / Scholarship, 4 = Success
   const [step, setStep] = useState<OrderStep>(1);
 
-  // Search state for student ordering
+  // Search state for student ordering (selalu terpartisi per sekolah, §11)
+  const [searchSchoolId, setSearchSchoolId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
@@ -131,10 +132,11 @@ export function usePublicOrder() {
     }
   };
 
-  // Default sekolah form murid baru + cermin error katalog ke banner.
+  // Default sekolah form murid baru + dropdown pencarian + cermin error katalog ke banner.
   useEffect(() => {
     if (schools.length > 0) {
       setNewStudent((prev) => (prev.schoolId ? prev : { ...prev, schoolId: schools[0].id }));
+      setSearchSchoolId((prev) => prev || schools[0].id);
     }
   }, [schools]);
 
@@ -161,10 +163,14 @@ export function usePublicOrder() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim().length < 2) return;
+    if (!searchSchoolId) {
+      setErrorMessage("Pilih sekolah/unit terlebih dahulu sebelum mencari.");
+      return;
+    }
     setIsSearching(true);
     setErrorMessage(null);
     try {
-      const results = await searchStudents(searchQuery);
+      const results = await searchStudents(searchQuery, searchSchoolId);
       setSearchResults(results);
       setIsNewStudentMode(false);
       setPendingNoResult(getPendingNoResultQuery(searchQuery, results.length));
@@ -283,6 +289,7 @@ export function usePublicOrder() {
   return {
     activePortalTab, setActivePortalTab,
     schools, packages, step, setStep, goToStep,
+    searchSchoolId, setSearchSchoolId,
     searchQuery, setSearchQuery, isSearching, searchResults,
     selectedStudent, isNewStudentMode, setIsNewStudentMode,
     pendingNoResult, confirmCreateNewStudent, cancelNoResult, editNoResultKeyword,

@@ -866,3 +866,104 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
     }
   });
 });
+
+describe("Portal search partition (§11 anti full-scan)", () => {
+  it("rejects search-students without schoolId and finds nickname within partition", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-pp-${stamp}`;
+    const schoolB = `school-pq-${stamp}`;
+    const now = new Date().toISOString();
+    for (const [id, code] of [[schoolA, `ALW-PP-${stamp}`], [schoolB, `ALW-PQ-${stamp}`]]) {
+      await db.insert(schools).values({ id, name: `Sekolah ${id}`, code, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    }
+    try {
+      await db.insert(students).values({
+        id: `st-ppann-${stamp}`,
+        schoolId: schoolA,
+        nis: `PPA${stamp}`,
+        name: `Annisa Salsabila ${stamp}`,
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: `st-pplain-${stamp}`,
+        schoolId: schoolB,
+        nis: `PPL${stamp}`,
+        name: `Salsa Lain ${stamp}`,
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const noSchool = await publicOrdersRouter.request(`/search-students?query=salsa`);
+      expect(noSchool.status).toBe(400);
+
+      const res = await publicOrdersRouter.request(`/search-students?query=salsa&schoolId=${schoolA}`);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.some((s: any) => s.id === `st-ppann-${stamp}`)).toBe(true);
+      expect(json.data.every((s: any) => s.schoolId === schoolA)).toBe(true);
+      expect(json.data.length).toBeLessThanOrEqual(10);
+    } finally {
+      await db.delete(students).where(inArray(students.id, [`st-ppann-${stamp}`, `st-pplain-${stamp}`]));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+    }
+  });
+
+  it("partitions lookup-order by optional schoolId", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-pl-${stamp}`;
+    const schoolB = `school-pm-${stamp}`;
+    const now = new Date().toISOString();
+    for (const [id, code] of [[schoolA, `ALW-PL-${stamp}`], [schoolB, `ALW-PM-${stamp}`]]) {
+      await db.insert(schools).values({ id, name: `Sekolah ${id}`, code, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    }
+    const orderNumber = `ORD-PL-${String(stamp).slice(-6)}`;
+    try {
+      await db.insert(students).values({
+        id: `st-pl-${stamp}`,
+        schoolId: schoolA,
+        nis: `PLN${stamp}`,
+        name: `Lookup Anak ${stamp}`,
+        gradeLevel: "3",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-pl-${stamp}`,
+        orderNumber,
+        studentId: `st-pl-${stamp}`,
+        schoolId: schoolA,
+        orderType: "regular",
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "waiting_preparation",
+        totalAmount: 100000,
+        paidAmount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const found = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}&schoolId=${schoolA}`);
+      const foundJson = await found.json();
+      expect(found.status).toBe(200);
+      expect(foundJson.data.some((o: any) => o.orderNumber === orderNumber)).toBe(true);
+
+      const wrongSchool = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}&schoolId=${schoolB}`);
+      expect(wrongSchool.status).toBe(404);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-pl-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-pl-${stamp}`));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+    }
+  });
+});

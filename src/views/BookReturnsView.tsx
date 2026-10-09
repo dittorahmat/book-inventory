@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
-import { getJson, postJson } from "../lib/api";
+import { getJson, postJson, buildQuery } from "../lib/api";
 import { 
   Search, 
   RefreshCw, 
@@ -34,6 +34,7 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
   const [returns, setReturns] = useState<BookReturn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [activeReturn, setActiveReturn] = useState<BookReturn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -42,13 +43,17 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      setReturns(await getJson<BookReturn[]>("/api/student-orders/returns", "Gagal memuat retur buku."));
+      // Status disaring di server (§11); kata kunci tetap filter lokal di ≤50 baris.
+      setReturns(await getJson<BookReturn[]>(
+        buildQuery("/api/student-orders/returns", { status: statusFilter === "all" ? undefined : statusFilter }),
+        "Gagal memuat retur buku."
+      ));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Gagal memuat retur buku.");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     loadReturns();
@@ -120,7 +125,7 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative w-full sm:w-72">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input
@@ -128,9 +133,23 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
             placeholder="Cari murid, judul buku, no. pesanan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Cari retur"
             className="w-full pl-10 pr-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] placeholder-[#65676B] focus:outline-hidden focus:border-[#1877F2]"
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter status retur"
+          className="px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+        >
+          <option value="all">Semua Status</option>
+          <option value="reported">Menunggu Periksa</option>
+          <option value="approved">Disetujui</option>
+          <option value="replaced">Sudah Diganti</option>
+          <option value="rejected">Ditolak</option>
+          <option value="refunded">Refund Dana</option>
+        </select>
       </div>
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">

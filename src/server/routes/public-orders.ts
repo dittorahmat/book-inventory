@@ -14,7 +14,7 @@ export const publicOrdersRouter = new Hono();
 // Schema for student search
 const searchStudentSchema = z.object({
   query: z.string().min(2, "Minimal 2 karakter untuk pencarian"),
-  schoolId: z.string().optional(),
+  schoolId: z.string().min(1, "Pilih sekolah terlebih dahulu"),
 });
 
 // Schema for new student registration (when student not found)
@@ -87,9 +87,7 @@ publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSche
     like(sql`lower(${students.nis})`, cleanQ)
   );
 
-  const whereCondition = schoolId
-    ? and(eq(students.schoolId, schoolId), matchFilter, verifiedOnly)
-    : and(matchFilter, verifiedOnly);
+  const whereCondition = and(eq(students.schoolId, schoolId), matchFilter, verifiedOnly);
 
   const foundStudents = await db
     .select({
@@ -189,6 +187,12 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   // Find order by orderNumber or student NIS
+  const lookupSchoolId = c.req.query("schoolId")?.trim() || undefined;
+  const lookupMatch = or(
+    like(studentBookOrders.orderNumber, `%${query}%`),
+    like(students.nis, `%${query}%`),
+    like(students.name, `%${query}%`)
+  );
   const matchedOrders = await db
     .select({
       id: studentBookOrders.id,
@@ -211,11 +215,9 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
     .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
     .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
     .where(
-      or(
-        like(studentBookOrders.orderNumber, `%${query}%`),
-        like(students.nis, `%${query}%`),
-        like(students.name, `%${query}%`)
-      )
+      lookupSchoolId
+        ? and(eq(studentBookOrders.schoolId, lookupSchoolId), lookupMatch)
+        : lookupMatch
     )
     .limit(5);
 

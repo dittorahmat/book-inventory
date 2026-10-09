@@ -22,9 +22,9 @@ export const fetchSchools = (): Promise<SchoolOption[]> =>
 export const fetchPackages = (): Promise<BookPackageOption[]> =>
   getJson<BookPackageOption[]>("/api/packages", "Gagal memuat daftar paket buku.");
 
-export const searchStudents = (query: string): Promise<StudentSearchResult[]> =>
+export const searchStudents = (query: string, schoolId: string): Promise<StudentSearchResult[]> =>
   getJson<StudentSearchResult[]>(
-    buildQuery("/api/public/orders/search-students", { query: query.trim() }),
+    buildQuery("/api/public/orders/search-students", { query: query.trim(), schoolId }),
     "Gagal melakukan pencarian siswa."
   );
 
@@ -70,9 +70,9 @@ export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanSta
 export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");
 
-export const lookupOrders = (query: string): Promise<MatchedOrder[]> =>
+export const lookupOrders = (query: string, schoolId?: string): Promise<MatchedOrder[]> =>
   getJson<MatchedOrder[]>(
-    buildQuery("/api/public/orders/lookup-order", { query: query.trim() }),
+    buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId: schoolId || undefined }),
     "Pesanan tidak ditemukan"
   );
 

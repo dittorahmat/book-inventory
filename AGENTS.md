@@ -183,6 +183,18 @@ Latar insiden (Okt 2026): terima inbound 30 eks dan buat transfer 7 unit mengemb
 
 ---
 
+## 11. Search Discipline (Anti Full-Scan Rule)
+
+Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` dan `GET /student-orders` `SELECT`-all lalu `.filter(includes)` di JS — full-scan + transfer seluruh tabel ke Worker. Target: 10rb murid, p95 <500ms di D1.
+
+1. **Dilarang `SELECT`-all + filter JS**: filter search **wajib** di `WHERE` SQL, bukan `.filter()` / `.includes()` pasca-fetch. Pengecualian: katalog kecil (<2rb baris, mis. `books`, `packages`) boleh filter frontend.
+2. **Substring `%q%` wajib terpartisi untuk endpoint publik**: portal (`search-students`, `lookup-order`) **wajib** didahului `school_id = ?` (API menolak pencarian tanpa sekolah). Endpoint admin/staf sentral boleh global tanpa `schoolId`, tetapi wajib `WHERE` di SQL + `LIMIT` 50 — tetap dilarang `SELECT`-all + filter JS dan dilarang tanpa `LIMIT`.
+3. **Setiap endpoint `search` wajib berpasangan**: (a) satu filter partisi (`schoolId`), (b) `LIMIT` 10–50, (c) indeks komposit di `schema.ts` via `index()` Drizzle + migrasi remote terverifikasi (`PRAGMA index_list`). Pasangan per form: portal murid → sekolah+status verified; lookup-order → sekolah opsional+min 3 char; admin siswa → sekolah+status; pesanan → sekolah+payment+fulfillment; retur → sekolah+status retur; katalog → kategori (bila >2rb).
+4. **FTS5 Tahap 2 saja**: FTS (virtual table + trigger) hanya atas bukti `EXPLAIN QUERY PLAN` masih `SCAN` dan p95 >500ms setelah Tahap 1, untuk pencarian global lintas-sekolah. Query FTS wajib token-prefix (`salsa*` menjangkau "Annisa Salsabila"), bukan `%...%`.
+5. **Bukti wajib**: setiap endpoint search baru/ubah wajib lampirkan `EXPLAIN QUERY PLAN` (`SEARCH USING INDEX`, bukan `SCAN`) + test volume di `src/server/routes/*.test.ts`.
+
+---
+
 ## Agent skills
 
 ### Issue tracker

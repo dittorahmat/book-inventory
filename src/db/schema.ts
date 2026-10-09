@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
 export const schools = sqliteTable("schools", {
   id: text("id").primaryKey(),
@@ -138,7 +138,10 @@ export const students = sqliteTable("students", {
   isScholarship: integer("is_scholarship", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("students_school_status_name_idx").on(t.schoolId, t.status, t.name),
+  index("students_school_nis_idx").on(t.schoolId, t.nis),
+]);
 
 // ==========================================
 // 2. SUPPLIERS & PURCHASE ORDERS (LOOSE PROCUREMENT)
@@ -257,7 +260,10 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("orders_school_number_idx").on(t.schoolId, t.orderNumber),
+  index("orders_school_payment_fulfillment_idx").on(t.schoolId, t.paymentStatus, t.fulfillmentStatus),
+]);
 
 export const orderPayments = sqliteTable("order_payments", {
   id: text("id").primaryKey(),
@@ -396,7 +402,10 @@ export const bookReturns = sqliteTable("book_returns", {
   resolvedAt: text("resolved_at"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("returns_status_idx").on(t.status),
+  index("returns_order_idx").on(t.orderId),
+]);
 
 // ==========================================
 // 9. SYSTEM CONFIGURATION & SMTP / WA SETTINGS
