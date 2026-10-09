@@ -22,6 +22,7 @@ import { internalOrdersRouter } from "./routes/internal-orders";
 import { directSalesRouter } from "./routes/direct-sales";
 import { vendorReturnsRouter } from "./routes/vendor-returns";
 import { auth } from "./auth";
+import { searchTiming } from "./middleware/search-timing";
 
 import { defaultStorage } from "../services/storage";
 
@@ -29,6 +30,17 @@ export const app = new Hono();
 
 app.use("*", logger());
 app.use("*", cors());
+
+// Observabilitas latensi pencarian (#38): hanya 5 path search, bukan global.
+for (const p of [
+  "/api/public/orders/search-students",
+  "/api/public/orders/lookup-order",
+  "/api/students",
+  "/api/student-orders",
+  "/api/student-orders/returns",
+]) {
+  app.use(p, searchTiming());
+}
 
 // Global JSON error envelope: portal publik dan semua klien selalu
 // menerima JSON (tidak pernah plain-teks "Internal Server Error").

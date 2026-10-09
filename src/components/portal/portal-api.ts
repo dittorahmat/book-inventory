@@ -19,13 +19,25 @@ import type {
 export const fetchSchools = (): Promise<SchoolOption[]> =>
   getJson<SchoolOption[]>("/api/schools", "Gagal memuat daftar sekolah.");
 
+/** Ukur latensi yang dirasakan ortu; hanya tampil di dev (nol overhead produksi). */
+const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+  const t0 = performance.now();
+  try {
+    return await fn();
+  } finally {
+    if (import.meta.env.DEV) console.debug(`[portal-timing] ${label}: ${Math.round(performance.now() - t0)}ms`);
+  }
+};
+
 export const fetchPackages = (): Promise<BookPackageOption[]> =>
   getJson<BookPackageOption[]>("/api/packages", "Gagal memuat daftar paket buku.");
 
 export const searchStudents = (query: string, schoolId: string): Promise<StudentSearchResult[]> =>
-  getJson<StudentSearchResult[]>(
-    buildQuery("/api/public/orders/search-students", { query: query.trim(), schoolId }),
-    "Gagal melakukan pencarian siswa."
+  timed("search-students", () =>
+    getJson<StudentSearchResult[]>(
+      buildQuery("/api/public/orders/search-students", { query: query.trim(), schoolId }),
+      "Gagal melakukan pencarian siswa."
+    )
   );
 
 export const registerStudent = (payload: NewStudentForm): Promise<any> =>
@@ -71,9 +83,11 @@ export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");
 
 export const lookupOrders = (query: string, schoolId?: string): Promise<MatchedOrder[]> =>
-  getJson<MatchedOrder[]>(
-    buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId: schoolId || undefined }),
-    "Pesanan tidak ditemukan"
+  timed("lookup-order", () =>
+    getJson<MatchedOrder[]>(
+      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId: schoolId || undefined }),
+      "Pesanan tidak ditemukan"
+    )
   );
 
 export const fetchBookChoices = async (): Promise<PackageBookChoice[]> => {
