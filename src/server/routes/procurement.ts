@@ -4,8 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
-import { sendPo } from "../services/po-lifecycle";
-import { evaluateSendGate, resolveWarehouseTarget, createPurchaseOrder, receivePurchaseOrder } from "../services/po-workflow";
+import { sendPo, resolveWarehouseTarget, createPurchaseOrder, receivePurchaseOrder, withSendReadiness } from "../services/po-lifecycle";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -145,16 +144,12 @@ procurementRouter.get("/purchase-orders", async (c) => {
     list.push(it);
     itemsByPo.set(it.purchaseOrderId, list);
   }
-  const results = pos.map((po: any) => {
-    // Gerbang kirim milik server: klien menurunkannya dari field ini, bukan cerminan lokal.
-    const gate = evaluateSendGate(po);
-    return {
-      ...po,
-      items: itemsByPo.get(po.id) ?? [],
-      canSend: gate.allowed,
-      sendBlockedReason: gate.allowed ? null : (gate as { message: string }).message,
-    };
-  });
+  const withItems = pos.map((po: any) => ({
+    ...po,
+    items: itemsByPo.get(po.id) ?? [],
+  }));
+  // Kelayakan kirim diturunkan sekali di modul (satu panggilan), bukan per baris di route.
+  const results = withSendReadiness(withItems);
 
   const visible = scopedOnly ? results.filter((po: any) => scope.has(po.targetSchoolId)) : results;
   return c.json({ success: true, data: visible });

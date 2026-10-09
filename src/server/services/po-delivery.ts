@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
+import { db, type AppDatabase } from "../../db";
 import {
   suppliers,
   purchaseOrders,
@@ -8,9 +8,9 @@ import {
   books,
   schools,
 } from "../../db/schema";
-import { sendEmailNotification } from "./email/factory";
 import type { EmailRuntimeEnv } from "./email/types";
 import { renderPurchaseOrderEmail } from "./email/po-template";
+import { RealPoMailSender, type PoMailSender } from "./po-mail";
 
 export type PoSendOutcome =
   | {
@@ -32,16 +32,23 @@ export type PoSendOutcome =
     }
   | { kind: "error"; httpStatus: 400 | 404 | 502; message: string; provider?: string };
 
+export interface PoDeliveryDeps {
+  mail?: PoMailSender;
+  env?: EmailRuntimeEnv;
+}
+
 /**
- * Kirim PO ke email supplier + catat jejak kirim.
+ * Seam delivery internal milik modul po-lifecycle: render template + kirim via
+ * adapter mail yang diinjeksi + catat jejak kirim.
  * `sent`/`sentAt`/`sentTo` hanya diubah bila email benar-benar terkirim
  * (simulasi dan kegagalan tidak mengubah status PO).
  */
-export async function sendPurchaseOrderEmail(
+export async function deliverPurchaseOrder(
+  database: AppDatabase,
   poId: string,
-  env?: EmailRuntimeEnv
+  deps: PoDeliveryDeps = {}
 ): Promise<PoSendOutcome> {
-  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
   if (!po) {
     return { kind: "error", httpStatus: 404, message: "Purchase Order tidak ditemukan" };
   }
@@ -53,7 +60,7 @@ export async function sendPurchaseOrderEmail(
     };
   }
 
-  const [supplier] = await db
+  const [supplier] = await database
     .select()
     .from(suppliers)
     .where(eq(suppliers.id, po.supplierId));
@@ -67,12 +74,12 @@ export async function sendPurchaseOrderEmail(
   }
   const supplierEmail = emailCheck.data;
 
-  const [school] = await db
+  const [school] = await database
     .select()
     .from(schools)
     .where(eq(schools.id, po.targetSchoolId));
 
-  const items = await db
+  const items = await database
     .select({
       title: books.title,
       isbn: books.isbn,
@@ -95,10 +102,8 @@ export async function sendPurchaseOrderEmail(
     notes: po.notes,
   });
 
-  const result = await sendEmailNotification(
-    { to: supplierEmail, subject, html, text },
-    env
-  );
+  const sender: PoMailSender = deps.mail ?? new RealPoMailSender(deps.env);
+  const result = await sender.send({ to: supplierEmail, subject, html, text });
 
   if (!result.success) {
     return {
@@ -123,7 +128,7 @@ export async function sendPurchaseOrderEmail(
   }
 
   const now = new Date().toISOString();
-  await db
+  await database
     .update(purchaseOrders)
     .set({ status: "sent", sentAt: now, sentTo: supplierEmail, updatedAt: now })
     .where(eq(purchaseOrders.id, poId));
@@ -137,4 +142,12 @@ export async function sendPurchaseOrderEmail(
     provider: result.provider,
     messageId: result.messageId,
   };
+}
+
+/** Kompatibilitas: pemanggil lama tanpa injeksi database/adapter. */
+export async function sendPurchaseOrderEmail(
+  poId: string,
+  env?: EmailRuntimeEnv
+): Promise<PoSendOutcome> {
+  return deliverPurchaseOrder(db, poId, { env });
 }

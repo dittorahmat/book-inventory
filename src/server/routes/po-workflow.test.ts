@@ -3,7 +3,7 @@ import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { evaluateSendGate, validateSignedDoc } from "../services/po-workflow";
 import { db } from "../../db";
-import { purchaseOrders, suppliers, books, schools } from "../../db/schema";
+import { purchaseOrders, purchaseOrderItems, suppliers, books, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 async function makeSupplier(stamp: number, withEmail = true) {
@@ -369,6 +369,191 @@ describe("Master supplier di tab PO", () => {
     }
     const [row] = await db.select().from(suppliers).limit(1);
     expect(row).toBeDefined();
+  });
+});
+
+describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
+  let t5Counter = 0;
+  const t5Stamp = () => `${Date.now()}-${++t5Counter}`;
+
+  async function seedSupplierAndBook(tag: string) {
+    const stamp = t5Stamp();
+    const supplierId = `sup-t5-${tag}-${stamp}`;
+    const bookId = `b-t5-${tag}-${stamp}`;
+    await db.insert(suppliers).values({
+      id: supplierId,
+      code: `SUP-T5-${tag}-${stamp}`.slice(0, 32),
+      name: `Supplier T5 ${tag} ${stamp}`,
+      email: `t5-${tag}-${stamp}@supplier-test.co.id`.replace(/[^a-zA-Z0-9@.-]/g, ""),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-T5-${tag}-${stamp}`.slice(0, 32),
+      title: `Buku T5 ${tag} ${stamp}`,
+      author: "Test",
+      publisher: "Test",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { supplierId, bookId };
+  }
+
+  async function cleanupPo(poId: string | undefined, supplierId: string, bookId: string) {
+    if (poId) {
+      await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    }
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+  }
+
+  it("runs print → upload → send through one module with injected adapters and custom slug id", async () => {
+    const { createPurchaseOrder, markPrinted, uploadSignedDoc, sendPo } = await import(
+      "../services/po-lifecycle"
+    );
+    const { InMemoryPoMailSender } = await import("../services/po-mail");
+    const { MemoryStorageService } = await import("../../services/storage");
+
+    const tag = "seam";
+    const { supplierId, bookId } = await seedSupplierAndBook(tag);
+    // Custom seeded string id (slug, bukan UUID) — flexible identifier validation.
+    const customPoId = `po-t5-${tag}-${t5Stamp()}`;
+    let poId: string | undefined;
+    try {
+      const created = await createPurchaseOrder(
+        db,
+        { supplierId, orderDate: "2026-10-08", items: [{ bookId, quantityOrdered: 5, unitPrice: 20000 }] },
+        { generateId: () => customPoId, generatePoNumber: () => `PO-T5-${t5Stamp()}` }
+      );
+      expect(created.ok).toBe(true);
+      if (!created.ok) return;
+      poId = created.data.id;
+      expect(poId).toBe(customPoId);
+
+      const printed = await markPrinted(db, poId);
+      expect(printed.ok).toBe(true);
+
+      const storage = new MemoryStorageService();
+      const file = new File([new Uint8Array([7, 7, 7])], "bukti-t5.pdf", { type: "application/pdf" });
+      const uploaded = await uploadSignedDoc(db, poId, file, storage);
+      expect(uploaded.ok).toBe(true);
+      if (!uploaded.ok) return;
+      expect(uploaded.data.status).toBe("signed_uploaded");
+
+      // Delivery via in-memory adapter: tanpa menyentuh globalThis.fetch / env.
+      const mail = new InMemoryPoMailSender();
+      const sent = await sendPo(db, poId, undefined, { mail });
+      expect(sent.ok).toBe(true);
+      if (!sent.ok) return;
+      expect(mail.sent.length).toBe(1);
+      expect(mail.sent[0].to).toContain("@supplier-test.co.id");
+
+      const [row] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      expect(row.status).toBe("sent");
+      expect(row.sentTo).toBe(mail.sent[0].to);
+    } finally {
+      await cleanupPo(poId, supplierId, bookId);
+    }
+  });
+
+  it("maps in-memory mail failure to 502 with a clear message (no fetch mock)", async () => {
+    const { createPurchaseOrder, markPrinted, uploadSignedDoc, sendPo } = await import(
+      "../services/po-lifecycle"
+    );
+    const { InMemoryPoMailSender } = await import("../services/po-mail");
+    const { MemoryStorageService } = await import("../../services/storage");
+
+    const tag = "fail";
+    const { supplierId, bookId } = await seedSupplierAndBook(tag);
+    let poId: string | undefined;
+    try {
+      const created = await createPurchaseOrder(
+        db,
+        { supplierId, orderDate: "2026-10-08", items: [{ bookId, quantityOrdered: 2, unitPrice: 15000 }] },
+        { generateId: () => crypto.randomUUID() }
+      );
+      expect(created.ok).toBe(true);
+      if (!created.ok) return;
+      poId = created.data.id;
+
+      expect((await markPrinted(db, poId)).ok).toBe(true);
+      const uploaded = await uploadSignedDoc(
+        db,
+        poId,
+        new File([new Uint8Array([1])], "bukti.pdf", { type: "application/pdf" }),
+        new MemoryStorageService()
+      );
+      expect(uploaded.ok).toBe(true);
+
+      const mail = new InMemoryPoMailSender({ failNext: "SMTP relay terputus" });
+      const sent = await sendPo(db, poId, undefined, { mail });
+      expect(sent.ok).toBe(false);
+      if (sent.ok) return;
+      expect(sent.status).toBe(502);
+      expect(sent.message).toMatch(/Gagal mengirim/);
+
+      const [row] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      expect(row.status).toBe("signed_uploaded");
+    } finally {
+      await cleanupPo(poId, supplierId, bookId);
+    }
+  });
+
+  it("derives canSend once via withSendReadiness (independent literals)", async () => {
+    const { withSendReadiness } = await import("../services/po-lifecycle");
+    const rows = withSendReadiness([
+      { id: "x1", poNumber: "PO-DRAFT-1", status: "draft", signedDocUrl: null },
+      { id: "x2", poNumber: "PO-SIGNED-2", status: "signed_uploaded", signedDocUrl: "/api/media/bukti.pdf" },
+      { id: "x3", poNumber: "PO-LEGACY-3", status: "sent", signedDocUrl: null },
+    ]);
+    expect(rows[0].canSend).toBe(false);
+    expect(rows[0].sendBlockedReason).toContain("PO-DRAFT-1");
+    expect(rows[1].canSend).toBe(true);
+    expect(rows[1].sendBlockedReason).toBeNull();
+    expect(rows[2].canSend).toBe(true);
+  });
+
+  it("GET /purchase-orders exposes module-derived canSend (draft blocked, signed allowed)", async () => {
+    const { markPrinted, uploadSignedDoc } = await import("../services/po-lifecycle");
+    const { MemoryStorageService } = await import("../../services/storage");
+
+    const tag = "list";
+    const { supplierId, bookId } = await seedSupplierAndBook(tag);
+    let poId: string | undefined;
+    try {
+      const { poId: createdId } = await createPo(supplierId, bookId);
+      poId = createdId;
+      expect(poId).toBeTruthy();
+
+      const blocked = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+      const draftRow = (blocked.data as Array<{ id: string }>).find((p) => p.id === poId) as unknown as {
+        canSend: boolean;
+        sendBlockedReason: string | null;
+      };
+      expect(draftRow.canSend).toBe(false);
+      expect(draftRow.sendBlockedReason).toMatch(/bukti tanda tangan/i);
+
+      expect((await markPrinted(db, poId!)).ok).toBe(true);
+      const uploaded = await uploadSignedDoc(
+        db,
+        poId!,
+        new File([new Uint8Array([5, 5])], "bukti-list.pdf", { type: "application/pdf" }),
+        new MemoryStorageService()
+      );
+      expect(uploaded.ok).toBe(true);
+
+      const allowed = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+      const signedRow = (allowed.data as Array<{ id: string }>).find((p) => p.id === poId) as unknown as {
+        canSend: boolean;
+        sendBlockedReason: string | null;
+      };
+      expect(signedRow.canSend).toBe(true);
+      expect(signedRow.sendBlockedReason).toBeNull();
+    } finally {
+      await cleanupPo(poId, supplierId, bookId);
+    }
   });
 });
 
