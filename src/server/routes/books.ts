@@ -10,6 +10,12 @@ import {
   effectiveSellPrice,
 } from "../../lib/book-pricing";
 import { recalcPackagesUsingBook } from "../services/book-price";
+import {
+  accessErrorResponse,
+  requireAuthenticatedActor,
+  requireLogisticsRole,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const booksRouter = new Hono();
 
@@ -60,12 +66,13 @@ booksRouter.get("/:id", async (c) => {
 });
 
 booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
-  const [existingIsbn] = await db.select().from(books).where(eq(books.isbn, body.isbn));
-  if (existingIsbn) {
+  const [existingIsbn] = await db.select().from(books).where(eq(books.isbn, body.isbn));  if (existingIsbn) {
     return c.json({ success: false, message: "Book with this ISBN already exists" }, 400);
   }
 
@@ -90,11 +97,16 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     .returning();
 
   return c.json({ success: true, data: withEffectivePrices(newBook) }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // Update book catalog fields (incl. harga beli/jual terpisah)
 booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
-  const id = c.req.param("id");
+  try {
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    const id = c.req.param("id");
   const body = c.req.valid("json");
 
   const [updated] = await db
@@ -119,11 +131,16 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
     }
   }
   return c.json({ success: true, data: withEffectivePrices(updated) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // Upload book cover endpoint
 booksRouter.post("/:id/cover", async (c) => {
-  const bookId = c.req.param("id");
+  try {
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    const bookId = c.req.param("id");
   const [book] = await db.select().from(books).where(eq(books.id, bookId));
   if (!book) {
     return c.json({ success: false, message: "Book not found" }, 404);
@@ -147,11 +164,16 @@ booksRouter.post("/:id/cover", async (c) => {
     .where(eq(books.id, bookId));
 
   return c.json({ success: true, data: { coverUrl } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // DELETE book (hapus judul buku jika tidak dipakai di paket/transaksi aktif)
 booksRouter.delete("/:id", async (c) => {
-  const id = c.req.param("id");
+  try {
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    const id = c.req.param("id");
   const [book] = await db.select().from(books).where(eq(books.id, id));
   if (!book) {
     return c.json({ success: false, message: "Buku tidak ditemukan" }, 404);
@@ -204,5 +226,8 @@ booksRouter.delete("/:id", async (c) => {
   await db.delete(books).where(eq(books.id, id));
 
   return c.json({ success: true, message: `Buku "${book.title}" berhasil dihapus` });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 

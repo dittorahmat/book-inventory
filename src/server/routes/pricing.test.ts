@@ -1,10 +1,21 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { booksRouter } from "./books";
 import { packagesRouter } from "./packages";
 import { procurementRouter } from "./procurement";
+import { auth } from "../auth";
 import { db } from "../../db";
 import { schools, books, bookPackages, bookPackageItems, suppliers, purchaseOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
+
+const realGetSession = auth.api.getSession;
+function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
+  (auth.api as any).getSession = async () =>
+    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
+}
+beforeEach(() => actAs("central_admin", null));
+afterEach(() => {
+  (auth.api as any).getSession = realGetSession;
+});
 
 /** PO selalu diarahkan ke Gudang Logistik (design D1), jadi test tidak perlu lokasi sekolah. */
 async function warehouseId(): Promise<string> {

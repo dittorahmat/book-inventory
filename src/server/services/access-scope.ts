@@ -113,9 +113,9 @@ export function requireLogisticsRole(actor: AccessActor | null): void {
 }
 
 /** Map an AccessHttpError to a JSON response; rethrow anything else. */
-export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 403 | 404) => Response }, err: unknown) {
+export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 401 | 403 | 404) => Response }, err: unknown) {
   if (err instanceof AccessHttpError) {
-    return c.json({ success: false, message: err.message }, err.status as 400 | 403 | 404);
+    return c.json({ success: false, message: err.message }, err.status as 400 | 401 | 403 | 404);
   }
   throw err;
 }

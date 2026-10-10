@@ -1,8 +1,19 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { booksRouter } from "./books";
 import { db } from "../../db";
 import { books } from "../../db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "../auth";
+
+const realGetSession = auth.api.getSession;
+function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null) {
+  (auth.api as any).getSession = async () =>
+    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
+}
+beforeEach(() => actAs("central_admin", null));
+afterEach(() => {
+  (auth.api as any).getSession = realGetSession;
+});
 
 describe("Books Catalog API", () => {
   it("creates a book in catalog and supports cover image upload", async () => {
@@ -155,5 +166,91 @@ describe("Books Catalog API", () => {
     // Verify removed
     const checkRes = await booksRouter.request(`/${testBookId}`, { method: "GET" });
     expect(checkRes.status).toBe(404);
+  });
+});
+
+describe("Books master RBAC (#43)", () => {
+  const stamp = Date.now().toString().slice(-6);
+  const seedId = `b-rbac43-${stamp}`;
+
+  async function seedBook() {
+    await db.insert(books).values({
+      id: seedId,
+      isbn: `978-RBAC43-${stamp}`,
+      title: "Buku Kunci Master",
+      author: "QA",
+      publisher: "QA Press",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoNothing();
+  }
+
+  function bookPayload(isbn: string) {
+    return {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isbn, title: "X", author: "X", publisher: "X" }),
+    } as const;
+  }
+
+  it("menolak mutasi katalog tanpa sesi (401) dan oleh peran sekolah (403)", async () => {
+    await seedBook();
+    try {
+      actAs(null, null);
+      expect((await booksRouter.request("/", bookPayload(`978-A43-${stamp}`))).status).toBe(401);
+      expect((await booksRouter.request(`/${seedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Coba Ubah" }),
+      })).status).toBe(401);
+      const anonCover = new FormData();
+      anonCover.append("cover", new Blob(["x"], { type: "image/jpeg" }), "c.jpg");
+      expect((await booksRouter.request(`/${seedId}/cover`, { method: "POST", body: anonCover })).status).toBe(401);
+      expect((await booksRouter.request(`/${seedId}`, { method: "DELETE" })).status).toBe(401);
+
+      actAs("school_admin", "school-alw-1");
+      expect((await booksRouter.request("/", bookPayload(`978-S43-${stamp}`))).status).toBe(403);
+      expect((await booksRouter.request(`/${seedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Coba Ubah" }),
+      })).status).toBe(403);
+      const schoolCover = new FormData();
+      schoolCover.append("cover", new Blob(["x"], { type: "image/jpeg" }), "c.jpg");
+      expect((await booksRouter.request(`/${seedId}/cover`, { method: "POST", body: schoolCover })).status).toBe(403);
+      expect((await booksRouter.request(`/${seedId}`, { method: "DELETE" })).status).toBe(403);
+    } finally {
+      await db.delete(books).where(eq(books.id, seedId));
+    }
+  });
+
+  it("membiarkan daftar dan detail katalog terbaca publik", async () => {
+    await seedBook();
+    try {
+      actAs(null, null);
+      expect((await booksRouter.request("/", { method: "GET" })).status).toBe(200);
+      expect((await booksRouter.request(`/${seedId}`, { method: "GET" })).status).toBe(200);
+    } finally {
+      await db.delete(books).where(eq(books.id, seedId));
+    }
+  });
+
+  it("mengizinkan mutasi katalog oleh gudang dan pusat", async () => {
+    await db.delete(books).where(eq(books.isbn, `978-W43-${stamp}`));
+    actAs("warehouse_admin", "school-warehouse");
+    const created = await booksRouter.request("/", bookPayload(`978-W43-${stamp}`));
+    expect(created.status).toBe(201);
+    const createdId = ((await created.json()) as any).data.id;
+    try {
+      actAs("central_admin", null);
+      const patched = await booksRouter.request(`/${createdId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Judul Gudang" }),
+      });
+      expect(patched.status).toBe(200);
+    } finally {
+      await db.delete(books).where(eq(books.id, createdId));
+    }
   });
 });
