@@ -84,9 +84,9 @@ export async function runIdempotentSeed(customDb?: any) {
   const demoUsers = [
     {
       id: "usr-admin-pusat",
-      name: "Super Admin Al Wildan Pusat",
+      name: "School Admin Al Wildan 1",
       email: "admin.pusat@alwildan.sch.id",
-      role: "central_admin" as const,
+      role: "school_admin" as const,
       schoolId: "school-alw-1",
     },
     {
@@ -112,9 +112,9 @@ export async function runIdempotentSeed(customDb?: any) {
     },
     {
       id: "usr-admin-gudang",
-      name: "Admin Gudang Logistik",
+      name: "Super Admin Gudang Logistik",
       email: "admin.gudang@alwildan.sch.id",
-      role: "warehouse_admin" as const,
+      role: "central_admin" as const,
       schoolId: "school-warehouse",
     },
   ];

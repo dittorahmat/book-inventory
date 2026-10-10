@@ -42,7 +42,8 @@ Tersedia akun demonstrasi lengkap dengan data realistis di 4 kampus Al Wildan:
 
 | Peran (Role) | Email | Password | Unit / Kampus |
 |---|---|---|---|
-| **Central Admin (HQ)** | `admin.pusat@alwildan.sch.id` | `password123` | Al Wildan 1 (Pusat) |
+| **Central Admin (Gudang)** | `admin.gudang@alwildan.sch.id` | `password123` | Gudang Logistik (semua lokasi) |
+| **School Admin 1** | `admin.pusat@alwildan.sch.id` | `password123` | Al Wildan 1 |
 | **Branch Admin 2** | `admin.cabang2@alwildan.sch.id` | `password123` | Al Wildan 2 |
 | **Branch Admin 3** | `admin.cabang3@alwildan.sch.id` | `password123` | Al Wildan 3 |
 | **Branch Admin 4** | `admin.cabang4@alwildan.sch.id` | `password123` | Al Wildan 4 |
