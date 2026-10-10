@@ -1,4 +1,5 @@
-import { db } from "../../db";
+import { eq, getTableColumns, inArray, or } from "drizzle-orm";
+import type { AppDatabase } from "../../db";
 import {
   bookItems,
   bookPackages,
@@ -69,26 +70,31 @@ interface DashboardRows {
 }
 
 /**
- * Ambil semua tabel ringkasan SEKALI untuk seluruh sekolah.
- * Sebelumnya tiap sekolah memicu ~10 full-table scan berurutan
- * (180 sekolah di production = ~1800 query -> Worker kehabisan
- * CPU time dan jatuh ke 500 generik). Sekarang agregasi per
- * sekolah dikerjakan in-memory dari hasil fetch tunggal ini.
+ * Ambil baris ringkasan terpartisi scope sekolah di WHERE SQL (§11 anti
+ * Pindai Penuh): tabel milik sekolah difilter `school IN scope`, katalog
+ * global kecil (paket, buku) tetap penuh. Retur dijangkau lewat join ke
+ * murid dalam scope — satu query, bukan IN ribuan studentId.
  */
-async function fetchDashboardRows(database: typeof db): Promise<DashboardRows> {
-  const fetchAll = <T>(table: unknown): Promise<T[]> => database.select().from(table as any) as Promise<T[]>;
-  const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows] =
-    await Promise.all([
-      fetchAll<BookItemRow>(bookItems),
-      fetchAll<PackageItemRow>(packageItems),
-      fetchAll<BookPackageRow>(bookPackages),
-      fetchAll<BookRow>(books),
-      fetchAll<StudentRow>(students),
-      fetchAll<OrderRow>(studentBookOrders),
-      fetchAll<ReturnRow>(bookReturns),
-      fetchAll<ShipmentRow>(transferShipments),
-      fetchAll<PurchaseOrderRow>(purchaseOrders),
-    ]);
+async function fetchDashboardRows(database: AppDatabase, scope: string[]): Promise<DashboardRows> {
+  const scoped = scope.length > 0 ? scope : ["__no_school__"];
+  const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, shipmentRows, poRows] = await Promise.all([
+    database.select().from(bookItems).where(inArray(bookItems.currentSchoolId, scoped)),
+    database.select().from(packageItems).where(inArray(packageItems.currentSchoolId, scoped)),
+    database.select().from(bookPackages),
+    database.select().from(books),
+    database.select().from(students).where(inArray(students.schoolId, scoped)),
+    database.select().from(studentBookOrders).where(inArray(studentBookOrders.schoolId, scoped)),
+    database
+      .select()
+      .from(transferShipments)
+      .where(or(inArray(transferShipments.fromSchoolId, scoped), inArray(transferShipments.toSchoolId, scoped))),
+    database.select().from(purchaseOrders).where(inArray(purchaseOrders.targetSchoolId, scoped)),
+  ]);
+  const returnRows: ReturnRow[] = await database
+    .select({ ...getTableColumns(bookReturns) })
+    .from(bookReturns)
+    .innerJoin(students, eq(bookReturns.studentId, students.id))
+    .where(inArray(students.schoolId, scoped));
   return { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows };
 }
 
@@ -240,16 +246,16 @@ function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSc
 }
 
 export async function getDashboardSummary(
-  database: typeof db,
+  database: AppDatabase,
   actor: DashboardActor | null,
   requestedSchoolId: string | undefined,
 ): Promise<DashboardSummaryPayload> {
   const allSchoolRows: SchoolRow[] = await database.select().from(schools);
   const scope = resolveLocationScope(actor, requestedSchoolId, allSchoolRows.map((s) => ({ id: s.id })));
   const schoolById = new Map(allSchoolRows.map((s) => [s.id, s]));
-  // Satu fetch untuk semua sekolah, lalu bangun ringkasan per sekolah
-  // secara sinkron (lihat fetchDashboardRows).
-  const rows = await fetchDashboardRows(database);
+  // Satu fetch terpartisi untuk sekolah dalam scope, lalu bangun ringkasan
+  // per sekolah secara sinkron (lihat fetchDashboardRows).
+  const rows = await fetchDashboardRows(database, scope);
   const summaries: DashboardSchoolSummary[] = [];
   for (const id of scope) {
     const school = schoolById.get(id);

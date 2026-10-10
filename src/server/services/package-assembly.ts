@@ -1,8 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { db } from "../../db";
+import type { AppDatabase } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
-import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock-buckets";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
@@ -36,18 +36,20 @@ export type DisassembleResult =
  * dan mencetak bundel fisik baru ke package_items.
  */
 export async function assemblePackageBundles(
+  database: AppDatabase,
   packageId: string,
   schoolId: string,
-  quantity: number
+  quantity: number,
+  deps?: WriteDeps
 ): Promise<AssembleResult> {
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
 
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+  const [pkg] = await database.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   if (!pkg) {
     return { ok: false, status: 404, message: "Package not found" };
   }
 
-  const bom = await db
+  const bom = await database
     .select({
       bookId: bookPackageItems.bookId,
       quantity: bookPackageItems.quantity,
@@ -66,7 +68,7 @@ export async function assemblePackageBundles(
   for (const item of bom) {
     neededByBook.set(item.bookId, (neededByBook.get(item.bookId) ?? 0) + item.quantity * quantity);
   }
-  const candidates = await db
+  const candidates = await database
     .select({ id: bookItems.id, bookId: bookItems.bookId })
     .from(bookItems)
     .where(
@@ -103,7 +105,7 @@ export async function assemblePackageBundles(
     const idsToConsume = (availableByBook.get(item.bookId) ?? []).slice(0, requiredTotal).map((c) => c.id);
     for (const ids of chunkRows(idsToConsume, D1_INLIST_CHUNK_SIZE)) {
       consumeWrites.push(
-        db
+        database
           .update(bookItems)
           .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
           .where(inArray(bookItems.id, ids))
@@ -114,10 +116,11 @@ export async function assemblePackageBundles(
   // Buat eksemplar fisik paket baru
   const createdPackageItems: Array<{ id: string; barcode: string }> = [];
   const itemsToInsert: Array<typeof packageItems.$inferInsert> = [];
+  const timeFrag = now.replace(/\D/g, "").slice(-6);
 
   for (let i = 0; i < quantity; i++) {
-    const itemBarcode = `PKG-${pkg.code}-${Date.now().toString().slice(-6)}-${(i + 1).toString().padStart(3, "0")}`;
-    const pItemId = crypto.randomUUID();
+    const itemBarcode = `PKG-${pkg.code}-${timeFrag}-${(i + 1).toString().padStart(3, "0")}`;
+    const pItemId = newWriteId(deps);
     itemsToInsert.push({
       id: pItemId,
       packageId,
@@ -132,9 +135,9 @@ export async function assemblePackageBundles(
   }
 
   try {
-    await runWriteBatch(db, [
+    await runWriteBatch(database, [
       ...consumeWrites,
-      ...chunkRows(itemsToInsert).map((rows) => db.insert(packageItems).values(rows)),
+      ...chunkRows(itemsToInsert).map((rows) => database.insert(packageItems).values(rows)),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "perakitan paket");
@@ -158,19 +161,21 @@ export async function assemblePackageBundles(
  * buku komponen BOM ke stok gudang/cabang.
  */
 export async function disassemblePackageBundles(
+  database: AppDatabase,
   packageId: string,
   schoolId: string,
   quantity: number,
-  reason: string
+  reason: string,
+  deps?: WriteDeps
 ): Promise<DisassembleResult> {
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
 
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+  const [pkg] = await database.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   if (!pkg) {
     return { ok: false, status: 404, message: "Package not found" };
   }
 
-  const availableBundles = await db
+  const availableBundles = await database
     .select({ id: packageItems.id })
     .from(packageItems)
     .where(
@@ -190,7 +195,7 @@ export async function disassemblePackageBundles(
     };
   }
 
-  const bom = await db
+  const bom = await database
     .select({
       bookId: bookPackageItems.bookId,
       quantity: bookPackageItems.quantity,
@@ -202,18 +207,19 @@ export async function disassemblePackageBundles(
   const unbundleWrites = chunkRows<string>(
     availableBundles.map((b: { id: string }) => b.id),
     D1_INLIST_CHUNK_SIZE
-  ).map((ids) => db.delete(packageItems).where(inArray(packageItems.id, ids)));
+  ).map((ids) => database.delete(packageItems).where(inArray(packageItems.id, ids)));
 
   // Pulihkan eksemplar satuan komponen BOM
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
   let totalRestoredLoose = 0;
+  const timeFrag = now.replace(/\D/g, "").slice(-6);
 
   for (const item of bom) {
     const returnCount = item.quantity * quantity;
     for (let j = 0; j < returnCount; j++) {
-      const barcode = `RET-UNB-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+      const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;
       restoredBookItems.push({
-        id: crypto.randomUUID(),
+        id: newWriteId(deps),
         bookId: item.bookId,
         currentSchoolId: schoolId,
         barcode,
@@ -229,9 +235,9 @@ export async function disassemblePackageBundles(
 
   if (restoredBookItems.length > 0 || unbundleWrites.length > 0) {
     try {
-      await runWriteBatch(db, [
+      await runWriteBatch(database, [
         ...unbundleWrites,
-        ...chunkRows(restoredBookItems).map((rows) => db.insert(bookItems).values(rows)),
+        ...chunkRows(restoredBookItems).map((rows) => database.insert(bookItems).values(rows)),
       ]);
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "pembongkaran paket");
@@ -264,14 +270,14 @@ export type DeletePackageResult =
 /**
  * Deep module: hapus paket dengan auto-unbundle seluruh bundel fisik in_stock.
  */
-export async function deletePackageWithAutoUnbundle(packageId: string): Promise<DeletePackageResult> {
-  const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+export async function deletePackageWithAutoUnbundle(database: AppDatabase, packageId: string, deps?: WriteDeps): Promise<DeletePackageResult> {
+  const [pkg] = await database.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   if (!pkg) {
     return { ok: false, status: 404, message: "Package not found" };
   }
 
   // Cari semua bundel ready di seluruh sekolah (seam: READY_BUNDLE_STATUSES)
-  const activeBundles = await db
+  const activeBundles = await database
     .select({ id: packageItems.id, schoolId: packageItems.currentSchoolId })
     .from(packageItems)
     .where(and(eq(packageItems.packageId, packageId), inArray(packageItems.status, [...READY_BUNDLE_STATUSES])));
@@ -285,7 +291,7 @@ export async function deletePackageWithAutoUnbundle(packageId: string): Promise<
   let totalUnbundled = 0;
   let totalRestored = 0;
   for (const [schoolId, count] of bySchool.entries()) {
-    const res = await disassemblePackageBundles(packageId, schoolId, count, `Auto-unbundle saat penghapusan paket ${pkg.name}`);
+    const res = await disassemblePackageBundles(database, packageId, schoolId, count, `Auto-unbundle saat penghapusan paket ${pkg.name}`, deps);
     if (!res.ok) return res;
     totalUnbundled += res.data.unbundledCount;
     totalRestored += res.data.restoredLooseCount;
@@ -293,9 +299,9 @@ export async function deletePackageWithAutoUnbundle(packageId: string): Promise<
 
   // Hapus relasi BOM dan master paket
   try {
-    await runWriteBatch(db, [
-      db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId)),
-      db.delete(bookPackages).where(eq(bookPackages.id, packageId)),
+    await runWriteBatch(database, [
+      database.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId)),
+      database.delete(bookPackages).where(eq(bookPackages.id, packageId)),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penghapusan paket");

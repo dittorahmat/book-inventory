@@ -1,4 +1,5 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import {
   bookItems,
@@ -11,7 +12,9 @@ import {
 } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { derivePaymentStatus, validateLooseBooks, validateOrderLines } from "./order-validation";
 import { allocateLooseStock } from "./stock-allocation";
+import { normalizeNis } from "./student-lifecycle";
 
 export interface DirectSaleItemInput {
   bookId: string;
@@ -37,7 +40,7 @@ export interface DirectSaleDeps {
 
 export type DirectSaleResult =
   | { ok: true; data: { id: string; orderNumber: string; totalAmount: number; buyerName: string } }
-  | { ok: false; status: 400 | 403 | 404; message: string };
+  | { ok: false; status: ContentfulStatusCode; message: string };
 
 /**
  * Deep module: penjualan satuan langsung ke orang tua di Gudang Pusat.
@@ -52,7 +55,8 @@ export async function sellDirect(
 ): Promise<DirectSaleResult> {
   if (!input.schoolId) return { ok: false, status: 400, message: "Lokasi gudang wajib dipilih" };
   if (!input.buyerName) return { ok: false, status: 400, message: "Nama pembeli / orang tua wajib diisi" };
-  if (!input.items || input.items.length === 0) return { ok: false, status: 400, message: "Minimal 1 buku dipilih" };
+  const lineCheck = validateOrderLines(undefined, input.items);
+  if (!lineCheck.ok) return lineCheck;
 
   const [loc] = await database.select().from(schools).where(eq(schools.id, input.schoolId));
   if (!loc || loc.type !== "warehouse") {
@@ -74,8 +78,8 @@ export async function sellDirect(
   const bookMap = new Map<string, { id: string; title: string; price: number; buyPrice: number; sellPrice: number }>(
     bookRows.map((b: { id: string; title: string; price: number; buyPrice: number; sellPrice: number }) => [b.id, b])
   );
-  const missing = bookIds.find((id) => !bookMap.has(id));
-  if (missing) return { ok: false, status: 404, message: `Buku dengan ID ${missing} tidak ditemukan` };
+  const looseCheck = validateLooseBooks(bookIds, new Set(bookMap.keys()));
+  if (!looseCheck.ok) return looseCheck;
 
   let totalAmount = 0;
   const saleLines: Array<{ bookId: string; quantity: number; unitPrice: number }> = [];
@@ -99,6 +103,12 @@ export async function sellDirect(
     allocatedIds.push(...allocated.items.map((i) => i.id));
   }
 
+  const { totalAmount: derivedTotal, paidAmount, paymentStatus } = derivePaymentStatus({
+    isScholarship: false,
+    grossAmount: totalAmount,
+    bookAllocationAmount: totalAmount,
+  });
+
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const orderId = (deps.generateId ?? (() => crypto.randomUUID()))();
   const orderNumber =
@@ -115,11 +125,20 @@ export async function sellDirect(
     createdAt: now,
   }));
 
-  // student_id NOT NULL + FK sejak migrasi awal: direct sale walk-in tanpa
-  // murid terdaftar menunjuk ke placeholder per gudang (idempoten — satu
-  // baris per gudang, bukan sampah per transaksi). Tanpa ini endpoint selalu
-  // 500 (bug laten: route lama mengisi studentId null).
+  // student_id NOT NULL + FK sejak migrasi awal: bila NIS murid terdaftar
+  // diberikan, order menunjuk ke murid tersebut (NIS dinormalisasi kanonik);
+  // bila tidak, walk-in tanpa murid terdaftar menunjuk ke placeholder per
+  // gudang (idempoten — satu baris per gudang, bukan sampah per transaksi).
+  // Tanpa ini endpoint selalu 500 (bug laten: route lama mengisi studentId null).
   const walkInStudentId = `walk-in-direct-${input.schoolId}`;
+  let orderStudentId = walkInStudentId;
+  if (input.studentNis?.trim()) {
+    const [matched] = await database
+      .select({ id: students.id })
+      .from(students)
+      .where(and(eq(students.schoolId, input.schoolId), eq(sql`lower(${students.nis})`, normalizeNis(input.studentNis))));
+    if (matched) orderStudentId = matched.id;
+  }
 
   try {
     await runWriteBatch(database, [
@@ -143,11 +162,11 @@ export async function sellDirect(
         id: orderId,
         orderNumber,
         schoolId: input.schoolId,
-        studentId: walkInStudentId,
+        studentId: orderStudentId,
         packageId: null,
-        totalAmount,
-        paidAmount: totalAmount,
-        paymentStatus: "paid",
+        totalAmount: derivedTotal,
+        paidAmount,
+        paymentStatus,
         fulfillmentStatus: "picked_up",
         handoverDate: now,
         handoverRecipient: input.buyerName,
@@ -157,8 +176,13 @@ export async function sellDirect(
         updatedAt: now,
       }),
       ...chunkRows(orderItemRows).map((chunk) => database.insert(studentOrderItems).values(chunk)),
+      // Guard status di WHERE: flip hanya menyentuh eksemplar yang masih
+      // tersedia — balapan dua kasir tidak bisa menjual ulang baris yang sama.
       ...chunkRows(allocatedIds).map((chunk) =>
-        database.update(bookItems).set({ status: "sold", updatedAt: now }).where(inArray(bookItems.id, chunk))
+        database
+          .update(bookItems)
+          .set({ status: "sold", updatedAt: now })
+          .where(and(inArray(bookItems.id, chunk), eq(bookItems.status, "in_stock")))
       ),
       database.insert(orderPayments).values({
         id: genItemId(),

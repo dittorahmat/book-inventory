@@ -287,14 +287,14 @@ describe("Alokasi FIFO berbasis kuantitas (spec: inventory-summary)", () => {
     await seedLooseCopies({ bookId, schoolId: locationId, count: 2, condition: "damaged" });
     const good = await seedLooseCopies({ bookId, schoolId: locationId, count: 3, condition: "good" });
 
-    const result = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 3 });
+    const result = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 3 }, db);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.items.map((i) => i.id)).toEqual(good);
     }
 
     // Butuh 4 (2 rusak + 3 baik) -> hanya 3 yang boleh dialokasikan
-    const tooMany = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 4 });
+    const tooMany = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 4 }, db);
     expect(tooMany.ok).toBe(false);
 
     await db.delete(bookItems).where(eq(bookItems.currentSchoolId, locationId));
@@ -312,7 +312,7 @@ describe("Alokasi FIFO berbasis kuantitas (spec: inventory-summary)", () => {
     const result = await resolveShipmentLines(from, [
       { itemType: "loose", bookId, quantity: 3 },
       { itemType: "package", packageId: pkgId, quantity: 1 },
-    ]);
+    ], db);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.looseIds).toHaveLength(3);

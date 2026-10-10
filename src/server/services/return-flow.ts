@@ -1,4 +1,6 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { bookItems } from "../../db/schema";
+import { writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
 import { isAvailableLoose, isReadyBundle, isReturnable } from "./stock-buckets";
 
 export type FlowError = { ok: false; status: ContentfulStatusCode; message: string };
@@ -107,8 +109,7 @@ export const checkReplacementLoose = (
   item: LooseRow,
   order: OrderRef,
   defectiveBookId: string
-): FlowError | null => {
-  if (item.bookId !== defectiveBookId) {
+): FlowError | null => {  if (item.bookId !== defectiveBookId) {
     return {
       ok: false,
       status: 400,
@@ -137,4 +138,79 @@ export const checkReplacementLoose = (
     };
   }
   return null;
+};
+
+export interface ReturnResolveFacts {
+  action: "replace" | "reject" | "refund";
+  returnId: string;
+  defectiveBookId: string;
+  /** Dibangun dari baris order milik retur — caller dilarang merakit sendiri. */
+  order: OrderRef;
+  /** Masih ada laporan terbuka lain untuk order yang sama? */
+  siblingOpen: boolean;
+  /** Kandidat pengganti yang sudah lolos guard (eksplisit atau auto-pick), atau null. */
+  replacementId: string | null;
+  refundAmount?: number;
+  handledByUserId?: string;
+}
+
+export interface PlannedReturnResolve {
+  orderStatusAfter: "return_in_progress" | "picked_up";
+  returnStatus: "replaced" | "rejected" | "refunded";
+  replacementBookItemId: string | null;
+  refundAmount: number;
+  disposeReplacementId: string | null;
+  restoredStockRow: typeof bookItems.$inferInsert | null;
+}
+
+/**
+ * Perencana murni penyelesaian retur (cermin planPoReceive): dari fakta
+ * yang sudah divalidasi susun status order sesudahnya + patch retur +
+ * efek samping (flip pengganti / baris stok RFD). Tanpa DB, deterministik
+ * via deps — caller hanya mengeksekusi satu batch.
+ */
+export const planReturnResolve = (facts: ReturnResolveFacts, deps?: WriteDeps): PlannedReturnResolve => {
+  const now = writeNow(deps);
+  const orderStatusAfter = facts.siblingOpen ? "return_in_progress" : "picked_up";
+  if (facts.action === "replace") {
+    return {
+      orderStatusAfter,
+      returnStatus: "replaced",
+      replacementBookItemId: facts.replacementId,
+      refundAmount: 0,
+      disposeReplacementId: facts.replacementId,
+      restoredStockRow: null,
+    };
+  }
+  if (facts.action === "refund") {
+    const bookItemId = newWriteId(deps);
+    const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
+    const suffix = bookItemId.replace(/-/g, "").slice(0, 3).toUpperCase().padEnd(3, "0");
+    return {
+      orderStatusAfter,
+      returnStatus: "refunded",
+      replacementBookItemId: null,
+      refundAmount: facts.refundAmount ?? 0,
+      disposeReplacementId: null,
+      restoredStockRow: {
+        id: bookItemId,
+        bookId: facts.defectiveBookId,
+        currentSchoolId: facts.order.schoolId,
+        barcode: `RFD-${epoch}-${suffix}`,
+        condition: "good",
+        status: "in_stock",
+        notes: `Restored to stock from parent refund (Return #${facts.returnId})`,
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+  }
+  return {
+    orderStatusAfter,
+    returnStatus: "rejected",
+    replacementBookItemId: null,
+    refundAmount: 0,
+    disposeReplacementId: null,
+    restoredStockRow: null,
+  };
 };

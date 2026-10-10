@@ -137,13 +137,13 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
         });
       }
 
-      const assembled = await assemblePackageBundles(packageId, schoolId, 2);
+      const assembled = await assemblePackageBundles(db, packageId, schoolId, 2);
       expect(assembled.ok).toBe(true);
       if (!assembled.ok) return;
       expect(assembled.data.quantityAssembled).toBe(2);
       expect(assembled.data.assembledItems).toHaveLength(2);
 
-      const disassembled = await disassemblePackageBundles(packageId, schoolId, 1, "uji restore");
+      const disassembled = await disassemblePackageBundles(db, packageId, schoolId, 1, "uji restore");
       expect(disassembled.ok).toBe(true);
       if (!disassembled.ok) return;
       expect(disassembled.data.unbundledCount).toBe(1);
@@ -168,7 +168,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
     const schoolId = await seedSchool("kitshort");
     const packageId = await seedPackage("kitshort");
     try {
-      const result = await disassemblePackageBundles(packageId, schoolId, 3, "uji tolak");
+      const result = await disassemblePackageBundles(db, packageId, schoolId, 3, "uji tolak");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.status).toBe(400);
     } finally {
@@ -192,7 +192,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
         }))
       );
 
-      const assembled = await assemblePackageBundles(packageId, schoolId, 25);
+      const assembled = await assemblePackageBundles(db, packageId, schoolId, 25);
       expect(assembled.ok).toBe(true);
       if (!assembled.ok) return;
       expect(assembled.data.quantityAssembled).toBe(25);
@@ -274,7 +274,7 @@ describe("stock condition seam regression (T2)", () => {
         createdAt: now, updatedAt: now,
       });
 
-      const result = await assemblePackageBundles(packageId, schoolId, 1);
+      const result = await assemblePackageBundles(db, packageId, schoolId, 1);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.status).toBe(400);
     } finally {

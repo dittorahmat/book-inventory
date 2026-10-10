@@ -11,6 +11,7 @@ import {
   books,
 } from "../../db/schema";
 import { reportReturn } from "../services/return-intake";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import { applyDiscretion, cancelStudentOrder, resolveReturn } from "../services/order-fulfilment";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -244,7 +245,7 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
     if (result.data.status === "refunded") {
       return c.json({
         success: true,
-        message: `Permohonan refund berhasil disetujui. Dana sebesar Rp ${result.data.refundAmount.toLocaleString("id-ID")} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`,
+        message: `Permohonan refund berhasil disetujui. Dana sebesar ${formatRupiah(result.data.refundAmount)} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`,
         data: result.data,
       });
     }

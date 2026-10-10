@@ -4,7 +4,9 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
-import { sendPo, resolveWarehouseTarget, createPurchaseOrder, withSendReadiness, recordPoReceipt, getPoReceiptHistory, deletePurchaseOrder } from "../services/po-lifecycle";
+import { sendPo, withSendReadiness, deletePurchaseOrder } from "../services/po-lifecycle";
+import { resolveWarehouseTarget, createPurchaseOrder } from "../services/po-workflow";
+import { recordPoReceipt, getPoReceiptHistory } from "../services/po-receipt";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -173,7 +175,7 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
   try {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const body = c.req.valid("json");
-    const target = await resolveWarehouseTarget(body.targetSchoolId);
+    const target = await resolveWarehouseTarget(db, body.targetSchoolId);
     if (!target.ok) {
       return c.json({ success: false, message: target.message }, 400);
     }

@@ -1,65 +1,20 @@
 import { useState } from "react";
-import { Plus, Image as ImageIcon, Search, Upload, Trash2 } from "lucide-react";
-import { formatRupiah } from "../lib/transfer-pricing";
-import { BookPriceFields } from "../components/catalog/BookPriceFields";
 import { useCatalogData } from "../components/catalog/useCatalogData";
-import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
+import { CatalogToolbar } from "../components/catalog/CatalogToolbar";
+import { CreateBookForm } from "../components/catalog/CreateBookForm";
+import { CatalogBookList } from "../components/catalog/CatalogBookList";
+import type { NewBookPayload } from "../components/catalog/catalog-intent";
+import type { Book } from "../types";
 
+/** Orkestrasi katalog: hook data + toolbar + form + daftar; tanpa logika orphan/harga. */
 export function CatalogView() {
   const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook } = useCatalogData();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const [formData, setFormData] = useState({
-    isbn: "",
-    title: "",
-    author: "",
-    publisher: "",
-    publishYear: 2024,
-    category: "General",
-    price: 0,
-    buyPrice: 0,
-    sellPrice: 0,
-  });
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [isSubmittingBook, setIsSubmittingBook] = useState(false);
 
-  const handleCoverChange = (file: File | null) => {
-    setCoverFile(file);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setCoverPreviewUrl(url);
-    } else {
-      setCoverPreviewUrl(null);
-    }
-  };
-
-  const handleCreateBook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmittingBook(true);
-    try {
-      const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
-      const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
-      const legacyPrice = effectiveSellPrice({ price: buyPrice, buyPrice, sellPrice });
-
-      await createBook(
-        {
-          ...formData,
-          price: legacyPrice,
-          buyPrice,
-          sellPrice,
-        },
-        coverFile
-      );
-      setIsAdding(false);
-      setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 });
-      setCoverFile(null);
-      setCoverPreviewUrl(null);
-    } catch (err: any) {
-      alert(`Gagal mendaftarkan buku: ${err?.message || "Terjadi kesalahan koneksi"}`);
-    } finally {
-      setIsSubmittingBook(false);
-    }
+  const handleCreate = async (payload: NewBookPayload, coverFile: File | null) => {
+    await createBook(payload, coverFile);
+    setIsAdding(false);
   };
 
   const handleUploadCover = async (bookId: string, file: File) => {
@@ -67,6 +22,16 @@ export function CatalogView() {
       await uploadCover(bookId, file);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah cover buku");
+    }
+  };
+
+  const handleRemove = async (book: Book) => {
+    if (!window.confirm(`Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`)) return;
+    try {
+      await removeBook(book.id);
+      alert(`Buku "${book.title}" berhasil dihapus.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal menghapus buku.");
     }
   };
 
@@ -83,35 +48,12 @@ export function CatalogView() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-xl border border-[#E4E6EB] shadow-xs">
-        <div>
-          <h2 className="text-xl font-bold text-[#050505]">
-            Central Book Catalog
-          </h2>
-          <p className="text-xs text-[#65676B] mt-0.5">
-            Master data buku global ({books.length} judul terdaftar).
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#65676B]" />
-            <input
-              type="text"
-              placeholder="Cari judul, ISBN, penulis..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 text-xs font-medium border border-[#CED0D4] rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] focus:bg-white w-full sm:w-72 focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2] transition-all placeholder-[#8A8D91]"
-            />
-          </div>
-          <button
-            onClick={() => setIsAdding(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Buku
-          </button>
-        </div>
-      </div>
+      <CatalogToolbar
+        totalCount={books.length}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onAdd={() => setIsAdding(true)}
+      />
 
       {loadError && (
         <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700">
@@ -132,258 +74,14 @@ export function CatalogView() {
         </div>
       )}
 
-      {isAdding && (
-        <form onSubmit={handleCreateBook} className="p-5 sm:p-6 border border-[#CED0D4] bg-white rounded-2xl space-y-4 max-w-2xl shadow-xl">
-          <div className="font-bold text-base text-[#050505] border-b border-[#E4E6EB] pb-3">
-            Daftarkan Judul Katalog Baru
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-5">
-            {/* Cover Upload Dropzone / Preview */}
-            <div className="sm:w-36 flex flex-col items-center justify-start shrink-0">
-              <label className="block text-xs font-semibold text-[#050505] mb-1.5 self-start">Cover Buku</label>
-              <label
-                className={`w-full aspect-[3/4] border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group ${
-                  coverPreviewUrl
-                    ? "border-[#1877F2] bg-[#E7F3FF]/20"
-                    : "border-[#CED0D4] bg-[#F0F2F5] hover:border-[#1877F2] hover:bg-[#E7F3FF]/10"
-                }`}
-              >
-                {coverPreviewUrl ? (
-                  <>
-                    <img
-                      src={coverPreviewUrl}
-                      alt="Preview"
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-semibold">
-                      Ubah Cover
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center p-3 text-center">
-                    <Upload className="w-6 h-6 text-[#1877F2] mb-1.5" />
-                    <span className="text-xs font-semibold text-[#050505]">Upload Cover</span>
-                    <span className="text-[10px] text-[#65676B] mt-0.5">PNG, JPG to R2</span>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleCoverChange(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-              </label>
-            </div>
+      {isAdding && <CreateBookForm onClose={() => setIsAdding(false)} onCreate={handleCreate} />}
 
-            {/* Form Fields */}
-            <div className="flex-1 grid grid-cols-2 gap-3.5 text-xs">
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Nomor ISBN</label>
-                <input
-                  required
-                  className="w-full font-mono border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-                  placeholder="978-3-16-148410-0"
-                  value={formData.isbn}
-                  onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Judul Buku</label>
-                <input
-                  required
-                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-                  placeholder="Judul lengkap buku"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Penulis / Author</label>
-                <input
-                  required
-                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-                  placeholder="Nama penulis"
-                  value={formData.author}
-                  onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Penerbit / Publisher</label>
-                <input
-                  required
-                  className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-                  placeholder="Penerbit"
-                  value={formData.publisher}
-                  onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
-                />
-              </div>
-              <BookPriceFields
-                price={formData.price}
-                buyPrice={formData.buyPrice}
-                sellPrice={formData.sellPrice}
-                onChange={(field, value) => setFormData({ ...formData, [field]: value })}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2.5 justify-end pt-3 border-t border-[#E4E6EB]">
-            <button
-              type="button"
-              onClick={() => {
-                setIsAdding(false);
-                setCoverFile(null);
-                setCoverPreviewUrl(null);
-              }}
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmittingBook}
-              className="px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isSubmittingBook ? "Menyimpan..." : "Simpan Buku"}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Mobile Card List (< md) */}
-      <div className="md:hidden space-y-3">
-        {filteredBooks.length === 0 ? (
-          <div className="border border-[#E4E6EB] bg-white rounded-xl p-8 text-center text-xs text-[#65676B] shadow-xs">
-            {books.length === 0
-              ? 'Belum ada judul katalog. Klik "Tambah Buku" untuk membuat baru.'
-              : 'Tidak ada buku yang sesuai dengan pencarian.'}
-          </div>
-        ) : (
-          filteredBooks.map((book) => (
-            <div key={book.id} className="border border-[#E4E6EB] bg-white rounded-xl p-4 flex gap-3.5 items-start shadow-xs hover:border-[#CED0D4] transition-colors">
-              {/* Cover thumbnail */}
-              <div className="shrink-0">
-                {book.coverUrl ? (
-                  <img src={book.coverUrl} alt={book.title} className="w-14 h-20 object-cover rounded-lg border border-[#E4E6EB] shadow-xs" />
-                ) : (
-                  <label className="w-14 h-20 flex flex-col items-center justify-center border-2 border-dashed border-[#CED0D4] rounded-lg cursor-pointer hover:border-[#1877F2] text-[#65676B] bg-[#F0F2F5]">
-                    <ImageIcon className="w-5 h-5 text-[#1877F2]" />
-                    <span className="text-[9px] font-semibold mt-1">Cover</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files?.[0]) handleUploadCover(book.id, e.target.files[0]);
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-
-              {/* Book Details */}
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-[#050505] leading-snug line-clamp-2">
-                  {book.title}
-                </div>
-                <div className="text-xs text-[#65676B] mt-0.5">
-                  {book.author}
-                </div>
-                <div className="text-[11px] font-mono text-[#65676B] mt-1">
-                  ISBN: {book.isbn}
-                </div>
-                <div className="text-xs font-bold text-[#1877F2] mt-1">
-                  Beli: {formatRupiah(effectiveBookPrice(book).buy)} &bull; Jual: {formatRupiah(effectiveBookPrice(book).sell)}
-                </div>
-                {book.publisher && (
-                  <div className="text-[11px] text-[#65676B]">
-                    Pub: {book.publisher}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Desktop Catalog Table (>= md) */}
-      <div className="hidden md:block border border-[#E4E6EB] bg-white rounded-xl shadow-xs overflow-hidden">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-[#E4E6EB] bg-[#F0F2F5] text-[#65676B] text-[11px] font-bold uppercase tracking-wider">
-              <th className="py-3 px-4">Cover</th>
-              <th className="py-3 px-4">Judul & Penulis</th>
-              <th className="py-3 px-4">ISBN</th>
-              <th className="py-3 px-4">Penerbit</th>
-              <th className="py-3 px-4 text-right">Harga Beli / Jual</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#E4E6EB]">
-            {filteredBooks.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-10 text-center text-[#65676B]">
-                  {books.length === 0
-                    ? 'Belum ada judul katalog. Klik "Tambah Buku" untuk membuat baru.'
-                    : 'Tidak ada buku yang sesuai dengan pencarian.'}
-                </td>
-              </tr>
-            ) : (
-              filteredBooks.map((book) => (
-                <tr key={book.id} className="hover:bg-[#F0F2F5]/60 transition-colors">
-                  <td className="py-3 px-4">
-                    {book.coverUrl ? (
-                      <img src={book.coverUrl} alt={book.title} className="w-10 h-14 object-cover rounded-md border border-[#E4E6EB] shadow-xs" />
-                    ) : (
-                      <label className="w-10 h-14 flex flex-col items-center justify-center border-2 border-dashed border-[#CED0D4] rounded-md cursor-pointer hover:border-[#1877F2] text-[#65676B] bg-[#F0F2F5]">
-                        <ImageIcon className="w-4 h-4 text-[#1877F2]" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleUploadCover(book.id, e.target.files[0]);
-                          }}
-                        />
-                      </label>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-[#050505] text-sm">{book.title}</div>
-                    <div className="text-xs text-[#65676B]">{book.author}</div>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs text-[#65676B]">{book.isbn}</td>
-                  <td className="py-3 px-4 text-[#65676B] font-medium">{book.publisher}</td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</div>
-                    <div className="text-[10px] text-[#65676B] font-medium">Beli: {formatRupiah(effectiveBookPrice(book).buy)}</div>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (window.confirm(`Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`)) {
-                          try {
-                            await removeBook(book.id);
-                            alert(`Buku "${book.title}" berhasil dihapus.`);
-                          } catch (err) {
-                            alert(err instanceof Error ? err.message : "Gagal menghapus buku.");
-                          }
-                        }
-                      }}
-                      title="Hapus buku"
-                      className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
+      <CatalogBookList
+        books={filteredBooks}
+        isEmptyCatalog={books.length === 0}
+        onUploadCover={handleUploadCover}
+        onRemove={handleRemove}
+      />
     </div>
   );
 }

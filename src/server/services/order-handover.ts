@@ -158,6 +158,7 @@ export async function handoverPackage(
         inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
       )
     )
+    .orderBy(packageItems.createdAt)
     .limit(1);
 
   if (!availableBundle) {

@@ -1,15 +1,15 @@
-import { eq, inArray } from "drizzle-orm";
-import { db } from "../../db";
+import { eq } from "drizzle-orm";
+import type { AppDatabase } from "../../db";
 import { books, bookPackageItems, bookPackages } from "../../db/schema";
 
-import { effectiveBuyPrice, effectiveSellPrice } from "../../lib/book-pricing";
-import type { PriceLike } from "../../lib/book-pricing";
+import { effectiveSellPrice } from "../../lib/book-pricing";
+import { writeNow, type WriteDeps } from "../lib/d1-write";
 
 /** Helper DB harga paket — bukan shim presentasi. Fungsi murni diimpor dari lib/book-pricing langsung. */
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
-export async function recalcPackagePrice(packageId: string): Promise<number> {
-  const rows = await db
+export async function recalcPackagePrice(database: AppDatabase, packageId: string, deps?: WriteDeps): Promise<number> {
+  const rows = await database
     .select({
       quantity: bookPackageItems.quantity,
       price: books.price,
@@ -21,33 +21,21 @@ export async function recalcPackagePrice(packageId: string): Promise<number> {
     .where(eq(bookPackageItems.packageId, packageId));
 
   const total = rows.reduce((sum: number, r: { quantity: number; price: number; buyPrice: number; sellPrice: number }) => sum + r.quantity * effectiveSellPrice(r), 0);
-  await db
+  await database
     .update(bookPackages)
-    .set({ price: total, updatedAt: new Date().toISOString() })
+    .set({ price: total, updatedAt: writeNow(deps) })
     .where(eq(bookPackages.id, packageId));
   return total;
 }
 
 /** Hitung ulang harga semua paket yang memakai buku tertentu. Mengembalikan jumlah paket yang diperbarui. */
-export async function recalcPackagesUsingBook(bookId: string): Promise<number> {
-  const rows: Array<{ packageId: string }> = await db
+export async function recalcPackagesUsingBook(database: AppDatabase, bookId: string, deps?: WriteDeps): Promise<number> {
+  const rows: Array<{ packageId: string }> = await database
     .select({ packageId: bookPackageItems.packageId })
     .from(bookPackageItems)
     .where(eq(bookPackageItems.bookId, bookId));
   const packageIds = [...new Set(rows.map((r) => r.packageId))];
   // Sekuensial: tulis konkuren via Promise.all dilarang untuk D1 (§10).
-  for (const packageId of packageIds) await recalcPackagePrice(packageId);
+  for (const packageId of packageIds) await recalcPackagePrice(database, packageId, deps);
   return packageIds.length;
-}
-
-/** Ambil harga beli/efektif untuk daftar buku (untuk default harga item PO). */
-export async function fetchEffectiveBuyPrices(bookIds: string[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  if (bookIds.length === 0) return map;
-  const rows = await db
-    .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
-    .from(books)
-    .where(inArray(books.id, bookIds));
-  rows.forEach((row: PriceLike & { id: string }) => map.set(row.id, effectiveBuyPrice(row)));
-  return map;
 }

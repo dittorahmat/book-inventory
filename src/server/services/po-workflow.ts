@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import { db, type AppDatabase } from "../../db";
+import type { AppDatabase } from "../../db";
 import { books, purchaseOrders, purchaseOrderItems, suppliers, schools } from "../../db/schema";
 import { calcPoHeader, effectiveBuyPrice } from "../../lib/book-pricing";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
@@ -23,8 +23,8 @@ export const SIGNED_UPLOADED_STATUS = "signed_uploaded";
 export type PoRow = typeof purchaseOrders.$inferSelect;
 
 /** ID lokasi gudang logistik (tunggal). Semua PO diarahkan ke gudang. */
-export async function resolveWarehouseId(): Promise<string | null> {
-  const [warehouse] = await db
+export async function resolveWarehouseId(database: AppDatabase): Promise<string | null> {
+  const [warehouse] = await database
     .select({ id: schools.id })
     .from(schools)
     .where(eq(schools.type, "warehouse"))
@@ -41,9 +41,10 @@ export type WarehouseTargetResult =
  * Bila request menyebut tujuan lain, request ditolak; bila tidak menyebut, diisi server-side.
  */
 export async function resolveWarehouseTarget(
+  database: AppDatabase,
   requestedTargetId: string | undefined
 ): Promise<WarehouseTargetResult> {
-  const warehouseId = await resolveWarehouseId();
+  const warehouseId = await resolveWarehouseId(database);
   if (!warehouseId) {
     return { ok: false, message: "Lokasi Gudang Logistik belum tersedia. Tambahkan gudang di master lokasi terlebih dahulu." };
   }
@@ -191,7 +192,7 @@ export async function createPurchaseOrder(
   const [supplier] = await database.select().from(suppliers).where(eq(suppliers.id, input.supplierId));
   if (!supplier) return { ok: false, status: 400, message: "Supplier tidak ditemukan" };
 
-  const target = await resolveWarehouseTarget(input.targetSchoolId);
+  const target = await resolveWarehouseTarget(database, input.targetSchoolId);
   if (!target.ok) return { ok: false, status: 400, message: target.message };
 
   const bookIds = [...new Set(input.items.map((it) => it.bookId))];
