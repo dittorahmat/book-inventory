@@ -103,7 +103,10 @@ export const transferShipments = sqliteTable("transfer_shipments", {
   reason: text("reason"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("shipments_from_status_idx").on(t.fromSchoolId, t.status),
+  index("shipments_to_status_idx").on(t.toSchoolId, t.status),
+]);
 
 export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
   id: text("id").primaryKey(),
@@ -117,7 +120,9 @@ export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
   receivedCondition: text("received_condition", { enum: ["good", "damaged", "missing"] }),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => [
+  index("shipment_lines_shipment_idx").on(t.shipmentId),
+]);
 
 // ==========================================
 // 1. STUDENTS & ACADEMIC DATA
