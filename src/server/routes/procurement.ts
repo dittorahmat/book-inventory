@@ -10,6 +10,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
+  requireAuthenticatedActor,
   requireLogisticsRole,
   resolveLocationScope,
   resolveRequestActor,
@@ -55,12 +56,19 @@ const receivePOSchema = z.object({
 
 // 1. GET & POST Suppliers
 procurementRouter.get("/suppliers", async (c) => {
-  const allSuppliers = await db.select().from(suppliers);
-  return c.json({ success: true, data: allSuppliers });
+  try {
+    requireAuthenticatedActor(await resolveRequestActor(c));
+    const allSuppliers = await db.select().from(suppliers);
+    return c.json({ success: true, data: allSuppliers });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
@@ -83,6 +91,9 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 
   const [created] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   return c.json({ success: true, data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // 2. GET Purchase Orders

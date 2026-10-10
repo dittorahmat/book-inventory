@@ -588,7 +588,7 @@ export async function runIdempotentSeed(customDb?: any) {
       id: "po-demo-001",
       poNumber: "PO-202609-0088",
       supplierId: "sup-cambridge-mentari",
-      targetSchoolId: "school-alw-1",
+      targetSchoolId: "school-warehouse",
       status: "partially_received",
       orderDate: "2026-09-20",
       expectedArrivalDate: "2026-09-28",

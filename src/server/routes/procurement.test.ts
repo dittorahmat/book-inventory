@@ -1,11 +1,22 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
+import { auth } from "../auth";
 import { createPurchaseOrder } from "../services/po-workflow";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
 import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers } from "../../db/schema";
+
+const realGetSession = auth.api.getSession;
+function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
+  (auth.api as any).getSession = async () =>
+    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
+}
+beforeEach(() => actAs("central_admin", null));
+afterEach(() => {
+  (auth.api as any).getSession = realGetSession;
+});
 
 /** Bawa PO dari draft ke signed_uploaded: tandai dicetak lalu upload bukti TTD. */
 async function advanceToSignedUploaded(poId: string) {
@@ -627,5 +638,37 @@ describe("Supplier Procurement & Purchase Order API", () => {
       }
       if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId));
     }
+  });
+});
+
+describe("Supplier master RBAC (#43)", () => {
+  const stamp = Date.now().toString().slice(-6);
+
+  function supplierPayload(code: string) {
+    return {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, name: `Supplier RBAC ${code}` }),
+    } as const;
+  }
+
+  it("mewajibkan login untuk daftar supplier dan peran logistik untuk tambah supplier", async () => {
+    actAs(null, null);
+    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(401);
+    expect((await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBAC-${stamp}`))).status).toBe(401);
+
+    actAs("school_admin", "school-alw-1");
+    expect((await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBAC-${stamp}`))).status).toBe(403);
+  });
+
+  it("mengizinkan daftar oleh peran sekolah dan tambah oleh gudang", async () => {
+    actAs("school_admin", "school-alw-1");
+    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
+
+    actAs("warehouse_admin", "school-warehouse");
+    const res = await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBACW-${stamp}`));
+    expect(res.status).toBe(201);
+    const id = ((await res.json()) as any).data.id;
+    await db.delete(suppliers).where(eq(suppliers.id, id));
   });
 });
