@@ -57,7 +57,7 @@ const receivePOSchema = z.object({
 // 1. GET & POST Suppliers
 procurementRouter.get("/suppliers", async (c) => {
   try {
-    requireAuthenticatedActor(await resolveRequestActor(c));
+    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
     const allSuppliers = await db.select().from(suppliers);
     return c.json({ success: true, data: allSuppliers });
   } catch (err) {
@@ -100,6 +100,7 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 procurementRouter.get("/purchase-orders", async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireLogisticsRole(actor);
     const locations = await loadLocationIds(db);
     const scope = new Set(resolveLocationScope(actor, undefined, locations));
     const scopedOnly = scope.size < locations.length;
@@ -233,6 +234,7 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
 procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireLogisticsRole(actor);
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
 

@@ -641,6 +641,31 @@ describe("Supplier Procurement & Purchase Order API", () => {
   });
 });
 
+describe("Supplier PO visibility lock (#45)", () => {
+  it("menolak daftar maupun baca PO supplier untuk peran sekolah dengan 403 berpesan jelas", async () => {
+    for (const role of ["school_admin", "branch_admin"] as const) {
+      actAs(role, "school-alw-1");
+      for (const path of ["/suppliers", "/purchase-orders", "/purchase-orders/po-ghost-45/receipts"] as const) {
+        const res = await procurementRouter.request(path, { method: "GET" });
+        expect(res.status).toBe(403);
+        const json = await res.json();
+        expect(json.success).toBe(false);
+        expect(json.message).toMatch(/gudang|pusat|pengadaan/i);
+      }
+    }
+  });
+
+  it("tetap membuka daftar supplier dan PO untuk gudang dan pusat", async () => {
+    actAs("warehouse_admin", "school-warehouse");
+    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
+    expect((await procurementRouter.request("/purchase-orders", { method: "GET" })).status).toBe(200);
+
+    actAs("central_admin", null);
+    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
+    expect((await procurementRouter.request("/purchase-orders", { method: "GET" })).status).toBe(200);
+  });
+});
+
 describe("Supplier master RBAC (#43)", () => {
   const stamp = Date.now().toString().slice(-6);
 
@@ -661,9 +686,9 @@ describe("Supplier master RBAC (#43)", () => {
     expect((await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBAC-${stamp}`))).status).toBe(403);
   });
 
-  it("mengizinkan daftar oleh peran sekolah dan tambah oleh gudang", async () => {
+  it("menolak daftar oleh peran sekolah (#45) dan mengizinkan tambah oleh gudang", async () => {
     actAs("school_admin", "school-alw-1");
-    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
+    expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(403);
 
     actAs("warehouse_admin", "school-warehouse");
     const res = await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBACW-${stamp}`));

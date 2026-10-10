@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { School } from "../types";
+import type { StaffRole } from "../components/layout/AppTabsNavigation";
 import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
 import { SupplierMasterSection, type SupplierRecord } from "../components/procurement/SupplierMasterSection";
 import { CreatePOModal } from "../components/procurement/CreatePOModal";
@@ -18,9 +19,13 @@ import {
 
 interface ProcurementViewProps {
   activeSchool: School | null;
+  userRole?: StaffRole;
 }
 
-export function ProcurementView({ activeSchool }: ProcurementViewProps) {
+const isSchoolRole = (role?: StaffRole): boolean =>
+  role === "school_admin" || role === "branch_admin";
+
+export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps) {
   const {
     purchaseOrders,
     suppliers,
@@ -65,8 +70,7 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
   }, [loadData, loadPurchaseOrders]);
 
   // Filter Purchase Orders
-  const filteredPOs = purchaseOrders.filter((po) => {
-    const q = searchQuery.toLowerCase();
+  const filteredPOs = purchaseOrders.filter((po) => {    const q = searchQuery.toLowerCase();
     const matchesSearch =
       po.poNumber.toLowerCase().includes(q) ||
       po.supplierName.toLowerCase().includes(q) ||
@@ -80,6 +84,19 @@ export function ProcurementView({ activeSchool }: ProcurementViewProps) {
 
   // Mode cetak terisolasi: saat pratinjau dibuka, DOM hanya berisi dokumen PO
   // sehingga window.print() mencetak dokumen saja, bukan seluruh aplikasi.
+  // Defense-in-depth: peran sekolah tidak pernah melihat UI supplier
+  // (tab sudah disembunyikan + API menolak 403).
+  if (isSchoolRole(userRole)) {
+    return (
+      <div className="rounded-2xl border border-[#E4E6EB] bg-white p-8 text-center">
+        <p className="text-sm font-bold text-[#050505]">Layar khusus gudang</p>
+        <p className="mx-auto mt-1 max-w-md text-xs text-[#65676B]">
+          Pengadaan ke supplier hanya dikelola admin pusat dan admin gudang. Untuk kebutuhan buku cabang, buka tab
+          “Pesan ke Gudang”.
+        </p>
+      </div>
+    );
+  }
   if (printPo) {
     return <PoPrintView po={printPo} onClose={() => setPrintPo(null)} onChanged={refreshAfterWorkflow} />;
   }
