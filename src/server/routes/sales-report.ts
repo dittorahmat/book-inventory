@@ -5,6 +5,7 @@ import { db } from "../../db";
 import {
   accessErrorResponse,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -30,7 +31,7 @@ async function resolveReportScope(
 
 salesReportRouter.get("/", zValidator("query", reportQuerySchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const { from, to, schoolId } = c.req.valid("query");
     const report = await getSalesReport({
       from,
@@ -45,7 +46,7 @@ salesReportRouter.get("/", zValidator("query", reportQuerySchema), async (c) => 
 
 salesReportRouter.get("/csv", zValidator("query", reportQuerySchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const { from, to, schoolId } = c.req.valid("query");
     const report = await getSalesReport({
       from,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from "react";
 import { School } from "./types";
 import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
@@ -21,9 +21,20 @@ import { Loader2 } from "lucide-react";
 
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
+function SeedNotice({ message }: { message: string }) {
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4">
+      <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+        {message}
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const { data: session, isPending } = useSession();
   const [schools, setSchools] = useState<School[]>([]);
+  const [seedNotice, setSeedNotice] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   
@@ -32,18 +43,31 @@ export function App() {
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   const loadSchools = useCallback(async () => {
     try {
       const list = await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.");
       if (list.length === 0) {
-        // Auto seed Cambridge & Al Wildan demo
+        const role = (sessionRef.current?.user as { role?: string } | undefined)?.role;
+        if (role !== "central_admin") {
+          setSchools([]);
+          setSeedNotice("Data sekolah belum tersedia. Hanya admin pusat yang dapat memuat data demo — silakan hubungi admin pusat.");
+          return;
+        }
+        // Auto seed Cambridge & Al Wildan demo (central only)
         await postJson("/api/demo/seed", {}, "Gagal memuat data demo.");
         setSchools(await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah."));
+        setSeedNotice(null);
       } else {
         setSchools(list);
+        setSeedNotice(null);
       }
-    } catch {
-      // Biarkan layar publik tampil; view mandiri menampilkan errornya sendiri.
+    } catch (err) {
+      setSeedNotice(err instanceof Error ? err.message : "Gagal memuat daftar sekolah.");
     }
   }, []);
 
@@ -77,26 +101,32 @@ export function App() {
   // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)
   if (!session && !showStaffLogin) {
     return (
-      <PublicOrderView 
-        onNavigateToStaffLogin={() => setShowStaffLogin(true)} 
-      />
+      <div className="min-h-screen bg-[#F0F2F5]">
+        {seedNotice && <SeedNotice message={seedNotice} />}
+        <PublicOrderView
+          onNavigateToStaffLogin={() => setShowStaffLogin(true)}
+        />
+      </div>
     );
   }
 
   // 2. If unauthenticated but wants staff login
   if (!session) {
     return (
-      <LoginView 
-        onLoginSuccess={() => {
-          setShowStaffLogin(false);
-          setIsPublicMode(false);
-          loadSchools();
-        }} 
-        onNavigateToPublicPortal={() => {
-          setShowStaffLogin(false);
-          setIsPublicMode(true);
-        }}
-      />
+      <div className="min-h-screen bg-[#F0F2F5]">
+        {seedNotice && <SeedNotice message={seedNotice} />}
+        <LoginView
+          onLoginSuccess={() => {
+            setShowStaffLogin(false);
+            setIsPublicMode(false);
+            loadSchools();
+          }}
+          onNavigateToPublicPortal={() => {
+            setShowStaffLogin(false);
+            setIsPublicMode(true);
+          }}
+        />
+      </div>
     );
   }
 
@@ -130,6 +160,8 @@ export function App() {
           isCentralAdmin={isCentralAdmin}
         />
       </header>
+
+      {seedNotice && <SeedNotice message={seedNotice} />}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">

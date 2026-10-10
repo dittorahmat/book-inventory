@@ -8,6 +8,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -45,7 +46,7 @@ async function nisTaken(nis: string, exceptId?: string) {
 // 1. GET list with school/status/search filters
 studentsRouter.get("/", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
     const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
@@ -102,7 +103,7 @@ studentsRouter.get("/", async (c) => {
 // 2. POST create (admin-side: langsung terverifikasi bila status active)
 studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
@@ -145,7 +146,7 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
 // 3. PUT update
 studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const id = c.req.param("id");
     const body = c.req.valid("json");
@@ -186,7 +187,7 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
 // 4. DELETE remove
 studentsRouter.delete("/:id", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const id = c.req.param("id");
     const [existing] = await db.select().from(students).where(eq(students.id, id));
@@ -223,7 +224,7 @@ studentsRouter.delete("/:id", async (c) => {
 // 5. POST verify (approve dengan NIS resmi / reject)
 studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const id = c.req.param("id");
     const body = c.req.valid("json");
@@ -280,7 +281,7 @@ const bulkImportPayloadSchema = z.object({
 
 studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);

@@ -255,6 +255,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
 
 describe("Ekspor CSV (spec: sales-report)", () => {
   it("CSV memuat baris yang sama dengan respons JSON", async () => {
+    actAs("central_admin");
     const stamp = Date.now();
     const schoolA = await makeSchool("Csv");
     const studentA = await makeStudent(schoolA, stamp);

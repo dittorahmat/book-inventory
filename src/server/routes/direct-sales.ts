@@ -13,6 +13,7 @@ import {
 } from "../../db/schema";
 import {
   accessErrorResponse,
+  requireAuthenticatedActor,
   requireLogisticsRole,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -39,7 +40,7 @@ const directSaleSchema = z.object({
 // POST direct sale to parent from Central Warehouse
 directSalesRouter.post("/", zValidator("json", directSaleSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     requireLogisticsRole(actor);
     const body = c.req.valid("json");
 

@@ -15,7 +15,7 @@ import {
   saveWhatsAppConfig,
   sendWhatsAppMessage,
 } from "../services/whatsapp";
-import { accessErrorResponse, requireCentralAdmin, requireLogisticsRole, resolveRequestActor } from "../services/access-scope";
+import { accessErrorResponse, requireAuthenticatedActor, requireCentralAdmin, requireLogisticsRole, resolveRequestActor } from "../services/access-scope";
 
 export const settingsRouter = new Hono();
 
@@ -48,9 +48,9 @@ const overrideSchema = z.object({
   override: z.enum(["open", "closed", "auto"]),
 });
 
-/** Otorisasi pengaturan cut-off: hanya central admin / admin gudang. */
+/** Otorisasi pengaturan cut-off: wajib login, hanya central admin / admin gudang. */
 async function assertCutoffAdmin(c: Context) {
-  const actor = await resolveRequestActor(c);
+  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
   requireLogisticsRole(actor);
 }
 

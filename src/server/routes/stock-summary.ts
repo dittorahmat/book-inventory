@@ -3,6 +3,7 @@ import { db } from "../../db";
 import {
   accessErrorResponse,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -15,7 +16,7 @@ import {
 export const stockSummaryRouter = new Hono();
 
 async function resolveScope(c: Context) {
-  const actor = await resolveRequestActor(c);
+  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
   const locations = await loadLocationIds(db);
   const schoolId = c.req.query("schoolId");
   return resolveLocationScope(actor, schoolId, locations);

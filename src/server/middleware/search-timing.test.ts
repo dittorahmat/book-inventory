@@ -1,8 +1,19 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { app } from "../index";
 import { db } from "../../db";
+import { auth } from "../auth";
 import { bookReturns, books, schools, studentBookOrders, students } from "../../db/schema";
+
+const realGetSession = auth.api.getSession;
+function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
+  (auth.api as any).getSession = async () =>
+    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
+}
+beforeEach(() => actAs("central_admin", null));
+afterEach(() => {
+  (auth.api as any).getSession = realGetSession;
+});
 
 describe("Search timing middleware (#38)", () => {
   it("emits tookMs meta + structured log on all 5 search endpoints", async () => {
