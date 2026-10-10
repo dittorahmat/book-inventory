@@ -10,6 +10,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -65,7 +66,7 @@ const receiveShipmentSchema = z.object({
 // List shipments (with filter for from/to school)
 shipmentsRouter.get("/", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const requestedSchoolId = c.req.query("schoolId");
     const scope = resolveLocationScope(actor, requestedSchoolId, locations);
@@ -81,7 +82,7 @@ shipmentsRouter.get("/", async (c) => {
 // Get shipment detail with items
 shipmentsRouter.get("/:id", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const id = c.req.param("id");
     const detail = await getShipmentDetail(db, id);
     if (!detail) {
@@ -99,7 +100,7 @@ shipmentsRouter.get("/:id", async (c) => {
 // Create shipment draft: input kuantitas per judul/paket, fisiknya dialokasikan FIFO.
 shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const body = c.req.valid('json');
     assertLocationAllowed(actor, body.fromSchoolId, locations);
@@ -130,7 +131,7 @@ shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) =>
 // Dispatch shipment (Pusat sends to Branch)
 shipmentsRouter.post("/:id/dispatch", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const id = c.req.param("id");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 
@@ -153,7 +154,7 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
 // Receive shipment (Branch receives from Pusat)
 shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const id = c.req.param("id");
     const body = c.req.valid("json");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
@@ -177,7 +178,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
 // DELETE shipment (khusus draft atau batalkan kiriman; rollback via modul)
 shipmentsRouter.delete("/:id", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const id = c.req.param("id");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 

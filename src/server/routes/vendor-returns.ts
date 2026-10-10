@@ -12,6 +12,7 @@ import {
 } from "../../db/schema";
 import {
   accessErrorResponse,
+  requireAuthenticatedActor,
   requireLogisticsRole,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -35,7 +36,7 @@ const createVendorReturnSchema = z.object({
 // 1. GET list vendor returns
 vendorReturnsRouter.get("/", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     requireLogisticsRole(actor);
 
     const returns = await db
@@ -94,7 +95,7 @@ vendorReturnsRouter.get("/", async (c) => {
 // 2. POST create vendor return (RTV - Return to Vendor)
 vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     requireLogisticsRole(actor);
     const body = c.req.valid("json");
 

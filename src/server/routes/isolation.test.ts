@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from "bun:test";
 import { db } from "../../db";
-import { schools, books, bookItems, students, studentBookOrders, transferShipments } from "../../db/schema";
+import { schools, books, bookItems, students, studentBookOrders, transferShipments, internalPurchaseOrders } from "../../db/schema";
 import { auth } from "../auth";
 import { bookItemsRouter } from "./bookItems";
 import { studentOrdersRouter } from "./student-orders";
@@ -8,6 +8,18 @@ import { studentsRouter } from "./students";
 import { paymentsRouter } from "./payments";
 import { shipmentsRouter } from "./shipments";
 import { procurementRouter } from "./procurement";
+import { dashboardRouter } from "./dashboard";
+import { stockSummaryRouter } from "./stock-summary";
+import { salesReportRouter } from "./sales-report";
+import { packagesRouter } from "./packages";
+import { internalOrdersRouter } from "./internal-orders";
+import { directSalesRouter } from "./direct-sales";
+import { vendorReturnsRouter } from "./vendor-returns";
+import { poWorkflowRouter } from "./po-workflow";
+import { demoRouter } from "./demo";
+import { publicOrdersRouter } from "./public-orders";
+import { schoolsRouter } from "./schools";
+import { booksRouter } from "./books";
 
 const stamp = Date.now().toString().slice(-8);
 const SCHOOL_A = `school-iso-a-${stamp}`;
@@ -117,9 +129,106 @@ describe("Role & location isolation across routes", () => {
     const centralItems = await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" });
     expect(centralItems.status).toBe(200);
 
-    // --- unauthenticated keeps legacy open access ---
+    // --- unauthenticated is rejected everywhere since #44 ---
     actAs(null, null);
-    const legacy = await bookItemsRouter.request("/", { method: "GET" });
-    expect(legacy.status).toBe(200);
+    const denied = await bookItemsRouter.request("/", { method: "GET" });
+    expect(denied.status).toBe(401);
+  });
+});
+
+describe("Staff login gate (#44): anonymous callers get 401 on every staff router", () => {
+  it("rejects anonymous reads across all staff routers, keeps public portal open", async () => {
+    await seedPair();
+    actAs(null, null);
+    const anonGet = (router: { request: (path: string, init?: RequestInit) => Response | Promise<Response> }, path: string) =>
+      router.request(path, { method: "GET" });
+
+    expect((await anonGet(studentsRouter, "/")).status).toBe(401);
+    expect((await anonGet(studentOrdersRouter, "/")).status).toBe(401);
+    expect((await anonGet(studentOrdersRouter, "/returns")).status).toBe(401);
+    expect((await anonGet(paymentsRouter, `/orders/ord-iso-${SCHOOL_A}`)).status).toBe(401);
+    expect((await anonGet(dashboardRouter, "/summary")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/loose")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/packages")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/overview")).status).toBe(401);
+    expect((await anonGet(salesReportRouter, "/?from=2026-01-01&to=2026-12-31")).status).toBe(401);
+    expect((await anonGet(shipmentsRouter, "/")).status).toBe(401);
+    expect((await anonGet(packagesRouter, "/")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/suppliers")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/purchase-orders")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/purchase-orders/ghost-po/receipts")).status).toBe(401);
+    expect((await anonGet(internalOrdersRouter, "/")).status).toBe(401);
+    expect((await anonGet(internalOrdersRouter, "/ghost-ipo/shipments")).status).toBe(401);
+    expect((await anonGet(bookItemsRouter, "/")).status).toBe(401);
+    expect((await anonGet(vendorReturnsRouter, "/")).status).toBe(401);
+
+    const anonPrint = await poWorkflowRouter.request("/purchase-orders/ghost-po/print", { method: "POST" });
+    expect(anonPrint.status).toBe(401);
+
+    const anonSale = await directSalesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: "school-warehouse",
+        buyerName: "Ortu Anon",
+        buyerPhone: "081234567890",
+        items: [{ bookId: BOOK, quantity: 1 }],
+      }),
+    });
+    expect(anonSale.status).toBe(401);
+
+    // Public portal stays open without session.
+    const search = await publicOrdersRouter.request(`/search-students?query=Siswa&schoolId=${SCHOOL_A}`, { method: "GET" });
+    expect(search.status).toBe(200);
+    expect((await search.json()).success).toBe(true);
+
+    const badSubmit = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(badSubmit.status).not.toBe(401);
+
+    // Public catalog reads stay open.
+    expect((await anonGet(schoolsRouter, "/")).status).toBe(200);
+    expect((await anonGet(booksRouter, "/")).status).toBe(200);
+  });
+
+  it("locks demo reseed to central (anon 401, school 403, central 200)", async () => {
+    actAs(null, null);
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(401);
+
+    actAs("school_admin", SCHOOL_A);
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(403);
+
+    actAs("central_admin", null);
+    const seeded = await demoRouter.request("/seed", { method: "POST" });
+    expect(seeded.status).toBe(200);
+    expect((await seeded.json()).success).toBe(true);
+  });
+
+  it("stops one branch from peeking another branch's internal shipment history", async () => {
+    await seedPair();
+    const ipoId = `ipo-iso-${stamp}`;
+    await db.insert(internalPurchaseOrders).values({
+      id: ipoId,
+      poNumber: `IPO-ISO-${stamp}`,
+      schoolId: SCHOOL_A,
+      status: "submitted",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    actAs(null, null);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(401);
+
+    actAs("school_admin", SCHOOL_B);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(403);
+
+    actAs("school_admin", SCHOOL_A);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
+
+    actAs("central_admin", null);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
   });
 });

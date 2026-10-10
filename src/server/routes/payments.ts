@@ -8,6 +8,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveRequestActor,
 } from "../services/access-scope";
 
@@ -33,7 +34,7 @@ const scholarshipActionSchema = z.object({
 // GET order payment history & pending approvals
 paymentsRouter.get("/orders/:orderId", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
 
@@ -88,7 +89,7 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
 // POST record payment by cashier (Partial or Full)
 paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const body = c.req.valid("json");
@@ -145,7 +146,7 @@ paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSch
 // POST approve or reject scholarship
 paymentsRouter.post("/orders/:orderId/scholarship", zValidator("json", scholarshipActionSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const body = c.req.valid("json");
