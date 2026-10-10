@@ -8,7 +8,8 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
 
 | Peran (Role) | Email | Password | Unit / Kampus | Hak Akses |
 |---|---|---|---|---|
-| **Central Admin (HQ Pusat)** | `admin.pusat@alwildan.sch.id` | `password123` | Al Wildan 1 (Pusat) | Seluruh menu: Semua Cabang, Bundling, Approval Beasiswa, Handover Surat Jalan, PO Supplier, Approval Retur, Pengaturan SMTP |
+| **Central Admin (Gudang)** | `admin.gudang@alwildan.sch.id` | `password123` | Gudang Logistik | Seluruh menu: Semua Cabang, Bundling, Approval Beasiswa, Handover Surat Jalan, PO Supplier, Approval Retur, Pengaturan SMTP |
+| **School Admin 1** | `admin.pusat@alwildan.sch.id` | `password123` | Al Wildan 1 | Menu terisolasi untuk Al Wildan 1 (Pesanan Siswa, Stok, Penerimaan Surat Jalan) |
 | **Branch Admin 2** | `admin.cabang2@alwildan.sch.id` | `password123` | Al Wildan 2 | Menu terisolasi untuk Al Wildan 2 (Pesanan Siswa, Stok Cabang, Penerimaan Surat Jalan) |
 | **Branch Admin 3** | `admin.cabang3@alwildan.sch.id` | `password123` | Al Wildan 3 | Menu terisolasi untuk Al Wildan 3 |
 | **Branch Admin 4** | `admin.cabang4@alwildan.sch.id` | `password123` | Al Wildan 4 | Menu terisolasi untuk Al Wildan 4 |
@@ -109,7 +110,7 @@ Panduan ini berisi langkah-langkah terperinci untuk menjalankan simulasi demo bi
 ### Skenario 3: Dashboard Staf — Verifikasi Kasir & Approval Beasiswa
 
 1. Di pojok kanan atas Portal Publik, klik tombol **"Login Staf / Admin &rarr;"**.
-2. Masuk menggunakan akun **Central Admin (HQ Pusat)** (`admin.pusat@alwildan.sch.id`).
+2. Masuk menggunakan akun **Central Admin (Gudang)** (`admin.gudang@alwildan.sch.id`).
 3. Masuk ke tab **Pesanan Siswa**:
    - Lihat daftar pesanan. Anda akan melihat pesanan **Muhammad Farhan Al-Ghifari** atau **Zaidan Faris** dengan status beasiswa.
    - Klik tombol **Lihat Dokumen Beasiswa** untuk memeriksa foto surat rekomendasi beasiswa.

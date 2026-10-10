@@ -1,6 +1,7 @@
 import { describe, expect, it, afterEach } from "bun:test";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, books, bookItems, students, studentBookOrders, transferShipments, internalPurchaseOrders } from "../../db/schema";
+import { schools, books, bookItems, students, studentBookOrders, transferShipments, internalPurchaseOrders, users } from "../../db/schema";
 import { auth } from "../auth";
 import { bookItemsRouter } from "./bookItems";
 import { studentOrdersRouter } from "./student-orders";
@@ -230,5 +231,53 @@ describe("Staff login gate (#44): anonymous callers get 401 on every staff route
 
     actAs("central_admin", null);
     expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
+  });
+});
+
+describe("Account roles per organization (#46)", () => {
+  it("seeds gudang as central admin and ALW-1 as scoped school admin", async () => {
+    const rows = await db.select().from(users);
+    const byEmail = Object.fromEntries(rows.map((u: { email: string }) => [u.email, u]));
+    expect(byEmail["admin.gudang@alwildan.sch.id"]?.role).toBe("central_admin");
+    expect(byEmail["admin.gudang@alwildan.sch.id"]?.schoolId).toBe("school-warehouse");
+    expect(byEmail["admin.pusat@alwildan.sch.id"]?.role).toBe("school_admin");
+    expect(byEmail["admin.pusat@alwildan.sch.id"]?.schoolId).toBe("school-alw-1");
+  });
+
+  it("gudang login sees all locations", async () => {
+    await seedPair();
+    actAs("central_admin", "school-warehouse");
+
+    const all = await bookItemsRouter.request("/", { method: "GET" });
+    expect(all.status).toBe(200);
+    const barcodes = ((await all.json()).data as any[]).map((i) => i.barcode as string);
+    expect(barcodes.some((b) => b.includes(SCHOOL_A))).toBe(true);
+    expect(barcodes.some((b) => b.includes(SCHOOL_B))).toBe(true);
+
+    const scoped = await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" });
+    expect(scoped.status).toBe(200);
+  });
+
+  it("ALW-1 admin is locked to school-alw-1 (cross-school read → 403)", async () => {
+    await seedPair();
+    const probeId = `bi-46-alw1-${stamp}`;
+    await db.insert(bookItems).values({
+      id: probeId, bookId: BOOK, currentSchoolId: "school-alw-1",
+      barcode: `ALW1-46-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    try {
+      actAs("school_admin", "school-alw-1");
+
+      const own = await bookItemsRouter.request("/", { method: "GET" });
+      expect(own.status).toBe(200);
+      const rows = (await own.json()).data as any[];
+      expect(rows.some((i) => i.barcode === `ALW1-46-${stamp}`)).toBe(true);
+      expect(rows.every((i) => !i.barcode.includes(SCHOOL_A) && !i.barcode.includes(SCHOOL_B))).toBe(true);
+
+      expect((await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" })).status).toBe(403);
+      expect((await bookItemsRouter.request(`/barcode/ISO-${stamp}-${SCHOOL_B}`, { method: "GET" })).status).toBe(403);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.id, probeId));
+    }
   });
 });
