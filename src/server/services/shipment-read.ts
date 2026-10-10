@@ -6,9 +6,11 @@ import { calcLineTotal } from "../../lib/transfer-pricing";
 /** Batas daftar Transfer Shipment (§11): partisi + LIMIT 10–50, default 50. */
 export const SHIPMENT_LIST_LIMIT = 50;
 
+export type ShipmentListStatus = "draft" | "pending_dispatch" | "in_transit" | "completed" | "completed_with_discrepancy" | "cancelled" | "all";
+
 export interface ShipmentListFilter {
   schoolId?: string;
-  status?: string;
+  status?: ShipmentListStatus;
   limit?: number;
 }
 
@@ -30,7 +32,7 @@ export async function listShipmentsWithCounts(database: AppDatabase, filter: Shi
     );
   }
   if (filter.status && filter.status !== "all") {
-    conditions.push(eq(transferShipments.status, filter.status as "draft"));
+    conditions.push(eq(transferShipments.status, filter.status));
   }
 
   const rows = await database.select({

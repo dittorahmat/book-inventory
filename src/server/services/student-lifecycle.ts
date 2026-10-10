@@ -2,17 +2,11 @@ import { eq, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { studentBookOrders, students } from "../../db/schema";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
 
 export type LifecycleError = { ok: false; status: ContentfulStatusCode; message: string };
 
-export interface LifecycleDeps {
-  now?: string;
-  generateId?: () => string;
-}
-
-const lifecycleNow = (deps?: LifecycleDeps): string => deps?.now ?? new Date().toISOString();
-const lifecycleNewId = (deps?: LifecycleDeps): string => (deps?.generateId ? deps.generateId() : crypto.randomUUID());
+export type LifecycleDeps = WriteDeps;
 
 /** Satu-satunya kanonik NIS: pangkas spasi dan lipat case agar "Adi" = "adi". */
 export const normalizeNis = (nis: string): string => nis.trim().toLowerCase();
@@ -63,17 +57,17 @@ export async function importStudents(
   deps?: LifecycleDeps
 ): Promise<ImportStudentsResult> {
   const folded = rows.map((r) => normalizeNis(r.nis));
-  const seen = new Set<string>();
-  const dup = folded.find((nis) => {
-    if (seen.has(nis)) return true;
-    seen.add(nis);
+  const seenFolded = new Set<string>();
+  const duplicateFolded = folded.find((nis) => {
+    if (seenFolded.has(nis)) return true;
+    seenFolded.add(nis);
     return false;
   });
-  if (dup) {
-    return { ok: false, status: 400, message: `NIS duplikat dalam file impor: ${rows[folded.indexOf(dup)].nis.trim()}. Satu NIS hanya boleh muncul sekali.` };
+  if (duplicateFolded) {
+    return { ok: false, status: 400, message: `NIS duplikat dalam file impor: ${rows[folded.indexOf(duplicateFolded)].nis.trim()}. Satu NIS hanya boleh muncul sekali.` };
   }
 
-  const now = lifecycleNow(deps);
+  const now = writeNow(deps);
   const existing = await database
     .select({ id: students.id, nis: students.nis })
     .from(students)
@@ -104,7 +98,7 @@ export async function importStudents(
       updateQueries.push(database.update(students).set(values).where(eq(students.id, existingId)));
       updatedCount++;
     } else {
-      const newId = lifecycleNewId(deps);
+      const newId = newWriteId(deps);
       insertRows.push({ id: newId, schoolId, nis: cleanNis, ...values, createdAt: now });
       existingMap.set(normalizeNis(item.nis), newId);
       insertedCount++;

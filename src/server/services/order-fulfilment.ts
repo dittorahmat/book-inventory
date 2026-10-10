@@ -3,7 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookReturns, packageItems, studentBookOrders } from "../../db/schema";
 import { AVAILABLE_LOOSE_STATUSES, RETURNABLE_CONDITIONS } from "./stock-buckets";
-import { d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
 import {
   RETURN_OPEN_STATUSES,
   checkReplacementLoose,
@@ -27,13 +27,7 @@ export type ResolveReturnResult =
   | { ok: true; data: { status: "replaced" | "rejected" | "refunded"; replacementBookItemId: string | null; refundAmount: number; restoredBookItemId: string | null } }
   | FulfilmentError;
 
-export interface ResolveDeps {
-  now?: string;
-  generateId?: () => string;
-}
-
-const resolveNow = (deps?: ResolveDeps): string => deps?.now ?? new Date().toISOString();
-const resolveNewId = (deps?: ResolveDeps): string => (deps?.generateId ? deps.generateId() : crypto.randomUUID());
+export type ResolveDeps = WriteDeps;
 
 export interface DiscretionInput {
   discretionType: "discount" | "scholarship" | "handover_override";
@@ -62,7 +56,7 @@ export async function resolveReturn(
   input: ResolveReturnInput,
   deps?: ResolveDeps
 ): Promise<ResolveReturnResult> {
-  const now = resolveNow(deps);
+  const now = writeNow(deps);
   const [ret] = await database.select().from(bookReturns).where(eq(bookReturns.id, returnId));
   if (!ret) {
     return { ok: false, status: 404, message: "Laporan retur tidak ditemukan" };
@@ -175,7 +169,7 @@ export async function resolveReturn(
 
   if (input.action === "refund") {
     const refundAmt = input.refundAmount ?? 0;
-    const bookItemId = resolveNewId(deps);
+    const bookItemId = newWriteId(deps);
     const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
     const suffix = bookItemId.replace(/-/g, "").slice(0, 3).toUpperCase().padEnd(3, "0");
     try {
@@ -251,7 +245,7 @@ export async function applyDiscretion(
   input: DiscretionInput,
   deps?: ResolveDeps
 ): Promise<DiscretionResult> {
-  const now = resolveNow(deps);
+  const now = writeNow(deps);
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
   if (!order) {
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
@@ -316,7 +310,7 @@ export async function cancelStudentOrder(
   orderId: string,
   deps?: ResolveDeps
 ): Promise<CancelOrderResult> {
-  const now = resolveNow(deps);
+  const now = writeNow(deps);
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
   if (!order) {
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };

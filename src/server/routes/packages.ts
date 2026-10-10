@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books } from "../../db/schema";
 import { recalcPackagePrice } from "../services/book-price";
@@ -91,8 +91,13 @@ packagesRouter.get("/", async (c) => {
 // GET ready physical bundles (for transfer pickers)
 packagesRouter.get("/items/ready", async (c) => {
   try {
-    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
-    let rows = await db
+    const { scope, locations } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    // Partisi sekolah di WHERE SQL + LIMIT (§11 anti Pindai Penuh).
+    const conditions = [eq(packageItems.status, "in_stock")];
+    if (scope.length < locations.length) {
+      conditions.push(inArray(packageItems.currentSchoolId, scope));
+    }
+    const rows = await db
     .select({
       id: packageItems.id,
       barcode: packageItems.barcode,
@@ -105,9 +110,8 @@ packagesRouter.get("/items/ready", async (c) => {
     })
     .from(packageItems)
     .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
-    .where(eq(packageItems.status, "in_stock"));
-
-  rows = rows.filter((r: any) => scope.includes(r.currentSchoolId));
+    .where(and(...conditions))
+    .limit(50);
 
   return c.json({ success: true, data: rows });
   } catch (err) {

@@ -108,10 +108,11 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   }
 
   const id = body.id ?? crypto.randomUUID();
+  const cleanNis = body.nis.trim();
   await db.insert(students).values({
     id,
     schoolId: body.schoolId,
-    nis: body.nis,
+    nis: cleanNis,
     name: body.name,
     gender: body.gender,
     gradeLevel: body.gradeLevel,
@@ -146,7 +147,8 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
   }
   assertLocationAllowed(actor, existing.schoolId, locations);
-  if (body.nis && body.nis !== existing.nis && (await checkNisTaken(db, body.nis, id))) {
+  const nextNis = body.nis?.trim();
+  if (nextNis && nextNis !== existing.nis && (await checkNisTaken(db, nextNis, id))) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
   if (body.schoolId) {
@@ -164,6 +166,7 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     else if (key === "isScholarship") patch[key] = value;
     else patch[key] = value;
   }
+  if (nextNis !== undefined) patch.nis = nextNis;
 
   await db.update(students).set(patch as any).where(eq(students.id, id));
   const [updated] = await db.select().from(students).where(eq(students.id, id));
@@ -213,12 +216,13 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
     if (!body.nis) {
       return c.json({ success: false, message: "NIS resmi wajib diisi saat menyetujui" }, 400);
     }
-    if (body.nis !== existing.nis && (await checkNisTaken(db, body.nis, id))) {
+    const officialNis = body.nis.trim();
+    if (officialNis !== existing.nis && (await checkNisTaken(db, officialNis, id))) {
       return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
     }
     await db
       .update(students)
-      .set({ nis: body.nis, status: "active", updatedAt: now })
+      .set({ nis: officialNis, status: "active", updatedAt: now })
       .where(eq(students.id, id));
     const [updated] = await db.select().from(students).where(eq(students.id, id));
     return c.json({ success: true, message: "Siswa disetujui dan aktif", data: updated });

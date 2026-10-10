@@ -8,7 +8,7 @@ import {
   purchaseOrderReceiptItems,
   purchaseOrders,
 } from "../../db/schema";
-import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
 import type { ReceivedItemInput, ReceivePoResult } from "./po-workflow";
 
 export interface CreatePoReceiptInput {
@@ -19,10 +19,7 @@ export interface CreatePoReceiptInput {
   receivedItems: ReceivedItemInput[];
 }
 
-export interface PoReceivePlanDeps {
-  now?: string;
-  generateId?: () => string;
-}
+export type PoReceivePlanDeps = WriteDeps;
 
 export interface PlannedPoReceive {
   itemUpdates: Array<{ poItemId: string; quantityReceived: number }>;
@@ -47,7 +44,7 @@ export const planPoReceive = (
   receivedItems: ReceivedItemInput[],
   deps?: PoReceivePlanDeps
 ): PoReceivePlanResult => {
-  const now = deps?.now ?? new Date().toISOString();
+  const now = writeNow(deps);
   const poItemById = new Map(poItems.map((it) => [it.id, it]));
 
   const increments = new Map<string, number>();
@@ -70,7 +67,7 @@ export const planPoReceive = (
   for (const [poItemId, qty] of increments) {
     const poItem = poItemById.get(poItemId)!;
     for (let k = 0; k < qty; k++) {
-      const newId = deps?.generateId ? deps.generateId() : crypto.randomUUID();
+      const newId = newWriteId(deps);
       stockRows.push({
         id: newId,
         bookId: poItem.bookId,
@@ -135,7 +132,7 @@ export async function receivePurchaseOrder(
   receivedItems: ReceivedItemInput[],
   deps?: PoReceivePlanDeps
 ): Promise<ReceivePoResult> {
-  const now = deps?.now ?? new Date().toISOString();
+  const now = writeNow(deps);
   const loaded = await loadPoWithItems(database, poId);
   if (!loaded) {
     return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
@@ -201,7 +198,7 @@ export async function recordPoReceipt(
     return { ok: false, status: 400 as const, message: "Nomor Surat Jalan supplier wajib diisi" };
   }
 
-  const now = deps?.now ?? new Date().toISOString();
+  const now = writeNow(deps);
   const loaded = await loadPoWithItems(database, poId);
   if (!loaded) {
     return { ok: false, status: 404 as const, message: "Purchase Order tidak ditemukan" };
@@ -220,7 +217,7 @@ export async function recordPoReceipt(
     return { ok: false, status: 400 as const, message: `Nomor Surat Jalan ${note} sudah tercatat untuk PO ${poNumber}` };
   }
 
-  const receiptId = deps?.generateId ? deps.generateId() : crypto.randomUUID();
+  const receiptId = newWriteId(deps);
   const poItemMap = new Map<string, string>(loaded.items.map((p: { id: string; bookId: string }) => [p.id, p.bookId]));
   const receiptItemRows = input.receivedItems
     .filter((item) => (poItemMap.get(item.poItemId) ?? null) && item.quantityToReceive > 0)

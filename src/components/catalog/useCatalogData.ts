@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Book } from "../../types";
 import { delJson, getJson, postForm, postJson } from "../../lib/api";
-import { createBookWithCover, type NewBookPayload } from "./catalog-intent";
+import { createBookWithCover, buildCoverForm, type NewBookPayload } from "./catalog-intent";
 
 /** Data katalog: daftar + buat-bersama-cover + upload/hapus, satu seam uji. */
 export function useCatalogData() {
@@ -44,9 +44,7 @@ export function useCatalogData() {
 
   const uploadCover = useCallback(
     async (bookId: string, file: File) => {
-      const form = new FormData();
-      form.append("cover", file);
-      await postForm(`/api/books/${bookId}/cover`, form, "Gagal mengunggah cover buku");
+      await postForm(`/api/books/${bookId}/cover`, buildCoverForm(file), "Gagal mengunggah cover buku");
       await loadCatalog();
     },
     [loadCatalog]

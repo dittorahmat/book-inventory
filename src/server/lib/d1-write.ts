@@ -10,6 +10,21 @@ import type { AppDatabase } from "../../db";
 /** Maksimal baris per statement INSERT: budget ~100 bound-parameter D1 (±9 kolom × 10 baris). */
 export const D1_WRITE_CHUNK_SIZE = 10;
 
+/**
+ * Injeksi deterministik untuk tulis: jam dan generator ID. Satu bentuk
+ * kanonik dipakai semua modul tulis agar test deterministik tanpa
+ * Math.random/Date.now tersebar (YAGNI: tanpa bentuk duplikat).
+ */
+export interface WriteDeps {
+  now?: string;
+  generateId?: () => string;
+}
+
+/** Jam tulis: injeksian bila ada, waktu nyata bila tidak. */
+export const writeNow = (deps?: WriteDeps): string => deps?.now ?? new Date().toISOString();
+
+/** ID tulis: injeksian bila ada, UUID acak bila tidak. */
+export const newWriteId = (deps?: WriteDeps): string => (deps?.generateId ? deps.generateId() : crypto.randomUUID());
 /** Maksimal id per klausa IN (...): 1 parameter per id. */
 export const D1_INLIST_CHUNK_SIZE = 90;
 

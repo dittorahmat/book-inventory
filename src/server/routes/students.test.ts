@@ -493,6 +493,29 @@ describe("spec-57 T3 student NIS-guard consistency", () => {
     }
   });
 
+  it("trims NIS on write so padded variants collide on the guard", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-trim-${stamp}`;
+    await seedSchool(schoolId, `ALW-TRIM-${stamp}`);
+    try {
+      const first = await studentsRouter.request("/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, nis: `  PAD${stamp}  `, name: "Trim", gradeLevel: "1", academicYear: "2026/2027" }),
+      });
+      expect(first.status).toBe(201);
+      expect((await first.json()).data.nis).toBe(`PAD${stamp}`);
+
+      const dup = await studentsRouter.request("/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, nis: `pad${stamp}`, name: "Trim Dup", gradeLevel: "1", academicYear: "2026/2027" }),
+      });
+      expect(dup.status).toBe(400);
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("bulk-imports 30 rows D1-safe in one call", async () => {
     const stamp = Date.now();
     const schoolId = `school-bulk30-${stamp}`;
