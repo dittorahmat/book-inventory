@@ -1,13 +1,15 @@
 import { eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
+  bookItems,
+  books,
   purchaseOrderItems,
   purchaseOrderReceipts,
   purchaseOrderReceiptItems,
-  books,
+  purchaseOrders,
 } from "../../db/schema";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { receivePurchaseOrder, type ReceivedItemInput } from "./po-workflow";
+import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
+import type { ReceivedItemInput, ReceivePoResult } from "./po-workflow";
 
 export interface CreatePoReceiptInput {
   deliveryNoteNumber: string;
@@ -17,38 +19,206 @@ export interface CreatePoReceiptInput {
   receivedItems: ReceivedItemInput[];
 }
 
+export type PoReceivePlanDeps = WriteDeps;
+
+export interface PlannedPoReceive {
+  itemUpdates: Array<{ poItemId: string; quantityReceived: number }>;
+  stockRows: Array<typeof bookItems.$inferInsert>;
+  totalReceivedThisBatch: number;
+  newStatus: "received" | "partially_received";
+}
+
+export type PoReceivePlanResult =
+  | { ok: true; plan: PlannedPoReceive }
+  | { ok: false; status: 400; message: string };
+
+/**
+ * Perencana murni intake Supplier PO: validasi keanggotaan item + sisa
+ * kuantitas sebelum tulis apa pun (400, bukan 500), lalu susun write-set
+ * stok + status. Dipakai receivePurchaseOrder dan recordPoReceipt agar
+ * kedua jalan mengeksekusi tepat satu rencana yang sama.
+ */
+export const planPoReceive = (
+  po: { poNumber: string; targetSchoolId: string },
+  poItems: Array<{ id: string; bookId: string; quantityOrdered: number; quantityReceived: number }>,
+  receivedItems: ReceivedItemInput[],
+  deps?: PoReceivePlanDeps
+): PoReceivePlanResult => {
+  const now = writeNow(deps);
+  const poItemById = new Map(poItems.map((it) => [it.id, it]));
+
+  const increments = new Map<string, number>();
+  for (const rec of receivedItems) {
+    const poItem = poItemById.get(rec.poItemId);
+    if (!poItem) {
+      return { ok: false, status: 400, message: `Item PO tidak valid untuk ${po.poNumber}` };
+    }
+    const next = (increments.get(rec.poItemId) ?? 0) + rec.quantityToReceive;
+    const remaining = poItem.quantityOrdered - poItem.quantityReceived;
+    if (next > remaining) {
+      return { ok: false, status: 400, message: `Jumlah terima melebihi sisa ${remaining} eks untuk PO ${po.poNumber}` };
+    }
+    increments.set(rec.poItemId, next);
+  }
+
+  const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
+  let totalReceivedThisBatch = 0;
+  const stockRows: Array<typeof bookItems.$inferInsert> = [];
+  for (const [poItemId, qty] of increments) {
+    const poItem = poItemById.get(poItemId)!;
+    for (let k = 0; k < qty; k++) {
+      const newId = newWriteId(deps);
+      stockRows.push({
+        id: newId,
+        bookId: poItem.bookId,
+        currentSchoolId: po.targetSchoolId,
+        barcode: `INB-PO-${epoch}-${poItemId.replace(/-/g, "").slice(0, 4).toUpperCase()}-${k + 1}-${newId.replace(/-/g, "").slice(0, 4).toUpperCase()}`,
+        condition: "new",
+        status: "in_stock",
+        notes: `Inbound receiving from ${po.poNumber}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      totalReceivedThisBatch++;
+    }
+  }
+  if (totalReceivedThisBatch === 0) {
+    return { ok: false, status: 400, message: "Tidak ada item yang diterima" };
+  }
+
+  const newStatus: "received" | "partially_received" = poItems.every(
+    (item) => item.quantityReceived + (increments.get(item.id) ?? 0) >= item.quantityOrdered
+  )
+    ? "received"
+    : "partially_received";
+
+  return {
+    ok: true,
+    plan: {
+      itemUpdates: [...increments].map(([poItemId, qty]) => ({
+        poItemId,
+        quantityReceived: poItemById.get(poItemId)!.quantityReceived + qty,
+      })),
+      stockRows,
+      totalReceivedThisBatch,
+      newStatus,
+    },
+  };
+};
+
+const loadPoWithItems = async (database: AppDatabase, poId: string) => {
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  if (!po) return null;
+  const items = await database
+    .select({
+      id: purchaseOrderItems.id,
+      bookId: purchaseOrderItems.bookId,
+      quantityOrdered: purchaseOrderItems.quantityOrdered,
+      quantityReceived: purchaseOrderItems.quantityReceived,
+    })
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
+  return { po, items };
+};
+
+/**
+ * Penerimaan barang fisik inbound dari PO tanpa surat jalan (jalan
+ * kompatibilitas di belakang facade po-lifecycle): satu rencana,
+ * satu batch atomik.
+ */
+export async function receivePurchaseOrder(
+  database: AppDatabase,
+  poId: string,
+  receivedItems: ReceivedItemInput[],
+  deps?: PoReceivePlanDeps
+): Promise<ReceivePoResult> {
+  const now = writeNow(deps);
+  const loaded = await loadPoWithItems(database, poId);
+  if (!loaded) {
+    return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
+  }
+
+  const planned = planPoReceive(
+    { poNumber: (loaded.po as { poNumber: string }).poNumber, targetSchoolId: (loaded.po as { targetSchoolId: string }).targetSchoolId },
+    loaded.items,
+    receivedItems,
+    deps
+  );
+  if (!planned.ok) return planned;
+
+  try {
+    await runWriteBatch(database, [
+      ...planned.plan.itemUpdates.map((u) =>
+        database
+          .update(purchaseOrderItems)
+          .set({ quantityReceived: u.quantityReceived })
+          .where(eq(purchaseOrderItems.id, u.poItemId))
+      ),
+      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
+        database.insert(bookItems).values(rows)
+      ),
+      database
+        .update(purchaseOrders)
+        .set({ status: planned.plan.newStatus, updatedAt: now })
+        .where(eq(purchaseOrders.id, poId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return {
+    ok: true,
+    data: {
+      poId,
+      status: planned.plan.newStatus,
+      totalReceivedThisBatch: planned.plan.totalReceivedThisBatch,
+    },
+  };
+}
+
 /**
  * Pencatatan Surat Jalan Supplier PO di belakang facade po-lifecycle:
- * terima stok fisik + simpan surat jalan + baris item dalam satu Write Batch
- * (chunk 10 baris) — receipt gagal tidak meninggalkan stok yatim.
+ * terima stok fisik + simpan surat jalan + baris item dalam SATU rencana
+ * dan SATU batch atomik (chunk 10 baris) — receipt gagal tidak
+ * meninggalkan stok yatim, stok gagal tidak meninggalkan receipt yatim.
  */
 export async function recordPoReceipt(
   database: AppDatabase,
   poId: string,
-  input: CreatePoReceiptInput
+  input: CreatePoReceiptInput,
+  deps?: PoReceivePlanDeps
 ): Promise<
   | { ok: true; data: { receiptId: string; deliveryNoteNumber: string; poId: string; status: string; totalReceivedThisBatch: number } }
   | { ok: false; status: 400 | 404; message: string }
 > {
-  if (!input.deliveryNoteNumber?.trim()) {
+  const note = input.deliveryNoteNumber?.trim();
+  if (!note) {
     return { ok: false, status: 400 as const, message: "Nomor Surat Jalan supplier wajib diisi" };
   }
 
-  // 1. Jalankan proses penerimaan stok fisik dan update PO/items
-  const receiveResult = await receivePurchaseOrder(database, poId, input.receivedItems);
-  if (!receiveResult.ok) {
-    return receiveResult;
+  const now = writeNow(deps);
+  const loaded = await loadPoWithItems(database, poId);
+  if (!loaded) {
+    return { ok: false, status: 404 as const, message: "Purchase Order tidak ditemukan" };
+  }
+  const poNumber = (loaded.po as { poNumber: string }).poNumber;
+  const targetSchoolId = (loaded.po as { targetSchoolId: string }).targetSchoolId;
+
+  const planned = planPoReceive({ poNumber, targetSchoolId }, loaded.items, input.receivedItems, deps);
+  if (!planned.ok) return planned;
+
+  const existingNotes = await database
+    .select({ deliveryNoteNumber: purchaseOrderReceipts.deliveryNoteNumber })
+    .from(purchaseOrderReceipts)
+    .where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
+  if (existingNotes.some((r: { deliveryNoteNumber: string }) => r.deliveryNoteNumber.trim() === note)) {
+    return { ok: false, status: 400 as const, message: `Nomor Surat Jalan ${note} sudah tercatat untuk PO ${poNumber}` };
   }
 
-  const now = new Date().toISOString();
-  const receiptId = crypto.randomUUID();
-
-  // 2. Baris item Surat Jalan (satu query, tanpa N+1)
-  const poItems = await database
-    .select({ id: purchaseOrderItems.id, bookId: purchaseOrderItems.bookId })
-    .from(purchaseOrderItems)
-    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
-  const poItemMap = new Map(poItems.map((p: { id: string; bookId: string }) => [p.id, p.bookId]));
+  const receiptId = newWriteId(deps);
+  const poItemMap = new Map<string, string>(loaded.items.map((p: { id: string; bookId: string }) => [p.id, p.bookId]));
   const receiptItemRows = input.receivedItems
     .filter((item) => (poItemMap.get(item.poItemId) ?? null) && item.quantityToReceive > 0)
     .map((item) => ({
@@ -61,10 +231,23 @@ export async function recordPoReceipt(
 
   try {
     await runWriteBatch(database, [
+      ...planned.plan.itemUpdates.map((u) =>
+        database
+          .update(purchaseOrderItems)
+          .set({ quantityReceived: u.quantityReceived })
+          .where(eq(purchaseOrderItems.id, u.poItemId))
+      ),
+      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
+        database.insert(bookItems).values(rows)
+      ),
+      database
+        .update(purchaseOrders)
+        .set({ status: planned.plan.newStatus, updatedAt: now })
+        .where(eq(purchaseOrders.id, poId)),
       database.insert(purchaseOrderReceipts).values({
         id: receiptId,
         purchaseOrderId: poId,
-        deliveryNoteNumber: input.deliveryNoteNumber.trim(),
+        deliveryNoteNumber: note,
         receivedDate: input.receivedDate || now.split("T")[0],
         receivedByUserId: input.receivedByUserId || null,
         notes: input.notes || null,
@@ -82,10 +265,10 @@ export async function recordPoReceipt(
     ok: true,
     data: {
       receiptId,
-      deliveryNoteNumber: input.deliveryNoteNumber.trim(),
+      deliveryNoteNumber: note,
       poId,
-      status: receiveResult.data.status,
-      totalReceivedThisBatch: receiveResult.data.totalReceivedThisBatch,
+      status: planned.plan.newStatus,
+      totalReceivedThisBatch: planned.plan.totalReceivedThisBatch,
     },
   };
 }

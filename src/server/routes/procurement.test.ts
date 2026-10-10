@@ -772,3 +772,80 @@ describe("Supplier master RBAC (#43)", () => {
     await db.delete(suppliers).where(eq(suppliers.id, id));
   });
 });
+
+describe("spec-57 T4 PO receipt atomic write-set", () => {
+  async function seedPo10(stamp: number) {
+    const now = new Date().toISOString();
+    const bookId = `b-t4-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-T4-${stamp}`, title: `Buku T4 ${stamp}`,
+      author: "QA", publisher: "QA", createdAt: now, updatedAt: now,
+    });
+    const supRes = await procurementRouter.request("/suppliers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-T4-${stamp}`, name: `Supplier T4 ${stamp}` }),
+    });
+    expect(supRes.status).toBe(201);
+    const supplierId = ((await supRes.json()) as any).data.id;
+    const poRes = await procurementRouter.request("/purchase-orders", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ supplierId, orderDate: "2026-10-08", items: [{ bookId, quantityOrdered: 10, unitPrice: 50000 }] }),
+    });
+    expect(poRes.status).toBe(201);
+    const poId = ((await poRes.json()) as any).data.id;
+    const listJson = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+    const poItemId = (listJson.data.find((p: any) => p.id === poId).items[0] as any).id;
+    return { bookId, supplierId, poId, poItemId };
+  }
+  async function cleanupPo10(ctx: { bookId: string; supplierId: string; poId: string }) {
+    const { purchaseOrderReceipts } = await import("../../db/schema");
+    await db.delete(purchaseOrderReceipts).where(eq(purchaseOrderReceipts.purchaseOrderId, ctx.poId));
+    await db.delete(bookItems).where(eq(bookItems.bookId, ctx.bookId));
+    await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, ctx.poId));
+    await db.delete(purchaseOrders).where(eq(purchaseOrders.id, ctx.poId));
+    await db.delete(books).where(eq(books.id, ctx.bookId));
+    await db.delete(suppliers).where(eq(suppliers.id, ctx.supplierId));
+  }
+
+  it("rejects a duplicate delivery note with 400 and writes nothing new", async () => {
+    const stamp = Date.now();
+    const ctx = await seedPo10(stamp);
+    try {
+      const first = await procurementRouter.request(`/purchase-orders/${ctx.poId}/receive`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryNoteNumber: `SJ-T4-DUP-${stamp}`, receivedItems: [{ poItemId: ctx.poItemId, quantityToReceive: 5 }] }),
+      });
+      expect(first.status).toBe(200);
+
+      const dup = await procurementRouter.request(`/purchase-orders/${ctx.poId}/receive`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryNoteNumber: `SJ-T4-DUP-${stamp}`, receivedItems: [{ poItemId: ctx.poItemId, quantityToReceive: 5 }] }),
+      });
+      expect(dup.status).toBe(400);
+      expect(((await dup.json()) as any).message).toMatch(/Surat Jalan/);
+
+      expect((await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId))).length).toBe(5);
+      const history = await (await procurementRouter.request(`/purchase-orders/${ctx.poId}/receipts`, { method: "GET" })).json();
+      expect(history.data.length).toBe(1);
+    } finally {
+      await cleanupPo10(ctx);
+    }
+  });
+
+  it("rejects an unknown item with 400 leaving no receipt and no stock", async () => {
+    const stamp = Date.now();
+    const ctx = await seedPo10(stamp);
+    try {
+      const res = await procurementRouter.request(`/purchase-orders/${ctx.poId}/receive`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryNoteNumber: `SJ-T4-ATOMIC-${stamp}`, receivedItems: [{ poItemId: `po-item-asing-${stamp}`, quantityToReceive: 2 }] }),
+      });
+      expect(res.status).toBe(400);
+      const history = await (await procurementRouter.request(`/purchase-orders/${ctx.poId}/receipts`, { method: "GET" })).json();
+      expect(history.data.length).toBe(0);
+      expect((await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId))).length).toBe(0);
+    } finally {
+      await cleanupPo10(ctx);
+    }
+  });
+});

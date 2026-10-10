@@ -7,6 +7,7 @@ afterEach(() => {
 });
 import { packagesRouter } from "./packages";
 import { db } from "../../db";
+import { eq, inArray } from "drizzle-orm";
 import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems } from "../../db/schema";
 import { runIdempotentSeed } from "../seed";
 
@@ -316,6 +317,48 @@ describe("Packages & Bundling/Unbundling API", () => {
       expect((await seeded.json()).data.length).toBeGreaterThan(0);
     } finally {
       await runIdempotentSeed();
+    }
+  });
+
+  it("partitions ready bundles by school in SQL with a 50 cap (§11)", async () => {
+    const stamp = Date.now();
+    const schoolA = `pkg-ready-a-${stamp}`;
+    const schoolB = `pkg-ready-b-${stamp}`;
+    const pkgId = `pkg-ready-${stamp}`;
+    const now = new Date().toISOString();
+    try {
+      await db.insert(schools).values([
+        { id: schoolA, name: "Ready A", code: `PRA-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+        { id: schoolB, name: "Ready B", code: `PRB-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      ]);
+      await db.insert(bookPackages).values({
+        id: pkgId, code: `PKG-READY-${stamp}`, name: "Paket Ready", gradeLevel: "1",
+        curriculumType: "national", academicYear: "2026/2027", price: 10000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(packageItems).values([
+        { id: `pi-ready-a-${stamp}`, packageId: pkgId, currentSchoolId: schoolA, barcode: `RDYA-${stamp}`, status: "in_stock", createdAt: now, updatedAt: now },
+        { id: `pi-ready-b-${stamp}`, packageId: pkgId, currentSchoolId: schoolB, barcode: `RDYB-${stamp}`, status: "in_stock", createdAt: now, updatedAt: now },
+      ]);
+
+      const resA = await packagesRouter.request(`/items/ready?schoolId=${schoolA}`);
+      expect(resA.status).toBe(200);
+      const idsA = ((await resA.json()) as any).data.map((r: any) => r.id);
+      expect(idsA).toContain(`pi-ready-a-${stamp}`);
+      expect(idsA).not.toContain(`pi-ready-b-${stamp}`);
+
+      mockActor("school_admin", schoolB);
+      const scoped = await packagesRouter.request("/");
+      expect(scoped.status).toBe(200);
+      const scopedReady = await packagesRouter.request("/items/ready");
+      expect(scopedReady.status).toBe(200);
+      const idsScoped = ((await scopedReady.json()) as any).data.map((r: any) => r.id);
+      expect(idsScoped).toContain(`pi-ready-b-${stamp}`);
+      expect(idsScoped).not.toContain(`pi-ready-a-${stamp}`);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(packageItems).where(inArray(packageItems.id, [`pi-ready-a-${stamp}`, `pi-ready-b-${stamp}`]));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
     }
   });
 });

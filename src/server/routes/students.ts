@@ -7,11 +7,9 @@ import { students, schools } from "../../db/schema";
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
-  requireAuthenticatedActor,
-  resolveLocationScope,
-  resolveRequestActor,
+  requireScopedActor,
 } from "../services/access-scope";
+import { checkNisTaken, importStudents, removeStudent } from "../services/student-lifecycle";
 
 export const studentsRouter = new Hono();
 
@@ -38,18 +36,11 @@ const verifyStudentSchema = z.object({
   nis: z.string().min(1, "NIS resmi wajib diisi saat menyetujui").optional(),
 });
 
-async function nisTaken(nis: string, exceptId?: string) {
-  const rows = await db.select({ id: students.id }).from(students).where(eq(students.nis, nis));
-  return rows.some((r: { id: string }) => r.id !== exceptId);
-}
-
 // 1. GET list with school/status/search filters
 studentsRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
-    const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
-    const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const status = c.req.query("status");
     const search = c.req.query("search");
 
@@ -103,8 +94,7 @@ studentsRouter.get("/", async (c) => {
 // 2. POST create (admin-side: langsung terverifikasi bila status active)
 studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
   const now = new Date().toISOString();
@@ -113,15 +103,16 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   if (!school) {
     return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
   }
-  if (await nisTaken(body.nis)) {
+  if (await checkNisTaken(db, body.nis)) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
 
   const id = body.id ?? crypto.randomUUID();
+  const cleanNis = body.nis.trim();
   await db.insert(students).values({
     id,
     schoolId: body.schoolId,
-    nis: body.nis,
+    nis: cleanNis,
     name: body.name,
     gender: body.gender,
     gradeLevel: body.gradeLevel,
@@ -146,8 +137,7 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
 // 3. PUT update
 studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
   const now = new Date().toISOString();
@@ -157,7 +147,8 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
   }
   assertLocationAllowed(actor, existing.schoolId, locations);
-  if (body.nis && body.nis !== existing.nis && (await nisTaken(body.nis, id))) {
+  const nextNis = body.nis?.trim();
+  if (nextNis && nextNis !== existing.nis && (await checkNisTaken(db, nextNis, id))) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
   if (body.schoolId) {
@@ -175,6 +166,7 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     else if (key === "isScholarship") patch[key] = value;
     else patch[key] = value;
   }
+  if (nextNis !== undefined) patch.nis = nextNis;
 
   await db.update(students).set(patch as any).where(eq(students.id, id));
   const [updated] = await db.select().from(students).where(eq(students.id, id));
@@ -187,8 +179,7 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
 // 4. DELETE remove
 studentsRouter.delete("/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const [existing] = await db.select().from(students).where(eq(students.id, id));
     if (!existing) {
@@ -196,25 +187,11 @@ studentsRouter.delete("/:id", async (c) => {
     }
     assertLocationAllowed(actor, existing.schoolId, locations);
 
-    // Guard: Cek apakah siswa memiliki riwayat pesanan buku
-    const { studentBookOrders } = await import("../../db/schema");
-    const existingOrders = await db
-      .select({ orderNumber: studentBookOrders.orderNumber })
-      .from(studentBookOrders)
-      .where(eq(studentBookOrders.studentId, id));
-
-    if (existingOrders.length > 0) {
-      const orderNumbers = existingOrders.map((o: { orderNumber: string }) => o.orderNumber).join(", ");
-      return c.json(
-        {
-          success: false,
-          message: `Data siswa "${existing.name}" tidak dapat dihapus karena memiliki riwayat pesanan buku: ${orderNumbers}. Silakan hapus pesanan tersebut terlebih dahulu di menu Pesanan Siswa.`,
-        },
-        400
-      );
+    const removed = await removeStudent(db, id);
+    if (!removed.ok) {
+      return c.json({ success: false, message: removed.message }, removed.status);
     }
 
-    await db.delete(students).where(eq(students.id, id));
     return c.json({ success: true, message: "Data siswa berhasil dihapus" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -224,8 +201,7 @@ studentsRouter.delete("/:id", async (c) => {
 // 5. POST verify (approve dengan NIS resmi / reject)
 studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
   const now = new Date().toISOString();
@@ -240,12 +216,13 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
     if (!body.nis) {
       return c.json({ success: false, message: "NIS resmi wajib diisi saat menyetujui" }, 400);
     }
-    if (body.nis !== existing.nis && (await nisTaken(body.nis, id))) {
+    const officialNis = body.nis.trim();
+    if (officialNis !== existing.nis && (await checkNisTaken(db, officialNis, id))) {
       return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
     }
     await db
       .update(students)
-      .set({ nis: body.nis, status: "active", updatedAt: now })
+      .set({ nis: officialNis, status: "active", updatedAt: now })
       .where(eq(students.id, id));
     const [updated] = await db.select().from(students).where(eq(students.id, id));
     return c.json({ success: true, message: "Siswa disetujui dan aktif", data: updated });
@@ -281,8 +258,7 @@ const bulkImportPayloadSchema = z.object({
 
 studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
 
@@ -291,68 +267,15 @@ studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema),
       return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
     }
 
-    const now = new Date().toISOString();
-    let insertedCount = 0;
-    let updatedCount = 0;
-
-    // Fetch existing students in this school to determine insert vs update
-    const existing = await db
-      .select({ id: students.id, nis: students.nis })
-      .from(students)
-      .where(eq(students.schoolId, body.schoolId));
-    const existingMap = new Map(existing.map((s: { id: string; nis: string }) => [s.nis.trim().toLowerCase(), s.id]));
-
-    // Sequential chunk processing (max 10 rows per batch) for D1 safety
-    for (const item of body.students) {
-      const cleanNis = item.nis.trim();
-      const existingId = existingMap.get(cleanNis.toLowerCase());
-
-      if (existingId) {
-        await db
-          .update(students)
-          .set({
-            name: item.name,
-            gradeLevel: item.gradeLevel,
-            gender: item.gender,
-            curriculumType: item.curriculumType,
-            academicYear: item.academicYear,
-            parentName: item.parentName || null,
-            parentEmail: item.parentEmail || null,
-            parentPhone: item.parentPhone || null,
-            status: item.status,
-            isScholarship: item.isScholarship,
-            updatedAt: now,
-          })
-          .where(eq(students.id, existingId as string));
-        updatedCount++;
-      } else {
-        const newId = crypto.randomUUID();
-        await db.insert(students).values({
-          id: newId,
-          schoolId: body.schoolId,
-          nis: cleanNis,
-          name: item.name,
-          gender: item.gender,
-          gradeLevel: item.gradeLevel,
-          curriculumType: item.curriculumType,
-          academicYear: item.academicYear,
-          parentName: item.parentName || null,
-          parentEmail: item.parentEmail || null,
-          parentPhone: item.parentPhone || null,
-          status: item.status,
-          isScholarship: item.isScholarship,
-          createdAt: now,
-          updatedAt: now,
-        });
-        existingMap.set(cleanNis.toLowerCase(), newId);
-        insertedCount++;
-      }
+    const imported = await importStudents(db, body.schoolId, body.students);
+    if (!imported.ok) {
+      return c.json({ success: false, message: imported.message }, imported.status);
     }
 
     return c.json({
       success: true,
-      message: `Impor berhasil: ${insertedCount} siswa baru ditambahkan, ${updatedCount} siswa diperbarui.`,
-      data: { insertedCount, updatedCount, total: body.students.length },
+      message: `Impor berhasil: ${imported.data.insertedCount} siswa baru ditambahkan, ${imported.data.updatedCount} siswa diperbarui.`,
+      data: imported.data,
     });
   } catch (err) {
     return accessErrorResponse(c, err);

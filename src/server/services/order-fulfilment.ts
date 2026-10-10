@@ -2,11 +2,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookReturns, packageItems, studentBookOrders } from "../../db/schema";
-import { AVAILABLE_LOOSE_STATUSES, READY_BUNDLE_STATUSES, RETURNABLE_CONDITIONS } from "./stock-buckets";
-import { d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { AVAILABLE_LOOSE_STATUSES, RETURNABLE_CONDITIONS } from "./stock-buckets";
+import { d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
 import {
   RETURN_OPEN_STATUSES,
-  checkHandoverBundle,
   checkReplacementLoose,
   checkResolveTransition,
   targetReturnStatus,
@@ -17,221 +16,47 @@ export type { BundleRow, LooseRow, OrderRef } from "./return-flow";
 
 export type FulfilmentError = { ok: false; status: ContentfulStatusCode; message: string };
 
-export interface HandoverInput {
-  recipientName: string;
-  packageItemId?: string;
-  notes?: string;
-}
-
-export type HandoverResult =
-  | {
-      ok: true;
-      data: {
-        orderId: string;
-        deliveryNumber: string;
-        handoverDate: string;
-        handoverRecipient: string;
-        fulfillmentStatus: "picked_up";
-        assignedPackageItemId: string | null;
-      };
-    }
-  | FulfilmentError;
-
 export interface ResolveReturnInput {
-  action: "replace" | "reject";
+  action: "replace" | "reject" | "refund";
   replacementBookItemId?: string;
+  refundAmount?: number;
   handledByUserId?: string;
 }
 
 export type ResolveReturnResult =
-  | { ok: true; data: { status: "replaced" | "rejected"; replacementBookItemId: string | null } }
+  | { ok: true; data: { status: "replaced" | "rejected" | "refunded"; replacementBookItemId: string | null; refundAmount: number; restoredBookItemId: string | null } }
   | FulfilmentError;
 
-const handoverOrderPatch = (
-  orderNotes: string | null,
-  deliveryNumber: string,
-  now: string,
-  input: HandoverInput,
-  assignedPackageItemId: string | null
-) => ({
-  fulfillmentStatus: "picked_up" as const,
-  handoverDeliveryNumber: deliveryNumber,
-  handoverDate: now,
-  handoverRecipient: input.recipientName,
-  assignedPackageItemId,
-  notes: orderNotes,
-  updatedAt: now,
-});
+export type ResolveDeps = WriteDeps;
 
-/**
- * Satu-satunya pemilik serah terima paket (surat jalan): pilih bundel,
- * tandai terkirim, dan catat nomor surat jalan di order.
- * Jalur ID eksplisit melewati guard yang sama dengan alokasi otomatis;
- * seluruh tulis lewat satu batch atomik (seam lib/d1-write, §10 D1).
- */
-export async function handoverPackage(
-  database: AppDatabase,
-  orderId: string,
-  input: HandoverInput
-): Promise<HandoverResult> {
-  const now = new Date().toISOString();
-  const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-  if (!order) {
-    return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
-  }
-
-  const isPaidOrApproved = order.paymentStatus === "paid" || order.paymentStatus === "scholarship_approved";
-  if (!isPaidOrApproved && !order.financeHandoverApproved) {
-    return {
-      ok: false,
-      status: 400,
-      message:
-        "Buku belum dapat diserahkan karena pembayaran belum lunas dan belum ada diskresi persetujuan dari Finance.",
-    };
-  }
-
-  const deliveryNumber = `SJ-SERAH-${Date.now().toString().slice(-8)}`;
-  const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
-
-  if (input.packageItemId) {
-    const [bundle] = await database
-      .select()
-      .from(packageItems)
-      .where(eq(packageItems.id, input.packageItemId));
-    if (!bundle) {
-      return { ok: false, status: 404, message: "Bundel paket tidak ditemukan" };
-    }
-    const blocked = checkHandoverBundle(bundle, { schoolId: order.schoolId, packageId: order.packageId });
-    if (blocked) return blocked;
-
-    const restoreOld =
-      order.assignedPackageItemId && order.assignedPackageItemId !== bundle.id
-        ? [
-            database
-              .update(packageItems)
-              .set({ status: "in_stock", updatedAt: now })
-              .where(eq(packageItems.id, order.assignedPackageItemId)),
-          ]
-        : [];
-    try {
-      await runWriteBatch(database, [
-        database
-          .update(packageItems)
-          .set({ status: "delivered", updatedAt: now })
-          .where(eq(packageItems.id, bundle.id)),
-        ...restoreOld,
-        database
-          .update(studentBookOrders)
-          .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, bundle.id))
-          .where(eq(studentBookOrders.id, orderId)),
-      ]);
-    } catch (err) {
-      const mapped = d1WriteErrorStatus(err, "serah terima paket");
-      if (mapped) return { ok: false, ...mapped };
-      throw err;
-    }
-    return {
-      ok: true,
-      data: {
-        orderId,
-        deliveryNumber,
-        handoverDate: now,
-        handoverRecipient: input.recipientName,
-        fulfillmentStatus: "picked_up",
-        assignedPackageItemId: bundle.id,
-      },
-    };
-  }
-
-  if (!order.packageId) {
-    try {
-      await runWriteBatch(database, [
-        database
-          .update(studentBookOrders)
-          .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, null))
-          .where(eq(studentBookOrders.id, orderId)),
-      ]);
-    } catch (err) {
-      const mapped = d1WriteErrorStatus(err, "serah terima paket");
-      if (mapped) return { ok: false, ...mapped };
-      throw err;
-    }
-    return {
-      ok: true,
-      data: {
-        orderId,
-        deliveryNumber,
-        handoverDate: now,
-        handoverRecipient: input.recipientName,
-        fulfillmentStatus: "picked_up",
-        assignedPackageItemId: null,
-      },
-    };
-  }
-
-  const [availableBundle] = await database
-    .select()
-    .from(packageItems)
-    .where(
-      and(
-        eq(packageItems.packageId, order.packageId),
-        eq(packageItems.currentSchoolId, order.schoolId),
-        inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
-      )
-    )
-    .limit(1);
-
-  if (!availableBundle) {
-    return {
-      ok: false,
-      status: 400,
-      message:
-        "Stok paket tidak tersedia di cabang ini untuk diserahkan. Harap rakit paket atau lakukan transfer terlebih dahulu.",
-    };
-  }
-
-  try {
-    await runWriteBatch(database, [
-      database
-        .update(packageItems)
-        .set({ status: "delivered", updatedAt: now })
-        .where(eq(packageItems.id, availableBundle.id)),
-      database
-        .update(studentBookOrders)
-        .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, availableBundle.id))
-        .where(eq(studentBookOrders.id, orderId)),
-    ]);
-  } catch (err) {
-    const mapped = d1WriteErrorStatus(err, "serah terima paket");
-    if (mapped) return { ok: false, ...mapped };
-    throw err;
-  }
-
-  return {
-    ok: true,
-    data: {
-      orderId,
-      deliveryNumber,
-      handoverDate: now,
-      handoverRecipient: input.recipientName,
-      fulfillmentStatus: "picked_up",
-      assignedPackageItemId: availableBundle.id,
-    },
-  };
+export interface DiscretionInput {
+  discretionType: "discount" | "scholarship" | "handover_override";
+  discountAmount?: number;
+  discretionNotes: string;
 }
+
+export type DiscretionResult =
+  | { ok: true; data: { orderId: string; discretionType: DiscretionInput["discretionType"]; totalAmount: number; paymentStatus: string } }
+  | FulfilmentError;
+
+export type CancelOrderResult =
+  | { ok: true; data: { orderId: string } }
+  | FulfilmentError;
 
 /**
  * Satu-satunya pemilik penyelesaian retur: ganti dari stok satuan
- * (pilih otomatis bila tidak disebut) atau tolak, lalu kembalikan
- * order ke picked_up bila tak ada laporan terbuka lain. Berbagi mesin
- * status dengan reportReturn; seluruh tulis satu batch atomik (§10 D1).
+ * (pilih otomatis bila tidak disebut), tolak, atau refund dana sekaligus
+ * kembalikan 1 stok fisik — lalu kembalikan order ke picked_up bila tak ada
+ * laporan terbuka lain. Berbagi mesin status dengan reportReturn; seluruh
+ * tulis satu batch atomik (§10 D1).
  */
 export async function resolveReturn(
   database: AppDatabase,
   returnId: string,
-  input: ResolveReturnInput
+  input: ResolveReturnInput,
+  deps?: ResolveDeps
 ): Promise<ResolveReturnResult> {
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
   const [ret] = await database.select().from(bookReturns).where(eq(bookReturns.id, returnId));
   if (!ret) {
     return { ok: false, status: 404, message: "Laporan retur tidak ditemukan" };
@@ -245,6 +70,8 @@ export async function resolveReturn(
       data: {
         status: targetReturnStatus(input.action),
         replacementBookItemId: ret.replacementBookItemId,
+        refundAmount: ret.refundAmount ?? 0,
+        restoredBookItemId: null,
       },
     };
   }
@@ -337,7 +164,49 @@ export async function resolveReturn(
       throw err;
     }
 
-    return { ok: true, data: { status: "replaced", replacementBookItemId: replacementId || null } };
+    return { ok: true, data: { status: "replaced", replacementBookItemId: replacementId || null, refundAmount: 0, restoredBookItemId: null } };
+  }
+
+  if (input.action === "refund") {
+    const refundAmt = input.refundAmount ?? 0;
+    const bookItemId = newWriteId(deps);
+    const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
+    const suffix = bookItemId.replace(/-/g, "").slice(0, 3).toUpperCase().padEnd(3, "0");
+    try {
+      await runWriteBatch(database, [
+        database
+          .update(bookReturns)
+          .set({
+            status: "refunded",
+            refundAmount: refundAmt,
+            handledByUserId: input.handledByUserId || null,
+            resolvedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(bookReturns.id, returnId)),
+        database.insert(bookItems).values({
+          id: bookItemId,
+          bookId: ret.defectiveBookId,
+          currentSchoolId: order.schoolId,
+          barcode: `RFD-${epoch}-${suffix}`,
+          condition: "good",
+          status: "in_stock",
+          notes: `Restored to stock from parent refund (Return #${returnId})`,
+          createdAt: now,
+          updatedAt: now,
+        }),
+        database
+          .update(studentBookOrders)
+          .set({ fulfillmentStatus: orderStatusAfter, updatedAt: now })
+          .where(eq(studentBookOrders.id, ret.orderId)),
+      ]);
+    } catch (err) {
+      const mapped = d1WriteErrorStatus(err, "refund retur");
+      if (mapped) return { ok: false, ...mapped };
+      throw err;
+    }
+
+    return { ok: true, data: { status: "refunded", replacementBookItemId: null, refundAmount: refundAmt, restoredBookItemId: bookItemId } };
   }
 
   try {
@@ -362,5 +231,104 @@ export async function resolveReturn(
     throw err;
   }
 
-  return { ok: true, data: { status: "rejected", replacementBookItemId: null } };
+  return { ok: true, data: { status: "rejected", replacementBookItemId: null, refundAmount: 0, restoredBookItemId: null } };
+}
+
+/**
+ * Satu-satunya pemilik diskresi finance atas pesanan siswa: potong harga,
+ * beasiswa 100%, atau izin ambil handover — dihitung dan ditulis di satu
+ * tempat agar paid/partial tak pernah salah setelah potongan.
+ */
+export async function applyDiscretion(
+  database: AppDatabase,
+  orderId: string,
+  input: DiscretionInput,
+  deps?: ResolveDeps
+): Promise<DiscretionResult> {
+  const now = writeNow(deps);
+  const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+  if (!order) {
+    return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
+  }
+  if (!input.discretionNotes?.trim()) {
+    return { ok: false, status: 400, message: "Catatan/alasan diskresi finance wajib diisi" };
+  }
+
+  const patch: {
+    discretionType: DiscretionInput["discretionType"];
+    discretionNotes: string;
+    discretionByUserId: null;
+    updatedAt: string;
+    orderType?: "regular" | "scholarship";
+    totalAmount?: number;
+    paymentStatus?: "unpaid" | "partial" | "paid" | "scholarship_pending" | "scholarship_approved" | "scholarship_rejected";
+    financeHandoverApproved?: boolean;
+    discountAmount?: number;
+  } = {
+    discretionType: input.discretionType,
+    discretionNotes: input.discretionNotes,
+    discretionByUserId: null,
+    updatedAt: now,
+  };
+  if (input.discretionType === "scholarship") {
+    Object.assign(patch, { orderType: "scholarship", totalAmount: 0, paymentStatus: "scholarship_approved", financeHandoverApproved: true });
+  } else if (input.discretionType === "discount") {
+    const newTotal = Math.max(0, order.totalAmount - (input.discountAmount ?? 0));
+    Object.assign(patch, { discountAmount: input.discountAmount ?? 0, totalAmount: newTotal, paymentStatus: order.paidAmount >= newTotal ? "paid" : "partial" });
+  } else {
+    Object.assign(patch, { financeHandoverApproved: true });
+  }
+
+  try {
+    await runWriteBatch(database, [
+      database.update(studentBookOrders).set(patch).where(eq(studentBookOrders.id, orderId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "diskresi finance");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return {
+    ok: true,
+    data: {
+      orderId,
+      discretionType: input.discretionType,
+      totalAmount: patch.totalAmount ?? order.totalAmount,
+      paymentStatus: patch.paymentStatus ?? order.paymentStatus,
+    },
+  };
+}
+
+/**
+ * Satu-satunya pemilik pembatalan pesanan siswa: kembalikan bundel ke
+ * in_stock, hapus laporan retur terkait dan pesanan — satu batch atomik
+ * agar tak ada bundel nyangkut reserved atau retur yatim.
+ */
+export async function cancelStudentOrder(
+  database: AppDatabase,
+  orderId: string,
+  deps?: ResolveDeps
+): Promise<CancelOrderResult> {
+  const now = writeNow(deps);
+  const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+  if (!order) {
+    return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
+  }
+
+  try {
+    await runWriteBatch(database, [
+      ...(order.assignedPackageItemId
+        ? [database.update(packageItems).set({ status: "in_stock", updatedAt: now }).where(eq(packageItems.id, order.assignedPackageItemId as string))]
+        : []),
+      database.delete(bookReturns).where(eq(bookReturns.orderId, orderId)),
+      database.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pembatalan pesanan");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return { ok: true, data: { orderId } };
 }

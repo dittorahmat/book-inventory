@@ -8,7 +8,7 @@ afterEach(() => {
 import { shipmentsRouter } from "./shipments";
 import { db } from "../../db";
 import { schools, books, bookItems, bookPackages, packageItems, transferShipments, transferShipmentItems } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 describe("Inter-School Transfer Shipments API", () => {
   it("executes full transfer workflow from draft to dispatch and branch receipt with discrepancy", async () => {
@@ -773,6 +773,86 @@ describe("Inter-School Transfer Shipments API", () => {
       await db.delete(schools).where(eq(schools.id, otherId));
       await db.delete(schools).where(eq(schools.id, warehouseId));
     }
+  });
+});
+
+describe("spec-57 T5 transfer read partition (§11)", () => {
+  async function seedSchoolT5(id: string) {
+    const now = new Date().toISOString();
+    await db.insert(schools).values({ id, name: `T5 ${id}`, code: `T5-${id}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+  }
+  async function seedShipmentT5(tag: string, from: string, to: string, status: "draft" | "in_transit" = "draft") {
+    const now = new Date().toISOString();
+    await db.insert(transferShipments).values({
+      id: `sh-t5-${tag}`, shipmentNumber: `SJ-T5-${tag}`, fromSchoolId: from, toSchoolId: to,
+      status, totalDeclaredValue: 0, createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+  }
+  async function cleanupT5(ids: string[], shipmentTags: string[]) {
+    if (shipmentTags.length > 0) {
+      await db.delete(transferShipmentItems).where(inArray(transferShipmentItems.shipmentId, shipmentTags.map((t) => `sh-t5-${t}`)));
+      await db.delete(transferShipments).where(inArray(transferShipments.id, shipmentTags.map((t) => `sh-t5-${t}`)));
+    }
+    if (ids.length > 0) await db.delete(schools).where(inArray(schools.id, ids));
+  }
+
+  it("partitions list by school and filters by status in SQL", async () => {
+    const stamp = Date.now();
+    const a = `t5a-${stamp}`, b = `t5b-${stamp}`, c = `t5c-${stamp}`;
+    const tags = [`p1-${stamp}`, `p2-${stamp}`, `p3-${stamp}`, `p4-${stamp}`];
+    try {
+      for (const id of [a, b, c]) await seedSchoolT5(id);
+      await seedShipmentT5(tags[0], a, b, "draft");
+      await seedShipmentT5(tags[1], a, b, "draft");
+      await seedShipmentT5(tags[2], c, a, "in_transit");
+      await seedShipmentT5(tags[3], b, c, "draft");
+
+      const resA = await shipmentsRouter.request(`/?schoolId=${a}`);
+      expect(resA.status).toBe(200);
+      const idsA = ((await resA.json()) as any).data.map((s: any) => s.id);
+      expect(idsA).toContain(`sh-t5-${tags[0]}`);
+      expect(idsA).toContain(`sh-t5-${tags[1]}`);
+      expect(idsA).toContain(`sh-t5-${tags[2]}`);
+      expect(idsA).not.toContain(`sh-t5-${tags[3]}`);
+
+      const drafts = await shipmentsRouter.request(`/?schoolId=${a}&status=draft`);
+      expect(drafts.status).toBe(200);
+      const idsD = ((await drafts.json()) as any).data.map((s: any) => s.id);
+      expect(idsD).toContain(`sh-t5-${tags[0]}`);
+      expect(idsD).not.toContain(`sh-t5-${tags[2]}`);
+
+      const resC = await shipmentsRouter.request(`/?schoolId=${c}`);
+      const idsC = ((await resC.json()) as any).data.map((s: any) => s.id);
+      expect(idsC).toContain(`sh-t5-${tags[3]}`);
+      expect(idsC).not.toContain(`sh-t5-${tags[0]}`);
+    } finally {
+      await cleanupT5([a, b, c], tags);
+    }
+  });
+
+  it("caps the list at 50 rows", async () => {
+    const stamp = Date.now();
+    const a = `t5cap-a-${stamp}`, b = `t5cap-b-${stamp}`;
+    const tags = Array.from({ length: 55 }, (_, i) => `cap-${stamp}-${i}`);
+    try {
+      await seedSchoolT5(a);
+      await seedSchoolT5(b);
+      for (const t of tags) await seedShipmentT5(t, a, b, "draft");
+      const res = await shipmentsRouter.request(`/?schoolId=${a}`);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as any).data.length).toBe(50);
+    } finally {
+      await cleanupT5([a, b], tags);
+    }
+  });
+
+  it("serves the partitioned list from the composite index (EXPLAIN QUERY PLAN)", async () => {
+    const plan = await (db as any).all(
+      sql`EXPLAIN QUERY PLAN SELECT "id", "status" FROM "transfer_shipments" WHERE ("from_school_id" = 't5probe' OR "to_school_id" = 't5probe') AND "status" = 'draft' ORDER BY "created_at" DESC LIMIT 50`
+    );
+    const text = JSON.stringify(plan);
+    expect(text).toMatch(/SEARCH/i);
+    expect(text).not.toMatch(/SCAN "transfer_shipments"|SCAN transfer_shipments/);
   });
 });
 

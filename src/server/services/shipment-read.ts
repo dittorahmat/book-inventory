@@ -1,10 +1,41 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, desc, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems, schools, books, bookPackages } from "../../db/schema";
 import { calcLineTotal } from "../../lib/transfer-pricing";
 
-export async function listShipmentsWithCounts(database: AppDatabase, schoolId?: string) {
-  const all = await database.select({
+/** Batas daftar Transfer Shipment (§11): partisi + LIMIT 10–50, default 50. */
+export const SHIPMENT_LIST_LIMIT = 50;
+
+export type ShipmentListStatus = "draft" | "pending_dispatch" | "in_transit" | "completed" | "completed_with_discrepancy" | "cancelled" | "all";
+
+export interface ShipmentListFilter {
+  schoolId?: string;
+  status?: ShipmentListStatus;
+  limit?: number;
+}
+
+/**
+ * Satu-satunya pemilik daftar Transfer Shipment: partisi sekolah
+ * (`from`/`to` = sekolah) + filter status + LIMIT didorong ke WHERE SQL
+ * memakai indeks komposit (shipments_from/to_status_idx) — bukan
+ * select-all + filter JS (§11 anti Pindai Penuh).
+ */
+export async function listShipmentsWithCounts(database: AppDatabase, filter: ShipmentListFilter = {}) {
+  const limit = Math.min(Math.max(filter.limit ?? SHIPMENT_LIST_LIMIT, 1), SHIPMENT_LIST_LIMIT);
+  const conditions = [];
+  if (filter.schoolId) {
+    conditions.push(
+      or(
+        eq(transferShipments.fromSchoolId, filter.schoolId),
+        eq(transferShipments.toSchoolId, filter.schoolId)
+      )
+    );
+  }
+  if (filter.status && filter.status !== "all") {
+    conditions.push(eq(transferShipments.status, filter.status));
+  }
+
+  const rows = await database.select({
     id: transferShipments.id,
     shipmentNumber: transferShipments.shipmentNumber,
     status: transferShipments.status,
@@ -16,23 +47,27 @@ export async function listShipmentsWithCounts(database: AppDatabase, schoolId?: 
     notes: transferShipments.notes,
     reason: transferShipments.reason,
     createdAt: transferShipments.createdAt,
-  }).from(transferShipments);
+  }).from(transferShipments)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(transferShipments.createdAt))
+    .limit(limit);
 
-  const filtered = all.filter((s: any) => !schoolId || s.fromSchoolId === schoolId || s.toSchoolId === schoolId);
+  const ids = rows.map((s: { id: string }) => s.id);
+  if (ids.length === 0) return [];
 
-  const allLines = await database.select({
+  const lines = await database.select({
     shipmentId: transferShipmentItems.shipmentId,
     itemType: transferShipmentItems.itemType,
-  }).from(transferShipmentItems);
+  }).from(transferShipmentItems).where(inArray(transferShipmentItems.shipmentId, ids));
 
-  const counts = allLines.reduce((m: Map<string, { looseCount: number; packageCount: number }>, l: any) => {
+  const counts = lines.reduce((m: Map<string, { looseCount: number; packageCount: number }>, l: { shipmentId: string; itemType: string }) => {
     const e = m.get(l.shipmentId) || { looseCount: 0, packageCount: 0 };
     if (l.itemType === "package") e.packageCount += 1;
     else e.looseCount += 1;
     return m.set(l.shipmentId, e);
   }, new Map());
 
-  return filtered.map((s: any) => ({
+  return rows.map((s: { id: string }) => ({
     ...s,
     looseCount: counts.get(s.id)?.looseCount || 0,
     packageCount: counts.get(s.id)?.packageCount || 0,

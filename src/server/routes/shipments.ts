@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { transferShipments } from "../../db/schema";
-import { listShipmentsWithCounts, getShipmentDetail } from "../services/shipment-read";
+import { listShipmentsWithCounts, getShipmentDetail, type ShipmentListFilter } from "../services/shipment-read";
 import { createShipment, dispatchShipment, receiveShipment, rollbackShipment } from "../services/shipment-write";
 import {
   accessErrorResponse,
@@ -68,7 +68,7 @@ shipmentsRouter.get("/", async (c) => {
     const { scope } = await requireScopedActor(db, c, requestedSchoolId);
     // Scoped actors always see their own location; central may filter or see all.
     const effectiveSchoolId = scope.length === 1 ? scope[0] : requestedSchoolId;
-    const data = await listShipmentsWithCounts(db, effectiveSchoolId);
+    const data = await listShipmentsWithCounts(db, { schoolId: effectiveSchoolId, status: (c.req.query("status") || undefined) as ShipmentListFilter["status"] });
     return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);

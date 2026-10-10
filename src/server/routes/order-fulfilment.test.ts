@@ -12,7 +12,8 @@ import {
   students,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { handoverPackage, resolveReturn } from "../services/order-fulfilment";
+import { resolveReturn, applyDiscretion, cancelStudentOrder } from "../services/order-fulfilment";
+import { handoverPackage } from "../services/order-handover";
 import { reportReturn } from "../services/return-intake";
 import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
 
@@ -580,6 +581,177 @@ describe("T3 return state machine (report/resolve share guard, double-resolve id
       await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("spec-57 T2 return-resolution unified interface", () => {
+  async function seedReportedReturn(tag: string) {
+    const schoolId = await seedSchool(`t2-${tag}`);
+    const studentId = await seedStudent(schoolId);
+    const bookId = await seedBook(`t2-${tag}`);
+    const orderId = `ord-t2-${tag}-${stamp()}`;
+    const returnId = `ret-t2-${tag}-${stamp()}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-T2-${tag}-${stamp()}`, studentId, schoolId,
+      orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+      totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookReturns).values({
+      id: returnId, orderId, studentId, defectiveBookId: bookId, reason: "robek",
+      status: "reported", createdAt: now, updatedAt: now,
+    });
+    return { schoolId, studentId, bookId, orderId, returnId };
+  }
+  async function cleanupT2(ctx: { schoolId: string; studentId: string; bookId: string; orderId: string; returnId: string }, itemIds: string[] = []) {
+    for (const itemId of itemIds) await db.delete(bookItems).where(eq(bookItems.id, itemId));
+    await db.delete(bookReturns).where(eq(bookReturns.id, ctx.returnId));
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, ctx.orderId));
+    await db.delete(students).where(eq(students.id, ctx.studentId));
+    await db.delete(books).where(eq(books.id, ctx.bookId));
+    await db.delete(schools).where(eq(schools.id, ctx.schoolId));
+  }
+
+  it("refund resolves through the guarded interface and restores one stock in one batch", async () => {
+    const ctx = await seedReportedReturn("refund");
+    try {
+      const result = await resolveReturn(db, ctx.returnId, { action: "refund", refundAmount: 25000 }, { now, generateId: () => `bi-t2-refund-${stamp()}` });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.status).toBe("refunded");
+      const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, ctx.returnId));
+      expect(ret.status).toBe("refunded");
+      expect(ret.refundAmount).toBe(25000);
+      const restored = await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId));
+      expect(restored).toHaveLength(1);
+      expect(restored[0].status).toBe("in_stock");
+      expect(restored[0].currentSchoolId).toBe(ctx.schoolId);
+      await cleanupT2(ctx, restored.map((r: { id: string }) => r.id));
+    } catch (err) {
+      await cleanupT2(ctx);
+      throw err;
+    }
+  });
+
+  it("refund on a terminal return is rejected 400, not rewritten", async () => {
+    const ctx = await seedReportedReturn("reflock");
+    try {
+      await db.update(bookReturns).set({ status: "replaced", updatedAt: now }).where(eq(bookReturns.id, ctx.returnId));
+      const result = await resolveReturn(db, ctx.returnId, { action: "refund", refundAmount: 1000 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.status).toBe(400);
+      const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, ctx.returnId));
+      expect(ret.status).toBe("replaced");
+      await cleanupT2(ctx);
+    } catch (err) {
+      await cleanupT2(ctx);
+      throw err;
+    }
+  });
+
+  it("double refund is idempotent without duplicating stock", async () => {
+    const ctx = await seedReportedReturn("refidem");
+    try {
+      const first = await resolveReturn(db, ctx.returnId, { action: "refund", refundAmount: 5000 }, { now, generateId: () => `bi-t2-idem-${stamp()}` });
+      expect(first.ok).toBe(true);
+      const second = await resolveReturn(db, ctx.returnId, { action: "refund", refundAmount: 5000 });
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.data.status).toBe("refunded");
+      const restored = await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId));
+      expect(restored).toHaveLength(1);
+      await cleanupT2(ctx, restored.map((r: { id: string }) => r.id));
+    } catch (err) {
+      await cleanupT2(ctx);
+      throw err;
+    }
+  });
+
+  it("discretion discount recomputes total and keeps paid when covered", async () => {
+    const schoolId = await seedSchool("t2-disc");
+    const studentId = await seedStudent(schoolId);
+    const orderId = `ord-t2-disc-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T2-DISC-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "partial", fulfillmentStatus: "picked_up",
+        totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+      });
+      const result = await applyDiscretion(db, orderId, { discretionType: "discount", discountAmount: 20000, discretionNotes: "anak guru" }, { now });
+      expect(result.ok).toBe(true);
+      const [row] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(row.totalAmount).toBe(80000);
+      expect(row.paymentStatus).toBe("paid");
+      expect(row.discretionType).toBe("discount");
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("discretion scholarship zeroes total and approves handover", async () => {
+    const schoolId = await seedSchool("t2-scho");
+    const studentId = await seedStudent(schoolId);
+    const orderId = `ord-t2-scho-${stamp()}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T2-SCHO-${stamp()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "picked_up",
+        totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+      });
+      const result = await applyDiscretion(db, orderId, { discretionType: "scholarship", discretionNotes: "beasiswa penuh" }, { now });
+      expect(result.ok).toBe(true);
+      const [row] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(row.totalAmount).toBe(0);
+      expect(row.orderType).toBe("scholarship");
+      expect(row.paymentStatus).toBe("scholarship_approved");
+      expect(row.financeHandoverApproved).toBe(true);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("cancel restores the bundle and removes returns plus order atomically", async () => {
+    const schoolId = await seedSchool("t2-cancel");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("t2cancel");
+    const bundleId = `pi-t2-cancel-${stamp()}`;
+    const orderId = `ord-t2-cancel-${stamp()}`;
+    const returnId = `ret-t2-cancel-${stamp()}`;
+    const bookId = await seedBook("t2cancel");
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolId, barcode: `T2C-${stamp()}`,
+        status: "delivered", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T2-CANCEL-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 160000, paidAmount: 160000, assignedPackageItemId: bundleId,
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: returnId, orderId, studentId, defectiveBookId: bookId, reason: "robek",
+        status: "reported", createdAt: now, updatedAt: now,
+      });
+      const result = await cancelStudentOrder(db, orderId, { now });
+      expect(result.ok).toBe(true);
+      const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, bundleId));
+      expect(bundle.status).toBe("in_stock");
+      expect(await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId))).toHaveLength(0);
+      expect(await db.select().from(bookReturns).where(eq(bookReturns.id, returnId))).toHaveLength(0);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
