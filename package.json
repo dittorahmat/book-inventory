@@ -15,6 +15,7 @@
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "db:push": "drizzle-kit push",
+    "db:push:bun": "bun scripts/db-push-bun.ts",
     "db:generate": "drizzle-kit generate",
     "db:d1:migrate": "wrangler d1 migrations apply book-inventory-db --remote",
     "db:d1:seed:export": "bun scripts/export-d1-seed.ts",

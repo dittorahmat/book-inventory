@@ -9,12 +9,15 @@ All agents and developers contributing to this codebase must adhere to the follo
 After adding, modifying, or refactoring any feature, you **must** run and pass the following quality steps in sequence:
 
 1. **Database Schema Synchronization & Remote Cloudflare D1 Migration (WAJIB)**
-   - **Sinkronisasi Database Lokal**:
-     ```bash
-     bun run db:push
-     # or drizzle-kit push
-     ```
-     Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke database SQLite lokal (`data/inventory.db`).
+    - **Sinkronisasi Database Lokal**:
+      ```bash
+      bun run db:push
+      # or drizzle-kit push
+      # Bila drizzle-kit gagal dimuat (better-sqlite3 ERR_DLOPEN_FAILED),
+      # pakai fallback bun:sqlite yang menerapkan file migrasi terbaru:
+      bun run db:push:bun [./drizzle/<file-migrasi>.sql]
+      ```
+      Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke database SQLite lokal (`data/inventory.db`).
    - **Migrasi Database Remote Cloudflare D1**:
      Setiap kali ada penambahan atau perubahan skema tabel/fitur baru, Anda **WAJIB** membuat dan menerapkan migrasi ke database remote Cloudflare D1 agar deployment Cloudflare Workers tidak mengalami error tabel hilang:
      ```bash
@@ -122,6 +125,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 ## 2. Technology Stack Standards
 
 - **Runtime & Package Manager**: [Bun](https://bun.sh/) (or Node.js fallback where applicable).
+- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan pakai `Select-String`/`Select-Object` untuk potong output.
 - **Backend**: [Hono](https://hono.dev/) with TypeScript.
 - **ORM & Database**: [Drizzle ORM](https://orm.drizzle.team/) with SQLite core.
   - Initial deployment: Cloudflare D1.
