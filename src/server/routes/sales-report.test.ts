@@ -8,23 +8,15 @@ import {
   studentOrderItems,
   students,
 } from "../../db/schema";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 import { salesReportRouter } from "./sales-report";
 import { getSalesReport, salesReportToCsv } from "../services/sales-report";
 
 const FROM = "2020-01-01";
 const TO = "2099-12-31";
 
-const realGetSession = auth.api.getSession;
-function actAs(
-  role: "central_admin" | "warehouse_admin" | "school_admin" | null,
-  schoolId: string | null = null
-) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-sales-test", role, schoolId } } as any) : null;
-}
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 async function makeSchool(prefix: string) {
@@ -220,7 +212,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
     ];
 
     try {
-      actAs("school_admin", schoolA);
+      mockActor("school_admin", schoolA);
       const scoped = await salesReportRouter.request(`/?from=${FROM}&to=${TO}`);
       expect(scoped.status).toBe(200);
       const scopedJson = await scoped.json();
@@ -232,7 +224,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
       const cross = await salesReportRouter.request(`/?from=${FROM}&to=${TO}&schoolId=${schoolB}`);
       expect(cross.status).toBe(403);
 
-      actAs("central_admin");
+      mockActor("central_admin");
       const all = await salesReportRouter.request(`/?from=${FROM}&to=${TO}&schoolId=${schoolA}`);
       const allJson = await all.json();
       expect(allJson.data.totals.revenue).toBe(500_000);
@@ -255,7 +247,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
 
 describe("Ekspor CSV (spec: sales-report)", () => {
   it("CSV memuat baris yang sama dengan respons JSON", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     const stamp = Date.now();
     const schoolA = await makeSchool("Csv");
     const studentA = await makeStudent(schoolA, stamp);

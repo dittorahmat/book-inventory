@@ -6,8 +6,7 @@ import { db } from "../../db";
 import { schools } from "../../db/schema";
 import {
   accessErrorResponse,
-  requireCentralAdmin,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 
 export const schoolsRouter = new Hono();
@@ -36,7 +35,7 @@ schoolsRouter.get("/:id", async (c) => {
 
 schoolsRouter.post("/", zValidator("json", createSchoolSchema), async (c) => {
   try {
-    requireCentralAdmin(await resolveRequestActor(c));
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -87,7 +86,7 @@ const updateSchoolSchema = z.object({
 
 schoolsRouter.put("/:id", zValidator("json", updateSchoolSchema), async (c) => {
   try {
-    requireCentralAdmin(await resolveRequestActor(c));
+    await resolveLogisticsActor(c);
     const id = c.req.param("id");
   const body = c.req.valid("json");
   const now = new Date().toISOString();

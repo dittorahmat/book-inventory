@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, books, bookItems, students, studentBookOrders, transferShipments, internalPurchaseOrders, users } from "../../db/schema";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 import { bookItemsRouter } from "./bookItems";
 import { studentOrdersRouter } from "./student-orders";
 import { studentsRouter } from "./students";
@@ -54,14 +54,8 @@ async function seedPair() {
   }).onConflictDoNothing();
 }
 
-type Role = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-const realGetSession = auth.api.getSession;
-function actAs(role: Role | null, schoolId: string | null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 describe("Role & location isolation across routes", () => {
@@ -69,7 +63,7 @@ describe("Role & location isolation across routes", () => {
     await seedPair();
 
     // --- school_admin of A ---
-    actAs("school_admin", SCHOOL_A);
+    mockActor("school_admin", SCHOOL_A);
 
     const itemsRes = await bookItemsRouter.request("/", { method: "GET" });
     const itemsJson = await itemsRes.json();
@@ -119,19 +113,19 @@ describe("Role & location isolation across routes", () => {
     expect(poAttempt.status).toBe(403);
 
     // --- unrelated third school sees nothing of the pair ---
-    actAs("school_admin", "school-alw-9");
+    mockActor("school_admin", "school-alw-9");
     const alien = await shipmentsRouter.request(`/trf-iso-${stamp}`, { method: "GET" });
     expect(alien.status).toBe(403);
     const alienOrders = await studentOrdersRouter.request(`/?schoolId=${SCHOOL_A}`, { method: "GET" });
     expect(alienOrders.status).toBe(403);
 
     // --- central admin roams freely ---
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     const centralItems = await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" });
     expect(centralItems.status).toBe(200);
 
     // --- unauthenticated is rejected everywhere since #44 ---
-    actAs(null, null);
+    mockActor(null, null);
     const denied = await bookItemsRouter.request("/", { method: "GET" });
     expect(denied.status).toBe(401);
   });
@@ -140,7 +134,7 @@ describe("Role & location isolation across routes", () => {
 describe("Staff login gate (#44): anonymous callers get 401 on every staff router", () => {
   it("rejects anonymous reads across all staff routers, keeps public portal open", async () => {
     await seedPair();
-    actAs(null, null);
+    mockActor(null, null);
     const anonGet = (router: { request: (path: string, init?: RequestInit) => Response | Promise<Response> }, path: string) =>
       router.request(path, { method: "GET" });
 
@@ -196,13 +190,13 @@ describe("Staff login gate (#44): anonymous callers get 401 on every staff route
   });
 
   it("locks demo reseed to central (anon 401, school 403, central 200)", async () => {
-    actAs(null, null);
+    mockActor(null, null);
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(401);
 
-    actAs("school_admin", SCHOOL_A);
+    mockActor("school_admin", SCHOOL_A);
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(403);
 
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     const seeded = await demoRouter.request("/seed", { method: "POST" });
     expect(seeded.status).toBe(200);
     expect((await seeded.json()).success).toBe(true);
@@ -220,16 +214,16 @@ describe("Staff login gate (#44): anonymous callers get 401 on every staff route
       updatedAt: now,
     }).onConflictDoNothing();
 
-    actAs(null, null);
+    mockActor(null, null);
     expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(401);
 
-    actAs("school_admin", SCHOOL_B);
+    mockActor("school_admin", SCHOOL_B);
     expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(403);
 
-    actAs("school_admin", SCHOOL_A);
+    mockActor("school_admin", SCHOOL_A);
     expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
 
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
   });
 });
@@ -246,7 +240,7 @@ describe("Account roles per organization (#46)", () => {
 
   it("gudang login sees all locations", async () => {
     await seedPair();
-    actAs("central_admin", "school-warehouse");
+    mockActor("central_admin", "school-warehouse");
 
     const all = await bookItemsRouter.request("/", { method: "GET" });
     expect(all.status).toBe(200);
@@ -266,7 +260,7 @@ describe("Account roles per organization (#46)", () => {
       barcode: `ALW1-46-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
     }).onConflictDoNothing();
     try {
-      actAs("school_admin", "school-alw-1");
+      mockActor("school_admin", "school-alw-1");
 
       const own = await bookItemsRouter.request("/", { method: "GET" });
       expect(own.status).toBe(200);

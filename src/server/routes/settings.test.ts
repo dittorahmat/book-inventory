@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { settingsRouter } from "./settings";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
 import { systemSettings } from "../../db/schema";
 
@@ -39,15 +39,8 @@ async function cleanupWhatsAppKeys() {
     );
 }
 
-type NotifRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null;
-const realGetSession = auth.api.getSession;
-function actAs(role: NotifRole) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId: null } } as any) : null;
-}
-
 afterEach(async () => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
   for (const k of ENV_KEYS) {
     if (savedEnv[k] === undefined) delete process.env[k];
     else process.env[k] = savedEnv[k];
@@ -59,7 +52,7 @@ const realFetch = globalThis.fetch;
 
 describe("Settings SMTP jujur (masking + provider)", () => {
   it("GET /smtp menutupi rahasia dan melaporkan isConfigured", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await cleanupEmailKeys();
 
@@ -75,7 +68,7 @@ describe("Settings SMTP jujur (masking + provider)", () => {
   });
 
   it("POST /smtp menyimpan provider + brevo key, GET menandai brevoConfigured", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     const saveRes = await settingsRouter.request("/smtp", {
       method: "POST",
@@ -104,7 +97,7 @@ describe("Settings SMTP jujur (masking + provider)", () => {
   });
 
   it("POST /smtp/test jujur: sukses via brevo bila provider merespons 201", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await db.insert(systemSettings).values([
       { key: "email_provider", value: "brevo", description: "t", updatedAt: new Date().toISOString() },
@@ -130,7 +123,7 @@ describe("Settings SMTP jujur (masking + provider)", () => {
   });
 
   it("POST /smtp/test jujur: 502 + GAGAL bila Brevo menolak", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await db.insert(systemSettings).values([
       { key: "email_provider", value: "brevo", description: "t", updatedAt: new Date().toISOString() },
@@ -155,7 +148,7 @@ describe("Settings SMTP jujur (masking + provider)", () => {
   });
 
   it("POST /smtp/test jujur: simulasi bila tanpa kredensial", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await cleanupEmailKeys();
 
@@ -172,7 +165,7 @@ describe("Settings SMTP jujur (masking + provider)", () => {
   });
 
   it("GET and POST /whatsapp saves configuration and masks apiKey", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     const postRes = await settingsRouter.request("/whatsapp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -226,7 +219,7 @@ function notifRequest(ep: (typeof NOTIF_ENDPOINTS)[number]) {
 
 describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
   it("tanpa sesi → 401 di semua endpoint kredensial dan uji-kirim", async () => {
-    actAs(null);
+    mockActor(null);
     for (const ep of NOTIF_ENDPOINTS) {
       const res = await notifRequest(ep);
       expect(res.status).toBe(401);
@@ -238,7 +231,7 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
   it("peran non-pusat (gudang, sekolah, cabang) → 403 di semua endpoint kredensial dan uji-kirim", async () => {
     const roles = ["warehouse_admin", "school_admin", "branch_admin"] as const;
     for (const role of roles) {
-      actAs(role);
+      mockActor(role);
       for (const ep of NOTIF_ENDPOINTS) {
         const res = await notifRequest(ep);
         expect(res.status).toBe(403);
@@ -249,7 +242,7 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
   });
 
   it("central tetap bisa membaca config (secret ter-mask) dan menyimpan", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await cleanupEmailKeys();
     await cleanupWhatsAppKeys();
@@ -291,7 +284,7 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
   });
 
   it("central tetap bisa uji-kirim (simulasi hermetik tanpa kredensial)", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
     clearEnv();
     await cleanupEmailKeys();
     await cleanupWhatsAppKeys();

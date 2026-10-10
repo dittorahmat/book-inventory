@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
-import type { PackageOption } from "../../lib/internal-orders-types";
+import type { InternalPoLine, PackageOption } from "../../lib/internal-orders-types";
 import { fetchPackageOptions } from "./internal-orders-api";
-
-interface OrderLine {
-  packageId: string;
-  quantityOrdered: number;
-}
 
 interface CreateInternalOrderModalProps {
   schoolId: string;
@@ -14,12 +9,12 @@ interface CreateInternalOrderModalProps {
   schoolOptions: Array<{ id: string; name: string }>;
   canChooseSchool: boolean;
   onSchoolChange: (schoolId: string) => void;
-  onSubmit: (payload: { schoolId: string; notes?: string; items: OrderLine[] }) => Promise<{ poNumber: string }>;
+  onSubmit: (payload: { schoolId: string; notes?: string; items: InternalPoLine[] }) => Promise<{ poNumber: string }>;
   onClose: () => void;
   onCreated: (poNumber: string) => void;
 }
 
-/** Form IPO cabang → gudang: pilih paket + jumlah, pantau status setelah terbit. */
+/** Form Internal PO cabang → gudang: pilih paket + jumlah, pantau status setelah terbit. */
 export function CreateInternalOrderModal({
   schoolId,
   schoolName,
@@ -32,7 +27,7 @@ export function CreateInternalOrderModal({
 }: CreateInternalOrderModalProps) {
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [packagesError, setPackagesError] = useState<string | null>(null);
-  const [lines, setLines] = useState<OrderLine[]>([{ packageId: "", quantityOrdered: 1 }]);
+  const [lines, setLines] = useState<InternalPoLine[]>([{ packageId: "", quantityOrdered: 1 }]);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +47,7 @@ export function CreateInternalOrderModal({
     };
   }, []);
 
-  const setLine = (index: number, patch: Partial<OrderLine>) =>
+  const setLine = (index: number, patch: Partial<InternalPoLine>) =>
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
 
   const handleSubmit = async () => {

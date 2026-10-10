@@ -12,9 +12,7 @@ import {
 } from "../../db/schema";
 import {
   accessErrorResponse,
-  requireAuthenticatedActor,
-  requireLogisticsRole,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 
 export const vendorReturnsRouter = new Hono();
@@ -36,8 +34,7 @@ const createVendorReturnSchema = z.object({
 // 1. GET list vendor returns
 vendorReturnsRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
 
     const returns = await db
       .select({
@@ -95,8 +92,7 @@ vendorReturnsRouter.get("/", async (c) => {
 // 2. POST create vendor return (RTV - Return to Vendor)
 vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
 
     const now = new Date().toISOString();

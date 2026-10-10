@@ -15,7 +15,7 @@ import {
   saveWhatsAppConfig,
   sendWhatsAppMessage,
 } from "../services/whatsapp";
-import { accessErrorResponse, requireAuthenticatedActor, requireCentralAdmin, requireLogisticsRole, resolveRequestActor } from "../services/access-scope";
+import { accessErrorResponse, requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from "../services/access-scope";
 
 export const settingsRouter = new Hono();
 
@@ -48,22 +48,20 @@ const overrideSchema = z.object({
   override: z.enum(["open", "closed", "auto"]),
 });
 
-/** Otorisasi pengaturan cut-off: wajib login, hanya central admin / admin gudang. */
-async function assertCutoffAdmin(c: Context) {
-  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-  requireLogisticsRole(actor);
-}
-
-/** Otorisasi kredensial notifikasi: hanya central admin (anon → 401, non-pusat → 403). */
-async function assertNotifAdmin(c: Context) {
-  const actor = await resolveRequestActor(c);
-  requireCentralAdmin(actor);
+/**
+ * Satu pintu otorisasi pengaturan (behavior identik per area):
+ * cut-off → wajib login + peran logistik (pusat/gudang);
+ * notifikasi → hanya central admin (anon → 401, non-pusat → 403).
+ */
+async function assertSettingsAdmin(c: Context, area: "cutoff" | "notif"): Promise<void> {
+  if (area === "notif") requireCentralAdmin(await resolveRequestActor(c));
+  else await resolveLogisticsActor(c);
 }
 
 // GET status cut-off order satuan (hanya peran logistik)
 settingsRouter.get("/satuan-cutoff", async (c) => {
   try {
-    await assertCutoffAdmin(c);
+    await assertSettingsAdmin(c, "cutoff");
     const academicYear = c.req.query("academicYear")?.trim() || currentAcademicYear();
     const data = await getSatuanStatus(academicYear);
     return c.json({ success: true, data });
@@ -75,7 +73,7 @@ settingsRouter.get("/satuan-cutoff", async (c) => {
 // POST simpan tanggal efektif buka order satuan
 settingsRouter.post("/satuan-cutoff/open-from", zValidator("json", openFromSchema), async (c) => {
   try {
-    await assertCutoffAdmin(c);
+    await assertSettingsAdmin(c, "cutoff");
     const { academicYear, openFrom } = c.req.valid("json");
     const data = await setSatuanOpenFrom(academicYear, openFrom);
     return c.json({
@@ -91,7 +89,7 @@ settingsRouter.post("/satuan-cutoff/open-from", zValidator("json", openFromSchem
 // POST simpan override manual (open / closed / auto)
 settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema), async (c) => {
   try {
-    await assertCutoffAdmin(c);
+    await assertSettingsAdmin(c, "cutoff");
     const { academicYear, override } = c.req.valid("json");
     const next: SatuanOverride | null = override === "auto" ? null : override;
     const data = await setSatuanOverride(academicYear, next);
@@ -111,7 +109,7 @@ settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema
 // GET current email config (secrets masked, never exposed; hanya central admin)
 settingsRouter.get("/smtp", async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
     const config = await getSmtpConfig(env);
     const smtpConfigured = Boolean(config.password);
@@ -135,7 +133,7 @@ settingsRouter.get("/smtp", async (c) => {
 // POST save email config (hanya central admin)
 settingsRouter.post("/smtp", zValidator("json", updateSmtpSchema), async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
     await saveSmtpConfig({ ...body, provider: body.emailProvider });
     return c.json({ success: true, message: "Pengaturan email berhasil disimpan" });
@@ -147,7 +145,7 @@ settingsRouter.post("/smtp", zValidator("json", updateSmtpSchema), async (c) => 
 // POST send test email (honest: reports the real provider + outcome; hanya central admin)
 settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const { recipientEmail } = c.req.valid("json");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
     const result = await sendEmailNotification(
@@ -191,7 +189,7 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
 // GET current WhatsApp gateway config (API Key masked; hanya central admin)
 settingsRouter.get("/whatsapp", async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const config = await getWhatsAppConfig();
     return c.json({
       success: true,
@@ -216,7 +214,7 @@ const updateWhatsAppSchema = z.object({
 // POST save WhatsApp config (hanya central admin)
 settingsRouter.post("/whatsapp", zValidator("json", updateWhatsAppSchema), async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
     const existing = await getWhatsAppConfig();
     await saveWhatsAppConfig({
@@ -237,7 +235,7 @@ const testWhatsAppSchema = z.object({
 
 settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), async (c) => {
   try {
-    await assertNotifAdmin(c);
+    await assertSettingsAdmin(c, "notif");
     const { phone, message } = c.req.valid("json");
     const result = await sendWhatsAppMessage(phone, message);
     if (!result.success) {

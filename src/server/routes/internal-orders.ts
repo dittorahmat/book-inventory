@@ -17,8 +17,8 @@ import {
   assertLocationAllowed,
   loadLocationIds,
   requireAuthenticatedActor,
-  requireLogisticsRole,
   resolveLocationScope,
+  resolveLogisticsActor,
   resolveRequestActor,
 } from "../services/access-scope";
 
@@ -160,8 +160,7 @@ internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async
 // 3. POST create Shipment (Surat Jalan Pengiriman Internal)
 internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
+    await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
     const poId = c.req.param("id");
     const body = c.req.valid("json");
 

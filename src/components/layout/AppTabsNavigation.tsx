@@ -12,6 +12,7 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
+import { isCentralRole, isLogisticsRole, type StaffRole } from "../../lib/staff-roles";
 
 export const TAB_IDS = [
   "dashboard",
@@ -30,10 +31,7 @@ export const TAB_IDS = [
 
 export type ActiveTab = typeof TAB_IDS[number];
 
-export type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-
-const isLogisticsRole = (role: StaffRole): boolean =>
-  role === "central_admin" || role === "warehouse_admin";
+export type { StaffRole };
 
 interface AppTabsNavigationProps {
   activeTab: ActiveTab;
@@ -105,7 +103,7 @@ export function AppMobileNavigation({
 }: AppMobileNavigationProps) {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-      <div className="grid grid-cols-6 auto-cols-fr gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         <button
           type="button"
           onClick={() => onSelectTab("dashboard")}
@@ -184,11 +182,24 @@ export function AppMobileNavigation({
           <span className="text-[11px] font-semibold">Transfers</span>
         </button>
 
-        {role === "central_admin" && (
+        <button
+          type="button"
+          onClick={() => onSelectTab("internal_orders")}
+          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+            activeTab === "internal_orders"
+              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+          }`}
+        >
+          <Warehouse className="w-5 h-5 mb-1" />
+          <span className="text-[11px] font-semibold">Pesan</span>
+        </button>
+
+        {isCentralRole(role) && (
           <button
             type="button"
             onClick={() => onSelectTab("settings")}
-            className={`col-span-6 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
               activeTab === "settings"
                 ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                 : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"

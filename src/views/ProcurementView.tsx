@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { School } from "../types";
 import type { StaffRole } from "../components/layout/AppTabsNavigation";
+import { isSchoolRole } from "../lib/staff-roles";
 import { PoPrintView, type PrintablePo } from "../components/procurement/PoPrintView";
 import { SupplierMasterSection, type SupplierRecord } from "../components/procurement/SupplierMasterSection";
 import { CreatePOModal } from "../components/procurement/CreatePOModal";
@@ -21,9 +22,6 @@ interface ProcurementViewProps {
   activeSchool: School | null;
   userRole?: StaffRole;
 }
-
-const isSchoolRole = (role?: StaffRole): boolean =>
-  role === "school_admin" || role === "branch_admin";
 
 export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps) {
   const {

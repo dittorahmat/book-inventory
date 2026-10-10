@@ -3,16 +3,11 @@ import { schoolsRouter } from "./schools";
 import { db } from "../../db";
 import { schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 
-const realGetSession = auth.api.getSession;
-function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
-beforeEach(() => actAs("central_admin", null));
+beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 describe("Schools API & Branch Management", () => {
@@ -72,29 +67,33 @@ describe("Schools master RBAC (#43)", () => {
     } as const;
   }
 
-  it("menolak mutasi lokasi tanpa sesi (401) dan oleh peran sekolah (403)", async () => {
-    actAs(null, null);
+  it("menolak mutasi lokasi tanpa sesi (401) dan oleh peran sekolah (403), mengizinkan gudang", async () => {
+    mockActor("central_admin", null);
+    const seeded = await schoolsRouter.request("/", createPayload(`RBAC-PUT-${stamp}`));
+    expect(seeded.status).toBe(201);
+    const targetId = (await seeded.json()).data.id;
+
+    const putTarget = {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: "Coba Ubah" }),
+    } as const;
+
+    mockActor(null, null);
     expect((await schoolsRouter.request("/", createPayload(`RBAC-${stamp}`))).status).toBe(401);
-    expect((await schoolsRouter.request("/school-alw-1", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: "Coba Ubah" }),
-    })).status).toBe(401);
+    expect((await schoolsRouter.request(`/${targetId}`, putTarget)).status).toBe(401);
 
-    actAs("school_admin", "school-alw-1");
+    mockActor("school_admin", "school-alw-1");
     expect((await schoolsRouter.request("/", createPayload(`RBAC-${stamp}`))).status).toBe(403);
-    expect((await schoolsRouter.request("/school-alw-1", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: "Coba Ubah" }),
-    })).status).toBe(403);
+    expect((await schoolsRouter.request(`/${targetId}`, putTarget)).status).toBe(403);
 
-    actAs("warehouse_admin", "school-warehouse");
-    expect((await schoolsRouter.request("/", createPayload(`RBAC-${stamp}`))).status).toBe(403);
+    mockActor("warehouse_admin", "school-warehouse");
+    expect((await schoolsRouter.request("/", createPayload(`RBAC-${stamp}`))).status).toBe(201);
+    expect((await schoolsRouter.request(`/${targetId}`, putTarget)).status).toBe(200);
   });
 
   it("membiarkan daftar dan detail sekolah terbaca publik", async () => {
-    actAs(null, null);
+    mockActor(null, null);
     const list = await schoolsRouter.request("/", { method: "GET" });
     expect(list.status).toBe(200);
     const firstId = ((await list.json()) as any).data[0]?.id;

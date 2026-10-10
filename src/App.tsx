@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { School } from "./types";
 import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
@@ -17,6 +17,7 @@ import { DashboardLoadingFallback } from "./views/DashboardFallback";
 import { AppHeader } from "./components/layout/AppHeader";
 import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, type ActiveTab } from "./components/layout/AppTabsNavigation";
 import { useSession, signOut } from "./lib/auth-client";
+import { isCentralRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
 import { Loader2 } from "lucide-react";
 
@@ -44,17 +45,13 @@ export function App() {
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
-  const sessionRef = useRef(session);
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
+  const sessionRole = (session?.user as unknown as { role?: StaffRole } | undefined)?.role;
 
   const loadSchools = useCallback(async () => {
     try {
       const list = await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.");
       if (list.length === 0) {
-        const role = (sessionRef.current?.user as { role?: string } | undefined)?.role;
-        if (role !== "central_admin") {
+        if (!isCentralRole(sessionRole)) {
           setSchools([]);
           setSeedNotice("Data sekolah belum tersedia. Hanya admin pusat yang dapat memuat data demo — silakan hubungi admin pusat.");
           return;
@@ -70,7 +67,7 @@ export function App() {
     } catch (err) {
       setSeedNotice(err instanceof Error ? err.message : "Gagal memuat daftar sekolah.");
     }
-  }, []);
+  }, [sessionRole]);
 
   useEffect(() => {
     loadSchools();
@@ -79,8 +76,8 @@ export function App() {
   // Adjust school assignment when user logs in
   useEffect(() => {
     if (session?.user && schools.length > 0) {
-      const user = session.user as any;
-      if (user.role !== "central_admin" && user.schoolId) {
+      const user = session.user as unknown as { role?: StaffRole; schoolId?: string | null };
+      if (!isCentralRole(user.role) && user.schoolId) {
         const assigned = schools.find((s) => s.id === user.schoolId);
         if (assigned) setSelectedSchool(assigned);
       } else if (!selectedSchool && schools.length > 0) {
@@ -140,10 +137,10 @@ export function App() {
     );
   }
 
-  const currentUser = session.user as any;
-  const userRole = currentUser.role as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-  const userSchoolId = (currentUser.schoolId as string | null | undefined) ?? null;
-  const isCentralAdmin = userRole === "central_admin";
+  const currentUser = session.user as unknown as { role: StaffRole; schoolId?: string | null; name: string };
+  const userRole = currentUser.role;
+  const userSchoolId = currentUser.schoolId ?? null;
+  const isCentralAdmin = isCentralRole(userRole);
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
