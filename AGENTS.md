@@ -34,6 +34,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    # or bun run type-check
    ```
    Zero TypeScript errors (`tsc --noEmit`) are allowed.
+   Modul service baru menerima `AppDatabase` (union bun-sqlite|D1) sehingga `select()` tak bertipe: anotasi callback dengan tipe baris `$inferSelect` + `Map<K, V>` eksplisit, contoh `src/server/services/internal-po.ts`.
 
 3. **Code Linting & Formatting**
    ```bash
@@ -61,8 +62,9 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
      - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
      - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
-   - **Regression Test Updates**:
-     - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
+    - **Regression Test Updates**:
+      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
+      - Setiap route di `src/server/routes/*.ts` **wajib punya pasangan** `*.test.ts` — ditegakkan oleh `bun run check:route-tests` dan CI (`.github/workflows/checks.yml`).
 
 6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend` Enforcement)**
    Setiap developer dan AI agent yang membuat atau memodifikasi UI/UX di codebase ini **WAJIB** mematuhi pedoman anti-slop dari skill `design-taste-frontend`:
