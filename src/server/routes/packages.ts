@@ -10,12 +10,13 @@ import {
   assertLocationAllowed,
   loadLocationIds,
   requireAuthenticatedActor,
-  requireLogisticsRole,
   resolveLocationScope,
+  resolveLogisticsActor,
   resolveRequestActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
 import { getStockPotentials } from "../services/package-stock";
+import { isCentralRole } from "../../lib/staff-roles";
 
 export const packagesRouter = new Hono();
 
@@ -51,15 +52,16 @@ import { runIdempotentSeed } from "../seed";
 // GET all packages with BOM components
 packagesRouter.get("/", async (c) => {
   try {
-    requireAuthenticatedActor(await resolveRequestActor(c));
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     let allPackages = await db.select().from(bookPackages);
-    if (allPackages.length === 0) {
+    // Seed demo otomatis hanya untuk admin pusat; peran lain melihat daftar jujur (kosong).
+    if (allPackages.length === 0 && isCentralRole(actor.role)) {
       await runIdempotentSeed();
       allPackages = await db.select().from(bookPackages);
     }
 
     const results = await Promise.all(
-      allPackages.map(async (pkg: any) => {
+      allPackages.map(async (pkg: typeof bookPackages.$inferSelect) => {
         const items = await db
           .select({
             id: bookPackageItems.id,
@@ -77,7 +79,7 @@ packagesRouter.get("/", async (c) => {
         return {
           ...pkg,
           items,
-          totalItemsCount: items.reduce((sum: number, item: any) => sum + item.quantity, 0),
+          totalItemsCount: items.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
         };
       })
     );
@@ -170,8 +172,7 @@ packagesRouter.get("/:id/stock/:schoolId", async (c) => {
 // POST Create new Package with BOM components
 packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const packageId = crypto.randomUUID();
@@ -217,8 +218,7 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
 // POST Assembly / Bundling (Kitting) - HANYA DI GUDANG PUSAT
 packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const packageId = c.req.param("id");
     const { schoolId, quantity } = c.req.valid("json");
@@ -273,8 +273,7 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
 // DELETE Package with auto-unbundle of ready bundles
 packagesRouter.delete("/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const packageId = c.req.param("id");
 
     const result = await deletePackageWithAutoUnbundle(packageId);

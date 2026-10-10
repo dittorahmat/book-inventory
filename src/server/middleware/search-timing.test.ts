@@ -2,17 +2,12 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { app } from "../index";
 import { db } from "../../db";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "../routes/test-actor";
 import { bookReturns, books, schools, studentBookOrders, students } from "../../db/schema";
 
-const realGetSession = auth.api.getSession;
-function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
-beforeEach(() => actAs("central_admin", null));
+beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 describe("Search timing middleware (#38)", () => {

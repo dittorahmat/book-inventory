@@ -10,10 +10,8 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
-  requireAuthenticatedActor,
-  requireLogisticsRole,
   resolveLocationScope,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 export const procurementRouter = new Hono();
 
@@ -57,7 +55,7 @@ const receivePOSchema = z.object({
 // 1. GET & POST Suppliers
 procurementRouter.get("/suppliers", async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const allSuppliers = await db.select().from(suppliers);
     return c.json({ success: true, data: allSuppliers });
   } catch (err) {
@@ -67,7 +65,7 @@ procurementRouter.get("/suppliers", async (c) => {
 
 procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -99,8 +97,7 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 // 2. GET Purchase Orders
 procurementRouter.get("/purchase-orders", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const scope = new Set(resolveLocationScope(actor, undefined, locations));
     const scopedOnly = scope.size < locations.length;
@@ -176,8 +173,7 @@ procurementRouter.get("/purchase-orders", async (c) => {
 // 3. POST Create Purchase Order (thin caller di atas seam modul PO)
 procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const body = c.req.valid("json");
     const target = await resolveWarehouseTarget(body.targetSchoolId);
@@ -202,8 +198,7 @@ procurementRouter.post("/purchase-orders", zValidator("json", createPOSchema), a
 // 4. POST Receive Goods from PO with Delivery Note (Surat Jalan)
 procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receivePOSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
     const body = c.req.valid("json");
@@ -233,8 +228,7 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
 // 4b. GET Delivery Receipts History for PO
 procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
 
@@ -255,8 +249,7 @@ procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
 // 5. POST Send Purchase Order to supplier email (with delivery trail)
 procurementRouter.post("/purchase-orders/:id/send", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, c.req.param("id")));
     if (!po) {
@@ -298,8 +291,7 @@ procurementRouter.post("/purchase-orders/:id/send", async (c) => {
 // 6. DELETE Purchase Order (khusus PO yang belum pernah menerima barang)
 procurementRouter.delete("/purchase-orders/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
 

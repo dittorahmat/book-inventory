@@ -1,14 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 
-const realGetSession = auth.api.getSession;
-function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
-beforeEach(() => actAs("central_admin", null));
+beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 import { shipmentsRouter } from "./shipments";
 import { db } from "../../db";
@@ -738,7 +733,7 @@ describe("Inter-School Transfer Shipments API", () => {
       });
 
       // Refund: cabang membuat transfer keluar dari sekolahnya sendiri ke gudang.
-      actAs("branch_admin", ownId);
+      mockActor("branch_admin", ownId);
       const ownRes = await shipmentsRouter.request("/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -771,7 +766,7 @@ describe("Inter-School Transfer Shipments API", () => {
       await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
       await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
     } finally {
-      actAs("central_admin", null);
+      mockActor("central_admin", null);
       await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(schools).where(eq(schools.id, ownId));

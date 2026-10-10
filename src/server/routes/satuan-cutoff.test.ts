@@ -10,7 +10,7 @@ import {
   studentOrderItems,
   systemSettings,
 } from "../../db/schema";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 import { publicOrdersRouter } from "./public-orders";
 import { settingsRouter } from "./settings";
 import {
@@ -25,16 +25,8 @@ import { currentAcademicYear, todayWIB } from "../../lib/wib-time";
 const FUTURE_YEAR = "2099/2100";
 const ROLLOVER_YEAR = "2098/2099";
 
-const realGetSession = auth.api.getSession;
-function actAs(
-  role: "central_admin" | "warehouse_admin" | "school_admin" | null,
-  schoolId: string | null = null
-) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-cutoff-test", role, schoolId } } as any) : null;
-}
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 async function clearSettings(year: string) {
@@ -301,7 +293,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
 
 describe("Otorisasi pengaturan cut-off (spec: public-order-satuan)", () => {
   it("menolak admin sekolah saat membuka pengaturan cut-off", async () => {
-    actAs("school_admin", "school-alw-2");
+    mockActor("school_admin", "school-alw-2");
 
     const getRes = await settingsRouter.request("/satuan-cutoff", { method: "GET" });
     expect(getRes.status).toBe(403);
@@ -322,7 +314,7 @@ describe("Otorisasi pengaturan cut-off (spec: public-order-satuan)", () => {
   });
 
   it("mengizinkan admin gudang menyimpan tanggal dan override", async () => {
-    actAs("warehouse_admin", "school-warehouse");
+    mockActor("warehouse_admin", "school-warehouse");
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
     const dateRes = await settingsRouter.request("/satuan-cutoff/open-from", {
@@ -352,7 +344,7 @@ describe("Otorisasi pengaturan cut-off (spec: public-order-satuan)", () => {
   });
 
   it("menolak format tahun ajaran, tanggal, dan override yang salah", async () => {
-    actAs("central_admin");
+    mockActor("central_admin");
 
     const badYear = await settingsRouter.request("/satuan-cutoff/open-from", {
       method: "POST",

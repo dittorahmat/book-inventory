@@ -6,7 +6,7 @@ import {
   fetchInternalShipments,
 } from "./internal-orders-api";
 
-/** State pesanan internal cabang: daftar IPO + riwayat pengiriman per IPO. */
+/** State pesanan internal cabang: daftar Internal PO + riwayat pengiriman per PO. */
 export function useInternalOrders(schoolId?: string | null) {
   const [orders, setOrders] = useState<InternalOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);

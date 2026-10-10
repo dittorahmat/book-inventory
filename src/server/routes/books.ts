@@ -12,9 +12,7 @@ import {
 import { recalcPackagesUsingBook } from "../services/book-price";
 import {
   accessErrorResponse,
-  requireAuthenticatedActor,
-  requireLogisticsRole,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 
 export const booksRouter = new Hono();
@@ -67,7 +65,7 @@ booksRouter.get("/:id", async (c) => {
 
 booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -105,7 +103,7 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
 // Update book catalog fields (incl. harga beli/jual terpisah)
 booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const id = c.req.param("id");
   const body = c.req.valid("json");
 
@@ -139,7 +137,7 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
 // Upload book cover endpoint
 booksRouter.post("/:id/cover", async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const bookId = c.req.param("id");
   const [book] = await db.select().from(books).where(eq(books.id, bookId));
   if (!book) {
@@ -172,7 +170,7 @@ booksRouter.post("/:id/cover", async (c) => {
 // DELETE book (hapus judul buku jika tidak dipakai di paket/transaksi aktif)
 booksRouter.delete("/:id", async (c) => {
   try {
-    requireLogisticsRole(requireAuthenticatedActor(await resolveRequestActor(c)));
+    await resolveLogisticsActor(c);
     const id = c.req.param("id");
   const [book] = await db.select().from(books).where(eq(books.id, id));
   if (!book) {

@@ -16,6 +16,14 @@ _Avoid_: Book copy, stock unit
 Perpindahan formal eksemplar antar sekolah (`draft` → `pending_dispatch` → `in_transit` → `completed` / `discrepancy`).
 _Avoid_: Transfer, mutation
 
+**Supplier PO**:
+Dokumen pengadaan buku dari gudang pusat ke penerbit/supplier eksternal (nomor `PO-…`, alur `draft` → `printed` → `signed_uploaded` → `sent` → `received`).
+_Avoid_: PO supplier, purchase order manual
+
+**Internal PO**:
+Pesanan paket buku dari sekolah cabang ke gudang pusat (nomor `IPO-…`, status `submitted` → `partial_fulfilled` → `completed`), dipenuhi lewat surat jalan pengiriman internal.
+_Avoid_: IPO, pesanan cabang
+
 **YAGNI**:
 Disiplin hapus kode mati dan kanonikalisasi helper ke modul kanonik, tanpa fitur spekulatif.
 _Avoid_: Generalisasi dini, future-proofing

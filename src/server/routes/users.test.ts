@@ -3,16 +3,11 @@ import { usersRouter } from "./users";
 import { db } from "../../db";
 import { users, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 
 type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-const realGetSession = auth.api.getSession;
-function actAs(role: StaffRole | null, schoolId: string | null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 const centralPayload = {
@@ -24,7 +19,7 @@ const centralPayload = {
 
 describe("Users API & School Assignment", () => {
   it("creates and assigns users to schools with role checks", async () => {
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     // Setup test school
     const testSchoolId = "test-user-school-1";
     await db.delete(schools).where(eq(schools.id, testSchoolId));
@@ -106,7 +101,7 @@ describe("Users API & School Assignment", () => {
 
 describe("Users RBAC (#41): central only", () => {
   it("rejects anonymous callers with 401 on list, create, and update", async () => {
-    actAs(null, null);
+    mockActor(null, null);
     expect((await usersRouter.request("/", { method: "GET" })).status).toBe(401);
     expect(
       (
@@ -135,7 +130,7 @@ describe("Users RBAC (#41): central only", () => {
       { role: "warehouse_admin", schoolId: "school-warehouse" },
     ];
     for (const { role, schoolId } of roles) {
-      actAs(role, schoolId);
+      mockActor(role, schoolId);
       expect((await usersRouter.request("/", { method: "GET" })).status).toBe(403);
       expect(
         (
@@ -159,7 +154,7 @@ describe("Users RBAC (#41): central only", () => {
   });
 
   it("lets central admin list users", async () => {
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     const res = await usersRouter.request("/", { method: "GET" });
     expect(res.status).toBe(200);
     expect((await res.json()).success).toBe(true);

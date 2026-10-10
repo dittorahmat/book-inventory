@@ -3,16 +3,11 @@ import { booksRouter } from "./books";
 import { db } from "../../db";
 import { books } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 
-const realGetSession = auth.api.getSession;
-function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
-beforeEach(() => actAs("central_admin", null));
+beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 describe("Books Catalog API", () => {
@@ -196,7 +191,7 @@ describe("Books master RBAC (#43)", () => {
   it("menolak mutasi katalog tanpa sesi (401) dan oleh peran sekolah (403)", async () => {
     await seedBook();
     try {
-      actAs(null, null);
+      mockActor(null, null);
       expect((await booksRouter.request("/", bookPayload(`978-A43-${stamp}`))).status).toBe(401);
       expect((await booksRouter.request(`/${seedId}`, {
         method: "PATCH",
@@ -208,7 +203,7 @@ describe("Books master RBAC (#43)", () => {
       expect((await booksRouter.request(`/${seedId}/cover`, { method: "POST", body: anonCover })).status).toBe(401);
       expect((await booksRouter.request(`/${seedId}`, { method: "DELETE" })).status).toBe(401);
 
-      actAs("school_admin", "school-alw-1");
+      mockActor("school_admin", "school-alw-1");
       expect((await booksRouter.request("/", bookPayload(`978-S43-${stamp}`))).status).toBe(403);
       expect((await booksRouter.request(`/${seedId}`, {
         method: "PATCH",
@@ -227,7 +222,7 @@ describe("Books master RBAC (#43)", () => {
   it("membiarkan daftar dan detail katalog terbaca publik", async () => {
     await seedBook();
     try {
-      actAs(null, null);
+      mockActor(null, null);
       expect((await booksRouter.request("/", { method: "GET" })).status).toBe(200);
       expect((await booksRouter.request(`/${seedId}`, { method: "GET" })).status).toBe(200);
     } finally {
@@ -237,12 +232,12 @@ describe("Books master RBAC (#43)", () => {
 
   it("mengizinkan mutasi katalog oleh gudang dan pusat", async () => {
     await db.delete(books).where(eq(books.isbn, `978-W43-${stamp}`));
-    actAs("warehouse_admin", "school-warehouse");
+    mockActor("warehouse_admin", "school-warehouse");
     const created = await booksRouter.request("/", bookPayload(`978-W43-${stamp}`));
     expect(created.status).toBe(201);
     const createdId = ((await created.json()) as any).data.id;
     try {
-      actAs("central_admin", null);
+      mockActor("central_admin", null);
       const patched = await booksRouter.request(`/${createdId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

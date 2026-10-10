@@ -112,6 +112,19 @@ export function requireLogisticsRole(actor: AccessActor | null): void {
   }
 }
 
+/**
+ * Resolve + authenticate + authorize logistics in one call. Prefer this over
+ * chaining the three guards verbatim: passing the nullable resolve result
+ * straight into requireLogisticsRole silently allows anonymous callers.
+ */
+export async function resolveLogisticsActor(c: {
+  req: { raw: { headers: Headers } };
+}): Promise<AccessActor> {
+  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+  requireLogisticsRole(actor);
+  return actor;
+}
+
 /** Map an AccessHttpError to a JSON response; rethrow anything else. */
 export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 401 | 403 | 404) => Response }, err: unknown) {
   if (err instanceof AccessHttpError) {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Truck } from "lucide-react";
 import type { InternalOrder, InternalShipment } from "../../lib/internal-orders-types";
-import { ipoProgress, ipoStatusLabel } from "../../lib/internal-orders-types";
+import { internalPoProgress, internalPoStatusLabel, internalPoStatusTone } from "../../lib/internal-orders-types";
 
 interface InternalOrdersTableProps {
   orders: InternalOrder[];
@@ -11,13 +11,6 @@ interface InternalOrdersTableProps {
   shipmentsError: Record<string, string | null>;
   onToggleShipments: (orderId: string, expanded: boolean) => void;
 }
-
-const statusTone = (status: string): string =>
-  status === "completed"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    : status === "partial_fulfilled"
-      ? "bg-amber-50 text-amber-800 border-amber-200"
-      : "bg-[#E7F3FF] text-[#1877F2] border-[#1877F2]/20";
 
 function ShipmentHistory({
   shipments,
@@ -80,7 +73,7 @@ function ShipmentHistory({
   );
 }
 
-/** Daftar IPO cabang: nomor, status, item, progres pemenuhan + riwayat pengiriman. */
+/** Daftar Internal PO cabang: nomor, status, item, progres pemenuhan + riwayat pengiriman. */
 export function InternalOrdersTable({
   orders,
   isLoading,
@@ -117,14 +110,14 @@ export function InternalOrdersTable({
     <div className="overflow-hidden rounded-2xl border border-[#E4E6EB] bg-white">
       <ul className="divide-y divide-[#E4E6EB]">
         {orders.map((order) => {
-          const progress = ipoProgress(order);
+          const progress = internalPoProgress(order);
           const expanded = expandedId === order.id;
           return (
             <li key={order.id} className="px-4 py-3.5 sm:px-5">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <span className="text-sm font-bold text-[#050505]">{order.poNumber}</span>
-                <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-bold ${statusTone(order.status)}`}>
-                  {ipoStatusLabel(order.status)}
+                <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-bold ${internalPoStatusTone(order.status)}`}>
+                  {internalPoStatusLabel(order.status)}
                 </span>
                 <span className="text-xs text-[#65676B]">{order.schoolName}</span>
                 <span className="ml-auto text-xs font-semibold text-[#050505]">

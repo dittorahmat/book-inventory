@@ -1,7 +1,7 @@
 import { getJson, postJson, buildQuery } from "../../lib/api";
-import type { InternalOrder, InternalShipment, PackageOption } from "../../lib/internal-orders-types";
+import type { InternalOrder, InternalPoLine, InternalShipment, PackageOption } from "../../lib/internal-orders-types";
 
-/** Seam HTTP pesanan internal: daftar IPO, buat IPO, riwayat pengiriman, katalog paket. */
+/** Seam HTTP pesanan internal: daftar Internal PO, buat Internal PO, riwayat pengiriman, katalog paket. */
 export const fetchInternalOrders = (schoolId?: string | null): Promise<InternalOrder[]> =>
   getJson<InternalOrder[]>(
     buildQuery("/api/internal-orders", { schoolId }),
@@ -20,7 +20,7 @@ export const fetchPackageOptions = (): Promise<PackageOption[]> =>
 export const createInternalOrder = (payload: {
   schoolId: string;
   notes?: string;
-  items: Array<{ packageId: string; quantityOrdered: number }>;
+  items: InternalPoLine[];
 }): Promise<{ id: string; poNumber: string }> =>
   postJson<{ id: string; poNumber: string }>(
     "/api/internal-orders",

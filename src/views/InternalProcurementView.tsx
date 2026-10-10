@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import type { School } from "../types";
 import type { StaffRole } from "../components/layout/AppTabsNavigation";
+import { isCentralRole } from "../lib/staff-roles";
 import { useInternalOrders } from "../components/internal-orders/useInternalOrders";
 import { InternalOrdersTable } from "../components/internal-orders/InternalOrdersTable";
 import { CreateInternalOrderModal } from "../components/internal-orders/CreateInternalOrderModal";
@@ -13,14 +14,14 @@ interface InternalProcurementViewProps {
   userSchoolId: string | null;
 }
 
-/** Tab cabang “Pesan ke Gudang”: buat IPO paket + pantau pemenuhan gudang. */
+/** Tab cabang “Pesan ke Gudang”: buat Internal PO paket + pantau pemenuhan gudang. */
 export function InternalProcurementView({
   activeSchool,
   schools,
   userRole,
   userSchoolId,
 }: InternalProcurementViewProps) {
-  const isCentral = userRole === "central_admin";
+  const isCentral = isCentralRole(userRole);
   const filterSchoolId = isCentral ? (activeSchool?.id ?? null) : (userSchoolId ?? activeSchool?.id ?? null);
   const {
     orders,

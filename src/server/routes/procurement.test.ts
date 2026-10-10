@@ -2,20 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
-import { auth } from "../auth";
+import { mockActor, restoreActor } from "./test-actor";
 import { createPurchaseOrder } from "../services/po-workflow";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
 import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers } from "../../db/schema";
 
-const realGetSession = auth.api.getSession;
-function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
-beforeEach(() => actAs("central_admin", null));
+beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 /** Bawa PO dari draft ke signed_uploaded: tandai dicetak lalu upload bukti TTD. */
@@ -644,7 +639,7 @@ describe("Supplier Procurement & Purchase Order API", () => {
 describe("Supplier PO visibility lock (#45)", () => {
   it("menolak daftar maupun baca PO supplier untuk peran sekolah dengan 403 berpesan jelas", async () => {
     for (const role of ["school_admin", "branch_admin"] as const) {
-      actAs(role, "school-alw-1");
+      mockActor(role, "school-alw-1");
       for (const path of ["/suppliers", "/purchase-orders", "/purchase-orders/po-ghost-45/receipts"] as const) {
         const res = await procurementRouter.request(path, { method: "GET" });
         expect(res.status).toBe(403);
@@ -656,11 +651,11 @@ describe("Supplier PO visibility lock (#45)", () => {
   });
 
   it("tetap membuka daftar supplier dan PO untuk gudang dan pusat", async () => {
-    actAs("warehouse_admin", "school-warehouse");
+    mockActor("warehouse_admin", "school-warehouse");
     expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
     expect((await procurementRouter.request("/purchase-orders", { method: "GET" })).status).toBe(200);
 
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(200);
     expect((await procurementRouter.request("/purchase-orders", { method: "GET" })).status).toBe(200);
   });
@@ -678,19 +673,19 @@ describe("Supplier master RBAC (#43)", () => {
   }
 
   it("mewajibkan login untuk daftar supplier dan peran logistik untuk tambah supplier", async () => {
-    actAs(null, null);
+    mockActor(null, null);
     expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(401);
     expect((await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBAC-${stamp}`))).status).toBe(401);
 
-    actAs("school_admin", "school-alw-1");
+    mockActor("school_admin", "school-alw-1");
     expect((await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBAC-${stamp}`))).status).toBe(403);
   });
 
   it("menolak daftar oleh peran sekolah (#45) dan mengizinkan tambah oleh gudang", async () => {
-    actAs("school_admin", "school-alw-1");
+    mockActor("school_admin", "school-alw-1");
     expect((await procurementRouter.request("/suppliers", { method: "GET" })).status).toBe(403);
 
-    actAs("warehouse_admin", "school-warehouse");
+    mockActor("warehouse_admin", "school-warehouse");
     const res = await procurementRouter.request("/suppliers", supplierPayload(`SUP-RBACW-${stamp}`));
     expect(res.status).toBe(201);
     const id = ((await res.json()) as any).data.id;
