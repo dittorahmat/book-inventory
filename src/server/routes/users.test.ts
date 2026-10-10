@@ -1,11 +1,30 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
 import { usersRouter } from "./users";
 import { db } from "../../db";
 import { users, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "../auth";
+
+type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
+const realGetSession = auth.api.getSession;
+function actAs(role: StaffRole | null, schoolId: string | null) {
+  (auth.api as any).getSession = async () =>
+    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
+}
+afterEach(() => {
+  (auth.api as any).getSession = realGetSession;
+});
+
+const centralPayload = {
+  name: "Central Probe",
+  email: "probe.central@example.com",
+  password: "password123",
+  role: "central_admin",
+};
 
 describe("Users API & School Assignment", () => {
   it("creates and assigns users to schools with role checks", async () => {
+    actAs("central_admin", null);
     // Setup test school
     const testSchoolId = "test-user-school-1";
     await db.delete(schools).where(eq(schools.id, testSchoolId));
@@ -82,5 +101,67 @@ describe("Users API & School Assignment", () => {
     const updateJson = await resUpdate.json();
     expect(resUpdate.status).toBe(200);
     expect(updateJson.data.name).toBe("Branch Admin Updated Name");
+  });
+});
+
+describe("Users RBAC (#41): central only", () => {
+  it("rejects anonymous callers with 401 on list, create, and update", async () => {
+    actAs(null, null);
+    expect((await usersRouter.request("/", { method: "GET" })).status).toBe(401);
+    expect(
+      (
+        await usersRouter.request("/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(centralPayload),
+        })
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await usersRouter.request("/ghost-id", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Ghost Renamed" }),
+        })
+      ).status
+    ).toBe(401);
+  });
+
+  it("rejects school/branch/warehouse admins with 403 on all three endpoints", async () => {
+    const roles: Array<{ role: StaffRole; schoolId: string }> = [
+      { role: "school_admin", schoolId: "school-alw-1" },
+      { role: "branch_admin", schoolId: "school-alw-1" },
+      { role: "warehouse_admin", schoolId: "school-warehouse" },
+    ];
+    for (const { role, schoolId } of roles) {
+      actAs(role, schoolId);
+      expect((await usersRouter.request("/", { method: "GET" })).status).toBe(403);
+      expect(
+        (
+          await usersRouter.request("/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(centralPayload),
+          })
+        ).status
+      ).toBe(403);
+      expect(
+        (
+          await usersRouter.request("/ghost-id", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "Ghost Renamed" }),
+          })
+        ).status
+      ).toBe(403);
+    }
+  });
+
+  it("lets central admin list users", async () => {
+    actAs("central_admin", null);
+    const res = await usersRouter.request("/", { method: "GET" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
   });
 });
