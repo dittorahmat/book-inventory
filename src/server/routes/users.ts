@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { users, schools } from "../../db/schema";
 import { auth } from "../auth";
+import {
+  accessErrorResponse,
+  requireCentralAdmin,
+  resolveRequestActor,
+} from "../services/access-scope";
 
 export const usersRouter = new Hono();
 
@@ -26,7 +31,9 @@ const updateUserSchema = z.object({
 
 // GET /api/users
 usersRouter.get("/", async (c) => {
-  const allUsers = await db
+  try {
+    requireCentralAdmin(await resolveRequestActor(c));
+    const allUsers = await db
     .select({
       id: users.id,
       name: users.name,
@@ -46,11 +53,16 @@ usersRouter.get("/", async (c) => {
     .leftJoin(schools, eq(users.schoolId, schools.id));
 
   return c.json({ success: true, data: allUsers });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // POST /api/users
 usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
-  const body = c.req.valid("json");
+  try {
+    requireCentralAdmin(await resolveRequestActor(c));
+    const body = c.req.valid("json");
 
   // Validate non-central roles must have schoolId (location assignment)
   if (body.role !== "central_admin" && !body.schoolId) {
@@ -82,11 +94,16 @@ usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
   } catch (err: any) {
     return c.json({ success: false, message: err.message || "Failed to create user" }, 400);
   }
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 // PUT /api/users/:id
 usersRouter.put("/:id", zValidator("json", updateUserSchema), async (c) => {
-  const id = c.req.param("id");
+  try {
+    requireCentralAdmin(await resolveRequestActor(c));
+    const id = c.req.param("id");
   const body = c.req.valid("json");
   const now = new Date();
 
@@ -114,4 +131,7 @@ usersRouter.put("/:id", zValidator("json", updateUserSchema), async (c) => {
     .returning();
 
   return c.json({ success: true, data: updatedUser });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
