@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "check:file-size": "bun scripts/check-file-size.ts",
+    "check:route-tests": "bun scripts/check-route-tests.ts",
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "db:push": "drizzle-kit push",

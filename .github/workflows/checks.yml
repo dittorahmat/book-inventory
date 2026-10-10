@@ -1,0 +1,45 @@
+# Quality gates: type-check, lint, ukuran file, pairing route-test, build, dan test.
+# Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
+# tidak lagi bergantung pada disiplin agen saja.
+
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # WAJIB sama dengan field packageManager (AGENTS.md aturan 5):
+      # bun lebih baru menulis lockfile v2 yang gagal dibaca bun 1.2.15.
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type safety verification
+        run: bun run type-check
+
+      - name: Code linting
+        run: bun run lint
+
+      - name: File-size gate
+        run: bun run check:file-size
+
+      - name: Route-test pairing gate
+        run: bun run check:route-tests
+
+      - name: Production build check
+        run: bun run build
+
+      - name: Test suite
+        run: bun test
