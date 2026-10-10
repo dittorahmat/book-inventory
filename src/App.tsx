@@ -7,6 +7,7 @@ import { StudentOrdersView } from "./views/StudentOrdersView";
 import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
+import { InternalProcurementView } from "./views/InternalProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
@@ -140,7 +141,9 @@ export function App() {
   }
 
   const currentUser = session.user as any;
-  const isCentralAdmin = currentUser.role === "central_admin";
+  const userRole = currentUser.role as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
+  const userSchoolId = (currentUser.schoolId as string | null | undefined) ?? null;
+  const isCentralAdmin = userRole === "central_admin";
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
@@ -157,7 +160,7 @@ export function App() {
         <AppTabsNavigation
           activeTab={activeTab}
           onSelectTab={setActiveTab}
-          isCentralAdmin={isCentralAdmin}
+          role={userRole}
         />
       </header>
 
@@ -179,7 +182,15 @@ export function App() {
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
         {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
-        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
+        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} userRole={userRole} />}
+        {activeTab === "internal_orders" && (
+          <InternalProcurementView
+            activeSchool={selectedSchool}
+            schools={schools}
+            userRole={userRole}
+            userSchoolId={userSchoolId}
+          />
+        )}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView />}
@@ -199,7 +210,7 @@ export function App() {
       <AppMobileNavigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        isCentralAdmin={isCentralAdmin}
+        role={userRole}
       />
     </div>
   );

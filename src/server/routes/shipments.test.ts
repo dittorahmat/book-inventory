@@ -712,5 +712,72 @@ describe("Inter-School Transfer Shipments API", () => {
       await db.delete(schools).where(eq(schools.id, toId));
     }
   });
+
+  it("branch refund: creates shipment from own school (201), refused from another school (403) (#45)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const ownId = `school-45-own-${stamp}`;
+    const otherId = `school-45-other-${stamp}`;
+    const warehouseId = `school-45-gudang-${stamp}`;
+    const bookId = `b-45-${stamp}`;
+    const copyId = `bi-45-${stamp}`;
+
+    try {
+      await db.insert(schools).values([
+        { id: ownId, name: "Cabang Own 45", code: `OWN45-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+        { id: otherId, name: "Cabang Other 45", code: `OTH45-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+        { id: warehouseId, name: "Gudang 45", code: `GDG45-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+      ]);
+      await db.insert(books).values({
+        id: bookId, isbn: `ISBN-45-${stamp}`, title: "Buku Refund 45", author: "QA", publisher: "QA",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: copyId, bookId, currentSchoolId: ownId, barcode: `RF45-${stamp}`,
+        condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+      });
+
+      // Refund: cabang membuat transfer keluar dari sekolahnya sendiri ke gudang.
+      actAs("branch_admin", ownId);
+      const ownRes = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: ownId,
+          toSchoolId: warehouseId,
+          bookItemIds: [copyId],
+          reason: "refund",
+          notes: "Buku rusak dikembalikan ke gudang",
+        }),
+      });
+      expect(ownRes.status).toBe(201);
+      const ownJson = await ownRes.json();
+      expect(ownJson.success).toBe(true);
+      const shipmentId = ownJson.data.id;
+
+      // Dari sekolah lain: ditolak 403.
+      const crossRes = await shipmentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSchoolId: otherId,
+          toSchoolId: warehouseId,
+          bookItemIds: [copyId],
+          reason: "refund",
+        }),
+      });
+      expect(crossRes.status).toBe(403);
+
+      await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
+      await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
+    } finally {
+      actAs("central_admin", null);
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, ownId));
+      await db.delete(schools).where(eq(schools.id, otherId));
+      await db.delete(schools).where(eq(schools.id, warehouseId));
+    }
+  });
 });
 
