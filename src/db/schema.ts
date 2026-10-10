@@ -86,7 +86,9 @@ export const bookItems = sqliteTable("book_items", {
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("book_items_school_idx").on(t.currentSchoolId),
+]);
 
 export const transferShipments = sqliteTable("transfer_shipments", {
   id: text("id").primaryKey(),
@@ -184,7 +186,9 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   sentTo: text("sent_to"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("purchase_orders_target_school_idx").on(t.targetSchoolId),
+]);
 
 export const purchaseOrderItems = sqliteTable("purchase_order_items", {
   id: text("id").primaryKey(),
@@ -219,7 +223,9 @@ export const bookPackageItems = sqliteTable("book_package_items", {
   bookId: text("book_id").notNull().references(() => books.id),
   quantity: integer("quantity").notNull().default(1),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => [
+  index("bom_package_idx").on(t.packageId),
+]);
 
 export const packageItems = sqliteTable("package_items", {
   id: text("id").primaryKey(),
@@ -230,7 +236,9 @@ export const packageItems = sqliteTable("package_items", {
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("package_items_school_idx").on(t.currentSchoolId),
+]);
 
 // ==========================================
 // 4. STUDENT ORDERS, PAYMENTS & FULFILLMENT
@@ -410,6 +418,7 @@ export const bookReturns = sqliteTable("book_returns", {
 }, (t) => [
   index("returns_status_idx").on(t.status),
   index("returns_order_idx").on(t.orderId),
+  index("returns_student_idx").on(t.studentId),
 ]);
 
 // ==========================================

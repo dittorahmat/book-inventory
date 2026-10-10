@@ -8,7 +8,8 @@ afterEach(() => {
 import { directSalesRouter } from "./direct-sales";
 import { sellDirect } from "../services/direct-sale";
 import { db } from "../../db";
-import { schools, books, bookItems } from "../../db/schema";
+import { eq } from "drizzle-orm";
+import { schools, books, bookItems, studentBookOrders, studentOrderItems, orderPayments, students } from "../../db/schema";
 
 describe("Direct Sales API", () => {
   it("sells multiple titles atomically via Write Batch (volume regression)", async () => {
@@ -151,5 +152,80 @@ describe("Direct Sales API", () => {
       items: [{ bookId: "book-tidak-ada", quantity: 1 }],
     });
     expect(unknownBook.ok).toBe(false);
+  });
+
+  it("rejects zero-quantity lines through shared order validation (T4)", async () => {
+    const stamp = `valline-${Date.now()}`;
+    const hqId = `school-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: hqId, name: "Gudang Validasi", code: `VL-${Date.now()}`, type: "warehouse",
+      createdAt: now, updatedAt: now,
+    });
+    try {
+      const result = await sellDirect(db, {
+        schoolId: hqId,
+        buyerName: "Pembeli",
+        buyerPhone: "08123456789",
+        items: [{ bookId: "book-apa-pun", quantity: 0 }],
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(400);
+        expect(result.message).toContain("Jumlah minimal 1 dan maksimal 50");
+      }
+    } finally {
+      await db.delete(schools).where(eq(schools.id, hqId));
+    }
+  });
+
+  it("links order to registered student when studentNis matches case-folded (T4)", async () => {
+    const stamp = `nislink-${Date.now()}`;
+    const hqId = `school-${stamp}`;
+    const bookId = `book-${stamp}`;
+    const studentId = `student-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: hqId, name: "Gudang NIS", code: `NIS-${Date.now()}`, type: "warehouse",
+      createdAt: now, updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId, schoolId: hqId, nis: "nis-ds-007", name: "Murid Terdaftar",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-${stamp}`, title: "Buku NIS", author: "QA", publisher: "QA Press",
+      sellPrice: 30000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookItems).values({
+      id: `bi-${stamp}`, bookId, currentSchoolId: hqId, barcode: `BC-${stamp}`,
+      condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+    });
+    let orderId: string | undefined;
+    try {
+      const result = await sellDirect(db, {
+        schoolId: hqId,
+        buyerName: "Orang Tua",
+        buyerPhone: "08123456789",
+        studentNis: "  NIS-DS-007 ",
+        items: [{ bookId, quantity: 1 }],
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      orderId = result.data.id;
+      const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(order.studentId).toBe(studentId);
+    } finally {
+      if (orderId) {
+        await db.delete(orderPayments).where(eq(orderPayments.orderId, orderId));
+        await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
+        await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      }
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, hqId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.schoolId, hqId));
+      await db.delete(schools).where(eq(schools.id, hqId));
+    }
   });
 });

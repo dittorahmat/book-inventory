@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { bookPackages, bookPackageItems, packageItems, books } from "../../db/schema";
+import { bookPackages, bookPackageItems, packageItems } from "../../db/schema";
 import { recalcPackagePrice } from "../services/book-price";
 import {
   accessErrorResponse,
@@ -13,7 +13,8 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
-import { getStockPotentials } from "../services/package-stock";
+import { chunkRows, runWriteBatch } from "../lib/d1-write";
+import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
 import { isCentralRole } from "../../lib/staff-roles";
 
 export const packagesRouter = new Hono();
@@ -51,36 +52,13 @@ import { runIdempotentSeed } from "../seed";
 packagesRouter.get("/", async (c) => {
   try {
     const { actor } = await requireScopedActor(db, c);
-    let allPackages = await db.select().from(bookPackages);
+    const seeded = await db.select().from(bookPackages).limit(1);
     // Seed demo otomatis hanya untuk admin pusat; peran lain melihat daftar jujur (kosong).
-    if (allPackages.length === 0 && isCentralRole(actor.role)) {
+    if (seeded.length === 0 && isCentralRole(actor.role)) {
       await runIdempotentSeed();
-      allPackages = await db.select().from(bookPackages);
     }
 
-    const results = await Promise.all(
-      allPackages.map(async (pkg: typeof bookPackages.$inferSelect) => {
-        const items = await db
-          .select({
-            id: bookPackageItems.id,
-            bookId: books.id,
-            title: books.title,
-            isbn: books.isbn,
-            author: books.author,
-            category: books.category,
-            quantity: bookPackageItems.quantity,
-          })
-          .from(bookPackageItems)
-          .innerJoin(books, eq(bookPackageItems.bookId, books.id))
-          .where(eq(bookPackageItems.packageId, pkg.id));
-
-        return {
-          ...pkg,
-          items,
-          totalItemsCount: items.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
-        };
-      })
-    );
+    const results = await listPackagesWithBom(db);
 
     return c.json({ success: true, data: results });
   } catch (err) {
@@ -192,21 +170,22 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
     updatedAt: now,
   });
 
-  for (const item of body.items) {
-    await db.insert(bookPackageItems).values({
-      id: crypto.randomUUID(),
-      packageId,
-      bookId: item.bookId,
-      quantity: item.quantity,
-      createdAt: now,
-    });
+  const bomRows = body.items.map((item) => ({
+    id: crypto.randomUUID(),
+    packageId,
+    bookId: item.bookId,
+    quantity: item.quantity,
+    createdAt: now,
+  }));
+  for (const rows of chunkRows(bomRows)) {
+    await runWriteBatch(db, [db.insert(bookPackageItems).values(rows)]);
   }
 
   // Harga paket terkomputasi: SUM(harga jual efektif * kuantitas) — input harga manual diabaikan.
-  await recalcPackagePrice(packageId);
+  const computedTotal = await recalcPackagePrice(db, packageId);
 
   const [created] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
-  return c.json({ success: true, data: created }, 201);
+  return c.json({ success: true, data: created ? { ...created, price: computedTotal } : created }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -226,7 +205,7 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
       return c.json({ success: false, message: "Perakitan paket hanya dapat dilakukan di Gudang Pusat." }, 403);
     }
 
-    const result = await assemblePackageBundles(packageId, schoolId, quantity);
+    const result = await assemblePackageBundles(db, packageId, schoolId, quantity);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -250,7 +229,7 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
     const { schoolId, quantity, reason } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
 
-    const result = await disassemblePackageBundles(packageId, schoolId, quantity, reason);
+    const result = await disassemblePackageBundles(db, packageId, schoolId, quantity, reason);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -271,7 +250,7 @@ packagesRouter.delete("/:id", async (c) => {
     await resolveLogisticsActor(c);
     const packageId = c.req.param("id");
 
-    const result = await deletePackageWithAutoUnbundle(packageId);
+    const result = await deletePackageWithAutoUnbundle(db, packageId);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

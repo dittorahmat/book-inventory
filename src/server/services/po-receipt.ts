@@ -122,8 +122,7 @@ const loadPoWithItems = async (database: AppDatabase, poId: string) => {
 };
 
 /**
- * Penerimaan barang fisik inbound dari PO tanpa surat jalan (jalan
- * kompatibilitas di belakang facade po-lifecycle): satu rencana,
+ * Penerimaan barang fisik inbound dari PO tanpa surat jalan: satu rencana,
  * satu batch atomik.
  */
 export async function receivePurchaseOrder(

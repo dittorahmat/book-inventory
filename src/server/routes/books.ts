@@ -119,7 +119,7 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
 
   // Perubahan harga jual / harga lama memicu hitung ulang semua paket pemakai buku ini.
   if (body.sellPrice !== undefined || body.price !== undefined) {
-    const recalcCount = await recalcPackagesUsingBook(id);
+    const recalcCount = await recalcPackagesUsingBook(db, id);
     if (recalcCount > 0) {
       return c.json({
         success: true,

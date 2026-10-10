@@ -4,7 +4,6 @@ import type { AppDatabase } from "../../db";
 import { purchaseOrderItems, purchaseOrders } from "../../db/schema";
 import { defaultStorage, type StorageService } from "../../services/storage";
 import {
-  LEGACY_PO_STATUSES,
   PRINTED_STATUS,
   SIGNED_UPLOADED_STATUS,
   evaluateSendGate,
@@ -13,40 +12,9 @@ import {
 import { deliverPurchaseOrder } from "./po-delivery";
 import type { PoMailSender } from "./po-mail";
 import type { EmailRuntimeEnv } from "./email/types";
+import { writeNow, type WriteDeps } from "../lib/d1-write";
 
-export {
-  LEGACY_PO_STATUSES,
-  PRINTED_STATUS,
-  SIGNED_UPLOADED_STATUS,
-  evaluateSendGate,
-  validateSignedDoc,
-};
-/** Satu seam publik: pemanggil (route) melintasi modul ini, bukan po-workflow/po-delivery langsung. */
-export {
-  createPurchaseOrder,
-  resolveWarehouseId,
-  resolveWarehouseTarget,
-} from "./po-workflow";
-export { receivePurchaseOrder } from "./po-receipt";
-export type {
-  CreatePoDeps,
-  CreatePoInput,
-  CreatePoItemInput,
-  CreatePoResult,
-  CreatedPo,
-  CreatedPoItem,
-  ReceivedItemInput,
-  ReceivePoResult,
-  SendGate,
-  SignedDocValidation,
-  WarehouseTargetResult,
-} from "./po-workflow";
-export { deliverPurchaseOrder } from "./po-delivery";
-export type { PoDeliveryDeps, PoSendOutcome } from "./po-delivery";
-export { recordPoReceipt, getPoReceiptHistory } from "./po-receipt";
-export type { CreatePoReceiptInput } from "./po-receipt";
-export { InMemoryPoMailSender, RealPoMailSender } from "./po-mail";
-export type { PoMailRequest, PoMailSender } from "./po-mail";
+export type LifecycleDeps = WriteDeps;
 
 export type LifecycleError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -60,7 +28,8 @@ type LifecycleFile = Pick<File, "name" | "type" | "size" | "arrayBuffer">;
  */
 export async function markPrinted(
   database: AppDatabase,
-  poId: string
+  poId: string,
+  deps?: LifecycleDeps
 ): Promise<{ ok: true; data: { id: string; status: string; printedAt: string; poNumber: string } } | LifecycleError> {
   const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
   if (!po) return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
@@ -76,7 +45,7 @@ export async function markPrinted(
     };
   }
 
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
   await database
     .update(purchaseOrders)
     .set({ status: PRINTED_STATUS, printedAt: now, updatedAt: now })
@@ -89,7 +58,8 @@ export async function uploadSignedDoc(
   database: AppDatabase,
   poId: string,
   file: LifecycleFile | undefined,
-  storage?: StorageService
+  storage?: StorageService,
+  deps?: LifecycleDeps
 ): Promise<
   | { ok: true; data: { id: string; status: string; signedDocUrl: string; signedDocName: string; poNumber: string } }
   | LifecycleError
@@ -111,11 +81,11 @@ export async function uploadSignedDoc(
   if (!validation.ok) return { ok: false, status: 400, message: validation.message };
 
   const extension = (file.name.split(".").pop() || "pdf").toLowerCase();
-  const key = `po-signed/${po.id}-${Date.now()}.${extension}`;
+  const now = writeNow(deps);
+  const key = `po-signed/${po.id}-${now.replace(/\D/g, "")}.${extension}`;
   const store: StorageService = storage ?? defaultStorage;
   const signedDocUrl = await store.upload(key, await file.arrayBuffer(), validation.contentType);
 
-  const now = new Date().toISOString();
   await database
     .update(purchaseOrders)
     .set({

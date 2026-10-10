@@ -361,5 +361,61 @@ describe("Packages & Bundling/Unbundling API", () => {
       await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
     }
   });
+
+  it("creates a 12-line BOM via chunked batch with computed total, listed with BOM in one batched read (T1+T2)", async () => {
+    const stamp = Date.now();
+    const pkgCode = `PKG-CHUNK-${stamp}`;
+    const now = new Date().toISOString();
+    const bookIds = Array.from({ length: 12 }, (_, i) => `book-chunk-${stamp}-${i}`);
+    try {
+      await db.insert(books).values(
+        bookIds.map((id, i) => ({
+          id,
+          isbn: `ISBN-CHUNK-${stamp}-${i}`,
+          title: `Chunk Book ${i}`,
+          author: "QA",
+          publisher: "QA Press",
+          sellPrice: 10000 + i * 1000,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
+
+      const createRes = await packagesRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: pkgCode,
+          name: "Paket Chunk",
+          gradeLevel: "1",
+          curriculumType: "national",
+          academicYear: "2026/2027",
+          price: 0,
+          items: bookIds.map((bookId) => ({ bookId, quantity: 1 })),
+        }),
+      });
+      expect(createRes.status).toBe(201);
+      const created = await createRes.json();
+      const expectedTotal = bookIds.reduce((sum, _, i) => sum + 10000 + i * 1000, 0);
+      expect(created.data.price).toBe(expectedTotal);
+      const pkgId = created.data.id as string;
+
+      const listRes = await packagesRouter.request("/", { method: "GET" });
+      expect(listRes.status).toBe(200);
+      const listed = ((await listRes.json()) as { data: Array<{ id: string; items: unknown[]; totalItemsCount: number }> }).data.find(
+        (p) => p.id === pkgId
+      );
+      expect(listed).toBeDefined();
+      expect(listed?.items).toHaveLength(12);
+      expect(listed?.totalItemsCount).toBe(12);
+    } finally {
+      const [pkg] = await db.select({ id: bookPackages.id }).from(bookPackages).where(eq(bookPackages.code, pkgCode));
+      if (pkg) {
+        await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, pkg.id));
+        await db.delete(bookPackages).where(eq(bookPackages.id, pkg.id));
+      }
+      await db.delete(books).where(inArray(books.id, bookIds));
+    }
+  });
 });
 

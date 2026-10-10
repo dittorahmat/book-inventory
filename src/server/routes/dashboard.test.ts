@@ -167,6 +167,21 @@ describe("Dashboard summary API", () => {
       await cleanup();
     }
   });
+
+  it("partitions rows by school: scoped school sees zero of another school's stock (T3)", async () => {
+    try {
+      await cleanup();
+      await seed();
+      const other = await dashboardRouter.request(`/summary?schoolId=${UUID_SCH}`, { method: "GET" });
+      const [s] = (await other.json()).data.schools;
+      expect(s.stock.looseInStock).toBe(0);
+      expect(s.stock.packagesReady).toBe(0);
+      expect(s.payments.totalOrders).toBe(0);
+      expect(s.coverage.waitingOrders).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe("Dashboard scope resolution (branch isolation)", () => {

@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { db, type AppDatabase } from "../../db";
+import type { AppDatabase } from "../../db";
 import { bookItems, packageItems } from "../../db/schema";
 import {
   ALLOCATABLE_CONDITIONS,
@@ -45,7 +45,7 @@ export async function allocateLooseStock(
     quantity: number;
     conditions?: readonly AllocatableCondition[];
   },
-  database: AppDatabase = db
+  database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; condition: string }>> {
   const conditions = input.conditions ?? ALLOCATABLE_CONDITIONS;
   const candidates: LooseCandidate[] = await database
@@ -94,7 +94,7 @@ export async function allocatePackages(
     schoolId: string;
     quantity: number;
   },
-  database: AppDatabase = db
+  database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; packageId: string }>> {
   const candidates: PackageCandidate[] = await database
     .select({
@@ -152,7 +152,7 @@ export type ResolvedShipmentLines =
 export async function resolveShipmentLines(
   fromSchoolId: string,
   lines: ShipmentLineInput[],
-  database: AppDatabase = db
+  database: AppDatabase
 ): Promise<ResolvedShipmentLines> {
   const looseIds: string[] = [];
   const bundleIds: string[] = [];

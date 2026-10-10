@@ -76,8 +76,6 @@ export function addLoose(tally: LooseTally, row: LooseCountRow): void {
   }
   if (isAvailableLoose(row.status)) {
     tally.availableQty += 1;
-  }
-  if (isAvailableLoose(row.status)) {
     bump(tally.byConditionAvailable, row.condition);
     if (isDamaged(row.condition)) tally.damagedQty += 1;
   }
