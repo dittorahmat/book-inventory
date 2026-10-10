@@ -7,6 +7,7 @@ import { StudentOrdersView } from "./views/StudentOrdersView";
 import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
+import { InternalProcurementView } from "./views/InternalProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
@@ -16,14 +17,26 @@ import { DashboardLoadingFallback } from "./views/DashboardFallback";
 import { AppHeader } from "./components/layout/AppHeader";
 import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, type ActiveTab } from "./components/layout/AppTabsNavigation";
 import { useSession, signOut } from "./lib/auth-client";
+import { isCentralRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
 import { Loader2 } from "lucide-react";
 
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
+function SeedNotice({ message }: { message: string }) {
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4">
+      <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+        {message}
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const { data: session, isPending } = useSession();
   const [schools, setSchools] = useState<School[]>([]);
+  const [seedNotice, setSeedNotice] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   
@@ -32,20 +45,29 @@ export function App() {
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
+  const sessionRole = (session?.user as unknown as { role?: StaffRole } | undefined)?.role;
+
   const loadSchools = useCallback(async () => {
     try {
       const list = await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.");
       if (list.length === 0) {
-        // Auto seed Cambridge & Al Wildan demo
+        if (!isCentralRole(sessionRole)) {
+          setSchools([]);
+          setSeedNotice("Data sekolah belum tersedia. Hanya admin pusat yang dapat memuat data demo — silakan hubungi admin pusat.");
+          return;
+        }
+        // Auto seed Cambridge & Al Wildan demo (central only)
         await postJson("/api/demo/seed", {}, "Gagal memuat data demo.");
         setSchools(await getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah."));
+        setSeedNotice(null);
       } else {
         setSchools(list);
+        setSeedNotice(null);
       }
-    } catch {
-      // Biarkan layar publik tampil; view mandiri menampilkan errornya sendiri.
+    } catch (err) {
+      setSeedNotice(err instanceof Error ? err.message : "Gagal memuat daftar sekolah.");
     }
-  }, []);
+  }, [sessionRole]);
 
   useEffect(() => {
     loadSchools();
@@ -54,8 +76,8 @@ export function App() {
   // Adjust school assignment when user logs in
   useEffect(() => {
     if (session?.user && schools.length > 0) {
-      const user = session.user as any;
-      if (user.role !== "central_admin" && user.schoolId) {
+      const user = session.user as unknown as { role?: StaffRole; schoolId?: string | null };
+      if (!isCentralRole(user.role) && user.schoolId) {
         const assigned = schools.find((s) => s.id === user.schoolId);
         if (assigned) setSelectedSchool(assigned);
       } else if (!selectedSchool && schools.length > 0) {
@@ -77,26 +99,32 @@ export function App() {
   // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)
   if (!session && !showStaffLogin) {
     return (
-      <PublicOrderView 
-        onNavigateToStaffLogin={() => setShowStaffLogin(true)} 
-      />
+      <div className="min-h-screen bg-[#F0F2F5]">
+        {seedNotice && <SeedNotice message={seedNotice} />}
+        <PublicOrderView
+          onNavigateToStaffLogin={() => setShowStaffLogin(true)}
+        />
+      </div>
     );
   }
 
   // 2. If unauthenticated but wants staff login
   if (!session) {
     return (
-      <LoginView 
-        onLoginSuccess={() => {
-          setShowStaffLogin(false);
-          setIsPublicMode(false);
-          loadSchools();
-        }} 
-        onNavigateToPublicPortal={() => {
-          setShowStaffLogin(false);
-          setIsPublicMode(true);
-        }}
-      />
+      <div className="min-h-screen bg-[#F0F2F5]">
+        {seedNotice && <SeedNotice message={seedNotice} />}
+        <LoginView
+          onLoginSuccess={() => {
+            setShowStaffLogin(false);
+            setIsPublicMode(false);
+            loadSchools();
+          }}
+          onNavigateToPublicPortal={() => {
+            setShowStaffLogin(false);
+            setIsPublicMode(true);
+          }}
+        />
+      </div>
     );
   }
 
@@ -109,8 +137,10 @@ export function App() {
     );
   }
 
-  const currentUser = session.user as any;
-  const isCentralAdmin = currentUser.role === "central_admin";
+  const currentUser = session.user as unknown as { role: StaffRole; schoolId?: string | null; name: string };
+  const userRole = currentUser.role;
+  const userSchoolId = currentUser.schoolId ?? null;
+  const isCentralAdmin = isCentralRole(userRole);
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
@@ -127,9 +157,11 @@ export function App() {
         <AppTabsNavigation
           activeTab={activeTab}
           onSelectTab={setActiveTab}
-          isCentralAdmin={isCentralAdmin}
+          role={userRole}
         />
       </header>
+
+      {seedNotice && <SeedNotice message={seedNotice} />}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">
@@ -147,7 +179,15 @@ export function App() {
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
         {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
-        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} />}
+        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} userRole={userRole} />}
+        {activeTab === "internal_orders" && (
+          <InternalProcurementView
+            activeSchool={selectedSchool}
+            schools={schools}
+            userRole={userRole}
+            userSchoolId={userSchoolId}
+          />
+        )}
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView />}
@@ -167,7 +207,7 @@ export function App() {
       <AppMobileNavigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        isCentralAdmin={isCentralAdmin}
+        role={userRole}
       />
     </div>
   );

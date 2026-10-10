@@ -1,4 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { mockActor, restoreActor } from "./test-actor";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 import { bookItemsRouter } from "./bookItems";
 import { db } from "../../db";
 import { books, schools, bookItems } from "../../db/schema";

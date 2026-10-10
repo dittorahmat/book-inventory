@@ -1,7 +1,14 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { mockActor, restoreActor } from "./test-actor";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 import { packagesRouter } from "./packages";
 import { db } from "../../db";
-import { schools, books, bookItems } from "../../db/schema";
+import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems } from "../../db/schema";
+import { runIdempotentSeed } from "../seed";
 
 describe("Packages & Bundling/Unbundling API", () => {
   it("creates a package, checks stock potential, bundles and unbundles items", async () => {
@@ -291,6 +298,25 @@ describe("Packages & Bundling/Unbundling API", () => {
     // Verifikasi paket sudah tidak ada
     const checkRes = await packagesRouter.request(`/${pkgId}/stock/${schoolId}`, { method: "GET" });
     expect(checkRes.status).toBe(404);
+  });
+
+  it("tidak memicu seed demo untuk peran non-pusat saat katalog paket kosong", async () => {
+    await db.delete(bookPackageItems);
+    await db.delete(packageItems);
+    await db.delete(bookPackages);
+    try {
+      mockActor("school_admin", "school-alw-1");
+      const res = await packagesRouter.request("/", { method: "GET" });
+      expect(res.status).toBe(200);
+      expect((await res.json()).data).toEqual([]);
+
+      mockActor("central_admin", null);
+      const seeded = await packagesRouter.request("/", { method: "GET" });
+      expect(seeded.status).toBe(200);
+      expect((await seeded.json()).data.length).toBeGreaterThan(0);
+    } finally {
+      await runIdempotentSeed();
+    }
   });
 });
 

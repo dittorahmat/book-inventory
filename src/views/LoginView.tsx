@@ -9,7 +9,8 @@ interface LoginViewProps {
 }
 
 const DEMO_ACCOUNTS = [
-  { email: "admin.pusat@alwildan.sch.id", label: "Central Admin (HQ Pusat)", tag: "Al Wildan 1", Icon: Shield },
+  { email: "admin.gudang@alwildan.sch.id", label: "Central Admin (Gudang)", tag: "Semua Lokasi", Icon: Shield },
+  { email: "admin.pusat@alwildan.sch.id", label: "School Admin 1", tag: "Al Wildan 1", Icon: School },
   { email: "admin.cabang2@alwildan.sch.id", label: "Branch Admin 2", tag: "Al Wildan 2", Icon: School },
   { email: "admin.cabang3@alwildan.sch.id", label: "Branch Admin 3", tag: "Al Wildan 3", Icon: School },
 ];

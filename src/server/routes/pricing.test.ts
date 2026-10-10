@@ -1,10 +1,16 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { booksRouter } from "./books";
 import { packagesRouter } from "./packages";
 import { procurementRouter } from "./procurement";
+import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
 import { schools, books, bookPackages, bookPackageItems, suppliers, purchaseOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 
 /** PO selalu diarahkan ke Gudang Logistik (design D1), jadi test tidak perlu lokasi sekolah. */
 async function warehouseId(): Promise<string> {

@@ -1,8 +1,14 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { app } from "../index";
 import { db } from "../../db";
+import { mockActor, restoreActor } from "../routes/test-actor";
 import { bookReturns, books, schools, studentBookOrders, students } from "../../db/schema";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 
 describe("Search timing middleware (#38)", () => {
   it("emits tookMs meta + structured log on all 5 search endpoints", async () => {

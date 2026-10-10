@@ -16,8 +16,9 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
-  requireLogisticsRole,
+  requireAuthenticatedActor,
   resolveLocationScope,
+  resolveLogisticsActor,
   resolveRequestActor,
 } from "../services/access-scope";
 
@@ -52,7 +53,7 @@ const createShipmentSchema = z.object({
 // 1. GET list internal purchase orders
 internalOrdersRouter.get("/", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
     const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
@@ -112,7 +113,7 @@ internalOrdersRouter.get("/", async (c) => {
 // 2. POST create internal PO from branch to HQ
 internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
@@ -159,8 +160,7 @@ internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async
 // 3. POST create Shipment (Surat Jalan Pengiriman Internal)
 internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
+    await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
     const poId = c.req.param("id");
     const body = c.req.valid("json");
 
@@ -250,8 +250,18 @@ internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSch
 // 4. GET shipment history for internal PO
 internalOrdersRouter.get("/:id/shipments", async (c) => {
   try {
-    await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const locations = await loadLocationIds(db);
     const poId = c.req.param("id");
+
+    const [po] = await db
+      .select()
+      .from(internalPurchaseOrders)
+      .where(eq(internalPurchaseOrders.id, poId));
+    if (!po) {
+      return c.json({ success: false, message: "PO Internal tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.schoolId, locations);
 
     const shipments = await db
       .select()

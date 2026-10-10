@@ -1,13 +1,26 @@
 import { describe, expect, it, afterEach } from "bun:test";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, books, bookItems, students, studentBookOrders, transferShipments } from "../../db/schema";
-import { auth } from "../auth";
+import { schools, books, bookItems, students, studentBookOrders, transferShipments, internalPurchaseOrders, users } from "../../db/schema";
+import { mockActor, restoreActor } from "./test-actor";
 import { bookItemsRouter } from "./bookItems";
 import { studentOrdersRouter } from "./student-orders";
 import { studentsRouter } from "./students";
 import { paymentsRouter } from "./payments";
 import { shipmentsRouter } from "./shipments";
 import { procurementRouter } from "./procurement";
+import { dashboardRouter } from "./dashboard";
+import { stockSummaryRouter } from "./stock-summary";
+import { salesReportRouter } from "./sales-report";
+import { packagesRouter } from "./packages";
+import { internalOrdersRouter } from "./internal-orders";
+import { directSalesRouter } from "./direct-sales";
+import { vendorReturnsRouter } from "./vendor-returns";
+import { poWorkflowRouter } from "./po-workflow";
+import { demoRouter } from "./demo";
+import { publicOrdersRouter } from "./public-orders";
+import { schoolsRouter } from "./schools";
+import { booksRouter } from "./books";
 
 const stamp = Date.now().toString().slice(-8);
 const SCHOOL_A = `school-iso-a-${stamp}`;
@@ -41,14 +54,8 @@ async function seedPair() {
   }).onConflictDoNothing();
 }
 
-type Role = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
-const realGetSession = auth.api.getSession;
-function actAs(role: Role | null, schoolId: string | null) {
-  (auth.api as any).getSession = async () =>
-    role ? ({ user: { id: "u-test", role, schoolId } } as any) : null;
-}
 afterEach(() => {
-  (auth.api as any).getSession = realGetSession;
+  restoreActor();
 });
 
 describe("Role & location isolation across routes", () => {
@@ -56,7 +63,7 @@ describe("Role & location isolation across routes", () => {
     await seedPair();
 
     // --- school_admin of A ---
-    actAs("school_admin", SCHOOL_A);
+    mockActor("school_admin", SCHOOL_A);
 
     const itemsRes = await bookItemsRouter.request("/", { method: "GET" });
     const itemsJson = await itemsRes.json();
@@ -106,20 +113,165 @@ describe("Role & location isolation across routes", () => {
     expect(poAttempt.status).toBe(403);
 
     // --- unrelated third school sees nothing of the pair ---
-    actAs("school_admin", "school-alw-9");
+    mockActor("school_admin", "school-alw-9");
     const alien = await shipmentsRouter.request(`/trf-iso-${stamp}`, { method: "GET" });
     expect(alien.status).toBe(403);
     const alienOrders = await studentOrdersRouter.request(`/?schoolId=${SCHOOL_A}`, { method: "GET" });
     expect(alienOrders.status).toBe(403);
 
     // --- central admin roams freely ---
-    actAs("central_admin", null);
+    mockActor("central_admin", null);
     const centralItems = await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" });
     expect(centralItems.status).toBe(200);
 
-    // --- unauthenticated keeps legacy open access ---
-    actAs(null, null);
-    const legacy = await bookItemsRouter.request("/", { method: "GET" });
-    expect(legacy.status).toBe(200);
+    // --- unauthenticated is rejected everywhere since #44 ---
+    mockActor(null, null);
+    const denied = await bookItemsRouter.request("/", { method: "GET" });
+    expect(denied.status).toBe(401);
+  });
+});
+
+describe("Staff login gate (#44): anonymous callers get 401 on every staff router", () => {
+  it("rejects anonymous reads across all staff routers, keeps public portal open", async () => {
+    await seedPair();
+    mockActor(null, null);
+    const anonGet = (router: { request: (path: string, init?: RequestInit) => Response | Promise<Response> }, path: string) =>
+      router.request(path, { method: "GET" });
+
+    expect((await anonGet(studentsRouter, "/")).status).toBe(401);
+    expect((await anonGet(studentOrdersRouter, "/")).status).toBe(401);
+    expect((await anonGet(studentOrdersRouter, "/returns")).status).toBe(401);
+    expect((await anonGet(paymentsRouter, `/orders/ord-iso-${SCHOOL_A}`)).status).toBe(401);
+    expect((await anonGet(dashboardRouter, "/summary")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/loose")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/packages")).status).toBe(401);
+    expect((await anonGet(stockSummaryRouter, "/overview")).status).toBe(401);
+    expect((await anonGet(salesReportRouter, "/?from=2026-01-01&to=2026-12-31")).status).toBe(401);
+    expect((await anonGet(shipmentsRouter, "/")).status).toBe(401);
+    expect((await anonGet(packagesRouter, "/")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/suppliers")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/purchase-orders")).status).toBe(401);
+    expect((await anonGet(procurementRouter, "/purchase-orders/ghost-po/receipts")).status).toBe(401);
+    expect((await anonGet(internalOrdersRouter, "/")).status).toBe(401);
+    expect((await anonGet(internalOrdersRouter, "/ghost-ipo/shipments")).status).toBe(401);
+    expect((await anonGet(bookItemsRouter, "/")).status).toBe(401);
+    expect((await anonGet(vendorReturnsRouter, "/")).status).toBe(401);
+
+    const anonPrint = await poWorkflowRouter.request("/purchase-orders/ghost-po/print", { method: "POST" });
+    expect(anonPrint.status).toBe(401);
+
+    const anonSale = await directSalesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: "school-warehouse",
+        buyerName: "Ortu Anon",
+        buyerPhone: "081234567890",
+        items: [{ bookId: BOOK, quantity: 1 }],
+      }),
+    });
+    expect(anonSale.status).toBe(401);
+
+    // Public portal stays open without session.
+    const search = await publicOrdersRouter.request(`/search-students?query=Siswa&schoolId=${SCHOOL_A}`, { method: "GET" });
+    expect(search.status).toBe(200);
+    expect((await search.json()).success).toBe(true);
+
+    const badSubmit = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(badSubmit.status).not.toBe(401);
+
+    // Public catalog reads stay open.
+    expect((await anonGet(schoolsRouter, "/")).status).toBe(200);
+    expect((await anonGet(booksRouter, "/")).status).toBe(200);
+  });
+
+  it("locks demo reseed to central (anon 401, school 403, central 200)", async () => {
+    mockActor(null, null);
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(401);
+
+    mockActor("school_admin", SCHOOL_A);
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(403);
+
+    mockActor("central_admin", null);
+    const seeded = await demoRouter.request("/seed", { method: "POST" });
+    expect(seeded.status).toBe(200);
+    expect((await seeded.json()).success).toBe(true);
+  });
+
+  it("stops one branch from peeking another branch's internal shipment history", async () => {
+    await seedPair();
+    const ipoId = `ipo-iso-${stamp}`;
+    await db.insert(internalPurchaseOrders).values({
+      id: ipoId,
+      poNumber: `IPO-ISO-${stamp}`,
+      schoolId: SCHOOL_A,
+      status: "submitted",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    mockActor(null, null);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(401);
+
+    mockActor("school_admin", SCHOOL_B);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(403);
+
+    mockActor("school_admin", SCHOOL_A);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
+
+    mockActor("central_admin", null);
+    expect((await internalOrdersRouter.request(`/${ipoId}/shipments`, { method: "GET" })).status).toBe(200);
+  });
+});
+
+describe("Account roles per organization (#46)", () => {
+  it("seeds gudang as central admin and ALW-1 as scoped school admin", async () => {
+    const rows = await db.select().from(users);
+    const byEmail = Object.fromEntries(rows.map((u: { email: string }) => [u.email, u]));
+    expect(byEmail["admin.gudang@alwildan.sch.id"]?.role).toBe("central_admin");
+    expect(byEmail["admin.gudang@alwildan.sch.id"]?.schoolId).toBe("school-warehouse");
+    expect(byEmail["admin.pusat@alwildan.sch.id"]?.role).toBe("school_admin");
+    expect(byEmail["admin.pusat@alwildan.sch.id"]?.schoolId).toBe("school-alw-1");
+  });
+
+  it("gudang login sees all locations", async () => {
+    await seedPair();
+    mockActor("central_admin", "school-warehouse");
+
+    const all = await bookItemsRouter.request("/", { method: "GET" });
+    expect(all.status).toBe(200);
+    const barcodes = ((await all.json()).data as any[]).map((i) => i.barcode as string);
+    expect(barcodes.some((b) => b.includes(SCHOOL_A))).toBe(true);
+    expect(barcodes.some((b) => b.includes(SCHOOL_B))).toBe(true);
+
+    const scoped = await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" });
+    expect(scoped.status).toBe(200);
+  });
+
+  it("ALW-1 admin is locked to school-alw-1 (cross-school read → 403)", async () => {
+    await seedPair();
+    const probeId = `bi-46-alw1-${stamp}`;
+    await db.insert(bookItems).values({
+      id: probeId, bookId: BOOK, currentSchoolId: "school-alw-1",
+      barcode: `ALW1-46-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    try {
+      mockActor("school_admin", "school-alw-1");
+
+      const own = await bookItemsRouter.request("/", { method: "GET" });
+      expect(own.status).toBe(200);
+      const rows = (await own.json()).data as any[];
+      expect(rows.some((i) => i.barcode === `ALW1-46-${stamp}`)).toBe(true);
+      expect(rows.every((i) => !i.barcode.includes(SCHOOL_A) && !i.barcode.includes(SCHOOL_B))).toBe(true);
+
+      expect((await bookItemsRouter.request(`/?schoolId=${SCHOOL_B}`, { method: "GET" })).status).toBe(403);
+      expect((await bookItemsRouter.request(`/barcode/ISO-${stamp}-${SCHOOL_B}`, { method: "GET" })).status).toBe(403);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.id, probeId));
+    }
   });
 });

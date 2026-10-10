@@ -1,4 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { mockActor, restoreActor } from "./test-actor";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 import { demoRouter } from "./demo";
 import { db } from "../../db";
 import {
@@ -99,12 +105,17 @@ describe("Revamped Demo Seeding API", () => {
       expect(pkg.price).toBe(expected);
     }
 
-    // 3. Demo admin gudang tersedia dan tertunjuk ke lokasi gudang.
-    const warehouseAdmins = await db.select().from(users).where(eq(users.role, "warehouse_admin"));
-    expect(warehouseAdmins.length).toBeGreaterThan(0);
+    // 3. Demo admin gudang adalah central admin dan tertunjuk ke lokasi gudang.
+    const [gudang] = await db.select().from(users).where(eq(users.email, "admin.gudang@alwildan.sch.id"));
+    expect(gudang).toBeDefined();
+    expect(gudang.role).toBe("central_admin");
     const [warehouse] = await db.select().from(schools).where(eq(schools.type, "warehouse"));
-    for (const admin of warehouseAdmins) {
-      expect(admin.schoolId).toBe(warehouse.id);
-    }
+    expect(gudang.schoolId).toBe(warehouse.id);
+
+    // 3b. Demo admin ALW-1 terkunci sebagai school admin di lokasinya.
+    const [pusat] = await db.select().from(users).where(eq(users.email, "admin.pusat@alwildan.sch.id"));
+    expect(pusat).toBeDefined();
+    expect(pusat.role).toBe("school_admin");
+    expect(pusat.schoolId).toBe("school-alw-1");
   });
 });

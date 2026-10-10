@@ -13,8 +13,7 @@ import {
 } from "../../db/schema";
 import {
   accessErrorResponse,
-  requireLogisticsRole,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 
@@ -39,8 +38,7 @@ const directSaleSchema = z.object({
 // POST direct sale to parent from Central Warehouse
 directSalesRouter.post("/", zValidator("json", directSaleSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
 
     // Validasi lokasi wajib warehouse (Gudang Pusat)

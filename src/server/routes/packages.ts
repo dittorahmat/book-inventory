@@ -9,12 +9,14 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
-  requireLogisticsRole,
+  requireAuthenticatedActor,
   resolveLocationScope,
+  resolveLogisticsActor,
   resolveRequestActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
 import { getStockPotentials } from "../services/package-stock";
+import { isCentralRole } from "../../lib/staff-roles";
 
 export const packagesRouter = new Hono();
 
@@ -49,43 +51,49 @@ import { runIdempotentSeed } from "../seed";
 
 // GET all packages with BOM components
 packagesRouter.get("/", async (c) => {
-  let allPackages = await db.select().from(bookPackages);
-  if (allPackages.length === 0) {
-    await runIdempotentSeed();
-    allPackages = await db.select().from(bookPackages);
+  try {
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    let allPackages = await db.select().from(bookPackages);
+    // Seed demo otomatis hanya untuk admin pusat; peran lain melihat daftar jujur (kosong).
+    if (allPackages.length === 0 && isCentralRole(actor.role)) {
+      await runIdempotentSeed();
+      allPackages = await db.select().from(bookPackages);
+    }
+
+    const results = await Promise.all(
+      allPackages.map(async (pkg: typeof bookPackages.$inferSelect) => {
+        const items = await db
+          .select({
+            id: bookPackageItems.id,
+            bookId: books.id,
+            title: books.title,
+            isbn: books.isbn,
+            author: books.author,
+            category: books.category,
+            quantity: bookPackageItems.quantity,
+          })
+          .from(bookPackageItems)
+          .innerJoin(books, eq(bookPackageItems.bookId, books.id))
+          .where(eq(bookPackageItems.packageId, pkg.id));
+
+        return {
+          ...pkg,
+          items,
+          totalItemsCount: items.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
+        };
+      })
+    );
+
+    return c.json({ success: true, data: results });
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
-  
-  const results = await Promise.all(
-    allPackages.map(async (pkg: any) => {
-      const items = await db
-        .select({
-          id: bookPackageItems.id,
-          bookId: books.id,
-          title: books.title,
-          isbn: books.isbn,
-          author: books.author,
-          category: books.category,
-          quantity: bookPackageItems.quantity,
-        })
-        .from(bookPackageItems)
-        .innerJoin(books, eq(bookPackageItems.bookId, books.id))
-        .where(eq(bookPackageItems.packageId, pkg.id));
-
-      return {
-        ...pkg,
-        items,
-        totalItemsCount: items.reduce((sum: number, item: any) => sum + item.quantity, 0),
-      };
-    })
-  );
-
-  return c.json({ success: true, data: results });
 });
 
 // GET ready physical bundles (for transfer pickers)
 packagesRouter.get("/items/ready", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const requestedSchoolId = c.req.query("schoolId");
     const scope = new Set(resolveLocationScope(actor, requestedSchoolId, locations));
@@ -116,7 +124,7 @@ packagesRouter.get("/items/ready", async (c) => {
 // Satu-satunya pemilik agregasi potensi; endpoint per-paket di bawah mendelegasikan ke sini.
 packagesRouter.get("/stock", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const schoolId = c.req.query("schoolId");
     if (!schoolId) {
@@ -134,7 +142,7 @@ packagesRouter.get("/stock", async (c) => {
 });
 packagesRouter.get("/:id/stock/:schoolId", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const packageId = c.req.param("id");
     const schoolId = c.req.param("schoolId");
@@ -164,8 +172,7 @@ packagesRouter.get("/:id/stock/:schoolId", async (c) => {
 // POST Create new Package with BOM components
 packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const packageId = crypto.randomUUID();
@@ -211,8 +218,7 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
 // POST Assembly / Bundling (Kitting) - HANYA DI GUDANG PUSAT
 packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const packageId = c.req.param("id");
     const { schoolId, quantity } = c.req.valid("json");
@@ -243,7 +249,7 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
 // POST Disassembly / Unbundling (De-kitting)
 packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const packageId = c.req.param("id");
     const { schoolId, quantity, reason } = c.req.valid("json");
@@ -267,8 +273,7 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
 // DELETE Package with auto-unbundle of ready bundles
 packagesRouter.delete("/:id", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const packageId = c.req.param("id");
 
     const result = await deletePackageWithAutoUnbundle(packageId);

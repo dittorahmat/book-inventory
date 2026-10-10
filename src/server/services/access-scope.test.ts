@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
   AccessHttpError,
   assertLocationAllowed,
+  requireAuthenticatedActor,
+  requireCentralAdmin,
   requireLogisticsRole,
   resolveLocationScope,
   type AccessActor,
@@ -49,6 +51,55 @@ describe("assertLocationAllowed", () => {
     expect(() => assertLocationAllowed(schoolA, "ghost", LOCS)).toThrow(AccessHttpError);
     expect(() => assertLocationAllowed(central, "school-alw-2", LOCS)).not.toThrow();
     expect(() => assertLocationAllowed(null, "school-alw-2", LOCS)).not.toThrow();
+  });
+});
+
+describe("requireAuthenticatedActor", () => {
+  it("menolak pemanggil anonim dengan 401", () => {
+    try {
+      requireAuthenticatedActor(null);
+      throw new Error("seharusnya melempar 401");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AccessHttpError);
+      expect((err as AccessHttpError).status).toBe(401);
+      expect((err as AccessHttpError).message).toMatch(/login/i);
+    }
+  });
+
+  it("meloloskan semua peran staf yang terautentikasi", () => {
+    expect(requireAuthenticatedActor(central)).toEqual(central);
+    expect(requireAuthenticatedActor(warehouse)).toEqual(warehouse);
+    expect(requireAuthenticatedActor(schoolA)).toEqual(schoolA);
+    expect(requireAuthenticatedActor(branchA)).toEqual(branchA);
+  });
+});
+
+describe("requireCentralAdmin", () => {
+  it("menolak pemanggil anonim dengan 401", () => {
+    try {
+      requireCentralAdmin(null);
+      throw new Error("seharusnya melempar 401");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AccessHttpError);
+      expect((err as AccessHttpError).status).toBe(401);
+      expect((err as AccessHttpError).message).toMatch(/login/i);
+    }
+  });
+
+  it("menolak peran non-pusat dengan 403", () => {
+    for (const actor of [warehouse, schoolA, branchA]) {
+      try {
+        requireCentralAdmin(actor);
+        throw new Error(`seharusnya melempar 403 untuk ${actor.role}`);
+      } catch (err) {
+        expect(err).toBeInstanceOf(AccessHttpError);
+        expect((err as AccessHttpError).status).toBe(403);
+      }
+    }
+  });
+
+  it("meloloskan admin pusat", () => {
+    expect(requireCentralAdmin(central)).toEqual(central);
   });
 });
 

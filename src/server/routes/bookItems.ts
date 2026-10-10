@@ -8,6 +8,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
+  requireAuthenticatedActor,
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
@@ -30,7 +31,7 @@ const updateConditionSchema = z.object({
 // List copies with optional school isolation filter
 bookItemsRouter.get("/", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const schoolId = c.req.query("schoolId");
     const bookId = c.req.query("bookId");
@@ -85,7 +86,7 @@ bookItemsRouter.get("/", async (c) => {
 // Lookup copy by barcode (useful for scanner)
 bookItemsRouter.get("/barcode/:barcode", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const barcode = c.req.param("barcode");
   const [item] = await db
@@ -120,7 +121,7 @@ bookItemsRouter.get("/barcode/:barcode", async (c) => {
 // Batch create physical copies
 bookItemsRouter.post("/batch-generate", zValidator("json", batchGenerateCopiesSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
@@ -158,7 +159,7 @@ bookItemsRouter.post("/batch-generate", zValidator("json", batchGenerateCopiesSc
 // Update condition of a copy
 bookItemsRouter.patch("/:id/condition", zValidator("json", updateConditionSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const locations = await loadLocationIds(db);
     const id = c.req.param("id");
     const body = c.req.valid("json");

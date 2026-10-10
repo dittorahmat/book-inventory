@@ -1,10 +1,16 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { evaluateSendGate, validateSignedDoc } from "../services/po-workflow";
+import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
 import { purchaseOrders, purchaseOrderItems, suppliers, books, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
+
+beforeEach(() => mockActor("central_admin", null));
+afterEach(() => {
+  restoreActor();
+});
 
 async function makeSupplier(stamp: number, withEmail = true) {
   const res = await procurementRouter.request("/suppliers", {

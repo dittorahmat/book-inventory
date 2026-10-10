@@ -8,8 +8,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   loadLocationIds,
-  requireLogisticsRole,
-  resolveRequestActor,
+  resolveLogisticsActor,
 } from "../services/access-scope";
 import { PRINTED_STATUS, markPrinted, uploadSignedDoc } from "../services/po-lifecycle";
 
@@ -28,8 +27,7 @@ function notFound(c: Context) {
 // 1. Tandai PO sudah dicetak (draft -> printed)
 poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const po = await loadPoOr404(c.req.param("id"));
     if (!po) return notFound(c);
@@ -56,8 +54,7 @@ poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
 // 2. Upload bukti TTD basah + cap (printed -> signed_uploaded)
 poWorkflowRouter.post("/purchase-orders/:id/signed-doc", async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    const actor = await resolveLogisticsActor(c);
     const locations = await loadLocationIds(db);
     const po = await loadPoOr404(c.req.param("id"));
     if (!po) return notFound(c);
@@ -93,8 +90,7 @@ const updateSupplierSchema = z.object({
 // 3. Ubah master supplier (kode harus tetap unik)
 poWorkflowRouter.patch("/suppliers/:id", zValidator("json", updateSupplierSchema), async (c) => {
   try {
-    const actor = await resolveRequestActor(c);
-    requireLogisticsRole(actor);
+    await resolveLogisticsActor(c);
     const body = c.req.valid("json");
     const supplierId = c.req.param("id");
 

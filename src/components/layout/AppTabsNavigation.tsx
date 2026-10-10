@@ -4,6 +4,7 @@ import {
   Users,
   Package,
   ShoppingBag,
+  Warehouse,
   RotateCcw,
   Layers,
   BookOpen,
@@ -11,6 +12,7 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
+import { isCentralRole, isLogisticsRole, type StaffRole } from "../../lib/staff-roles";
 
 export const TAB_IDS = [
   "dashboard",
@@ -20,6 +22,7 @@ export const TAB_IDS = [
   "students",
   "student_orders",
   "procurement",
+  "internal_orders",
   "returns",
   "transfers",
   "reports",
@@ -28,18 +31,21 @@ export const TAB_IDS = [
 
 export type ActiveTab = typeof TAB_IDS[number];
 
+export type { StaffRole };
+
 interface AppTabsNavigationProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
-  isCentralAdmin: boolean;
+  role: StaffRole;
 }
 
-const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; requireCentral?: boolean }> = [
+const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; requireCentral?: boolean; requireLogistics?: boolean }> = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "students", label: "Database Siswa", icon: GraduationCap },
   { id: "student_orders", label: "Pesanan Siswa", icon: Users },
   { id: "packages", label: "Paket & Bundling", icon: Package },
-  { id: "procurement", label: "Pengadaan PO", icon: ShoppingBag },
+  { id: "procurement", label: "Pengadaan PO", icon: ShoppingBag, requireLogistics: true },
+  { id: "internal_orders", label: "Pesan ke Gudang", icon: Warehouse },
   { id: "returns", label: "Retur Buku", icon: RotateCcw },
   { id: "inventory", label: "Stok Satuan", icon: Layers },
   { id: "catalog", label: "Katalog", icon: BookOpen },
@@ -51,12 +57,16 @@ const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentT
 export function AppTabsNavigation({
   activeTab,
   onSelectTab,
-  isCentralAdmin,
+  role,
 }: AppTabsNavigationProps) {
   return (
     <div className="bg-white border-b border-[#E4E6EB]">
       <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
-        {DESKTOP_TABS.filter((tab) => !tab.requireCentral || isCentralAdmin).map((tab) => {
+        {DESKTOP_TABS.filter(
+          (tab) =>
+            (!tab.requireCentral || role === "central_admin") &&
+            (!tab.requireLogistics || isLogisticsRole(role))
+        ).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -83,17 +93,17 @@ export function AppTabsNavigation({
 interface AppMobileNavigationProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
-  isCentralAdmin: boolean;
+  role: StaffRole;
 }
 
 export function AppMobileNavigation({
   activeTab,
   onSelectTab,
-  isCentralAdmin,
+  role,
 }: AppMobileNavigationProps) {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-      <div className="grid grid-cols-6 auto-cols-fr gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         <button
           type="button"
           onClick={() => onSelectTab("dashboard")}
@@ -172,11 +182,24 @@ export function AppMobileNavigation({
           <span className="text-[11px] font-semibold">Transfers</span>
         </button>
 
-        {isCentralAdmin && (
+        <button
+          type="button"
+          onClick={() => onSelectTab("internal_orders")}
+          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+            activeTab === "internal_orders"
+              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+          }`}
+        >
+          <Warehouse className="w-5 h-5 mb-1" />
+          <span className="text-[11px] font-semibold">Pesan</span>
+        </button>
+
+        {isCentralRole(role) && (
           <button
             type="button"
             onClick={() => onSelectTab("settings")}
-            className={`col-span-6 sm:col-span-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
               activeTab === "settings"
                 ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                 : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
