@@ -425,3 +425,98 @@ describe("Students search partition (§11 anti full-scan)", () => {
     }
   });
 });
+
+describe("spec-57 T3 student NIS-guard consistency", () => {
+  const mkBody = (schoolId: string, nis: string, name: string) => ({
+    schoolId, nis, name, gradeLevel: "3", academicYear: "2026/2027",
+  });
+  it("rejects case-variant duplicate NIS on create and update", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-case-${stamp}`;
+    await seedSchool(schoolId, `ALW-CASE-${stamp}`);
+    try {
+      const first = await studentsRouter.request("/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mkBody(schoolId, `CASE${stamp}`, "Adi")),
+      });
+      expect(first.status).toBe(201);
+      const firstJson = await first.json();
+
+      const dup = await studentsRouter.request("/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mkBody(schoolId, `case${stamp}`, "Adi Beda Case")),
+      });
+      expect(dup.status).toBe(400);
+      expect((await dup.json()).message).toContain("NIS");
+
+      const other = await studentsRouter.request("/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mkBody(schoolId, `OTHER${stamp}`, "Budi")),
+      });
+      expect(other.status).toBe(201);
+      const otherJson = await other.json();
+
+      const clash = await studentsRouter.request(`/${otherJson.data.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nis: `Case${stamp}` }),
+      });
+      expect(clash.status).toBe(400);
+
+      await db.delete(students).where(eq(students.id, otherJson.data.id));
+      await db.delete(students).where(eq(students.id, firstJson.data.id));
+    } finally {
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("rejects in-payload duplicate NIS in bulk-import before writing", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-bulkdup-${stamp}`;
+    await seedSchool(schoolId, `ALW-BULKDUP-${stamp}`);
+    try {
+      const res = await studentsRouter.request("/bulk-import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schoolId,
+          students: [
+            { nis: `DUP${stamp}`, name: "Satu", gradeLevel: "1", academicYear: "2026/2027" },
+            { nis: `dup${stamp}`, name: "Dua", gradeLevel: "1", academicYear: "2026/2027" },
+          ],
+        }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toContain("NIS");
+      expect(await db.select().from(students).where(eq(students.schoolId, schoolId))).toHaveLength(0);
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("bulk-imports 30 rows D1-safe in one call", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-bulk30-${stamp}`;
+    await seedSchool(schoolId, `ALW-BULK30-${stamp}`);
+    try {
+      const items = Array.from({ length: 30 }, (_, i) => ({
+        nis: `B30-${stamp}-${i}`, name: `Bulk30 ${i}`, gradeLevel: "4", academicYear: "2026/2027",
+      }));
+      const res = await studentsRouter.request("/bulk-import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, students: items }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.insertedCount).toBe(30);
+      expect(json.data.total).toBe(30);
+      const again = await studentsRouter.request("/bulk-import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, students: items }),
+      });
+      expect((await again.json()).data.updatedCount).toBe(30);
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});

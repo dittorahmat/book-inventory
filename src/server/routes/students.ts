@@ -9,6 +9,7 @@ import {
   assertLocationAllowed,
   requireScopedActor,
 } from "../services/access-scope";
+import { checkNisTaken, importStudents, removeStudent } from "../services/student-lifecycle";
 
 export const studentsRouter = new Hono();
 
@@ -34,11 +35,6 @@ const verifyStudentSchema = z.object({
   action: z.enum(["approve", "reject"]),
   nis: z.string().min(1, "NIS resmi wajib diisi saat menyetujui").optional(),
 });
-
-async function nisTaken(nis: string, exceptId?: string) {
-  const rows = await db.select({ id: students.id }).from(students).where(eq(students.nis, nis));
-  return rows.some((r: { id: string }) => r.id !== exceptId);
-}
 
 // 1. GET list with school/status/search filters
 studentsRouter.get("/", async (c) => {
@@ -107,7 +103,7 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   if (!school) {
     return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
   }
-  if (await nisTaken(body.nis)) {
+  if (await checkNisTaken(db, body.nis)) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
 
@@ -150,7 +146,7 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
   }
   assertLocationAllowed(actor, existing.schoolId, locations);
-  if (body.nis && body.nis !== existing.nis && (await nisTaken(body.nis, id))) {
+  if (body.nis && body.nis !== existing.nis && (await checkNisTaken(db, body.nis, id))) {
     return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
   }
   if (body.schoolId) {
@@ -188,25 +184,11 @@ studentsRouter.delete("/:id", async (c) => {
     }
     assertLocationAllowed(actor, existing.schoolId, locations);
 
-    // Guard: Cek apakah siswa memiliki riwayat pesanan buku
-    const { studentBookOrders } = await import("../../db/schema");
-    const existingOrders = await db
-      .select({ orderNumber: studentBookOrders.orderNumber })
-      .from(studentBookOrders)
-      .where(eq(studentBookOrders.studentId, id));
-
-    if (existingOrders.length > 0) {
-      const orderNumbers = existingOrders.map((o: { orderNumber: string }) => o.orderNumber).join(", ");
-      return c.json(
-        {
-          success: false,
-          message: `Data siswa "${existing.name}" tidak dapat dihapus karena memiliki riwayat pesanan buku: ${orderNumbers}. Silakan hapus pesanan tersebut terlebih dahulu di menu Pesanan Siswa.`,
-        },
-        400
-      );
+    const removed = await removeStudent(db, id);
+    if (!removed.ok) {
+      return c.json({ success: false, message: removed.message }, removed.status);
     }
 
-    await db.delete(students).where(eq(students.id, id));
     return c.json({ success: true, message: "Data siswa berhasil dihapus" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -231,7 +213,7 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
     if (!body.nis) {
       return c.json({ success: false, message: "NIS resmi wajib diisi saat menyetujui" }, 400);
     }
-    if (body.nis !== existing.nis && (await nisTaken(body.nis, id))) {
+    if (body.nis !== existing.nis && (await checkNisTaken(db, body.nis, id))) {
       return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
     }
     await db
@@ -281,68 +263,15 @@ studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema),
       return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
     }
 
-    const now = new Date().toISOString();
-    let insertedCount = 0;
-    let updatedCount = 0;
-
-    // Fetch existing students in this school to determine insert vs update
-    const existing = await db
-      .select({ id: students.id, nis: students.nis })
-      .from(students)
-      .where(eq(students.schoolId, body.schoolId));
-    const existingMap = new Map(existing.map((s: { id: string; nis: string }) => [s.nis.trim().toLowerCase(), s.id]));
-
-    // Sequential chunk processing (max 10 rows per batch) for D1 safety
-    for (const item of body.students) {
-      const cleanNis = item.nis.trim();
-      const existingId = existingMap.get(cleanNis.toLowerCase());
-
-      if (existingId) {
-        await db
-          .update(students)
-          .set({
-            name: item.name,
-            gradeLevel: item.gradeLevel,
-            gender: item.gender,
-            curriculumType: item.curriculumType,
-            academicYear: item.academicYear,
-            parentName: item.parentName || null,
-            parentEmail: item.parentEmail || null,
-            parentPhone: item.parentPhone || null,
-            status: item.status,
-            isScholarship: item.isScholarship,
-            updatedAt: now,
-          })
-          .where(eq(students.id, existingId as string));
-        updatedCount++;
-      } else {
-        const newId = crypto.randomUUID();
-        await db.insert(students).values({
-          id: newId,
-          schoolId: body.schoolId,
-          nis: cleanNis,
-          name: item.name,
-          gender: item.gender,
-          gradeLevel: item.gradeLevel,
-          curriculumType: item.curriculumType,
-          academicYear: item.academicYear,
-          parentName: item.parentName || null,
-          parentEmail: item.parentEmail || null,
-          parentPhone: item.parentPhone || null,
-          status: item.status,
-          isScholarship: item.isScholarship,
-          createdAt: now,
-          updatedAt: now,
-        });
-        existingMap.set(cleanNis.toLowerCase(), newId);
-        insertedCount++;
-      }
+    const imported = await importStudents(db, body.schoolId, body.students);
+    if (!imported.ok) {
+      return c.json({ success: false, message: imported.message }, imported.status);
     }
 
     return c.json({
       success: true,
-      message: `Impor berhasil: ${insertedCount} siswa baru ditambahkan, ${updatedCount} siswa diperbarui.`,
-      data: { insertedCount, updatedCount, total: body.students.length },
+      message: `Impor berhasil: ${imported.data.insertedCount} siswa baru ditambahkan, ${imported.data.updatedCount} siswa diperbarui.`,
+      data: imported.data,
     });
   } catch (err) {
     return accessErrorResponse(c, err);
