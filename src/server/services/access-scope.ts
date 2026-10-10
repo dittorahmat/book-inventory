@@ -91,6 +91,19 @@ export function assertLocationAllowed(
   }
 }
 
+/** Throw 401 unless a staff session is present. Opt-in per route (later tickets). */
+export function requireAuthenticatedActor(actor: AccessActor | null): AccessActor {
+  if (!actor) throw new AccessHttpError(401, "Sesi login wajib untuk mengakses fitur ini");
+  return actor;
+}
+
+/** Throw 401 for anonymous callers, 403 for non-central roles. Opt-in per route (later tickets). */
+export function requireCentralAdmin(actor: AccessActor | null): AccessActor {
+  if (!actor) throw new AccessHttpError(401, "Sesi login wajib untuk mengakses fitur ini");
+  if (actor.role !== "central_admin") throw new AccessHttpError(403, "Hanya admin pusat yang dapat mengakses fitur ini");
+  return actor;
+}
+
 /** Throw unless the actor holds a logistics role. Null actor = legacy allow. */
 export function requireLogisticsRole(actor: AccessActor | null): void {
   if (!actor) return;
