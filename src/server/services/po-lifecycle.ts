@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { purchaseOrders } from "../../db/schema";
+import { purchaseOrderItems, purchaseOrders } from "../../db/schema";
 import { defaultStorage, type StorageService } from "../../services/storage";
 import {
   LEGACY_PO_STATUSES,
@@ -43,6 +43,8 @@ export type {
 } from "./po-workflow";
 export { deliverPurchaseOrder } from "./po-delivery";
 export type { PoDeliveryDeps, PoSendOutcome } from "./po-delivery";
+export { recordPoReceipt, getPoReceiptHistory } from "./po-receipt";
+export type { CreatePoReceiptInput } from "./po-receipt";
 export { InMemoryPoMailSender, RealPoMailSender } from "./po-mail";
 export type { PoMailRequest, PoMailSender } from "./po-mail";
 
@@ -175,7 +177,6 @@ export interface PoSendReadiness {
   canSend: boolean;
   sendBlockedReason: string | null;
 }
-
 /**
  * Derivasi kelayakan kirim sekali untuk seluruh baris list: route memanggil
  * satu kali ini, bukan `evaluateSendGate` per baris.
@@ -191,3 +192,44 @@ export const withSendReadiness = <
       ? { ...row, canSend: true, sendBlockedReason: null }
       : { ...row, canSend: false, sendBlockedReason: gate.message };
   });
+
+export type DeletePoResult =
+  | { ok: true; data: { id: string; poNumber: string } }
+  | LifecycleError;
+
+/**
+ * Satu-satunya pemilik guard hapus Supplier PO: hanya PO yang belum pernah
+ * menerima barang. Route tidak lagi menghitung quantityReceived sendiri.
+ */
+export async function deletePurchaseOrder(
+  database: AppDatabase,
+  poId: string
+): Promise<DeletePoResult> {
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  if (!po) return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
+
+  const items = await database
+    .select()
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, poId));
+  const totalReceived = items.reduce(
+    (sum: number, it: { quantityReceived: number }) => sum + (it.quantityReceived || 0),
+    0
+  );
+  const totalOrdered = items.reduce(
+    (sum: number, it: { quantityOrdered: number }) => sum + (it.quantityOrdered || 0),
+    0
+  );
+
+  if (totalReceived > 0 || po.status === "received" || po.status === "partially_received") {
+    return {
+      ok: false,
+      status: 400,
+      message: `Purchase Order "${po.poNumber}" tidak dapat dihapus karena barang sudah diterima ke gudang (${totalReceived}/${totalOrdered} eks). Stok fisik buku telah terbit ke inventaris.`,
+    };
+  }
+
+  await database.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+  await database.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  return { ok: true, data: { id: po.id, poNumber: po.poNumber } };
+}

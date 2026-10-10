@@ -498,6 +498,86 @@ describe("Supplier Procurement & Purchase Order API", () => {
     await db.delete(books).where(eq(books.id, bookId));
   });
 
+  it("records two receipts via lifecycle seam and lists history in one batched read", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-hist-${stamp}`;
+    let poId = "";
+    let supplierId = "";
+    try {
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-HIST-${stamp}`,
+        title: "Buku Hist",
+        author: "Test",
+        publisher: "Test",
+        createdAt: now,
+        updatedAt: now,
+      });
+      supplierId = (
+        await (
+          await procurementRouter.request("/suppliers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: `SUP-HIST-${stamp}`, name: "Supplier Hist" }),
+          })
+        ).json()
+      ).data.id;
+      poId = (
+        await (
+          await procurementRouter.request("/purchase-orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              supplierId,
+              orderDate: "2026-10-09",
+              items: [{ bookId, quantityOrdered: 4, unitPrice: 10000 }],
+            }),
+          })
+        ).json()
+      ).data.id;
+
+      const listJson = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+      const poItemId = listJson.data.find((p: any) => p.id === poId).items[0].id;
+
+      for (const [n, qty] of [[1, 2], [2, 2]] as Array<[number, number]>) {
+        const res = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deliveryNoteNumber: `SJ-HIST-0${n}-${stamp}`,
+            receivedItems: [{ poItemId, quantityToReceive: qty }],
+          }),
+        });
+        expect(res.status).toBe(200);
+      }
+
+      const histRes = await procurementRouter.request(`/purchase-orders/${poId}/receipts`, { method: "GET" });
+      expect(histRes.status).toBe(200);
+      const history = (await histRes.json()).data;
+      expect(history.length).toBe(2);
+      expect(history.every((r: any) => r.items.length === 1 && r.items[0].quantityReceived === 2)).toBe(true);
+    } finally {
+      if (poId) {
+        const { purchaseOrderReceipts } = await import("../../db/schema");
+        const receipts = await db
+          .select({ id: purchaseOrderReceipts.id })
+          .from(purchaseOrderReceipts)
+          .where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
+        for (const r of receipts) {
+          const { purchaseOrderReceiptItems } = await import("../../db/schema");
+          await db.delete(purchaseOrderReceiptItems).where(eq(purchaseOrderReceiptItems.receiptId, r.id));
+        }
+        await db.delete(purchaseOrderReceipts).where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
+        await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+        await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      }
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
+
   it("creates PO via deep module with injectable deterministic IDs/numbers (T4 seam)", async () => {
     const stamp = Date.now();
     const now = new Date().toISOString();

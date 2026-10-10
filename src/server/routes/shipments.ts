@@ -9,10 +9,8 @@ import { createShipment, dispatchShipment, receiveShipment, rollbackShipment } f
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
-  requireAuthenticatedActor,
-  resolveLocationScope,
-  resolveRequestActor,
+  assertShipmentVisible,
+  requireScopedActor,
 } from "../services/access-scope";
 
 export const shipmentsRouter = new Hono();
@@ -66,10 +64,8 @@ const receiveShipmentSchema = z.object({
 // List shipments (with filter for from/to school)
 shipmentsRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
     const requestedSchoolId = c.req.query("schoolId");
-    const scope = resolveLocationScope(actor, requestedSchoolId, locations);
+    const { scope } = await requireScopedActor(db, c, requestedSchoolId);
     // Scoped actors always see their own location; central may filter or see all.
     const effectiveSchoolId = scope.length === 1 ? scope[0] : requestedSchoolId;
     const data = await listShipmentsWithCounts(db, effectiveSchoolId);
@@ -82,15 +78,13 @@ shipmentsRouter.get("/", async (c) => {
 // Get shipment detail with items
 shipmentsRouter.get("/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const detail = await getShipmentDetail(db, id);
     if (!detail) {
       return c.json({ success: false, message: "Shipment not found" }, 404);
     }
-    if (actor && actor.role !== "central_admin" && actor.schoolId !== detail.fromSchoolId && actor.schoolId !== detail.toSchoolId) {
-      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
-    }
+    assertShipmentVisible(actor, detail.fromSchoolId, detail.toSchoolId);
     return c.json({ success: true, data: detail });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -100,8 +94,7 @@ shipmentsRouter.get("/:id", async (c) => {
 // Create shipment draft: input kuantitas per judul/paket, fisiknya dialokasikan FIFO.
 shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid('json');
     assertLocationAllowed(actor, body.fromSchoolId, locations);
     if (!locations.some((l) => l.id === body.toSchoolId)) {
@@ -131,16 +124,14 @@ shipmentsRouter.post('/', zValidator('json', createShipmentSchema), async (c) =>
 // Dispatch shipment (Pusat sends to Branch)
 shipmentsRouter.post("/:id/dispatch", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 
     if (!shipment) {
       return c.json({ success: false, message: "Shipment not found" }, 404);
     }
-    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
-      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
-    }
+    assertShipmentVisible(actor, shipment.fromSchoolId, shipment.toSchoolId);
     const result = await dispatchShipment(db, id);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
@@ -154,7 +145,7 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
 // Receive shipment (Branch receives from Pusat)
 shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
@@ -162,9 +153,7 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     if (!shipment) {
       return c.json({ success: false, message: "Shipment not found" }, 404);
     }
-    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId && actor.schoolId !== shipment.toSchoolId) {
-      return c.json({ success: false, message: "Akses ke transfer lokasi lain dilarang" }, 403);
-    }
+    assertShipmentVisible(actor, shipment.fromSchoolId, shipment.toSchoolId);
     const result = await receiveShipment(db, id, body.itemReceipts || [], (body as any).packageReceipts || []);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
@@ -178,16 +167,14 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
 // DELETE shipment (khusus draft atau batalkan kiriman; rollback via modul)
 shipmentsRouter.delete("/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
 
     if (!shipment) {
       return c.json({ success: false, message: "Shipment not found" }, 404);
     }
-    if (actor && actor.role !== "central_admin" && actor.schoolId !== shipment.fromSchoolId) {
-      return c.json({ success: false, message: "Akses hapus transfer lokasi lain dilarang" }, 403);
-    }
+    assertShipmentVisible(actor, shipment.fromSchoolId, undefined, "Akses hapus transfer lokasi lain dilarang");
 
     const result = await rollbackShipment(db, id);
     if (!result.ok) {

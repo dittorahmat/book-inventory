@@ -1,6 +1,6 @@
 import { Package, BookOpen, Minus, Plus, Lock } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { effectiveSellPrice } from "../../lib/book-pricing";
+import { calcLooseOrderTotal, effectiveSellPrice } from "../../lib/book-pricing";
 import type { SatuanBookOption } from "./portal-api";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
@@ -28,8 +28,6 @@ interface OrderItemStepProps {
 const qtyClass =
   "w-14 px-2 py-1 bg-white border border-[#CED0D4] rounded-lg text-xs font-bold text-[#1877F2] text-center focus:outline-hidden focus:border-[#1877F2]";
 
-const rupiah = formatRupiah;
-
 /**
  * Langkah pemilihan item: paket terkunci atau buku satuan.
  * Pilihan satuan hanya ditampilkan saat periode satuan dibuka (spec: public-order-satuan).
@@ -49,10 +47,7 @@ export function OrderItemStep({
   isSubmitting,
 }: OrderItemStepProps) {
   const totalQty = selections.reduce((s, sel) => s + sel.quantity, 0);
-  const totalSatuan = selections.reduce((sum, sel) => {
-    const book = books.find((b) => b.id === sel.bookId);
-    return sum + effectiveSellPrice(book ?? {}) * sel.quantity;
-  }, 0);
+  const totalSatuan = calcLooseOrderTotal(selections, books);
 
   const canContinue = packageMode ? !!selectedPackageName : totalQty > 0;
 
@@ -87,7 +82,7 @@ export function OrderItemStep({
         <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#65676B]">Paket untuk murid</p>
           <p className="text-sm font-bold text-[#050505] mt-1">{selectedPackageName ?? "Paket tidak ditemukan"}</p>
-          <p className="text-lg font-bold text-[#1877F2] mt-1">{rupiah(selectedPackagePrice)}</p>
+          <p className="text-lg font-bold text-[#1877F2] mt-1">{formatRupiah(selectedPackagePrice)}</p>
           <p className="text-[11px] text-[#65676B] mt-2 inline-flex items-center gap-1">
             <Lock className="w-3 h-3" />
             Paket dikunci sesuai kelas &amp; kurikulum murid.
@@ -117,7 +112,7 @@ export function OrderItemStep({
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-[#050505] truncate">{book.title}</div>
                       <div className="text-[11px] text-[#65676B]">
-                        {book.author} &bull; {rupiah(book.sellPrice)}
+                        {book.author} &bull; {formatRupiah(effectiveSellPrice(book))}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -161,7 +156,7 @@ export function OrderItemStep({
             <span className="text-xs text-[#65676B]">
               {totalQty} eksemplar dipilih
             </span>
-            <span className="text-base font-bold text-[#050505]">{rupiah(totalSatuan)}</span>
+            <span className="text-base font-bold text-[#050505]">{formatRupiah(totalSatuan)}</span>
           </div>
         </div>
       )}

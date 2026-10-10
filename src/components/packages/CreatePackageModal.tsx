@@ -17,9 +17,6 @@ interface CreatePackageModalProps {
   onCreated: () => void;
 }
 
-/** Harga jual efektif komponen: delegasi ke kanonik book-pricing. */
-const effectiveSellOf = (book: Book | undefined): number => effectiveSellPrice(book ?? {});
-
 /** Modal master paket baru (BOM): form + baris komponen + harga otomatis. */
 export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCreated }: CreatePackageModalProps) {
   const [newPkgGrade, setNewPkgGrade] = useState("1");
@@ -59,7 +56,7 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
   };
 
   const computedPkgPrice = newPkgItems.reduce(
-    (sum, it) => sum + effectiveSellOf(catalogBooks.find((x) => x.id === it.bookId)) * (it.quantity || 0),
+    (sum, it) => sum + effectiveSellPrice(catalogBooks.find((x) => x.id === it.bookId) ?? {}) * (it.quantity || 0),
     0
   );
 

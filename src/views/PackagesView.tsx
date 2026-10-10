@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { School, Book } from "../types";
+import { School } from "../types";
 import { effectiveSellPrice } from "../lib/book-pricing";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { usePackagesData, type PackageRow } from "../components/packages/usePackagesData";
@@ -25,9 +25,6 @@ type BookPackage = PackageRow;
 interface PackagesViewProps {
   activeSchool: School | null;
 }
-
-/** Harga jual efektif komponen: delegasi ke kanonik book-pricing. */
-const effectiveSellOf = (book: Book | undefined): number => effectiveSellPrice(book ?? {});
 
 export function PackagesView({ activeSchool }: PackagesViewProps) {
   const {
@@ -337,8 +334,8 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                                 {item.author}
                               </div>
                                 <div className="text-[11px] font-bold text-[#1877F2] mt-0.5">
-                                  {formatRupiah(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)) * item.quantity)}
-                                  <span className="font-medium text-[#65676B]"> (@ {formatRupiah(effectiveSellOf(catalogBooks.find((x) => x.id === item.bookId)))}/eks jual)</span>
+                                  {formatRupiah(effectiveSellPrice(catalogBooks.find((x) => x.id === item.bookId) ?? {}) * item.quantity)}
+                                  <span className="font-medium text-[#65676B]"> (@ {formatRupiah(effectiveSellPrice(catalogBooks.find((x) => x.id === item.bookId) ?? {}))}/eks jual)</span>
                                 </div>
                             </div>
 

@@ -12,7 +12,7 @@ import {
 /** Re-ekspor seam kondisi agar satu perubahan status menyentuh satu modul. */
 export { ALLOCATABLE_CONDITIONS, type AllocatableCondition };
 
-export type AllocationError = { ok: false; status: ContentfulStatusCode; message: string };
+export type AllocationError = { ok: false; status: ContentfulStatusCode; message: string; available?: number; needed?: number };
 export type AllocationResult<T> = { ok: true; items: T[] } | AllocationError;
 
 interface LooseCandidate {
@@ -72,6 +72,8 @@ export async function allocateLooseStock(
       ok: false,
       status: 400,
       message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${ordered.length}.`,
+      available: ordered.length,
+      needed: input.quantity,
     };
   }
 
@@ -117,6 +119,8 @@ export async function allocatePackages(
       ok: false,
       status: 400,
       message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${ordered.length}.`,
+      available: ordered.length,
+      needed: input.quantity,
     };
   }
 

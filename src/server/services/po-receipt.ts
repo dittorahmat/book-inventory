@@ -1,11 +1,12 @@
-import { eq, desc } from "drizzle-orm";
-import { db } from "../../db";
+import { eq, inArray } from "drizzle-orm";
+import type { AppDatabase } from "../../db";
 import {
   purchaseOrderItems,
   purchaseOrderReceipts,
   purchaseOrderReceiptItems,
   books,
 } from "../../db/schema";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { receivePurchaseOrder, type ReceivedItemInput } from "./po-workflow";
 
 export interface CreatePoReceiptInput {
@@ -16,13 +17,25 @@ export interface CreatePoReceiptInput {
   receivedItems: ReceivedItemInput[];
 }
 
-export async function recordPoReceipt(poId: string, input: CreatePoReceiptInput) {
+/**
+ * Pencatatan Surat Jalan Supplier PO di belakang facade po-lifecycle:
+ * terima stok fisik + simpan surat jalan + baris item dalam satu Write Batch
+ * (chunk 10 baris) — receipt gagal tidak meninggalkan stok yatim.
+ */
+export async function recordPoReceipt(
+  database: AppDatabase,
+  poId: string,
+  input: CreatePoReceiptInput
+): Promise<
+  | { ok: true; data: { receiptId: string; deliveryNoteNumber: string; poId: string; status: string; totalReceivedThisBatch: number } }
+  | { ok: false; status: 400 | 404; message: string }
+> {
   if (!input.deliveryNoteNumber?.trim()) {
     return { ok: false, status: 400 as const, message: "Nomor Surat Jalan supplier wajib diisi" };
   }
 
   // 1. Jalankan proses penerimaan stok fisik dan update PO/items
-  const receiveResult = await receivePurchaseOrder(poId, input.receivedItems);
+  const receiveResult = await receivePurchaseOrder(database, poId, input.receivedItems);
   if (!receiveResult.ok) {
     return receiveResult;
   }
@@ -30,35 +43,39 @@ export async function recordPoReceipt(poId: string, input: CreatePoReceiptInput)
   const now = new Date().toISOString();
   const receiptId = crypto.randomUUID();
 
-  // 2. Simpan record Surat Jalan
-  await db.insert(purchaseOrderReceipts).values({
-    id: receiptId,
-    purchaseOrderId: poId,
-    deliveryNoteNumber: input.deliveryNoteNumber.trim(),
-    receivedDate: input.receivedDate || now.split("T")[0],
-    receivedByUserId: input.receivedByUserId || null,
-    notes: input.notes || null,
-    createdAt: now,
-  });
-
-  // 3. Simpan baris item yang diterima pada Surat Jalan ini
-  const poItems = await db
+  // 2. Baris item Surat Jalan (satu query, tanpa N+1)
+  const poItems = await database
     .select({ id: purchaseOrderItems.id, bookId: purchaseOrderItems.bookId })
     .from(purchaseOrderItems)
     .where(eq(purchaseOrderItems.purchaseOrderId, poId));
   const poItemMap = new Map(poItems.map((p: { id: string; bookId: string }) => [p.id, p.bookId]));
+  const receiptItemRows = input.receivedItems
+    .filter((item) => (poItemMap.get(item.poItemId) ?? null) && item.quantityToReceive > 0)
+    .map((item) => ({
+      id: crypto.randomUUID(),
+      receiptId,
+      bookId: poItemMap.get(item.poItemId)!,
+      quantityReceived: item.quantityToReceive,
+      createdAt: now,
+    }));
 
-  for (const item of input.receivedItems) {
-    const bookId = poItemMap.get(item.poItemId);
-    if (bookId && item.quantityToReceive > 0) {
-      await db.insert(purchaseOrderReceiptItems).values({
-        id: crypto.randomUUID(),
-        receiptId,
-        bookId,
-        quantityReceived: item.quantityToReceive,
+  try {
+    await runWriteBatch(database, [
+      database.insert(purchaseOrderReceipts).values({
+        id: receiptId,
+        purchaseOrderId: poId,
+        deliveryNoteNumber: input.deliveryNoteNumber.trim(),
+        receivedDate: input.receivedDate || now.split("T")[0],
+        receivedByUserId: input.receivedByUserId || null,
+        notes: input.notes || null,
         createdAt: now,
-      });
-    }
+      }),
+      ...chunkRows(receiptItemRows).map((chunk) => database.insert(purchaseOrderReceiptItems).values(chunk)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "mencatat Surat Jalan");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
   }
 
   return {
@@ -73,32 +90,35 @@ export async function recordPoReceipt(poId: string, input: CreatePoReceiptInput)
   };
 }
 
-export async function getPoReceiptHistory(poId: string) {
-  const receipts = await db
+export async function getPoReceiptHistory(
+  database: AppDatabase,
+  poId: string
+): Promise<Array<Record<string, unknown>>> {
+  const receipts = await database
     .select()
     .from(purchaseOrderReceipts)
-    .where(eq(purchaseOrderReceipts.purchaseOrderId, poId))
-    .orderBy(desc(purchaseOrderReceipts.createdAt));
+    .where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
 
-  const results = [];
-  for (const r of receipts) {
-    const items = await db
-      .select({
-        id: purchaseOrderReceiptItems.id,
-        bookId: purchaseOrderReceiptItems.bookId,
-        title: books.title,
-        isbn: books.isbn,
-        quantityReceived: purchaseOrderReceiptItems.quantityReceived,
-      })
-      .from(purchaseOrderReceiptItems)
-      .innerJoin(books, eq(purchaseOrderReceiptItems.bookId, books.id))
-      .where(eq(purchaseOrderReceiptItems.receiptId, r.id));
+  if (receipts.length === 0) return [];
+  const receiptIds = receipts.map((r: { id: string }) => r.id);
+  const allItems = await database
+    .select({
+      id: purchaseOrderReceiptItems.id,
+      receiptId: purchaseOrderReceiptItems.receiptId,
+      bookId: purchaseOrderReceiptItems.bookId,
+      title: books.title,
+      isbn: books.isbn,
+      quantityReceived: purchaseOrderReceiptItems.quantityReceived,
+    })
+    .from(purchaseOrderReceiptItems)
+    .innerJoin(books, eq(purchaseOrderReceiptItems.bookId, books.id))
+    .where(inArray(purchaseOrderReceiptItems.receiptId, receiptIds));
 
-    results.push({
-      ...r,
-      items,
-    });
+  const itemsByReceipt = new Map<string, typeof allItems>();
+  for (const item of allItems) {
+    const list = itemsByReceipt.get(item.receiptId) ?? [];
+    list.push(item);
+    itemsByReceipt.set(item.receiptId, list);
   }
-
-  return results;
+  return receipts.map((r: { id: string }) => ({ ...r, items: itemsByReceipt.get(r.id) ?? [] }));
 }
