@@ -7,7 +7,7 @@ import { purchaseOrders, suppliers } from "../../db/schema";
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
+  requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { PRINTED_STATUS, markPrinted, uploadSignedDoc } from "../services/po-lifecycle";
@@ -27,8 +27,7 @@ function notFound(c: Context) {
 // 1. Tandai PO sudah dicetak (draft -> printed)
 poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
   try {
-    const actor = await resolveLogisticsActor(c);
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const po = await loadPoOr404(c.req.param("id"));
     if (!po) return notFound(c);
     assertLocationAllowed(actor, po.targetSchoolId, locations);
@@ -54,8 +53,7 @@ poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
 // 2. Upload bukti TTD basah + cap (printed -> signed_uploaded)
 poWorkflowRouter.post("/purchase-orders/:id/signed-doc", async (c) => {
   try {
-    const actor = await resolveLogisticsActor(c);
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const po = await loadPoOr404(c.req.param("id"));
     if (!po) return notFound(c);
     assertLocationAllowed(actor, po.targetSchoolId, locations);

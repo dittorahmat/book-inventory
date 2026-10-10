@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import type { InternalPoLine, PackageOption } from "../../lib/internal-orders-types";
-import { fetchPackageOptions } from "./internal-orders-api";
+import { getJson } from "../../lib/api";
 
 interface CreateInternalOrderModalProps {
   schoolId: string;
@@ -36,7 +36,7 @@ export function CreateInternalOrderModal({
     let cancelled = false;
     (async () => {
       try {
-        const list = await fetchPackageOptions();
+        const list = await getJson<PackageOption[]>("/api/packages", "Gagal memuat katalog paket.");
         if (!cancelled) setPackages(list);
       } catch (err) {
         if (!cancelled) setPackagesError(err instanceof Error ? err.message : "Gagal memuat katalog paket.");

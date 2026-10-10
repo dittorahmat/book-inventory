@@ -15,12 +15,10 @@ import {
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
-  requireAuthenticatedActor,
-  resolveLocationScope,
+  requireScopedActor,
   resolveLogisticsActor,
-  resolveRequestActor,
 } from "../services/access-scope";
+import { createInternalPo, fulfillInternalPo } from "../services/internal-po";
 
 export const internalOrdersRouter = new Hono();
 
@@ -53,9 +51,8 @@ const createShipmentSchema = z.object({
 // 1. GET list internal purchase orders
 internalOrdersRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
-    const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
+    const { scope: scopeList } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const scope = new Set(scopeList);
     const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
 
     const orders = await db
@@ -113,36 +110,15 @@ internalOrdersRouter.get("/", async (c) => {
 // 2. POST create internal PO from branch to HQ
 internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
 
-    const now = new Date().toISOString();
-    const id = crypto.randomUUID();
-    const poNumber = `IPO-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
-
-    await db.insert(internalPurchaseOrders).values({
-      id,
-      poNumber,
-      schoolId: body.schoolId,
-      status: "submitted",
-      notes: body.notes || null,
-      createdByUserId: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    for (const item of body.items) {
-      await db.insert(internalPurchaseOrderItems).values({
-        id: crypto.randomUUID(),
-        internalPoId: id,
-        packageId: item.packageId,
-        quantityOrdered: item.quantityOrdered,
-        quantityFulfilled: 0,
-        createdAt: now,
-      });
+    const result = await createInternalPo(db, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
+    const { id, poNumber } = result.data;
 
     return c.json(
       {
@@ -164,83 +140,15 @@ internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSch
     const poId = c.req.param("id");
     const body = c.req.valid("json");
 
-    const [po] = await db
-      .select()
-      .from(internalPurchaseOrders)
-      .where(eq(internalPurchaseOrders.id, poId));
-    if (!po) {
-      return c.json({ success: false, message: "PO Internal tidak ditemukan" }, 404);
+    const result = await fulfillInternalPo(db, poId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-
-    const now = new Date().toISOString();
-    const shipmentId = crypto.randomUUID();
-
-    await db.insert(internalShipments).values({
-      id: shipmentId,
-      internalPoId: poId,
-      deliveryNoteNumber: body.deliveryNoteNumber.trim(),
-      shippedDate: body.shippedDate || now.split("T")[0],
-      status: "in_transit",
-      notes: body.notes || null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Catat items pada Surat Jalan & update progress pemenuhan PO
-    const currentPoItems = await db
-      .select()
-      .from(internalPurchaseOrderItems)
-      .where(eq(internalPurchaseOrderItems.internalPoId, poId));
-    type InternalPoItemRow = (typeof currentPoItems)[number];
-    const poItemMap = new Map<string, InternalPoItemRow>(
-      currentPoItems.map((it: InternalPoItemRow) => [it.packageId, it])
-    );
-
-    for (const item of body.items) {
-      await db.insert(internalShipmentItems).values({
-        id: crypto.randomUUID(),
-        shipmentId,
-        packageId: item.packageId || null,
-        packageItemId: item.packageItemId || null,
-        bookId: item.bookId || null,
-        quantity: item.quantity,
-        isOutstandingFollowup: item.isOutstandingFollowup,
-        createdAt: now,
-      });
-
-      // Update quantityFulfilled jika item ini merupakan pemenuhan paket utama
-      if (item.packageId) {
-        const poItem = poItemMap.get(item.packageId);
-        if (poItem) {
-          const newFulfilled = Math.min(poItem.quantityOrdered, (poItem.quantityFulfilled ?? 0) + item.quantity);
-          await db
-            .update(internalPurchaseOrderItems)
-            .set({ quantityFulfilled: newFulfilled })
-            .where(eq(internalPurchaseOrderItems.id, poItem.id));
-          poItem.quantityFulfilled = newFulfilled;
-        }
-      }
-    }
-
-    // Hitung status pemenuhan PO
-    const updatedPoItems = await db
-      .select()
-      .from(internalPurchaseOrderItems)
-      .where(eq(internalPurchaseOrderItems.internalPoId, poId));
-    const allCompleted = updatedPoItems.every(
-      (it: InternalPoItemRow) => (it.quantityFulfilled ?? 0) >= it.quantityOrdered
-    );
-    const nextStatus = allCompleted ? "completed" : "partial_fulfilled";
-
-    await db
-      .update(internalPurchaseOrders)
-      .set({ status: nextStatus, updatedAt: now })
-      .where(eq(internalPurchaseOrders.id, poId));
 
     return c.json({
       success: true,
       message: `Surat Jalan Pengiriman ${body.deliveryNoteNumber} berhasil dibuat`,
-      data: { shipmentId, status: nextStatus },
+      data: { shipmentId: result.data.shipmentId, status: result.data.status },
     });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -250,8 +158,7 @@ internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSch
 // 4. GET shipment history for internal PO
 internalOrdersRouter.get("/:id/shipments", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const poId = c.req.param("id");
 
     const [po] = await db

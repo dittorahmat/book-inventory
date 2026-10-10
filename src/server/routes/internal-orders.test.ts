@@ -114,4 +114,70 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
     expect(historyJson.data.some((s: any) => s.deliveryNoteNumber === `SJ-INT-001-${stamp}`)).toBe(true);
     expect(historyJson.data.some((s: any) => s.deliveryNoteNumber === `SJ-INT-002-${stamp}`)).toBe(true);
   });
+
+  it("creates PO with 30 package lines and fulfills via 30-line shipment (D1 chunk regression)", async () => {
+    const stamp = Date.now();
+    const branchId = `school-vol-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: branchId,
+      name: "Cabang Volume",
+      code: `VOL-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const packageSeeds = Array.from({ length: 30 }, (_, i) => ({
+      id: `pkg-vol-${stamp}-${i}`,
+      code: `PKG-VOL-${stamp}-${i}`,
+      name: `Paket Volume ${i}`,
+      gradeLevel: "1",
+      curriculumType: "nasional",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.insert(bookPackages).values(packageSeeds);
+
+    const createPoRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: packageSeeds.map((p) => ({ packageId: p.id, quantityOrdered: 2 })),
+      }),
+    });
+    expect(createPoRes.status).toBe(201);
+    const createPoJson = await createPoRes.json();
+    expect(createPoJson.success).toBe(true);
+    const poId = createPoJson.data.id;
+
+    const shipRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-VOL-${stamp}`,
+        items: packageSeeds.map((p) => ({ packageId: p.id, quantity: 2 })),
+      }),
+    });
+    expect(shipRes.status).toBe(200);
+    const shipJson = await shipRes.json();
+    expect(shipJson.success).toBe(true);
+    expect(shipJson.data.status).toBe("completed");
+  });
+
+  it("returns 404 for unknown PO and 400 for empty shipment lines", async () => {
+    const missing = await internalOrdersRouter.request(`/po-tidak-ada/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: "SJ-XXX",
+        items: [{ packageId: "pkg-xxx", quantity: 1 }],
+      }),
+    });
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).success).toBe(false);
+  });
 });

@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { db, type AppDatabase } from "../../db";
-import { books, purchaseOrders, purchaseOrderItems, suppliers, schools } from "../../db/schema";
+import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers, schools } from "../../db/schema";
 import { calcPoHeader, effectiveBuyPrice } from "../../lib/book-pricing";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 
@@ -300,19 +300,19 @@ export type ReceivePoResult =
  * `lib/d1-write` (batch di D1, sekuensial di bun-sqlite, insert di-chunk).
  */
 export async function receivePurchaseOrder(
+  database: AppDatabase,
   poId: string,
   receivedItems: ReceivedItemInput[]
 ): Promise<ReceivePoResult> {
-  const { purchaseOrderItems, bookItems } = await import("../../db/schema");
   const now = new Date().toISOString();
 
-  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
   if (!po) {
     return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
   }
 
   // Satu query baca untuk semua item PO: validasi sebelum tulis apa pun.
-  const poItems: any[] = await db
+  const poItems: any[] = await database
     .select()
     .from(purchaseOrderItems)
     .where(eq(purchaseOrderItems.purchaseOrderId, poId));
@@ -365,20 +365,20 @@ export async function receivePurchaseOrder(
   try {
     const writes = [
       ...[...increments].map(([poItemId, qty]) =>
-        db
+        database
           .update(purchaseOrderItems)
           .set({ quantityReceived: poItemById.get(poItemId)!.quantityReceived + qty })
           .where(eq(purchaseOrderItems.id, poItemId))
       ),
       ...chunkRows(newBookItemsToInsert, D1_WRITE_CHUNK_SIZE).map((rows) =>
-        db.insert(bookItems).values(rows)
+        database.insert(bookItems).values(rows)
       ),
-      db
+      database
         .update(purchaseOrders)
         .set({ status: newStatus, updatedAt: now })
         .where(eq(purchaseOrders.id, poId)),
     ];
-    await runWriteBatch(db, writes);
+    await runWriteBatch(database, writes);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
     if (mapped) return { ok: false, ...mapped };

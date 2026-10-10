@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   AccessHttpError,
   assertLocationAllowed,
+  assertShipmentVisible,
   requireAuthenticatedActor,
   requireCentralAdmin,
   requireLogisticsRole,
@@ -110,5 +111,33 @@ describe("requireLogisticsRole", () => {
     expect(() => requireLogisticsRole(schoolA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(branchA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(null)).not.toThrow();
+  });
+});
+
+describe("assertShipmentVisible (T4 seam)", () => {
+  it("lets central roam, locks scoped actors to origin/destination sides", () => {
+    expect(() => assertShipmentVisible(central, "school-alw-1", "school-alw-2")).not.toThrow();
+    expect(() => assertShipmentVisible(schoolA, "school-alw-1", "school-alw-2")).not.toThrow();
+    expect(() => assertShipmentVisible(schoolA, "school-alw-2", "school-alw-1")).not.toThrow();
+    expect(() => assertShipmentVisible({ role: "school_admin", schoolId: null }, "school-alw-1", "school-alw-2")).toThrow(
+      AccessHttpError
+    );
+  });
+
+  it("rejects third-party locations with 403 and keeps the legacy message", () => {
+    try {
+      assertShipmentVisible(schoolA, "school-alw-2", "school-warehouse");
+      expect(true).toBe(false);
+    } catch (err) {
+      expect(err).toBeInstanceOf(AccessHttpError);
+      expect((err as AccessHttpError).status).toBe(403);
+      expect((err as AccessHttpError).message).toBe("Akses ke transfer lokasi lain dilarang");
+    }
+    try {
+      assertShipmentVisible(schoolA, "school-alw-2", undefined, "Akses hapus transfer lokasi lain dilarang");
+      expect(true).toBe(false);
+    } catch (err) {
+      expect((err as AccessHttpError).message).toBe("Akses hapus transfer lokasi lain dilarang");
+    }
   });
 });

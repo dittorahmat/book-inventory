@@ -45,8 +45,6 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "DIBATALKAN",
 };
 
-const rupiah = formatRupiah;
-
 const lineTotal = (item: PrintablePoItem): number => calcPoLineNet(item);
 
 /** Dokumen PO siap cetak untuk alur tanda tangan basah dan cap. */
@@ -138,9 +136,9 @@ export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClo
                 <td className="py-2 pr-2 font-semibold text-[#050505]">{item.title}</td>
                 <td className="py-2 px-2 font-mono text-[#65676B]">{item.isbn}</td>
                 <td className="py-2 px-2 text-right">{item.quantityOrdered}</td>
-                <td className="py-2 px-2 text-right">{rupiah(item.unitPrice)}</td>
+                <td className="py-2 px-2 text-right">{formatRupiah(item.unitPrice)}</td>
                 <td className="py-2 px-2 text-right">{item.discountPercent || 0}%</td>
-                <td className="py-2 pl-2 text-right font-bold">{rupiah(lineTotal(item))}</td>
+                <td className="py-2 pl-2 text-right font-bold">{formatRupiah(lineTotal(item))}</td>
               </tr>
             ))}
           </tbody>
@@ -149,15 +147,15 @@ export function PoPrintView({ po, onClose, onChanged }: { po: PrintablePo; onClo
         <section className="mt-4 ml-auto w-64 text-xs divide-y divide-[#E4E6EB] border-y border-[#CED0D4]">
           <div className="flex justify-between py-1.5">
             <span className="text-[#65676B]">Total Kotor</span>
-            <span className="font-semibold">{rupiah(gross)}</span>
+            <span className="font-semibold">{formatRupiah(gross)}</span>
           </div>
           <div className="flex justify-between py-1.5">
             <span className="text-[#65676B]">Total Diskon</span>
-            <span className="font-semibold">− {rupiah(discount)}</span>
+            <span className="font-semibold">− {formatRupiah(discount)}</span>
           </div>
           <div className="flex justify-between py-1.5">
             <span className="font-bold">Total Netto</span>
-            <span className="font-bold">{rupiah(po.totalAmount)}</span>
+            <span className="font-bold">{formatRupiah(po.totalAmount)}</span>
           </div>
         </section>
 

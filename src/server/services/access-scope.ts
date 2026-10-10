@@ -137,3 +137,49 @@ export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 40
 export const loadLocationIds = (database: {
   select: (fields?: unknown) => { from: (table: unknown) => Promise<Array<{ id: string }>> };
 }): Promise<Array<{ id: string }>> => database.select({ id: schools.id }).from(schools);
+
+/**
+ * Gabungan resolve + authenticate + scope dalam satu panggilan: menggantikan
+ * tarian 3 langkah `resolveRequestActor → requireAuthenticatedActor →
+ * loadLocationIds → resolveLocationScope` di setiap route.
+ */
+export async function requireScopedActor(
+  database: Parameters<typeof loadLocationIds>[0],
+  c: Parameters<typeof resolveRequestActor>[0] & { req: { query: (name: string) => string | undefined } },
+  requestedSchoolId?: string
+): Promise<{ actor: AccessActor; locations: Array<{ id: string }>; scope: string[] }> {
+  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+  const locations = await loadLocationIds(database);
+  return { actor, locations, scope: resolveLocationScope(actor, requestedSchoolId, locations) };
+}
+
+/**
+ * Gabungan resolve + authenticate + authorize logistik + scope dalam satu
+ * panggilan untuk route pengadaan: sama seperti requireScopedActor ditambah
+ * penegakan peran logistik (pesan kanonik dipakai ulang).
+ */
+export async function requireScopedLogisticsActor(
+  database: Parameters<typeof loadLocationIds>[0],
+  c: Parameters<typeof resolveRequestActor>[0] & { req: { query: (name: string) => string | undefined } },
+  requestedSchoolId?: string
+): Promise<{ actor: AccessActor; locations: Array<{ id: string }>; scope: string[] }> {
+  const scoped = await requireScopedActor(database, c, requestedSchoolId);
+  requireLogisticsRole(scoped.actor);
+  return scoped;
+}
+/**
+ * Satu-satunya pemilik aturan visibilitas Transfer Shipment: central melihat
+ * semua; peran terisolasi hanya sisi asal/tujuan. Menggantikan cek
+ * `actor.role !== "central_admin"` inline di route.
+ */
+export function assertShipmentVisible(
+  actor: AccessActor,
+  fromSchoolId: string,
+  toSchoolId?: string,
+  action = "Akses ke transfer lokasi lain dilarang"
+): void {
+  if (actor.role === "central_admin") return;
+  if (!actor.schoolId || (actor.schoolId !== fromSchoolId && (!toSchoolId || actor.schoolId !== toSchoolId))) {
+    throw new AccessHttpError(403, action);
+  }
+}
