@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { db, type AppDatabase } from "../../db";
+import type { AppDatabase } from "../../db";
 import {
   suppliers,
   purchaseOrders,
@@ -142,12 +142,4 @@ export async function deliverPurchaseOrder(
     provider: result.provider,
     messageId: result.messageId,
   };
-}
-
-/** Kompatibilitas: pemanggil lama tanpa injeksi database/adapter. */
-export async function sendPurchaseOrderEmail(
-  poId: string,
-  env?: EmailRuntimeEnv
-): Promise<PoSendOutcome> {
-  return deliverPurchaseOrder(db, poId, { env });
 }

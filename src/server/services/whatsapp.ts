@@ -1,4 +1,4 @@
-import { db } from "../../db";
+import type { AppDatabase } from "../../db";
 import { systemSettings } from "../../db/schema";
 
 export interface WhatsAppConfig {
@@ -8,8 +8,8 @@ export interface WhatsAppConfig {
   isEnabled: boolean;
 }
 
-export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
-  const rows = await db.select().from(systemSettings);
+export async function getWhatsAppConfig(database: AppDatabase): Promise<WhatsAppConfig> {
+  const rows = await database.select().from(systemSettings);
   type SettingRow = (typeof rows)[number];
   const map = new Map<string, string>(rows.map((r: SettingRow) => [r.key, r.value]));
 
@@ -21,7 +21,7 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
   };
 }
 
-export async function saveWhatsAppConfig(config: WhatsAppConfig): Promise<void> {
+export async function saveWhatsAppConfig(database: AppDatabase, config: WhatsAppConfig): Promise<void> {
   const now = new Date().toISOString();
   const entries: Array<[string, string]> = [
     ["wa_gateway_url", config.gatewayUrl],
@@ -31,7 +31,7 @@ export async function saveWhatsAppConfig(config: WhatsAppConfig): Promise<void> 
   ];
 
   for (const [key, value] of entries) {
-    await db
+    await database
       .insert(systemSettings)
       .values({ key, value, updatedAt: now })
       .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
@@ -51,9 +51,10 @@ export interface SendWhatsAppResult {
  */
 export async function sendWhatsAppMessage(
   targetPhone: string,
-  messageText: string
+  messageText: string,
+  database: AppDatabase
 ): Promise<SendWhatsAppResult> {
-  const config = await getWhatsAppConfig();
+  const config = await getWhatsAppConfig(database);
 
   // Jika belum dikonfigurasi atau dinonaktifkan, simulasikan tanpa gagal (fail-safe)
   if (!config.isEnabled || !config.gatewayUrl) {

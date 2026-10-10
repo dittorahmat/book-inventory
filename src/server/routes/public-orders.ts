@@ -170,7 +170,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
   if (st?.parentPhone) {
     const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
-    sendWhatsAppMessage(st.parentPhone, waText).catch((e) => console.error("[WA error]", e));
+    sendWhatsAppMessage(st.parentPhone, waText, db).catch((e) => console.error("[WA error]", e));
   }
 
   return c.json({

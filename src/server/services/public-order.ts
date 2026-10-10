@@ -1,6 +1,6 @@
 import { inArray, eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { db, type AppDatabase } from "../../db";
+import type { AppDatabase } from "../../db";
 import {
   students,
   studentBookOrders,
@@ -70,13 +70,12 @@ export type SubmitPublicOrderResult =
     };
 
 /**
- * Seam injeksi intake publik: database + storage diterima sebagai dependensi
- * (default global agar pemanggil lama `submitPublicOrder(input)` tetap jalan),
+ * Seam injeksi intake publik: database + storage diterima sebagai dependensi,
  * penomoran/ID/jam/status satuan dapat diinjeksi agar test deterministik
  * tanpa upload jaringan.
  */
 export interface SubmitPublicOrderDeps {
-  database?: AppDatabase;
+  database: AppDatabase;
   storage?: StorageService;
   now?: () => string;
   generateId?: () => string;
@@ -98,9 +97,9 @@ export interface SubmitPublicOrderDeps {
  */
 export async function submitPublicOrder(
   input: SubmitPublicOrderInput,
-  deps: SubmitPublicOrderDeps = {}
+  deps: SubmitPublicOrderDeps
 ): Promise<SubmitPublicOrderResult> {
-  const database: AppDatabase = deps.database ?? db;
+  const database: AppDatabase = deps.database;
   const storage: StorageService = deps.storage ?? defaultStorage;
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const orderId = (deps.generateId ?? (() => crypto.randomUUID()))();

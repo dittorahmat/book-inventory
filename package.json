@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "check:file-size": "bun scripts/check-file-size.ts",
     "check:route-tests": "bun scripts/check-route-tests.ts",
+    "check:plans": "bun scripts/explain-plan.ts",
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "db:push": "drizzle-kit push",

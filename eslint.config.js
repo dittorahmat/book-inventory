@@ -26,6 +26,64 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      // Rupiah disajikan via formatRupiah dari lib/transfer-pricing.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleString"][arguments.0.value="id-ID"]',
+          message: "Sajikan rupiah via formatRupiah dari lib/transfer-pricing.",
+        },
+      ],
+    },
+  },
+  // Modul service menerima database: AppDatabase sebagai parameter.
+  {
+    files: ["src/server/services/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/db"],
+              importNames: ["db"],
+              message: "Terima database: AppDatabase sebagai parameter, bukan impor db global.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // GRANDFATHERED: utang impor-db lama, hanya boleh menyusut. Modul baru
+    // wajib inject-database; sentuh file ini hanya untuk menghapus impor db.
+    // stock-summary/sales-report/whatsapp/public-order/po-delivery sudah
+    // keluar dari daftar ini via inject-database.
+    files: [
+      "src/server/services/email/factory.ts",
+      "src/server/services/satuan-cutoff.ts",
+    ],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  {
+    // Data uji terisolasi: impor db langsung di test sah.
+    files: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  {
+    // Pengecualian sah toLocaleString("id-ID"): definisi kanonik rupiah,
+    // stempel tanggal email (bukan rupiah), dan data uji terisolasi.
+    files: [
+      "src/lib/transfer-pricing.ts",
+      "src/server/routes/settings.ts",
+      "**/*.test.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": "off",
     },
   }
 );

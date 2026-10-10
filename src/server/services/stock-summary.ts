@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../../db";
+import type { AppDatabase } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { addLoose, addPackage, newLooseTally, newPackageTally } from "./stock-kernel";
@@ -40,11 +40,12 @@ const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.s
  * Identitas fisik per barcode tidak dikembalikan; drill-down fisik terpisah.
  */
 export async function getLooseStockSummary(
+  database: AppDatabase,
   schoolIds: string[]
 ): Promise<LooseStockSummaryRow[]> {
   if (schoolIds.length === 0) return [];
 
-  const rows = await db
+  const rows = await database
     .select({
       schoolId: bookItems.currentSchoolId,
       schoolName: schools.name,
@@ -95,11 +96,12 @@ export async function getLooseStockSummary(
 
 /** Stok paket sebagai satu baris per jenis paket per lokasi, tanpa kode fisik bundel. */
 export async function getPackageStockSummary(
+  database: AppDatabase,
   schoolIds: string[]
 ): Promise<PackageStockSummaryRow[]> {
   if (schoolIds.length === 0) return [];
 
-  const rows = await db
+  const rows = await database
     .select({
       schoolId: packageItems.currentSchoolId,
       schoolName: schools.name,

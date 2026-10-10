@@ -25,7 +25,7 @@ async function resolveScope(c: Context) {
 stockSummaryRouter.get("/loose", async (c) => {
   try {
     const scope = await resolveScope(c);
-    const rows = await getLooseStockSummary(scope);
+    const rows = await getLooseStockSummary(db, scope);
     return c.json({ success: true, data: rows });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -35,7 +35,7 @@ stockSummaryRouter.get("/loose", async (c) => {
 stockSummaryRouter.get("/packages", async (c) => {
   try {
     const scope = await resolveScope(c);
-    const rows = await getPackageStockSummary(scope);
+    const rows = await getPackageStockSummary(db, scope);
     return c.json({ success: true, data: rows });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -47,8 +47,8 @@ stockSummaryRouter.get("/overview", async (c) => {
   try {
     const scope = await resolveScope(c);
     const [loose, packages] = await Promise.all([
-      getLooseStockSummary(scope),
-      getPackageStockSummary(scope),
+      getLooseStockSummary(db, scope),
+      getPackageStockSummary(db, scope),
     ]);
 
     const byLocation = scope.map((schoolId) => {

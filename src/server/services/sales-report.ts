@@ -1,5 +1,5 @@
 import { and, gte, inArray, lte } from "drizzle-orm";
-import { db } from "../../db";
+import type { AppDatabase } from "../../db";
 import { schools, studentBookOrders, studentOrderItems } from "../../db/schema";
 
 export interface SalesChannelBreakdown {
@@ -39,6 +39,7 @@ export interface SalesReport {
 }
 
 export interface SalesReportInput {
+  database: AppDatabase;
   from: string;
   to: string;
   schoolIds: string[];
@@ -51,6 +52,7 @@ const emptyChannel = (): SalesChannelBreakdown => ({ orderCount: 0, quantity: 0,
  * (design D8). Order tanpa `packageId` diperlakukan sebagai order satuan.
  */
 export async function getSalesReport(input: SalesReportInput): Promise<SalesReport> {
+  const { database } = input;
   const schoolIds = input.schoolIds;
   const base = and(
     inArray(studentBookOrders.schoolId, schoolIds),
@@ -58,7 +60,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
     lte(studentBookOrders.createdAt, `${input.to}T23:59:59.999Z`)
   );
 
-  const orders: Array<typeof studentBookOrders.$inferSelect> = await db
+  const orders: Array<typeof studentBookOrders.$inferSelect> = await database
     .select()
     .from(studentBookOrders)
     .where(base);
@@ -66,12 +68,12 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
   const orderIds = orders.map((o) => o.id);
   const lineRows: Array<typeof studentOrderItems.$inferSelect> =
     orderIds.length > 0
-      ? await db.select().from(studentOrderItems).where(inArray(studentOrderItems.orderId, orderIds))
+      ? await database.select().from(studentOrderItems).where(inArray(studentOrderItems.orderId, orderIds))
       : [];
 
   const qtyByOrder = lineRows.reduce((m, line) => m.set(line.orderId, (m.get(line.orderId) ?? 0) + line.quantity), new Map<string, number>());
 
-  const schoolRows: Array<{ id: string; name: string }> = await db
+  const schoolRows: Array<{ id: string; name: string }> = await database
     .select({ id: schools.id, name: schools.name })
     .from(schools);
   const schoolName = new Map(schoolRows.map((s) => [s.id, s.name]));

@@ -96,7 +96,7 @@ describe("stock parity dashboard vs inventory (T3)", () => {
         });
       }
 
-      const invRows = await getLooseStockSummary([schoolId]);
+      const invRows = await getLooseStockSummary(db, [schoolId]);
       const inv = invRows.find((r) => r.bookId === bookId);
       expect(inv?.totalQty).toBe(4);
       expect(inv?.availableQty).toBe(2);

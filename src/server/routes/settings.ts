@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { db } from "../../db";
 import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import { currentAcademicYear } from "../../lib/wib-time";
@@ -190,7 +191,7 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
 settingsRouter.get("/whatsapp", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
-    const config = await getWhatsAppConfig();
+    const config = await getWhatsAppConfig(db);
     return c.json({
       success: true,
       data: {
@@ -216,8 +217,8 @@ settingsRouter.post("/whatsapp", zValidator("json", updateWhatsAppSchema), async
   try {
     await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
-    const existing = await getWhatsAppConfig();
-    await saveWhatsAppConfig({
+    const existing = await getWhatsAppConfig(db);
+    await saveWhatsAppConfig(db, {
       ...body,
       apiKey: body.apiKey === "********" ? existing.apiKey : body.apiKey,
     });
@@ -237,7 +238,7 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
   try {
     await assertSettingsAdmin(c, "notif");
     const { phone, message } = c.req.valid("json");
-    const result = await sendWhatsAppMessage(phone, message);
+    const result = await sendWhatsAppMessage(phone, message, db);
     if (!result.success) {
       return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
     }

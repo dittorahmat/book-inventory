@@ -150,7 +150,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
     ];
 
     try {
-      const report = await getSalesReport({ from: FROM, to: TO, schoolIds: [schoolA] });
+      const report = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA] });
 
       expect(report.totals.orderCount).toBe(4);
       expect(report.totals.revenue).toBe(1_950_000);
@@ -188,12 +188,12 @@ describe("Rekap penjualan (spec: sales-report)", () => {
     ];
 
     try {
-      const empty = await getSalesReport({ from: "2020-01-01", to: "2020-12-31", schoolIds: [schoolA] });
+      const empty = await getSalesReport({ database: db, from: "2020-01-01", to: "2020-12-31", schoolIds: [schoolA] });
       expect(empty.totals.orderCount).toBe(0);
       expect(empty.totals.revenue).toBe(0);
       expect(empty.bySchool).toHaveLength(0);
 
-      const included = await getSalesReport({ from: FROM, to: TO, schoolIds: [schoolA] });
+      const included = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA] });
       expect(included.totals.orderCount).toBe(1);
     } finally {
       await cleanupOrders(seeded);
@@ -229,7 +229,7 @@ describe("Rekap penjualan (spec: sales-report)", () => {
       const allJson = await all.json();
       expect(allJson.data.totals.revenue).toBe(500_000);
 
-      const combined = await getSalesReport({ from: FROM, to: TO, schoolIds: [schoolA, schoolB] });
+      const combined = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA, schoolB] });
       expect(combined.totals.revenue).toBe(1_200_000);
       expect(combined.totals.collected).toBe(600_000);
       expect(combined.totals.outstanding).toBe(600_000);
@@ -258,7 +258,7 @@ describe("Ekspor CSV (spec: sales-report)", () => {
     ];
 
     try {
-      const report = await getSalesReport({ from: FROM, to: TO, schoolIds: [schoolA] });
+      const report = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA] });
       const csv = salesReportToCsv(report);
       const lines = csv.split("\r\n");
 

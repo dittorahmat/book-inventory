@@ -34,6 +34,7 @@ salesReportRouter.get("/", zValidator("query", reportQuerySchema), async (c) => 
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const { from, to, schoolId } = c.req.valid("query");
     const report = await getSalesReport({
+      database: db,
       from,
       to,
       schoolIds: await resolveReportScope(actor, schoolId),
@@ -49,6 +50,7 @@ salesReportRouter.get("/csv", zValidator("query", reportQuerySchema), async (c) 
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
     const { from, to, schoolId } = c.req.valid("query");
     const report = await getSalesReport({
+      database: db,
       from,
       to,
       schoolIds: await resolveReportScope(actor, schoolId),

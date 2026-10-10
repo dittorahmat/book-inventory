@@ -114,7 +114,7 @@ describe("Agregasi stok per judul & per paket (spec: inventory-summary)", () => 
     await seedLooseCopies({ bookId: bookA, schoolId: locationId, count: 3 });
     await seedLooseCopies({ bookId: bookB, schoolId: locationId, count: 2, condition: "good" });
 
-    const rows = await getLooseStockSummary([locationId]);
+    const rows = await getLooseStockSummary(db, [locationId]);
     const rowA = rows.find((r) => r.bookId === bookA);
     const rowB = rows.find((r) => r.bookId === bookB);
 
@@ -148,7 +148,7 @@ describe("Agregasi stok per judul & per paket (spec: inventory-summary)", () => 
     const packageId = await seedPackage("sum");
     await seedBundles(packageId, locationId, 4);
 
-    const rows = await getPackageStockSummary([locationId]);
+    const rows = await getPackageStockSummary(db, [locationId]);
     expect(rows).toHaveLength(1);
     expect(rows[0].packageId).toBe(packageId);
     expect(rows[0].totalQty).toBe(4);
