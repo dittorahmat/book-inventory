@@ -24,10 +24,10 @@ export {
 /** Satu seam publik: pemanggil (route) melintasi modul ini, bukan po-workflow/po-delivery langsung. */
 export {
   createPurchaseOrder,
-  receivePurchaseOrder,
   resolveWarehouseId,
   resolveWarehouseTarget,
 } from "./po-workflow";
+export { receivePurchaseOrder } from "./po-receipt";
 export type {
   CreatePoDeps,
   CreatePoInput,
