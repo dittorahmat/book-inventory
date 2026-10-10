@@ -451,4 +451,123 @@ describe("Student orders search partition (§11 anti full-scan)", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("resolves refund through the guarded interface and restores stock (double refund idempotent)", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-rf-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({ id: schoolId, name: `Sekolah ${schoolId}`, code: `ALW-RF-${stamp}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-rf-${stamp}`, schoolId, nis: `RFF${stamp}`, name: `Refund Anak ${stamp}`,
+        gradeLevel: "2", curriculumType: "national", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: `b-rf-${stamp}`, isbn: `ISBN-RF-${stamp}`, title: `Buku Refund ${stamp}`,
+        author: "Anon", publisher: "Penerbit", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-rf-${stamp}`, orderNumber: `ORD-RF-${String(stamp).slice(-6)}`, studentId: `st-rf-${stamp}`, schoolId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: `ret-rf-${stamp}`, orderId: `ord-rf-${stamp}`, studentId: `st-rf-${stamp}`, defectiveBookId: `b-rf-${stamp}`,
+        reason: "Hilang", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const res = await studentOrdersRouter.request(`/returns/ret-rf-${stamp}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refund", refundAmount: 40000 }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.status).toBe("refunded");
+      expect(json.data.refundAmount).toBe(40000);
+      expect(typeof json.data.restoredBookItemId).toBe("string");
+
+      const stock = await db.select().from(bookItems).where(eq(bookItems.bookId, `b-rf-${stamp}`));
+      expect(stock).toHaveLength(1);
+      expect(stock[0].status).toBe("in_stock");
+
+      const again = await studentOrdersRouter.request(`/returns/ret-rf-${stamp}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refund", refundAmount: 40000 }),
+      });
+      expect(again.status).toBe(200);
+      expect((await db.select().from(bookItems).where(eq(bookItems.bookId, `b-rf-${stamp}`)))).toHaveLength(1);
+
+      const locked = await studentOrdersRouter.request(`/returns/ret-rf-${stamp}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "replace" }),
+      });
+      expect(locked.status).toBe(400);
+
+      for (const s of stock) await db.delete(bookItems).where(eq(bookItems.id, s.id));
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, `ret-rf-${stamp}`));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-rf-${stamp}`));
+      await db.delete(books).where(eq(books.id, `b-rf-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-rf-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("deletes an order restoring its bundle and removing linked returns", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-del-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({ id: schoolId, name: `Sekolah ${schoolId}`, code: `ALW-DEL-${stamp}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-del-${stamp}`, schoolId, nis: `DEL${stamp}`, name: `Hapus Anak ${stamp}`,
+        gradeLevel: "3", curriculumType: "national", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookPackages).values({
+        id: `pkg-del-${stamp}`, code: `PKG-DEL-${stamp}`, name: "Paket Hapus", gradeLevel: "3",
+        curriculumType: "national", academicYear: "2026/2027", price: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(packageItems).values({
+        id: `pi-del-${stamp}`, packageId: `pkg-del-${stamp}`, currentSchoolId: schoolId,
+        barcode: `DEL-B-${stamp}`, status: "delivered", createdAt: now, updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: `b-del-${stamp}`, isbn: `ISBN-DEL-${stamp}`, title: `Buku Hapus ${stamp}`,
+        author: "Anon", publisher: "Penerbit", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-del-${stamp}`, orderNumber: `ORD-DEL-${String(stamp).slice(-6)}`, studentId: `st-del-${stamp}`, schoolId,
+        packageId: `pkg-del-${stamp}`, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 50000, paidAmount: 50000, assignedPackageItemId: `pi-del-${stamp}`,
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: `ret-del-${stamp}`, orderId: `ord-del-${stamp}`, studentId: `st-del-${stamp}`, defectiveBookId: `b-del-${stamp}`,
+        reason: "Cacat", status: "reported", createdAt: now, updatedAt: now,
+      });
+
+      const res = await studentOrdersRouter.request(`/ord-del-${stamp}`, { method: "DELETE" });
+      expect(res.status).toBe(200);
+      expect((await res.json()).success).toBe(true);
+      const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, `pi-del-${stamp}`));
+      expect(bundle.status).toBe("in_stock");
+      expect(await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, `ord-del-${stamp}`))).toHaveLength(0);
+      expect(await db.select().from(bookReturns).where(eq(bookReturns.id, `ret-del-${stamp}`))).toHaveLength(0);
+
+      const missing = await studentOrdersRouter.request(`/ord-del-${stamp}`, { method: "DELETE" });
+      expect(missing.status).toBe(404);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, `ret-del-${stamp}`));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-del-${stamp}`));
+      await db.delete(packageItems).where(eq(packageItems.id, `pi-del-${stamp}`));
+      await db.delete(bookPackages).where(eq(bookPackages.id, `pkg-del-${stamp}`));
+      await db.delete(books).where(eq(books.id, `b-del-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-del-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

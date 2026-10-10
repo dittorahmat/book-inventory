@@ -5,7 +5,7 @@ export type FlowError = { ok: false; status: ContentfulStatusCode; message: stri
 
 /** Status retur yang masih boleh di-resolve (satu-satunya sumber transisi, dipakai report + resolve). */
 export const RETURN_OPEN_STATUSES = ["reported", "approved"] as const;
-export const RETURN_TERMINAL_STATUSES = ["replaced", "rejected"] as const;
+export const RETURN_TERMINAL_STATUSES = ["replaced", "rejected", "refunded"] as const;
 
 /** Status order yang boleh dilaporkan retur: sudah serah terima (idempoten bila sudah in_progress). */
 export const ORDER_REPORTABLE_STATUSES = ["picked_up", "return_in_progress"] as const;
@@ -19,8 +19,8 @@ export const isReturnTerminal = (status: string): boolean =>
 export const isOrderReportable = (status: string): boolean =>
   (ORDER_REPORTABLE_STATUSES as readonly string[]).includes(status);
 
-export const targetReturnStatus = (action: "replace" | "reject"): "replaced" | "rejected" =>
-  action === "replace" ? "replaced" : "rejected";
+export const targetReturnStatus = (action: "replace" | "reject" | "refund"): "replaced" | "rejected" | "refunded" =>
+  action === "replace" ? "replaced" : action === "refund" ? "refunded" : "rejected";
 
 /**
  * Satu-satunya mesin status resolve: terminal yang sama = idempoten ok tanpa tulis,
@@ -29,7 +29,7 @@ export const targetReturnStatus = (action: "replace" | "reject"): "replaced" | "
  */
 export const checkResolveTransition = (
   currentStatus: string,
-  action: "replace" | "reject"
+  action: "replace" | "reject" | "refund"
 ): { ok: true; idempotent: boolean } | FlowError => {
   const target = targetReturnStatus(action);
   if (currentStatus === target) return { ok: true, idempotent: true };
