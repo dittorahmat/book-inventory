@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
-import { Book } from "../types";
+import { useState } from "react";
 import { Plus, Image as ImageIcon, Search, Upload, Trash2 } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
-import { getJson, postForm, postJson, delJson } from "../lib/api";
 import { BookPriceFields } from "../components/catalog/BookPriceFields";
+import { useCatalogData } from "../components/catalog/useCatalogData";
 import { effectiveBookPrice, effectiveSellPrice } from "../lib/book-pricing";
 
 export function CatalogView() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook } = useCatalogData();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
@@ -24,18 +23,6 @@ export function CatalogView() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [isSubmittingBook, setIsSubmittingBook] = useState(false);
-
-  const fetchBooks = async () => {
-    try {
-      setBooks(await getJson<Book[]>("/api/books", "Gagal memuat katalog buku."));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal memuat katalog buku.");
-    }
-  };
-
-  useEffect(() => {
-    fetchBooks();
-  }, []);
 
   const handleCoverChange = (file: File | null) => {
     setCoverFile(file);
@@ -55,31 +42,19 @@ export function CatalogView() {
       const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
       const legacyPrice = effectiveSellPrice({ price: buyPrice, buyPrice, sellPrice });
 
-      const created = await postJson<{ id: string }>(
-        "/api/books",
+      await createBook(
         {
           ...formData,
           price: legacyPrice,
           buyPrice,
           sellPrice,
         },
-        "Gagal mendaftarkan buku."
+        coverFile
       );
-      const newBookId = created.id;
-      if (coverFile) {
-        const coverFormData = new FormData();
-        coverFormData.append("cover", coverFile);
-        try {
-          await postForm(`/api/books/${newBookId}/cover`, coverFormData, "Buku tersimpan, tetapi upload cover gagal");
-        } catch (err) {
-          alert(err instanceof Error ? err.message : "Buku tersimpan, tetapi upload cover gagal");
-        }
-      }
       setIsAdding(false);
       setFormData({ isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 });
       setCoverFile(null);
       setCoverPreviewUrl(null);
-      fetchBooks();
     } catch (err: any) {
       alert(`Gagal mendaftarkan buku: ${err?.message || "Terjadi kesalahan koneksi"}`);
     } finally {
@@ -89,10 +64,7 @@ export function CatalogView() {
 
   const handleUploadCover = async (bookId: string, file: File) => {
     try {
-      const data = new FormData();
-      data.append("cover", file);
-      await postForm(`/api/books/${bookId}/cover`, data, "Gagal mengunggah cover buku");
-      fetchBooks();
+      await uploadCover(bookId, file);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah cover buku");
     }
@@ -140,6 +112,25 @@ export function CatalogView() {
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700">
+          <span className="font-medium">{loadError}</span>
+          <button
+            type="button"
+            onClick={loadCatalog}
+            className="shrink-0 px-3 py-1.5 font-bold bg-white border border-red-200 rounded-lg hover:bg-red-100 transition-colors active:scale-[0.98]"
+          >
+            Muat Ulang
+          </button>
+        </div>
+      )}
+
+      {isLoading && books.length === 0 && !loadError && (
+        <div className="border border-[#E4E6EB] bg-white rounded-xl p-8 text-center text-xs text-[#65676B] shadow-xs">
+          Memuat katalog buku...
+        </div>
+      )}
 
       {isAdding && (
         <form onSubmit={handleCreateBook} className="p-5 sm:p-6 border border-[#CED0D4] bg-white rounded-2xl space-y-4 max-w-2xl shadow-xl">
@@ -373,9 +364,8 @@ export function CatalogView() {
                       onClick={async () => {
                         if (window.confirm(`Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`)) {
                           try {
-                            await delJson(`/api/books/${book.id}`, "Gagal menghapus buku.");
+                            await removeBook(book.id);
                             alert(`Buku "${book.title}" berhasil dihapus.`);
-                            fetchBooks();
                           } catch (err) {
                             alert(err instanceof Error ? err.message : "Gagal menghapus buku.");
                           }
