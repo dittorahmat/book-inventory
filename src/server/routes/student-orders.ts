@@ -17,10 +17,7 @@ import { handoverPackage, resolveReturn } from "../services/order-fulfilment";
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
-  requireAuthenticatedActor,
-  resolveLocationScope,
-  resolveRequestActor,
+  requireScopedActor,
 } from "../services/access-scope";
 
 export const studentOrdersRouter = new Hono();
@@ -52,11 +49,9 @@ const resolveReturnSchema = z.object({
 // 1. GET all student orders for a school with matrix filters
 studentOrdersRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
-    const scope = new Set(resolveLocationScope(actor, c.req.query("schoolId"), locations));
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     // Scoped actors are locked to their location; central may filter or see all.
-    const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const paymentStatus = c.req.query("paymentStatus");
   const fulfillmentStatus = c.req.query("fulfillmentStatus");
   const search = c.req.query("search");
@@ -120,8 +115,7 @@ studentOrdersRouter.get("/", async (c) => {
 // 2. POST Handover Package / Generate Surat Jalan Penyerahan
 studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
 
@@ -149,8 +143,7 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
 // 3. POST Report Defective Book for Return/Exchange
 studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
     const [parentOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, body.orderId));
     if (parentOrder) {
@@ -169,15 +162,13 @@ studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async
 // 4. GET all book returns
 studentOrdersRouter.get("/returns", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
-    const scope = new Set(resolveLocationScope(actor, undefined, locations));
-    const scopedOnly = scope.size < locations.length;
+    const { scope, locations } = await requireScopedActor(db, c);
+    const scopedOnly = scope.length < locations.length;
     const returnStatus = c.req.query("status");
     const returnSearch = c.req.query("search")?.trim().toLowerCase();
     // Pencarian Partisi (§11): status + substring di dalam partisi sekolah.
     const returnConditions = [];
-    if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, [...scope]));
+    if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, scope));
     if (returnStatus && returnStatus !== "all") returnConditions.push(eq(bookReturns.status, returnStatus as any));
     if (returnSearch) {
       const pattern = `%${returnSearch}%`;
@@ -226,8 +217,7 @@ studentOrdersRouter.get("/returns", async (c) => {
 // 5. POST Resolve Book Return (Exchange from loose stock)
 studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveReturnSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const returnId = c.req.param("id");
     const body = c.req.valid("json");
 
@@ -302,8 +292,7 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
 // DELETE student order (membatalkan/menghapus pesanan siswa)
 studentOrdersRouter.delete("/:id", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
 
     const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
@@ -339,8 +328,7 @@ const discretionSchema = z.object({
 
 studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
 

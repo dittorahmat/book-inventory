@@ -8,11 +8,9 @@ import { recalcPackagePrice } from "../services/book-price";
 import {
   accessErrorResponse,
   assertLocationAllowed,
-  loadLocationIds,
-  requireAuthenticatedActor,
-  resolveLocationScope,
+  requireScopedActor,
+  requireScopedLogisticsActor,
   resolveLogisticsActor,
-  resolveRequestActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
 import { getStockPotentials } from "../services/package-stock";
@@ -52,7 +50,7 @@ import { runIdempotentSeed } from "../seed";
 // GET all packages with BOM components
 packagesRouter.get("/", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const { actor } = await requireScopedActor(db, c);
     let allPackages = await db.select().from(bookPackages);
     // Seed demo otomatis hanya untuk admin pusat; peran lain melihat daftar jujur (kosong).
     if (allPackages.length === 0 && isCentralRole(actor.role)) {
@@ -93,10 +91,7 @@ packagesRouter.get("/", async (c) => {
 // GET ready physical bundles (for transfer pickers)
 packagesRouter.get("/items/ready", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
-    const requestedSchoolId = c.req.query("schoolId");
-    const scope = new Set(resolveLocationScope(actor, requestedSchoolId, locations));
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     let rows = await db
     .select({
       id: packageItems.id,
@@ -112,7 +107,7 @@ packagesRouter.get("/items/ready", async (c) => {
     .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
     .where(eq(packageItems.status, "in_stock"));
 
-  rows = rows.filter((r: any) => scope.has(r.currentSchoolId));
+  rows = rows.filter((r: any) => scope.includes(r.currentSchoolId));
 
   return c.json({ success: true, data: rows });
   } catch (err) {
@@ -124,8 +119,7 @@ packagesRouter.get("/items/ready", async (c) => {
 // Satu-satunya pemilik agregasi potensi; endpoint per-paket di bawah mendelegasikan ke sini.
 packagesRouter.get("/stock", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const schoolId = c.req.query("schoolId");
     if (!schoolId) {
       return c.json({ success: false, message: "schoolId wajib diisi" }, 400);
@@ -142,8 +136,7 @@ packagesRouter.get("/stock", async (c) => {
 });
 packagesRouter.get("/:id/stock/:schoolId", async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const packageId = c.req.param("id");
     const schoolId = c.req.param("schoolId");
     assertLocationAllowed(actor, schoolId, locations);
@@ -218,8 +211,7 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
 // POST Assembly / Bundling (Kitting) - HANYA DI GUDANG PUSAT
 packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async (c) => {
   try {
-    const actor = await resolveLogisticsActor(c);
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const packageId = c.req.param("id");
     const { schoolId, quantity } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
@@ -249,8 +241,7 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
 // POST Disassembly / Unbundling (De-kitting)
 packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), async (c) => {
   try {
-    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const locations = await loadLocationIds(db);
+    const { actor, locations } = await requireScopedActor(db, c);
     const packageId = c.req.param("id");
     const { schoolId, quantity, reason } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
