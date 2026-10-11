@@ -15,6 +15,7 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { planVendorReturnDispose } from "../services/vendor-return";
 
 export const vendorReturnsRouter = new Hono();
 
@@ -119,12 +120,7 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
         .where(eq(bookItems.bookId, item.bookId))
         .limit(item.quantity * 2);
 
-      type BookItemDeduct = (typeof itemsToDeduct)[number];
-      const validItems = itemsToDeduct
-        .filter((bi: BookItemDeduct) => bi.status === "in_stock")
-        .slice(0, item.quantity);
-
-      for (const bi of validItems) disposeIds.push(bi.id);
+      for (const id of planVendorReturnDispose(itemsToDeduct, item.quantity)) disposeIds.push(id);
     }
 
     try {

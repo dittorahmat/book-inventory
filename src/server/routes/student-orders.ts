@@ -12,7 +12,8 @@ import {
 } from "../../db/schema";
 import { reportReturn } from "../services/return-intake";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { applyDiscretion, cancelStudentOrder, resolveReturn } from "../services/order-fulfilment";
+import { resolveReturn } from "../services/order-fulfilment";
+import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
   accessErrorResponse,

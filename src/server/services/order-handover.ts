@@ -3,14 +3,16 @@ import type { AppDatabase } from "../../db";
 import { packageItems, studentBookOrders } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock-buckets";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { checkHandoverBundle } from "./return-flow";
-import type { FulfilmentError } from "./order-fulfilment";
 
 export interface HandoverInput {
   recipientName: string;
   packageItemId?: string;
   notes?: string;
 }
+
+export type HandoverError = { ok: false; status: ContentfulStatusCode; message: string };
 
 export type HandoverResult =
   | {
@@ -24,7 +26,7 @@ export type HandoverResult =
         assignedPackageItemId: string | null;
       };
     }
-  | FulfilmentError;
+  | HandoverError;
 
 const handoverOrderPatch = (
   orderNotes: string | null,
