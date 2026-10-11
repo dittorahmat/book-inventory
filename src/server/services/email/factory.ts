@@ -27,14 +27,9 @@ export interface SmtpConfig {
 
 import { DEFAULT_BREVO_API_URL } from "./types";
 import { runWriteBatch } from "../../lib/d1-write";
+import { readSettingsMap } from "../settings-map";
 
 const isBunRuntime = (): boolean => typeof (globalThis as any).Bun !== "undefined";
-
-/** Kanonik pembaca settings: satu SELECT + Object.fromEntries. Dipakai ulang modul whatsapp. */
-export const readSettingsMap = async (database: AppDatabase): Promise<Record<string, string>> => {
-  const rows: Array<{ key: string; value: string }> = await database.select().from(systemSettings);
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
-};
 
 const pick = (envVal: string | undefined, storedVal: string | undefined, processVal: string | undefined, fallback: string): string =>
   [envVal, storedVal, processVal].find((v) => v !== undefined && v !== "") ?? fallback;

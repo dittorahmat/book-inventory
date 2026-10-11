@@ -12,9 +12,9 @@ import {
   type SatuanOverride,
 } from "../services/satuan-cutoff";
 import {
+  RealWhatsAppSender,
   getWhatsAppConfig,
   saveWhatsAppConfig,
-  sendWhatsAppMessage,
 } from "../services/whatsapp";
 import { accessErrorResponse, requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from "../services/access-scope";
 
@@ -239,7 +239,7 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
   try {
     await assertSettingsAdmin(c, "notif");
     const { phone, message } = c.req.valid("json");
-    const result = await sendWhatsAppMessage(phone, message, db);
+    const result = await new RealWhatsAppSender(db).send({ to: phone, text: message });
     if (!result.success) {
       return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
     }
