@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookItems, packageItems } from "../../db/schema";
@@ -9,9 +9,6 @@ import {
   type AllocatableCondition,
 } from "./stock-buckets";
 
-/** Re-ekspor seam kondisi agar satu perubahan status menyentuh satu modul. */
-export { ALLOCATABLE_CONDITIONS, type AllocatableCondition };
-
 export type AllocationError = { ok: false; status: ContentfulStatusCode; message: string; available?: number; needed?: number };
 export type AllocationResult<T> = { ok: true; items: T[] } | AllocationError;
 
@@ -20,7 +17,6 @@ interface LooseCandidate {
   barcode: string;
   condition: string;
   status: string;
-  createdAt: string;
 }
 
 interface PackageCandidate {
@@ -28,15 +24,14 @@ interface PackageCandidate {
   barcode: string;
   packageId: string;
   status: string;
-  createdAt: string;
 }
-
-/** Urut FIFO: createdAt terlama lebih dulu. */
-const byOldest = (a: { createdAt: string }, b: { createdAt: string }): number => a.createdAt.localeCompare(b.createdAt);
 
 /**
  * Alokasi FIFO eksemplar satuan: pilih N eksemplar tertua yang tersedia
  * di lokasi asal tanpa pengguna memilih barcode (spec: inventory-summary).
+ * FIFO + batas di SQL (ORDER BY/LIMIT): hanya N baris yang ditransfer,
+ * bukan seluruh stok lalu di-sort di JS. Hitungan total hanya di-query
+ * saat stok kurang (untuk pesan error yang tepat).
  */
 export async function allocateLooseStock(
   input: {
@@ -48,38 +43,41 @@ export async function allocateLooseStock(
   database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; condition: string }>> {
   const conditions = input.conditions ?? ALLOCATABLE_CONDITIONS;
+  const filters = and(
+    eq(bookItems.bookId, input.bookId),
+    eq(bookItems.currentSchoolId, input.schoolId),
+    inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
+    inArray(bookItems.condition, [...conditions])
+  );
   const candidates: LooseCandidate[] = await database
     .select({
       id: bookItems.id,
       barcode: bookItems.barcode,
       condition: bookItems.condition,
       status: bookItems.status,
-      createdAt: bookItems.createdAt,
     })
     .from(bookItems)
-    .where(
-      and(
-        eq(bookItems.bookId, input.bookId),
-        eq(bookItems.currentSchoolId, input.schoolId),
-        inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
-        inArray(bookItems.condition, [...conditions])
-      )
-    );
+    .where(filters)
+    .orderBy(bookItems.createdAt)
+    .limit(input.quantity);
 
-  const ordered = candidates.sort(byOldest);
-  if (ordered.length < input.quantity) {
+  if (candidates.length < input.quantity) {
+    const [{ total }] = await database
+      .select({ total: count() })
+      .from(bookItems)
+      .where(filters);
     return {
       ok: false,
       status: 400,
-      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${ordered.length}.`,
-      available: ordered.length,
+      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${total}.`,
+      available: total,
       needed: input.quantity,
     };
   }
 
   return {
     ok: true,
-    items: ordered.slice(0, input.quantity).map((r) => ({
+    items: candidates.map((r) => ({
       id: r.id,
       barcode: r.barcode,
       condition: r.condition,
@@ -96,37 +94,40 @@ export async function allocatePackages(
   },
   database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; packageId: string }>> {
+  const filters = and(
+    eq(packageItems.packageId, input.packageId),
+    eq(packageItems.currentSchoolId, input.schoolId),
+    inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
+  );
   const candidates: PackageCandidate[] = await database
     .select({
       id: packageItems.id,
       barcode: packageItems.barcode,
       packageId: packageItems.packageId,
       status: packageItems.status,
-      createdAt: packageItems.createdAt,
     })
     .from(packageItems)
-    .where(
-      and(
-        eq(packageItems.packageId, input.packageId),
-        eq(packageItems.currentSchoolId, input.schoolId),
-        inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
-      )
-    );
+    .where(filters)
+    .orderBy(packageItems.createdAt)
+    .limit(input.quantity);
 
-  const ordered = candidates.sort(byOldest);
-  if (ordered.length < input.quantity) {
+  if (candidates.length < input.quantity) {
+    const [{ total }] = await database
+      .select({ total: count() })
+      .from(packageItems)
+      .where(filters);
     return {
       ok: false,
       status: 400,
-      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${ordered.length}.`,
-      available: ordered.length,
+      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${total}.`,
+      available: total,
       needed: input.quantity,
     };
   }
 
   return {
     ok: true,
-    items: ordered.slice(0, input.quantity).map((r) => ({
+    items: candidates.map((r) => ({
       id: r.id,
       barcode: r.barcode,
       packageId: r.packageId,

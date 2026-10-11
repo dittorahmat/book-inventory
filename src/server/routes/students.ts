@@ -10,11 +10,12 @@ import {
   requireScopedActor,
 } from "../services/access-scope";
 import { checkNisTaken, importStudents, removeStudent } from "../services/student-lifecycle";
+import { idSchema } from "../lib/validators";
 
 export const studentsRouter = new Hono();
 
 const upsertStudentSchema = z.object({
-  id: z.string().min(1).optional(),
+  id: idSchema.optional(),
   schoolId: z.string().min(1, "Sekolah wajib dipilih"),
   nis: z.string().min(1, "NIS wajib diisi"),
   name: z.string().min(1, "Nama murid wajib diisi"),

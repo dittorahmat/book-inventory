@@ -9,7 +9,32 @@ import {
   purchaseOrders,
 } from "../../db/schema";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
-import type { ReceivedItemInput, ReceivePoResult } from "./po-workflow";
+
+/** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
+export interface ReceivedItemInput {
+  poItemId: string;
+  quantityToReceive: number;
+}
+
+export type ReceivePoResult =
+  | {
+      ok: true;
+      data: {
+        poId: string;
+        status: "received" | "partially_received";
+        totalReceivedThisBatch: number;
+      };
+    }
+  | {
+      ok: false;
+      status: 400;
+      message: string;
+    }
+  | {
+      ok: false;
+      status: 404;
+      message: string;
+    };
 
 export interface CreatePoReceiptInput {
   deliveryNoteNumber: string;

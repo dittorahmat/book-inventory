@@ -60,8 +60,26 @@ export interface MatchedOrder {
   handoverRecipient?: string;
 }
 
-export interface NewStudentForm {
-  schoolId: string;
+/** Baris retur sisi staf (dibagi view staf + alur portal), bukan MatchedOrder portal. */
+export interface StaffBookReturn {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  studentId: string;
+  studentName: string;
+  nis: string;
+  defectiveBookId: string;
+  bookTitle: string;
+  isbn: string;
+  reason: string;
+  photoProofUrl?: string;
+  status: "reported" | "approved" | "replaced" | "rejected";
+  replacementBookItemId?: string;
+  resolvedAt?: string;
+  createdAt: string;
+}
+
+export interface NewStudentForm {  schoolId: string;
   name: string;
   gender: "male" | "female";
   gradeLevel: string;

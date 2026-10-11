@@ -446,6 +446,9 @@ describe("Supplier Procurement & Purchase Order API", () => {
 
     const [poCheck] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
     expect(poCheck).toBeUndefined();
+    // Hapus atomik: baris anak ikut hilang bersama induk.
+    const orphanItems = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+    expect(orphanItems.length).toBe(0);
   });
 
   it("blocks deleting a purchase order that has received goods", async () => {    const stamp = Date.now();

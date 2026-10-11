@@ -7,11 +7,12 @@ import {
   DashboardHttpError,
   getDashboardSummary,
 } from "../services/dashboard-summary";
+import { idSchema } from "../lib/validators";
 
 export const dashboardRouter = new Hono();
 
 const summaryQuerySchema = z.object({
-  schoolId: z.string().min(1).optional(),
+  schoolId: idSchema.optional(),
 });
 
 dashboardRouter.get("/summary", zValidator("query", summaryQuerySchema), async (c) => {

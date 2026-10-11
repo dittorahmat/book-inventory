@@ -10,6 +10,7 @@ import {
   resolveRequestActor,
 } from "../services/access-scope";
 import { getSalesReport, salesReportToCsv } from "../services/sales-report";
+import { idSchema } from "../lib/validators";
 
 /** Laporan penjualan per periode, sekolah, dan tipe paket-vs-satuan (spec: sales-report). */
 export const salesReportRouter = new Hono();
@@ -17,7 +18,7 @@ export const salesReportRouter = new Hono();
 const reportQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal awal harus YYYY-MM-DD"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal akhir harus YYYY-MM-DD"),
-  schoolId: z.string().min(1).optional(),
+  schoolId: idSchema.optional(),
 });
 
 async function resolveReportScope(

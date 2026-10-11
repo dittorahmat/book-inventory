@@ -1,5 +1,7 @@
 import type { AppDatabase } from "../../db";
 import { systemSettings } from "../../db/schema";
+import { runWriteBatch } from "../lib/d1-write";
+import { readSettingsMap } from "./email/factory";
 
 export interface WhatsAppConfig {
   gatewayUrl: string;
@@ -9,15 +11,13 @@ export interface WhatsAppConfig {
 }
 
 export async function getWhatsAppConfig(database: AppDatabase): Promise<WhatsAppConfig> {
-  const rows = await database.select().from(systemSettings);
-  type SettingRow = (typeof rows)[number];
-  const map = new Map<string, string>(rows.map((r: SettingRow) => [r.key, r.value]));
+  const map = await readSettingsMap(database);
 
   return {
-    gatewayUrl: map.get("wa_gateway_url") ?? "",
-    apiKey: map.get("wa_api_key") ?? "",
-    senderNumber: map.get("wa_sender_number") ?? "",
-    isEnabled: map.get("wa_enabled") === "true",
+    gatewayUrl: map["wa_gateway_url"] ?? "",
+    apiKey: map["wa_api_key"] ?? "",
+    senderNumber: map["wa_sender_number"] ?? "",
+    isEnabled: map["wa_enabled"] === "true",
   };
 }
 
@@ -30,12 +30,15 @@ export async function saveWhatsAppConfig(database: AppDatabase, config: WhatsApp
     ["wa_enabled", config.isEnabled ? "true" : "false"],
   ];
 
-  for (const [key, value] of entries) {
-    await database
-      .insert(systemSettings)
-      .values({ key, value, updatedAt: now })
-      .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
-  }
+  await runWriteBatch(
+    database,
+    entries.map(([key, value]) =>
+      database
+        .insert(systemSettings)
+        .values({ key, value, updatedAt: now })
+        .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } })
+    )
+  );
 }
 
 export interface SendWhatsAppResult {
@@ -45,70 +48,127 @@ export interface SendWhatsAppResult {
   simulated?: boolean;
 }
 
+export interface WhatsAppRequest {
+  to: string;
+  text: string;
+}
+
+/**
+ * Seam pengiriman WhatsApp (cermin modul po-mail).
+ * Dua adapter: nyata (via gateway eksternal, tanpa socket in-process,
+ * aman di runtime Cloudflare Workers) vs in-memory (rekam kiriman,
+ * tanpa jaringan; kegagalan dapat diinjeksi sekali untuk test).
+ */
+export interface WhatsAppSender {
+  readonly name: string;
+  send(request: WhatsAppRequest): Promise<SendWhatsAppResult>;
+}
+
+/** Normalisasi nomor HP Indonesia (0812 -> 62812). Murni, bisa di-unit-test. */
+export const normalizeIndonesianPhone = (targetPhone: string): string => {
+  const cleanPhone = targetPhone.replace(/\D/g, "");
+  return cleanPhone.startsWith("0") ? `62${cleanPhone.slice(1)}` : cleanPhone;
+};
+
+/** Adapter nyata: gateway REST eksternal; tanpa konfigurasi berarti simulasi fail-safe. */
+export class RealWhatsAppSender implements WhatsAppSender {
+  readonly name = "real";
+
+  constructor(private readonly database: AppDatabase) {}
+
+  async send(request: WhatsAppRequest): Promise<SendWhatsAppResult> {
+    const config = await getWhatsAppConfig(this.database);
+
+    // Jika belum dikonfigurasi atau dinonaktifkan, simulasikan tanpa gagal (fail-safe)
+    if (!config.isEnabled || !config.gatewayUrl) {
+      console.info(`[WhatsApp Simulation] To: ${request.to} | Message: ${request.text.slice(0, 60)}...`);
+      return {
+        success: true,
+        simulated: true,
+        error: "WhatsApp gateway belum dikonfigurasi atau dinonaktifkan. Pesan disimulasikan.",
+      };
+    }
+
+    const cleanPhone = normalizeIndonesianPhone(request.to);
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000); // 6 detik batas timeout
+
+      const res = await fetch(config.gatewayUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          to: cleanPhone,
+          message: request.text,
+          sender: config.senderNumber || undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return {
+          success: false,
+          error: `Gateway returned status ${res.status}: ${errBody.slice(0, 150)}`,
+        };
+      }
+
+      const data: unknown = await res.json().catch(() => ({}));
+      const record = data as { id?: string; messageId?: string };
+      return {
+        success: true,
+        messageId: record?.id || record?.messageId || "sent",
+      };
+    } catch (err: unknown) {
+      const name = err instanceof Error ? err.name : "";
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        error: name === "AbortError" ? "Gateway request timeout (>6s)" : message || "Failed to reach WhatsApp gateway",
+      };
+    }
+  }
+}
+
+/** Adapter in-memory untuk test: tanpa fetch/gateway mock, kegagalan dapat diinjeksi sekali. */
+export class InMemoryWhatsAppSender implements WhatsAppSender {
+  readonly name = "in-memory";
+  readonly sent: WhatsAppRequest[] = [];
+  private failNextMessage: string | null;
+
+  constructor(opts?: { failNext?: string }) {
+    this.failNextMessage = opts?.failNext ?? null;
+  }
+
+  failOnce(message: string): void {
+    this.failNextMessage = message;
+  }
+
+  async send(request: WhatsAppRequest): Promise<SendWhatsAppResult> {
+    if (this.failNextMessage) {
+      const error = this.failNextMessage;
+      this.failNextMessage = null;
+      return { success: false, error };
+    }
+    this.sent.push(request);
+    return { success: true, messageId: `wa-mem-${this.sent.length}` };
+  }
+}
+
 /**
  * Mengirim pesan WhatsApp via external REST gateway / sidecar.
- * Berjalan aman di runtime Cloudflare Workers tanpa socket dependencies in-process.
+ * Alias tipis di atas adapter nyata untuk kompatibilitas route yang ada.
  */
 export async function sendWhatsAppMessage(
   targetPhone: string,
   messageText: string,
   database: AppDatabase
 ): Promise<SendWhatsAppResult> {
-  const config = await getWhatsAppConfig(database);
-
-  // Jika belum dikonfigurasi atau dinonaktifkan, simulasikan tanpa gagal (fail-safe)
-  if (!config.isEnabled || !config.gatewayUrl) {
-    console.info(`[WhatsApp Simulation] To: ${targetPhone} | Message: ${messageText.slice(0, 60)}...`);
-    return {
-      success: true,
-      simulated: true,
-      error: "WhatsApp gateway belum dikonfigurasi atau dinonaktifkan. Pesan disimulasikan.",
-    };
-  }
-
-  // Format nomor HP Indonesia (e.g. 0812 -> 62812)
-  let cleanPhone = targetPhone.replace(/\D/g, "");
-  if (cleanPhone.startsWith("0")) {
-    cleanPhone = "62" + cleanPhone.slice(1);
-  }
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000); // 6 detik batas timeout
-
-    const res = await fetch(config.gatewayUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        to: cleanPhone,
-        message: messageText,
-        sender: config.senderNumber || undefined,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      return {
-        success: false,
-        error: `Gateway returned status ${res.status}: ${errBody.slice(0, 150)}`,
-      };
-    }
-
-    const data = await res.json().catch(() => ({}));
-    return {
-      success: true,
-      messageId: (data as any)?.id || (data as any)?.messageId || "sent",
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.name === "AbortError" ? "Gateway request timeout (>6s)" : err.message || "Failed to reach WhatsApp gateway",
-    };
-  }
+  return new RealWhatsAppSender(database).send({ to: targetPhone, text: messageText });
 }

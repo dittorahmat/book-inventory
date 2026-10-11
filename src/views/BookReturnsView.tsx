@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
 import { getJson, postJson, buildQuery } from "../lib/api";
+import type { StaffBookReturn } from "../lib/portal-types";
 import { 
   Search, 
   RefreshCw, 
@@ -8,23 +9,7 @@ import {
   Layers
 } from "lucide-react";
 
-interface BookReturn {
-  id: string;
-  orderId: string;
-  orderNumber: string;
-  studentId: string;
-  studentName: string;
-  nis: string;
-  defectiveBookId: string;
-  bookTitle: string;
-  isbn: string;
-  reason: string;
-  photoProofUrl?: string;
-  status: "reported" | "approved" | "replaced" | "rejected";
-  replacementBookItemId?: string;
-  resolvedAt?: string;
-  createdAt: string;
-}
+type BookReturn = StaffBookReturn;
 
 interface BookReturnsViewProps {
   activeSchool: School | null;

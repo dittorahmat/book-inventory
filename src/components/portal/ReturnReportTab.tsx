@@ -123,7 +123,7 @@ export function ReturnReportTab({
             <form onSubmit={onLookupOrder} className="space-y-3">
               <div>
                 <label htmlFor="portal-return-lookup-school" className="block text-xs font-semibold text-[#050505] mb-1">
-                  Sekolah / Unit (opsional)
+                  Sekolah / Unit
                 </label>
                 <select
                   id="portal-return-lookup-school"
@@ -131,7 +131,7 @@ export function ReturnReportTab({
                   onChange={(e) => setReturnLookupSchoolId(e.target.value)}
                   className="w-full px-3 py-3 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-2xl text-xs sm:text-sm text-[#050505] transition-colors"
                 >
-                  <option value="">Semua sekolah</option>
+                  <option value="">Pilih sekolah terlebih dahulu</option>
                   {schools.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
@@ -151,7 +151,7 @@ export function ReturnReportTab({
               </div>
               <button
                 type="submit"
-                disabled={isLookingUpReturn}
+                disabled={isLookingUpReturn || !returnLookupSchoolId}
                 className="px-5 py-3 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-2xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
               >
                 {isLookingUpReturn ? "Mencari..." : "Temukan Pesanan"}

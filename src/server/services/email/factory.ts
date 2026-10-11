@@ -26,10 +26,12 @@ export interface SmtpConfig {
 }
 
 import { DEFAULT_BREVO_API_URL } from "./types";
+import { runWriteBatch } from "../../lib/d1-write";
 
 const isBunRuntime = (): boolean => typeof (globalThis as any).Bun !== "undefined";
 
-const readSettingsMap = async (database: AppDatabase): Promise<Record<string, string>> => {
+/** Kanonik pembaca settings: satu SELECT + Object.fromEntries. Dipakai ulang modul whatsapp. */
+export const readSettingsMap = async (database: AppDatabase): Promise<Record<string, string>> => {
   const rows: Array<{ key: string; value: string }> = await database.select().from(systemSettings);
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 };
@@ -114,15 +116,18 @@ export async function saveSmtpConfig(
     entries.push({ key: "brevo_api_url", value: config.brevoApiUrl, description: "Brevo HTTP API URL" });
   }
 
-  for (const entry of entries) {
-    await database
-      .insert(systemSettings)
-      .values({ ...entry, updatedAt: now })
-      .onConflictDoUpdate({
-        target: systemSettings.key,
-        set: { value: entry.value, updatedAt: now },
-      });
-  }
+  await runWriteBatch(
+    database,
+    entries.map((entry) =>
+      database
+        .insert(systemSettings)
+        .values({ ...entry, updatedAt: now })
+        .onConflictDoUpdate({
+          target: systemSettings.key,
+          set: { value: entry.value, updatedAt: now },
+        })
+    )
+  );
 }
 
 export interface ProviderSelection {
