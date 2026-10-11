@@ -52,7 +52,7 @@ async function seedBook(prefix: string) {
 async function seedPackage(prefix: string) {
   const id = `pkg-ful-${prefix}-${stamp()}`;
   await db.insert(bookPackages).values({
-    id, code: `PKG-FUL-${prefix}`, name: `Fulfil Pack ${prefix}`, gradeLevel: "1",
+    id, code: `PKG-FUL-${prefix}-${stamp()}`, name: `Fulfil Pack ${prefix}`, gradeLevel: "1",
     curriculumType: "international", academicYear: "2026/2027", price: 160000,
     createdAt: now, updatedAt: now,
   });
@@ -139,6 +139,9 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       }
 
       const assembled = await assemblePackageBundles(db, packageId, schoolId, 2);
+      if (!assembled.ok) {
+        console.error(`[flake #78] assemble kit: status=${assembled.status} message=${assembled.message}`);
+      }
       expect(assembled.ok).toBe(true);
       if (!assembled.ok) return;
       expect(assembled.data.quantityAssembled).toBe(2);
@@ -194,6 +197,9 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       );
 
       const assembled = await assemblePackageBundles(db, packageId, schoolId, 25);
+      if (!assembled.ok) {
+        console.error(`[flake #78] assemble kitbulk: status=${assembled.status} message=${assembled.message}`);
+      }
       expect(assembled.ok).toBe(true);
       if (!assembled.ok) return;
       expect(assembled.data.quantityAssembled).toBe(25);
@@ -203,6 +209,50 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
         .from(packageItems)
         .where(eq(packageItems.packageId, packageId));
       expect(bundles).toHaveLength(25);
+    } finally {
+      await db.delete(packageItems).where(eq(packageItems.currentSchoolId, schoolId));
+      await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("rakit dua kali dalam timestamp sama tidak tabrakan barcode (flake #78)", async () => {
+    const schoolId = await seedSchool("kitrace");
+    const bookId = await seedBook("kitrace");
+    const packageId = await seedPackage("kitrace");
+    const bomId = `bom-ful-${stamp()}`;
+    // Timestamp injeksi yang SAMA untuk kedua rakitan: barcode lama yang hanya
+    // dari timeFrag akan identik dan tabrakan UNIQUE; barcode baru mengikuti id baris.
+    const fixedNow = new Date().toISOString();
+    try {
+      await db.insert(bookPackageItems).values({ id: bomId, packageId, bookId, quantity: 1, createdAt: now });
+      for (let i = 0; i < 4; i++) {
+        await db.insert(bookItems).values({
+          id: `bi-race-${stamp()}-${i}`, bookId, currentSchoolId: schoolId,
+          barcode: `RACE-${stamp()}-${i}`, condition: "new", status: "in_stock",
+          createdAt: now, updatedAt: now,
+        });
+      }
+
+      const first = await assemblePackageBundles(db, packageId, schoolId, 1, { now: fixedNow });
+      expect(first.ok).toBe(true);
+      if (!first.ok) return;
+      const second = await assemblePackageBundles(db, packageId, schoolId, 1, { now: fixedNow });
+      if (!second.ok) {
+        console.error(`[flake #78] assemble race: status=${second.status} message=${second.message}`);
+      }
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+
+      const bundles = await db
+        .select({ id: packageItems.id, barcode: packageItems.barcode })
+        .from(packageItems)
+        .where(eq(packageItems.packageId, packageId));
+      expect(bundles).toHaveLength(2);
+      expect(new Set(bundles.map((b: { barcode: string }) => b.barcode)).size).toBe(2);
     } finally {
       await db.delete(packageItems).where(eq(packageItems.currentSchoolId, schoolId));
       await db.delete(bookItems).where(eq(bookItems.currentSchoolId, schoolId));

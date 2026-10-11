@@ -119,8 +119,11 @@ export async function assemblePackageBundles(
   const timeFrag = now.replace(/\D/g, "").slice(-6);
 
   for (let i = 0; i < quantity; i++) {
-    const itemBarcode = `PKG-${pkg.code}-${timeFrag}-${(i + 1).toString().padStart(3, "0")}`;
     const pItemId = newWriteId(deps);
+    // Barcode mengikuti keunikan id baris: dua rakitan paket yang sama dalam
+    // 1 ms tidak lagi tabrakan UNIQUE (flake #78 — timeFrag saja tidak cukup).
+    const idFrag = pItemId.replace(/-/g, "").slice(0, 8).padEnd(8, "0");
+    const itemBarcode = `PKG-${pkg.code}-${timeFrag}-${idFrag}-${(i + 1).toString().padStart(3, "0")}`;
     itemsToInsert.push({
       id: pItemId,
       packageId,
