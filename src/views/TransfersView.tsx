@@ -3,7 +3,6 @@ import { School } from "../types";
 import { Plus, ArrowRight, Send, CheckCircle, Trash2, Zap } from "lucide-react";
 import { LoosePicker } from "../components/transfers/LoosePicker";
 import { PackagePicker } from "../components/transfers/PackagePicker";
-import { TransferTotalBar } from "../components/transfers/TransferTotalBar";
 import { ShipmentDetailModal } from "../components/transfers/ShipmentDetailModal";
 import { useTransfers } from "../components/transfers/useTransfers";
 import { formatRupiah } from "../lib/transfer-pricing";
@@ -160,7 +159,20 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
             </div>
           </div>
 
-          <TransferTotalBar looseTotal={looseTotal} packageTotal={packageTotal} />
+          <div className="bg-[#E7F3FF] border border-[#1877F2]/20 rounded-xl px-3.5 py-2.5 space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-[#65676B] font-semibold">
+              <span>Satuan</span>
+              <span>{formatRupiah(looseTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-[#65676B] font-semibold">
+              <span>Paketan</span>
+              <span>{formatRupiah(packageTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-[#1877F2]/20">
+              <span className="text-xs font-bold text-[#050505]">Total Nilai (harga saat kirim)</span>
+              <span className="text-sm font-bold text-[#1877F2]">{formatRupiah(looseTotal + packageTotal)}</span>
+            </div>
+          </div>
 
           <div className="flex items-center justify-between pt-3 border-t border-[#E4E6EB]">
             <label className="flex items-center gap-2 cursor-pointer select-none">

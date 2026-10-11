@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { BookItem, School, TransferShipment } from "../../types";
-import { buildQuery, getJson, postJson, delJson } from "../../lib/api";
+import type { School, TransferShipment } from "../../types";
+import { getJson, postJson, delJson } from "../../lib/api";
 import {
-  buildCreateShipmentPayload,
   buildReceiveShipmentPayload,
-  calcTransferLooseTotal,
-  calcTransferPackageTotal,
-  formatRupiah,
   type ReceiptCondition,
 } from "../../lib/transfer-pricing";
-import type { ReadyBundle } from "./PackagePicker";
+import { useTransferDraft } from "./useTransferDraft";
 
 export type { ReceiptCondition } from "../../lib/transfer-pricing";
 
@@ -23,27 +19,12 @@ export interface BundleConditionPick {
   condition: ReceiptCondition;
 }
 
-const toggleIn =
-  (setter: React.Dispatch<React.SetStateAction<string[]>>) =>
-  (id: string): void =>
-    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-/** Data transfer antar-sekolah: daftar, katalog siap-kirim, seleksi, dan aksi draf/dispatch/receive. */
+/** Komposer tipis (bentuk return identik seperti sebelumnya): paruh daftar + paruh draf. */
 export function useTransfers(activeSchool: School | null) {
   const [shipments, setShipments] = useState<TransferShipment[]>([]);
   const [allSchools, setAllSchools] = useState<School[]>([]);
-  const [availableItems, setAvailableItems] = useState<BookItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [bundles, setBundles] = useState<ReadyBundle[]>([]);
-  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
-  const [destinationSchoolId, setDestinationSchoolId] = useState("");
-  const [transferReason, setTransferReason] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
   const [schoolsError, setSchoolsError] = useState<string | null>(null);
-
-  const looseTotal = calcTransferLooseTotal(selectedItems, availableItems);
-  const packageTotal = calcTransferPackageTotal(selectedPackages, bundles);
 
   const fetchShipments = useCallback(async () => {
     try {
@@ -52,26 +33,6 @@ export function useTransfers(activeSchool: School | null) {
       alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat memuat transfer");
     }
   }, []);
-
-  const loadAvailableItemsForTransfer = useCallback(async () => {
-    if (!activeSchool) return;
-    try {
-      const [loose, ready] = await Promise.all([
-        getJson<BookItem[]>(
-          buildQuery("/api/book-items", { schoolId: activeSchool.id, status: "in_stock" }),
-          "Gagal memuat stok satuan"
-        ),
-        getJson<ReadyBundle[]>(
-          buildQuery("/api/packages/items/ready", { schoolId: activeSchool.id }),
-          "Gagal memuat bundel ready"
-        ),
-      ]);
-      setAvailableItems(loose);
-      setBundles(ready);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat memuat stok");
-    }
-  }, [activeSchool]);
 
   const fetchSchools = useCallback(async () => {
     try {
@@ -97,45 +58,7 @@ export function useTransfers(activeSchool: School | null) {
     }
   }, []);
 
-  const [isInstant, setIsInstant] = useState(false);
-
-  const handleCreateShipment = useCallback(async () => {
-    if (!activeSchool || !destinationSchoolId) return;
-    let payload: ReturnType<typeof buildCreateShipmentPayload>;
-    try {
-      payload = buildCreateShipmentPayload({
-        fromSchoolId: activeSchool.id,
-        toSchoolId: destinationSchoolId,
-        bookItemIds: selectedItems,
-        packageItemIds: selectedPackages,
-        reason: transferReason,
-        instant: isInstant,
-      });
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Pilih minimal 1 buku satuan atau 1 bundel paketan");
-      return;
-    }
-    try {
-      const created = await postJson<{ shipmentNumber: string; totalDeclaredValue?: number }>(
-        "/api/shipments",
-        payload,
-        "Gagal menyimpan transfer"
-      );
-      alert(
-        isInstant
-          ? `Transfer ${created.shipmentNumber} berhasil! Stok langsung dipindahkan ke sekolah tujuan.`
-          : `Draf ${created.shipmentNumber} tersimpan! Nilai: ${formatRupiah(created.totalDeclaredValue || 0)}`
-      );
-      setIsCreating(false);
-      setIsInstant(false);
-      setSelectedItems([]);
-      setSelectedPackages([]);
-      setTransferReason("");
-      await fetchShipments();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat menyimpan transfer");
-    }
-  }, [activeSchool, destinationSchoolId, selectedItems, selectedPackages, transferReason, isInstant, fetchShipments]);
+  const draft = useTransferDraft(activeSchool, fetchShipments);
 
   const handleDispatch = useCallback(
     async (id: string) => {
@@ -199,27 +122,27 @@ export function useTransfers(activeSchool: School | null) {
     allSchools,
     schoolsError,
     fetchSchools,
-    availableItems,
-    selectedItems,
-    bundles,
-    selectedPackages,
-    destinationSchoolId,
-    setDestinationSchoolId,
-    transferReason,
-    setTransferReason,
-    isCreating,
-    setIsCreating,
-    isInstant,
-    setIsInstant,
+    availableItems: draft.availableItems,
+    selectedItems: draft.selectedItems,
+    bundles: draft.bundles,
+    selectedPackages: draft.selectedPackages,
+    destinationSchoolId: draft.destinationSchoolId,
+    setDestinationSchoolId: draft.setDestinationSchoolId,
+    transferReason: draft.transferReason,
+    setTransferReason: draft.setTransferReason,
+    isCreating: draft.isCreating,
+    setIsCreating: draft.setIsCreating,
+    isInstant: draft.isInstant,
+    setIsInstant: draft.setIsInstant,
     selectedShipment,
     setSelectedShipment,
-    looseTotal,
-    packageTotal,
-    toggleLooseItem: toggleIn(setSelectedItems),
-    togglePackageItem: toggleIn(setSelectedPackages),
+    looseTotal: draft.looseTotal,
+    packageTotal: draft.packageTotal,
+    toggleLooseItem: draft.toggleLooseItem,
+    togglePackageItem: draft.togglePackageItem,
     fetchShipments,
-    loadAvailableItemsForTransfer,
-    handleCreateShipment,
+    loadAvailableItemsForTransfer: draft.loadAvailableItemsForTransfer,
+    handleCreateShipment: draft.handleCreateShipment,
     handleDispatch,
     handleReceive,
     handleDeleteShipment,
