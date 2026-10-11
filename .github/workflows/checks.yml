@@ -38,6 +38,9 @@ jobs:
       - name: Route-test pairing gate
         run: bun run check:route-tests
 
+      - name: Validators gate
+        run: bun run check:validators
+
       - name: Production build check
         run: bun run build
 

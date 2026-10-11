@@ -58,7 +58,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    ```
    **Requirement**: Setiap kali ada penambahan fitur atau modifikasi backend & API endpoints, Anda **WAJIB** mematuhi aturan pengujian dan kompatibilitas berikut:
    - **Kompatibilitas Validasi ID (Flexible Identifier Validation)**:
-     - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `z.string().min(1)` agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4.
+      - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `idSchema` dari `src/server/lib/validators.ts` (kanonik `z.string().min(1)`) agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4 — ditegakkan oleh `bun run check:validators` dan CI; varian bermessage (pesan UX) dan field non-`*Id` dikecualikan.
      - Setiap endpoint mutasi (POST, PATCH, PUT) **wajib memiliki unit/integration test** yang memverifikasi payload dengan custom seeded string IDs maupun UUID.
    - **Sinkronisasi Skema Remote D1 vs Lokal**:
      - Setiap ada kolom atau tabel baru di `src/db/schema.ts`, migrasi remote D1 **wajib dieksekusi** dan diverifikasi (`PRAGMA table_info`) agar endpoint API di Cloudflare Worker tidak gagal dengan error SQLite `no such column` atau `no such table`.
