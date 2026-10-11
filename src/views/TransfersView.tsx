@@ -5,6 +5,7 @@ import { LoosePicker } from "../components/transfers/LoosePicker";
 import { PackagePicker } from "../components/transfers/PackagePicker";
 import { ShipmentDetailModal } from "../components/transfers/ShipmentDetailModal";
 import { useTransfers } from "../components/transfers/useTransfers";
+import { useTransferDraft } from "../components/transfers/useTransferDraft";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { getJson } from "../lib/api";
 
@@ -14,6 +15,15 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
     allSchools,
     schoolsError,
     fetchSchools,
+    selectedShipment,
+    setSelectedShipment,
+    fetchShipments,
+    handleDispatch,
+    handleReceive,
+    handleDeleteShipment,
+    openShipmentDetail,
+  } = useTransfers();
+  const {
     availableItems,
     selectedItems,
     bundles,
@@ -26,19 +36,13 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
     setIsCreating,
     isInstant,
     setIsInstant,
-    selectedShipment,
-    setSelectedShipment,
     looseTotal,
     packageTotal,
     toggleLooseItem,
     togglePackageItem,
     loadAvailableItemsForTransfer,
     handleCreateShipment,
-    handleDispatch,
-    handleReceive,
-    handleDeleteShipment,
-    openShipmentDetail,
-  } = useTransfers(activeSchool);
+  } = useTransferDraft(activeSchool, fetchShipments);
   const [transferTab, setTransferTab] = useState<"loose" | "package">("loose");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "in_transit" | "completed">("all");
 

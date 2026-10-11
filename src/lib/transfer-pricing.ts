@@ -99,17 +99,21 @@ export interface ManifestLine {
   packageItemId?: string | null;
 }
 
-export interface ConditionPick {
-  bookItemId?: string;
-  packageItemId?: string;
+export interface LooseConditionPick {
+  bookItemId: string;
+  condition: ReceiptCondition;
+}
+
+export interface BundleConditionPick {
+  packageItemId: string;
   condition: ReceiptCondition;
 }
 
 /** Perakitan payload receive-shipment yang murni; pick yang hilang default "good". */
 export function buildReceiveShipmentPayload(
   manifest: ManifestLine[],
-  loosePicks: Array<{ bookItemId: string; condition: ReceiptCondition }> = [],
-  bundlePicks: Array<{ packageItemId: string; condition: ReceiptCondition }> = []
+  loosePicks: LooseConditionPick[] = [],
+  bundlePicks: BundleConditionPick[] = []
 ): {
   itemReceipts: Array<{ bookItemId: string; condition: ReceiptCondition }>;
   packageReceipts: Array<{ packageItemId: string; condition: ReceiptCondition }>;
