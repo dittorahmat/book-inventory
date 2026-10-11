@@ -110,5 +110,3 @@ export function useTransferDraft(
     handleCreateShipment,
   };
 }
-
-export type TransferDraft = ReturnType<typeof useTransferDraft>;

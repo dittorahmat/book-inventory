@@ -99,7 +99,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`).
 
 8. **YAGNI & One-Liner Discipline (WAJIB)**
-   - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` untuk harga efektif, `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari.
+   - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` untuk harga efektif, `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari — ditegakkan oleh `bun run check:dead` (export tanpa perujuk di file lain maupun signature modulnya sendiri), pre-commit, dan CI.
    - **Prefer one-liner solutions**: guard/loop verbose yang setara **wajib** jadi `map`/`filter`/`reduce`/`??`/`||`/ternary satu baris bila tidak mengubah perilaku (contoh: `pick` → `.find(...) ?? fallback`, `readSettingsMap` → `Object.fromEntries`, toggle → `toggleIn(setter)`, 5x `return` status → hitung `open`+`reason` + single return).
   - **Pengecualian D1 (lihat §10)**: panduan "N+1 `await insert` di loop → `Promise.all`" di atas **hanya berlaku untuk query BACA independen**. Untuk query TULIS (`insert`/`update`/`delete`) ke Cloudflare D1, `Promise.all` **dilarang** — wajib sekuensial atau satu `db.batch()` atomik.
    - **Aman**: refactor penyederhanaan dilarang mengubah perilaku — public API yang dipakai route/test (`selectProviderName`, `getSmtpConfig`, `sendEmailNotification`, `resolveScope`, `DashboardHttpError`) dipertahankan sebagai alias tipis bila perlu kompatibilitas.
@@ -115,17 +115,17 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - `any` baru, `@ts-ignore` / `eslint-disable` baru, `console.log` produksi.
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
-   - Kode mati (nol pemanggil produksi, cek via `Grep` import): hapus beserta test-nya, bukan dikomentari.
+   - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
 4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai.
-5. **Verifikasi penutup** (setelah §1–§8): `bun run type-check` (nol error) → `npm run lint` → `npm run build` → `bun test` → `bun run check:file-size`.
+5. **Verifikasi penutup** (setelah §1–§8): `bun run type-check` (nol error) → `npm run lint` → `npm run build` → `bun test` → `bun run check:file-size` → `bun run check:dead`.
 
 ---
 
 ## 2. Technology Stack Standards
 
 - **Runtime & Package Manager**: [Bun](https://bun.sh/) (or Node.js fallback where applicable).
-- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan pakai `Select-String`/`Select-Object` untuk potong output.
+- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content`.
 - **Backend**: [Hono](https://hono.dev/) with TypeScript.
 - **ORM & Database**: [Drizzle ORM](https://orm.drizzle.team/) with SQLite core.
   - Initial deployment: Cloudflare D1.
@@ -148,6 +148,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
+4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel.
 
 ---
 

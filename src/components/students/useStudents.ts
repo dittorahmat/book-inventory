@@ -109,5 +109,3 @@ export function useStudents(schoolId: string | null) {
     load, save, remove, verify,
   };
 }
-
-export type StudentsState = ReturnType<typeof useStudents>;

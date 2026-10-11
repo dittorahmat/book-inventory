@@ -18,11 +18,9 @@ export type AllocatableCondition = (typeof ALLOCATABLE_CONDITIONS)[number];
 
 /** Kondisi layak rakit ke paket (kitting hanya menyerap eksemplar baru). */
 export const KITTABLE_CONDITIONS = ["new"] as const;
-export type KittableCondition = (typeof KITTABLE_CONDITIONS)[number];
 
 /** Kondisi layak pengganti retur (hanya eksemplar baru). */
 export const RETURNABLE_CONDITIONS = ["new"] as const;
-export type ReturnableCondition = (typeof RETURNABLE_CONDITIONS)[number];
 
 /** Kondisi rusak untuk aturan attention dasbor/kernel. */
 export const DAMAGED_CONDITIONS = ["damaged"] as const;

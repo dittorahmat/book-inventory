@@ -1,4 +1,5 @@
-# Quality gates: type-check, lint, ukuran file, pairing route-test, build, dan test.
+# Quality gates: type-check, lint, ukuran file, pairing route-test, validator,
+# dead-export, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -40,6 +41,9 @@ jobs:
 
       - name: Validators gate
         run: bun run check:validators
+
+      - name: Dead-export gate
+        run: bun run check:dead
 
       - name: Production build check
         run: bun run build

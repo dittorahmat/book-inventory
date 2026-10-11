@@ -45,5 +45,3 @@ export function usePortalCatalog() {
 
   return { schools, packages, satuanBooks, satuanOpen, isLoading, loadError, reload };
 }
-
-export type PortalCatalog = ReturnType<typeof usePortalCatalog>;

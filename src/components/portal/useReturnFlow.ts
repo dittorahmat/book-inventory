@@ -123,5 +123,3 @@ export function useReturnFlow(packages: BookPackageOption[]) {
     handleSubmitReturnReport, resetReturnFlow,
   };
 }
-
-export type ReturnFlowState = ReturnType<typeof useReturnFlow>;

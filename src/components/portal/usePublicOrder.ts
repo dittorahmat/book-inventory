@@ -309,5 +309,3 @@ export function usePublicOrder() {
     resetOrderFlow,
   };
 }
-
-export type PublicOrderState = ReturnType<typeof usePublicOrder>;

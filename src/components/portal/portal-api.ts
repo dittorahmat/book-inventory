@@ -71,10 +71,6 @@ export interface SatuanBookOption {
   price?: number | null;
 }
 
-/** Status keterbukaan order satuan (public, tanpa login). */
-export const fetchSatuanStatus = (): Promise<SatuanStatus> =>
-  getJson<SatuanStatus>("/api/public/orders/satuan-status", "Gagal memuat status order satuan");
-
 /** Katalog satuan; kosong saat periode tertutup. */
 export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanStatus; books: SatuanBookOption[] }> =>
   getJson("/api/public/orders/satuan-catalog", "Gagal memuat daftar buku satuan");
