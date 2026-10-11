@@ -3,6 +3,7 @@ import type { AppDatabase } from "../../db";
 import { bookItems, bookPackageItems, bookPackages, books, packageItems } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
 import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock-buckets";
+import { tallyLooseByKey, tallyPackagesByKey } from "./stock-kernel";
 
 export type { StockPotential, StockPotentialBreakdown } from "../../types/stock-summary";
 
@@ -90,8 +91,8 @@ export async function getStockPotentials(
     .from(bookPackageItems)
     .innerJoin(books, eq(bookPackageItems.bookId, books.id));
 
-  const readyRows: Array<{ packageId: string }> = await database
-    .select({ packageId: packageItems.packageId })
+  const readyRows: Array<{ packageId: string; status: string }> = await database
+    .select({ packageId: packageItems.packageId, status: packageItems.status })
     .from(packageItems)
     .where(
       and(
@@ -99,11 +100,12 @@ export async function getStockPotentials(
         inArray(packageItems.status, [...READY_BUNDLE_STATUSES])
       )
     );
-  const readyByPkg = new Map<string, number>();
-  for (const r of readyRows) readyByPkg.set(r.packageId, (readyByPkg.get(r.packageId) ?? 0) + 1);
+  // Hitung via tally kernel (sama dengan dasbor + ringkasan): definisi
+  // "siap" dan "tersedia" berubah di satu tempat.
+  const readyByPkg = tallyPackagesByKey(readyRows, (r) => r.packageId);
 
-  const looseRows: Array<{ bookId: string }> = await database
-    .select({ bookId: bookItems.bookId })
+  const looseRows: Array<{ bookId: string; status: string; condition: string }> = await database
+    .select({ bookId: bookItems.bookId, status: bookItems.status, condition: bookItems.condition })
     .from(bookItems)
     .where(
       and(
@@ -112,8 +114,7 @@ export async function getStockPotentials(
         inArray(bookItems.condition, [...KITTABLE_CONDITIONS])
       )
     );
-  const looseByBook = new Map<string, number>();
-  for (const r of looseRows) looseByBook.set(r.bookId, (looseByBook.get(r.bookId) ?? 0) + 1);
+  const looseTallies = tallyLooseByKey(looseRows, (r) => r.bookId);
 
   const bomByPkg = new Map<string, typeof bom>();
   for (const row of bom) {
@@ -126,7 +127,7 @@ export async function getStockPotentials(
     const components = bomByPkg.get(pkg.id) ?? [];
     let maxPossibleBundles = Infinity;
     const looseStockBreakdown = components.map((item) => {
-      const availableCount = looseByBook.get(item.bookId) ?? 0;
+      const availableCount = looseTallies.get(item.bookId)?.byConditionAvailable.new ?? 0;
       const canMake = Math.floor(availableCount / item.quantityNeeded);
       if (canMake < maxPossibleBundles) maxPossibleBundles = canMake;
       return {
@@ -141,7 +142,7 @@ export async function getStockPotentials(
     return {
       packageId: pkg.id,
       schoolId,
-      readyBundleCount: readyByPkg.get(pkg.id) ?? 0,
+      readyBundleCount: readyByPkg.get(pkg.id)?.readyQty ?? 0,
       maxPossibleBundles: maxPossibleBundles === Infinity ? 0 : maxPossibleBundles,
       looseStockBreakdown,
     };
