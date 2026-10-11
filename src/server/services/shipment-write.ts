@@ -1,11 +1,9 @@
 import { eq, inArray, and } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { transferShipments, transferShipmentItems, bookItems, packageItems, books, bookPackages } from "../../db/schema";
-import { calcHeaderTotal } from "../../lib/transfer-pricing";
-import { effectiveSellPrice } from "../../lib/book-pricing";
+import { transferShipments, transferShipmentItems, bookItems, packageItems } from "../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { resolveShipmentLines, type ShipmentLineInput } from "./stock-allocation";
+import { planCreateLines, type ShipmentLineInput } from "./shipment-plan";
 
 export interface CreateShipmentInput {
   fromSchoolId: string;
@@ -41,81 +39,24 @@ export async function createShipment(
   const shipmentId = crypto.randomUUID();
   const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
 
-  // Input kuantitas -> eksemplar fisik tertua (FIFO).
-  const dedupe = (a: string[], b: string[]): string[] => [...new Set([...a, ...b])];
-  let looseIds = input.bookItemIds ?? [];
-  let bundleIds = [...new Set(input.packageItemIds ?? [])];
-  if (input.items && input.items.length > 0) {
-    const resolved = await resolveShipmentLines(input.fromSchoolId, input.items, database);
-    if (!resolved.ok) return { ok: false, status: resolved.status, message: resolved.message };
-    looseIds = dedupe(looseIds, resolved.looseIds);
-    bundleIds = dedupe(bundleIds, resolved.bundleIds);
-  }
-
-  const looseSnapshots = new Map<string, number>();
-  if (looseIds.length > 0) {
-    const selectedItems = await database
-      .select()
-      .from(bookItems)
-      .where(inArray(bookItems.id, looseIds));
-
-    if (selectedItems.length !== looseIds.length) {
-      return { ok: false, status: 400, message: "Some book items do not exist" };
-    }
-
-    const invalid = selectedItems.find(
-      (item: any) => item.currentSchoolId !== input.fromSchoolId || item.status !== "in_stock"
-    );
-    if (invalid) {
-      return { ok: false, status: 400, message: `Item ${invalid.barcode} is not in stock at origin school` };
-    }
-
-    const bookIds = [...new Set(selectedItems.map((i: any) => i.bookId as string))] as string[];
-    const priceRows = await database
-      .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
-      .from(books)
-      .where(inArray(books.id, bookIds));
-    const priceMap = new Map<string, number>(priceRows.map((r: any) => [r.id as string, effectiveSellPrice(r)]));
-    selectedItems.forEach((item: any) => looseSnapshots.set(item.id, priceMap.get(item.bookId) || 0));
-  }
-
-  const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
-  if (bundleIds.length > 0) {
-    const selectedBundles = await database
-      .select()
-      .from(packageItems)
-      .where(inArray(packageItems.id, bundleIds));
-
-    if (selectedBundles.length !== bundleIds.length) {
-      return { ok: false, status: 400, message: "Some packages do not exist" };
-    }
-
-    const invalidBundle = selectedBundles.find(
-      (b: any) => b.currentSchoolId !== input.fromSchoolId || b.status !== "in_stock"
-    );
-    if (invalidBundle) {
-      return { ok: false, status: 400, message: `Package ${(invalidBundle as any).barcode} is not ready (in_stock) at origin school` };
-    }
-
-    const masterIds = [...new Set(selectedBundles.map((b: any) => b.packageId as string))] as string[];
-    const masterRows = await database.select().from(bookPackages).where(inArray(bookPackages.id, masterIds));
-    const masterMap = new Map<string, number>(masterRows.map((r: any) => [r.id as string, (r.price || 0) as number]));
-    selectedBundles.forEach((b: any) => bundleSnapshots.set(b.id, { packageId: b.packageId, snapshot: masterMap.get(b.packageId) || 0 }));
-  }
+  // Pick FIFO + validasi shippable + snapshot harga: satu rencana dari
+  // modul shipment-plan (predikat validasi = predikat pick, tak bisa drift).
+  const planned = await planCreateLines(database, input.fromSchoolId, {
+    items: input.items,
+    bookItemIds: input.bookItemIds,
+    packageItemIds: input.packageItemIds,
+  });
+  if (!planned.ok) return planned;
+  const { looseIds, bundleIds, looseSnapshots, bundleSnapshots, total } = planned.plan;
 
   // Tulis induk + anak atomik via seam lib/d1-write (batch di D1, sekuensial
-  // di bun-sqlite). Total dihitung dulu agar cukup satu INSERT shipment —
+  // di bun-sqlite). Total datang dari rencana agar cukup satu INSERT shipment —
   // tanpa update susulan + .returning() yang rapuh di D1.
   const looseLines = looseIds.map((bookItemId) => ({ bookItemId, snapshot: looseSnapshots.get(bookItemId) || 0 }));
   const bundleLines = bundleIds.flatMap((packageItemId) => {
     const meta = bundleSnapshots.get(packageItemId);
     return meta ? [{ packageItemId, meta }] : [];
   });
-  const valuedLines = [
-    ...looseLines.map((l) => ({ unitPriceSnapshot: l.snapshot, quantity: 1 })),
-    ...bundleLines.map((l) => ({ unitPriceSnapshot: l.meta.snapshot, quantity: 1 })),
-  ];
-  const total = calcHeaderTotal(valuedLines);
 
   try {
     const initialStatus = input.instant ? "completed" : "draft";
