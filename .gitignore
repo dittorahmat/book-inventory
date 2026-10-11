@@ -6,6 +6,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+tsconfig.tsbuildinfo
 
 # Database files & local SQLite data
 data/

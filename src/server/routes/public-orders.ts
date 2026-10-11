@@ -191,6 +191,8 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
 // 4. Public Lookup Order for Defect Return (by Order Number or Student NIS)
 // Pencarian partisi (ADR-0002): wajib didahului school_id terindeks + LIMIT,
 // cerminan search-students. Pencarian global tanpa sekolah dilarang (Pindai Penuh).
+// Ubah bentuk WHERE di bawah? Sinkronkan juga query "lookup-order partitioned join"
+// di scripts/explain-plan.ts agar gate check:plans tetap mengunci buktinya.
 publicOrdersRouter.get("/lookup-order", async (c) => {
   const query = c.req.query("query")?.trim();
   if (!query || query.length < 3) {
