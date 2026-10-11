@@ -12,6 +12,7 @@ import {
   assertShipmentVisible,
   requireScopedActor,
 } from "../services/access-scope";
+import { idSchema } from "../lib/validators";
 
 export const shipmentsRouter = new Hono();
 
@@ -33,8 +34,8 @@ const createShipmentSchema = z.object({
   toSchoolId: z.string().min(1, "Destination school ID required"),
   /** Input kuantitas per judul/paket; fisiknya dialokasikan otomatis FIFO. */
   items: z.array(shipmentLineSchema).default([]),
-  bookItemIds: z.array(z.string().min(1)).default([]),
-  packageItemIds: z.array(z.string().min(1)).default([]),
+  bookItemIds: z.array(idSchema).default([]),
+  packageItemIds: z.array(idSchema).default([]),
   notes: z.string().optional(),
   reason: z.string().optional(),
   instant: z.boolean().default(false),

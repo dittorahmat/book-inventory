@@ -12,7 +12,7 @@ import {
 import { deliverPurchaseOrder } from "./po-delivery";
 import type { PoMailSender } from "./po-mail";
 import type { EmailRuntimeEnv } from "./email/types";
-import { writeNow, type WriteDeps } from "../lib/d1-write";
+import { writeNow, runWriteBatch, type WriteDeps } from "../lib/d1-write";
 
 export type LifecycleDeps = WriteDeps;
 
@@ -199,7 +199,9 @@ export async function deletePurchaseOrder(
     };
   }
 
-  await database.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
-  await database.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  await runWriteBatch(database, [
+    database.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId)),
+    database.delete(purchaseOrders).where(eq(purchaseOrders.id, poId)),
+  ]);
   return { ok: true, data: { id: po.id, poNumber: po.poNumber } };
 }

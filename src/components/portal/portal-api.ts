@@ -82,10 +82,10 @@ export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanSta
 export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");
 
-export const lookupOrders = (query: string, schoolId?: string): Promise<MatchedOrder[]> =>
+export const lookupOrders = (query: string, schoolId: string): Promise<MatchedOrder[]> =>
   timed("lookup-order", () =>
     getJson<MatchedOrder[]>(
-      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId: schoolId || undefined }),
+      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId }),
       "Pesanan tidak ditemukan"
     )
   );

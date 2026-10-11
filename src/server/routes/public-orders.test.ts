@@ -95,6 +95,9 @@ describe("Public Orders & Student Search API", () => {
     expect(orderJson.data.totalAmount).toBe(1500000);
     expect(orderJson.data.paidAmount).toBe(800000);
     expect(orderJson.data.paymentStatus).toBe("partial");
+    // Notifikasi dilaporkan ke pemanggil, tidak fire-and-forget (simulasi di test).
+    expect(orderJson.data.notification).toBeDefined();
+    expect(orderJson.data.notification.success).toBe(true);
 
     // 6. Test Scholarship Order submission (100% discount, requires proof)
     const beasiswaStudentId = `st-beasiswa-${Date.now()}`;
@@ -129,8 +132,8 @@ describe("Public Orders & Student Search API", () => {
     expect(schJson.data.totalAmount).toBe(0); // 100% discount
     expect(schJson.data.paymentStatus).toBe("scholarship_pending");
 
-    // 7. Test Public Order Lookup by NIS or OrderNumber
-    const lookupRes = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent("20241001")}`, {
+    // 7. Test Public Order Lookup by NIS or OrderNumber (partitioned by schoolId)
+    const lookupRes = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent("20241001")}&schoolId=${schoolId}`, {
       method: "GET",
     });
     expect(lookupRes.status).toBe(200);
@@ -917,7 +920,7 @@ describe("Portal search partition (§11 anti full-scan)", () => {
     }
   });
 
-  it("partitions lookup-order by optional schoolId", async () => {
+  it("partitions lookup-order by required schoolId", async () => {
     const stamp = Date.now();
     const schoolA = `school-pl-${stamp}`;
     const schoolB = `school-pm-${stamp}`;
@@ -960,6 +963,11 @@ describe("Portal search partition (§11 anti full-scan)", () => {
 
       const wrongSchool = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}&schoolId=${schoolB}`);
       expect(wrongSchool.status).toBe(404);
+
+      // Tanpa schoolId: ditolak 400 (anti Pindai Penuh, ADR-0002).
+      const noSchool = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}`);
+      expect(noSchool.status).toBe(400);
+      expect((await noSchool.json()).message).toMatch(/sekolah/i);
     } finally {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-pl-${stamp}`));
       await db.delete(students).where(eq(students.id, `st-pl-${stamp}`));

@@ -94,11 +94,6 @@ export const validateSignedDoc = (file: File): SignedDocValidation =>
         ? { ok: false, message: "Format berkas bukti harus gambar (JPG, PNG, WebP) atau PDF." }
         : { ok: true, contentType: file.type };
 
-export interface ReceivedItemInput {
-  poItemId: string;
-  quantityToReceive: number;
-}
-
 export interface CreatePoItemInput {
   bookId: string;
   quantityOrdered: number;
@@ -274,23 +269,3 @@ export async function createPurchaseOrder(
     },
   };
 }
-
-export type ReceivePoResult =
-  | {
-      ok: true;
-      data: {
-        poId: string;
-        status: "received" | "partially_received";
-        totalReceivedThisBatch: number;
-      };
-    }
-  | {
-      ok: false;
-      status: 400;
-      message: string;
-    }
-  | {
-      ok: false;
-      status: 404;
-      message: string;
-    };

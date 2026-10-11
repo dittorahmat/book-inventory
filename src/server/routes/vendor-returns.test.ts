@@ -66,6 +66,70 @@ describe("Returns & RTV API Suite", () => {
     expect(json.data.returnNumber).toMatch(/^RTV-/);
   });
 
+  it("creates a 30-line bulk RTV in one atomic write-set (D1 volume regression)", async () => {
+    const stamp = Date.now();
+    const supplierId = `sup-rtv-bulk-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(suppliers).values({
+      id: supplierId,
+      code: `SUPB-${stamp}`,
+      name: "Penerbit RTV Bulk",
+      contactPerson: "Pak Bulk",
+      phone: "08129999222",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const lines: Array<{ bookId: string; quantity: number }> = [];
+    for (let i = 0; i < 30; i++) {
+      const bookId = `book-rtv-bulk-${stamp}-${i}`;
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-RTVB-${stamp}-${i}`,
+        title: `Buku Bulk ${i}`,
+        author: "Penulis",
+        publisher: "Penerbit RTV Bulk",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(bookItems).values({
+        id: `bi-rtv-bulk-${stamp}-${i}`,
+        bookId,
+        currentSchoolId: "test-warehouse",
+        barcode: `BC-RTVB-${stamp}-${i}`,
+        condition: "damaged",
+        status: "in_stock",
+        createdAt: now,
+        updatedAt: now,
+      });
+      lines.push({ bookId, quantity: 1 });
+    }
+
+    const res = await vendorReturnsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId,
+        reason: "Cacat massal dari percetakan",
+        creditNoteAmount: 3000000,
+        items: lines,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    const listRes = await vendorReturnsRouter.request("/", { method: "GET" });
+    expect(listRes.status).toBe(200);
+    const listJson = await listRes.json();
+    const created = (listJson.data as Array<{ id: string; items: unknown[] }>).find(
+      (r) => r.id === (json.data as { id: string }).id
+    );
+    expect(created?.items.length).toBe(30);
+  });
+
   it("approves parent refund and restores inventory count", async () => {
     const stamp = Date.now();
     const schoolId = `school-refund-${stamp}`;

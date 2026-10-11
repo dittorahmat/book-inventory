@@ -14,6 +14,7 @@ import {
   requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
+import { idSchema } from "../lib/validators";
 export const procurementRouter = new Hono();
 
 const createSupplierSchema = z.object({
@@ -27,7 +28,7 @@ const createSupplierSchema = z.object({
 
 const createPOSchema = z.object({
   supplierId: z.string().min(1, "Supplier wajib dipilih"),
-  targetSchoolId: z.string().min(1).optional(),
+  targetSchoolId: idSchema.optional(),
   orderDate: z.string().min(1, "Tanggal order wajib diisi"),
   expectedArrivalDate: z.string().optional(),
   notes: z.string().optional(),
@@ -47,7 +48,7 @@ const receivePOSchema = z.object({
   notes: z.string().optional(),
   receivedItems: z.array(
     z.object({
-      poItemId: z.string().min(1),
+      poItemId: idSchema,
       quantityToReceive: z.number().int().min(1),
     })
   ).min(1, "Item yang diterima wajib ada"),

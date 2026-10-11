@@ -12,9 +12,6 @@ import {
   targetReturnStatus,
 } from "./return-flow";
 
-export { RETURN_OPEN_STATUSES, checkResolveTransition, targetReturnStatus };
-export type { BundleRow, LooseRow, OrderRef } from "./return-flow";
-
 export type FulfilmentError = { ok: false; status: ContentfulStatusCode; message: string };
 
 export interface ResolveReturnInput {

@@ -717,6 +717,38 @@ describe("spec-57 T2 return-resolution unified interface", () => {
     }
   });
 
+  it("handover is deterministic with injected clock (no Date.now inside)", async () => {
+    const schoolId = await seedSchool("t2-handover-det");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("t2handoverdet");
+    const bundleId = `pi-t2-hdet-${stamp()}`;
+    const orderId = `ord-t2-hdet-${stamp()}`;
+    const fixedNow = "2026-10-11T10:00:00.000Z";
+    try {
+      await db.insert(packageItems).values({
+        id: bundleId, packageId, currentSchoolId: schoolId, barcode: `T2H-${stamp()}`,
+        status: "in_stock", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-T2-HDET-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000,
+        createdAt: now, updatedAt: now,
+      });
+      const result = await handoverPackage(db, orderId, { recipientName: "Ortu Det" }, { now: fixedNow });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.handoverDate).toBe(fixedNow);
+      expect(result.data.deliveryNumber).toBe(`SJ-SERAH-${fixedNow.replace(/\D/g, "").slice(-8)}`);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, bundleId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("cancel restores the bundle and removes returns plus order atomically", async () => {
     const schoolId = await seedSchool("t2-cancel");
     const studentId = await seedStudent(schoolId);

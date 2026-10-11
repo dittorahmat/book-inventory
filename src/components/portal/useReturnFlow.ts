@@ -27,13 +27,17 @@ export function useReturnFlow(packages: BookPackageOption[]) {
   const handleLookupOrderForReturn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (returnLookupQuery.trim().length < 3) return;
+    if (!returnLookupSchoolId) {
+      setReturnErrorMessage("Pilih sekolah terlebih dahulu untuk mencari pesanan.");
+      return;
+    }
     setIsLookingUpReturn(true);
     setReturnErrorMessage(null);
     setSelectedReturnOrder(null);
     setPackageBookList([]);
 
     try {
-      const orders = await lookupOrders(returnLookupQuery, returnLookupSchoolId || undefined);
+      const orders = await lookupOrders(returnLookupQuery, returnLookupSchoolId);
       setMatchedOrders(orders);
     } catch (err: any) {
       setReturnErrorMessage(err.message || "Gagal mencari pesanan. Periksa koneksi atau nomor pesanan.");

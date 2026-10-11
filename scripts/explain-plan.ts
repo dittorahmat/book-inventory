@@ -16,6 +16,7 @@ const QUERIES: PlannedQuery[] = [
   { name: "purchase_orders by target school", sql: "SELECT * FROM purchase_orders WHERE target_school_id = 'x'", allowScan: false },
   { name: "students by school", sql: "SELECT * FROM students WHERE school_id = 'x'", allowScan: false },
   { name: "student_book_orders by school", sql: "SELECT * FROM student_book_orders WHERE school_id = 'x'", allowScan: false },
+  { name: "lookup-order partitioned join", sql: "SELECT student_book_orders.id FROM student_book_orders INNER JOIN students ON student_book_orders.student_id = students.id INNER JOIN schools ON student_book_orders.school_id = schools.id LEFT JOIN book_packages ON student_book_orders.package_id = book_packages.id WHERE student_book_orders.school_id = 'x' AND (student_book_orders.order_number LIKE '%q%' OR students.nis LIKE '%q%' OR students.name LIKE '%q%') LIMIT 10", allowScan: false },
   { name: "transfer_shipments from/to school", sql: "SELECT * FROM transfer_shipments WHERE from_school_id = 'x' OR to_school_id = 'x'", allowScan: false },
   { name: "book_returns via scoped students", sql: "SELECT book_returns.* FROM book_returns INNER JOIN students ON book_returns.student_id = students.id WHERE students.school_id = 'x'", allowScan: false },
   { name: "book_package_items by package", sql: "SELECT * FROM book_package_items WHERE package_id IN ('a','b')", allowScan: false },

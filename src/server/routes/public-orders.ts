@@ -7,8 +7,9 @@ import { students, studentBookOrders, bookPackages, schools } from "../../db/sch
 import { getCurrentSatuanStatus, getSatuanCatalogIfOpen, getSatuanStatus } from "../services/satuan-cutoff";
 import { reportReturn } from "../services/return-intake";
 import { submitPublicOrder } from "../services/public-order";
-import { sendWhatsAppMessage } from "../services/whatsapp";
+import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { idSchema } from "../lib/validators";
 
 export const publicOrdersRouter = new Hono();
 
@@ -40,7 +41,7 @@ const looseOrderItemSchema = z.object({
 const submitOrderSchema = z
   .object({
     studentId: z.string().min(1, "Student ID wajib diisi"),
-    packageId: z.string().min(1).optional(),
+    packageId: idSchema.optional(),
     looseItems: z.array(looseOrderItemSchema).default([]),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
     scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
@@ -166,29 +167,41 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     return c.json({ success: false, message: result.message }, result.status);
   }
 
-  // Trigger notifikasi WhatsApp non-blocking ke orang tua
+  // Notifikasi WhatsApp ke orang tua: ditunggu hasilnya dan dilaporkan ke
+  // pemanggil (bukan fire-and-forget). Kegagalan notifikasi TIDAK menggagalkan
+  // pesanan yang sudah terbentuk — hanya tercatat di respons.
   const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
+  let notification: SendWhatsAppResult | null = null;
   if (st?.parentPhone) {
     const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
-    sendWhatsAppMessage(st.parentPhone, waText, db).catch((e) => console.error("[WA error]", e));
+    try {
+      notification = await new RealWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
+    } catch (e: unknown) {
+      notification = { success: false, error: e instanceof Error ? e.message : "Gagal mengirim notifikasi WhatsApp" };
+    }
   }
 
   return c.json({
     success: true,
     message: "Pesanan buku berhasil dibuat!",
-    data: result.data,
+    data: { ...result.data, notification },
   }, 201);
 });
 
 // 4. Public Lookup Order for Defect Return (by Order Number or Student NIS)
+// Pencarian partisi (ADR-0002): wajib didahului school_id terindeks + LIMIT,
+// cerminan search-students. Pencarian global tanpa sekolah dilarang (Pindai Penuh).
 publicOrdersRouter.get("/lookup-order", async (c) => {
   const query = c.req.query("query")?.trim();
   if (!query || query.length < 3) {
     return c.json({ success: false, message: "Masukkan minimal 3 karakter No. Pesanan atau NIS" }, 400);
   }
+  const lookupSchoolId = c.req.query("schoolId")?.trim();
+  if (!lookupSchoolId) {
+    return c.json({ success: false, message: "Pilih sekolah terlebih dahulu untuk mencari pesanan" }, 400);
+  }
 
-  // Find order by orderNumber or student NIS
-  const lookupSchoolId = c.req.query("schoolId")?.trim() || undefined;
+  // Find order by orderNumber or student NIS within the school partition
   const lookupMatch = or(
     like(studentBookOrders.orderNumber, `%${query}%`),
     like(students.nis, `%${query}%`),
@@ -215,12 +228,8 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))
     .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
     .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
-    .where(
-      lookupSchoolId
-        ? and(eq(studentBookOrders.schoolId, lookupSchoolId), lookupMatch)
-        : lookupMatch
-    )
-    .limit(5);
+    .where(and(eq(studentBookOrders.schoolId, lookupSchoolId), lookupMatch))
+    .limit(10);
 
   if (matchedOrders.length === 0) {
     return c.json({ success: false, message: "Pesanan buku tidak ditemukan dengan kata kunci tersebut" }, 404);

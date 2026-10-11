@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { packageItems, studentBookOrders } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock-buckets";
-import { d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { checkHandoverBundle } from "./return-flow";
 import type { FulfilmentError } from "./order-fulfilment";
 
@@ -51,9 +51,10 @@ const handoverOrderPatch = (
 export async function handoverPackage(
   database: AppDatabase,
   orderId: string,
-  input: HandoverInput
+  input: HandoverInput,
+  deps?: WriteDeps
 ): Promise<HandoverResult> {
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
   if (!order) {
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
@@ -69,7 +70,7 @@ export async function handoverPackage(
     };
   }
 
-  const deliveryNumber = `SJ-SERAH-${Date.now().toString().slice(-8)}`;
+  const deliveryNumber = `SJ-SERAH-${now.replace(/\D/g, "").slice(-8)}`;
   const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
 
   if (input.packageItemId) {

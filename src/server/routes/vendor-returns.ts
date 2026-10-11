@@ -14,6 +14,7 @@ import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 
 export const vendorReturnsRouter = new Hono();
 
@@ -99,29 +100,18 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
     const returnId = crypto.randomUUID();
     const returnNumber = `RTV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
 
-    await db.insert(vendorReturns).values({
-      id: returnId,
-      returnNumber,
-      supplierId: body.supplierId,
-      purchaseOrderId: body.purchaseOrderId || null,
-      status: "completed",
-      reason: body.reason,
-      creditNoteAmount: body.creditNoteAmount,
-      handledByUserId: null,
+    const itemRows = body.items.map((item) => ({
+      id: crypto.randomUUID(),
+      vendorReturnId: returnId,
+      bookId: item.bookId,
+      quantity: item.quantity,
+      reason: item.reason || null,
       createdAt: now,
-      updatedAt: now,
-    });
+    }));
 
+    // Kumpulkan kandidat pengurangan stok dulu (baca sekuensial), tulis belakangan atomik.
+    const disposeIds: string[] = [];
     for (const item of body.items) {
-      await db.insert(vendorReturnItems).values({
-        id: crypto.randomUUID(),
-        vendorReturnId: returnId,
-        bookId: item.bookId,
-        quantity: item.quantity,
-        reason: item.reason || null,
-        createdAt: now,
-      });
-
       // Tandai atau kurangi stok unit buku cacat/kelebihan menjadi 'damaged' atau 'disposed'
       const itemsToDeduct = await db
         .select()
@@ -134,16 +124,39 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
         .filter((bi: BookItemDeduct) => bi.status === "in_stock")
         .slice(0, item.quantity);
 
-      for (const bi of validItems) {
-        await db
-          .update(bookItems)
-          .set({
-            status: "disposed",
-            notes: `Returned to Vendor (RTV #${returnNumber})`,
-            updatedAt: now,
-          })
-          .where(eq(bookItems.id, bi.id));
-      }
+      for (const bi of validItems) disposeIds.push(bi.id);
+    }
+
+    try {
+      await runWriteBatch(db, [
+        db.insert(vendorReturns).values({
+          id: returnId,
+          returnNumber,
+          supplierId: body.supplierId,
+          purchaseOrderId: body.purchaseOrderId || null,
+          status: "completed",
+          reason: body.reason,
+          creditNoteAmount: body.creditNoteAmount,
+          handledByUserId: null,
+          createdAt: now,
+          updatedAt: now,
+        }),
+        ...chunkRows(itemRows).map((rows) => db.insert(vendorReturnItems).values(rows)),
+        ...disposeIds.map((id) =>
+          db
+            .update(bookItems)
+            .set({
+              status: "disposed",
+              notes: `Returned to Vendor (RTV #${returnNumber})`,
+              updatedAt: now,
+            })
+            .where(eq(bookItems.id, id))
+        ),
+      ]);
+    } catch (err) {
+      const mapped = d1WriteErrorStatus(err, `retur supplier ${returnNumber}`);
+      if (mapped) return c.json({ success: false, message: mapped.message }, mapped.status);
+      throw err;
     }
 
     return c.json(
