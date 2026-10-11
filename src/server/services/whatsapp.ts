@@ -54,7 +54,7 @@ export interface WhatsAppRequest {
 }
 
 /**
- * Seam pengiriman WhatsApp (cermin modul po-mail).
+ * Seam pengiriman WhatsApp (cermin seam kirim PO).
  * Dua adapter: nyata (via gateway eksternal, tanpa socket in-process,
  * aman di runtime Cloudflare Workers) vs in-memory (rekam kiriman,
  * tanpa jaringan; kegagalan dapat diinjeksi sekali untuk test).

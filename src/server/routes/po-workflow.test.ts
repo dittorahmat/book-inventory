@@ -418,7 +418,7 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   it("runs print → upload → send through one module with injected adapters and custom slug id", async () => {
     const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/po-lifecycle");
     const { createPurchaseOrder } = await import("../services/po-workflow");
-    const { InMemoryPoMailSender } = await import("../services/po-mail");
+    const { InMemoryPoMailSender } = await import("../services/po-delivery");
     const { MemoryStorageService } = await import("../../services/storage");
 
     const tag = "seam";
@@ -466,7 +466,7 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   it("maps in-memory mail failure to 502 with a clear message (no fetch mock)", async () => {
     const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/po-lifecycle");
     const { createPurchaseOrder } = await import("../services/po-workflow");
-    const { InMemoryPoMailSender } = await import("../services/po-mail");
+    const { InMemoryPoMailSender } = await import("../services/po-delivery");
     const { MemoryStorageService } = await import("../../services/storage");
 
     const tag = "fail";
