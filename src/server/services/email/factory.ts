@@ -1,4 +1,4 @@
-import { db } from "../../../db";
+import type { AppDatabase } from "../../../db";
 import { systemSettings } from "../../../db/schema";
 import { BrevoHttpProvider } from "./brevo-provider";
 import { SmtpProvider } from "./smtp-provider";
@@ -29,8 +29,10 @@ import { DEFAULT_BREVO_API_URL } from "./types";
 
 const isBunRuntime = (): boolean => typeof (globalThis as any).Bun !== "undefined";
 
-const readSettingsMap = async (): Promise<Record<string, string>> =>
-  Object.fromEntries(((await db.select().from(systemSettings)) as any[]).map((r) => [r.key, r.value]));
+const readSettingsMap = async (database: AppDatabase): Promise<Record<string, string>> => {
+  const rows: Array<{ key: string; value: string }> = await database.select().from(systemSettings);
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+};
 
 const pick = (envVal: string | undefined, storedVal: string | undefined, processVal: string | undefined, fallback: string): string =>
   [envVal, storedVal, processVal].find((v) => v !== undefined && v !== "") ?? fallback;
@@ -39,8 +41,8 @@ const pick = (envVal: string | undefined, storedVal: string | undefined, process
  * Resolusi konfigurasi email.
  * Prioritas per kunci: `env` eksplisit (Workers `c.env`) > `system_settings` > `process.env` > default.
  */
-export async function getSmtpConfig(env?: EmailRuntimeEnv): Promise<SmtpConfig> {
-  const stored = await readSettingsMap();
+export async function getSmtpConfig(database: AppDatabase, env?: EmailRuntimeEnv): Promise<SmtpConfig> {
+  const stored = await readSettingsMap(database);
   const proc = (typeof process !== "undefined" ? process.env : {}) as Record<string, string | undefined>;
 
   const providerRaw = pick(env?.EMAIL_PROVIDER, stored["email_provider"], proc["EMAIL_PROVIDER"], "auto");
@@ -86,6 +88,7 @@ export async function getSmtpConfig(env?: EmailRuntimeEnv): Promise<SmtpConfig> 
 }
 
 export async function saveSmtpConfig(
+  database: AppDatabase,
   config: Partial<SmtpConfig> & { brevoApiKey?: string }
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -112,7 +115,7 @@ export async function saveSmtpConfig(
   }
 
   for (const entry of entries) {
-    await db
+    await database
       .insert(systemSettings)
       .values({ ...entry, updatedAt: now })
       .onConflictDoUpdate({
@@ -174,10 +177,11 @@ export function selectProviderName(
 }
 
 export async function sendEmailNotification(
+  database: AppDatabase,
   options: EmailSendOptions,
   env?: EmailRuntimeEnv
 ): Promise<EmailSendResult> {
-  const config = await getSmtpConfig(env);
+  const config = await getSmtpConfig(database, env);
   const resolved: ResolvedEmailConfig = {
     providerSetting: config.provider,
     brevoApiKey: config.brevoApiKey || "",

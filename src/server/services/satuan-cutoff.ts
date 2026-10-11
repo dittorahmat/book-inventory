@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
+import type { AppDatabase } from "../../db";
 import { books, systemSettings } from "../../db/schema";
 import { currentAcademicYear, isWIBOnOrAfter, todayWIB } from "../../lib/wib-time";
 import { effectiveSellPrice } from "../../lib/book-pricing";
@@ -11,25 +11,33 @@ export type { SatuanOverride, SatuanStatus } from "../../lib/portal-types";
 export const openFromKey = (academicYear: string) => `satuan_open_from:${academicYear}`;
 export const overrideKey = (academicYear: string) => `satuan_override:${academicYear}`;
 
-const readSetting = async (key: string): Promise<string | null> => {
-  const rows = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
-  return rows[0]?.value ?? null;
-};
+const readSetting = (database: AppDatabase, key: string): Promise<string | null> =>
+  database
+    .select()
+    .from(systemSettings)
+    .where(eq(systemSettings.key, key))
+    .then((rows: Array<{ value: string }>) => rows[0]?.value ?? null);
 
-const writeSetting = async (key: string, value: string, description: string) =>
-  db.insert(systemSettings).values({ key, value, description, updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: systemSettings.key, set: { value, description, updatedAt: new Date().toISOString() } });
+const writeSetting = async (database: AppDatabase, key: string, value: string, description: string) => {
+  const now = new Date().toISOString();
+  await database
+    .insert(systemSettings)
+    .values({ key, value, description, updatedAt: now })
+    .onConflictDoUpdate({ target: systemSettings.key, set: { value, description, updatedAt: now } });
+};
 
 /**
  * Status openness order satuan untuk satu tahun ajaran.
  * Urutan evaluasi: override manual → tanggal efektif WIB → default tertutup.
  */
 export async function getSatuanStatus(
+  database: AppDatabase,
   academicYear: string,
   now: Date = new Date()
 ): Promise<SatuanStatus> {
   const today = todayWIB(now);
-  const openFrom = await readSetting(openFromKey(academicYear));
-  const rawOverride = await readSetting(overrideKey(academicYear));
+  const openFrom = await readSetting(database, openFromKey(academicYear));
+  const rawOverride = await readSetting(database, overrideKey(academicYear));
   const override: SatuanOverride | null =
     rawOverride === "open" || rawOverride === "closed" ? rawOverride : null;
 
@@ -49,38 +57,42 @@ export async function getSatuanStatus(
 
 /** Simpan tanggal efektif pembuka order satuan (format YYYY-MM-DD). */
 export async function setSatuanOpenFrom(
+  database: AppDatabase,
   academicYear: string,
   dateIso: string
 ): Promise<SatuanStatus> {
   await writeSetting(
+    database,
     openFromKey(academicYear),
     dateIso,
     `Tanggal buka order satuan tahun ajaran ${academicYear}`
   );
-  return getSatuanStatus(academicYear);
+  return getSatuanStatus(database, academicYear);
 }
 
 /** Simpan override manual; null berarti kembali ke aturan tanggal. */
 export async function setSatuanOverride(
+  database: AppDatabase,
   academicYear: string,
   override: SatuanOverride | null
 ): Promise<SatuanStatus> {
   const key = overrideKey(academicYear);
   if (override === null) {
-    await db.delete(systemSettings).where(eq(systemSettings.key, key));
+    await database.delete(systemSettings).where(eq(systemSettings.key, key));
   } else {
     await writeSetting(
+      database,
       key,
       override,
       `Override manual order satuan tahun ajaran ${academicYear}`
     );
   }
-  return getSatuanStatus(academicYear);
+  return getSatuanStatus(database, academicYear);
 }
 
 /** Status untuk tahun ajaran berjalan, dipakai form publik tanpa parameter tahun. */
-export function getCurrentSatuanStatus(now: Date = new Date()): Promise<SatuanStatus> {
-  return getSatuanStatus(currentAcademicYear(now), now);
+export function getCurrentSatuanStatus(database: AppDatabase, now: Date = new Date()): Promise<SatuanStatus> {
+  return getSatuanStatus(database, currentAcademicYear(now), now);
 }
 
 export interface SatuanCatalogBook {
@@ -105,13 +117,13 @@ export interface SatuanCatalog {
  * lalu buku di-query hanya saat terbuka — katalog basi setelah cut-off flip
  * tidak mungkin terjadi.
  */
-export async function getSatuanCatalogIfOpen(academicYear?: string): Promise<SatuanCatalog> {
+export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear?: string): Promise<SatuanCatalog> {
   const year = academicYear?.trim() || currentAcademicYear(new Date());
-  const status = await getSatuanStatus(year);
+  const status = await getSatuanStatus(database, year);
   if (!status.open) {
     return { open: false, status, books: [] };
   }
-  const rows = await db
+  const rows = await database
     .select({
       id: books.id,
       isbn: books.isbn,

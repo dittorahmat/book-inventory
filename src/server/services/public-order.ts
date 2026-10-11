@@ -120,7 +120,7 @@ export async function submitPublicOrder(
   // 2. Validasi cutoff order satuan (aturan murni; status dapat diinjeksi di test)
   const looseItems = input.looseItems ?? [];
   if (looseItems.length > 0) {
-    const cutoffCheck = validateSatuanCutoff(true, await (deps.getSatuanStatus ?? getCurrentSatuanStatus)());
+    const cutoffCheck = validateSatuanCutoff(true, await (deps.getSatuanStatus ?? (() => getCurrentSatuanStatus(database)))());
     if (!cutoffCheck.ok) return cutoffCheck;
   }
 
