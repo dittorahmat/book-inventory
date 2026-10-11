@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from "bun:test";
+import { db } from "../../db";
 import {
   getSmtpConfig,
   sendEmailNotification,
@@ -90,7 +91,7 @@ describe("Email provider selection (murni, tanpa kirim)", () => {
 describe("getSmtpConfig membaca env tiruan (prioritas env)", () => {
   it("membaca BREVO_API_KEY dari env eksplisit", async () => {
     clearEnv();
-    const config = await getSmtpConfig({ BREVO_API_KEY: "xkeysib-dari-env" });
+    const config = await getSmtpConfig(db, { BREVO_API_KEY: "xkeysib-dari-env" });
     expect(config.brevoApiKey).toBe("xkeysib-dari-env");
   });
 });
@@ -113,6 +114,7 @@ describe("sendEmailNotification via Brevo (fetch di-stub)", () => {
     }) as any;
 
     const result = await sendEmailNotification(
+      db,
       { to: "supplier@example.com", subject: "PO Test", html: "<p>PO</p>" },
       { BREVO_API_KEY: "xkeysib-test-key" }
     );
@@ -133,6 +135,7 @@ describe("sendEmailNotification via Brevo (fetch di-stub)", () => {
       })) as any;
 
     const result = await sendEmailNotification(
+      db,
       { to: "supplier@example.com", subject: "PO Test", html: "<p>PO</p>" },
       { BREVO_API_KEY: "xkeysib-salah" }
     );
@@ -146,6 +149,7 @@ describe("sendEmailNotification via Brevo (fetch di-stub)", () => {
   it("tanpa kredensial -> simulasi jujur, tidak klaim terkirim", async () => {
     clearEnv();
     const result = await sendEmailNotification(
+      db,
       { to: "supplier@example.com", subject: "PO Test", html: "<p>PO</p>" },
       {}
     );

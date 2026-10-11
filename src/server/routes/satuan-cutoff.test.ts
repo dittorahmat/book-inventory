@@ -85,7 +85,7 @@ afterAll(async () => {
 describe("Evaluasi cut-off satuan (spec: public-order-satuan)", () => {
   it("tertutup secara default bila tahun ajaran belum diatur", async () => {
     await clearSettings(FUTURE_YEAR);
-    const status = await getSatuanStatus(FUTURE_YEAR);
+    const status = await getSatuanStatus(db, FUTURE_YEAR);
     expect(status.open).toBe(false);
     expect(status.openFrom).toBeNull();
     expect(status.reason).toMatch(/belum dibuka/i);
@@ -97,11 +97,11 @@ describe("Evaluasi cut-off satuan (spec: public-order-satuan)", () => {
     const yesterday = new Date(todayMs - 86_400_000).toISOString().slice(0, 10);
     const tomorrow = new Date(todayMs + 86_400_000).toISOString().slice(0, 10);
 
-    await setSatuanOpenFrom(FUTURE_YEAR, yesterday);
-    expect((await getSatuanStatus(FUTURE_YEAR)).open).toBe(true);
+    await setSatuanOpenFrom(db, FUTURE_YEAR, yesterday);
+    expect((await getSatuanStatus(db, FUTURE_YEAR)).open).toBe(true);
 
-    await setSatuanOpenFrom(FUTURE_YEAR, tomorrow);
-    const closed = await getSatuanStatus(FUTURE_YEAR);
+    await setSatuanOpenFrom(db, FUTURE_YEAR, tomorrow);
+    const closed = await getSatuanStatus(db, FUTURE_YEAR);
     expect(closed.open).toBe(false);
     expect(closed.openFrom).toBe(tomorrow);
     expect(closed.reason).toContain(tomorrow);
@@ -110,17 +110,17 @@ describe("Evaluasi cut-off satuan (spec: public-order-satuan)", () => {
   });
 
   it("override manual mengalahkan aturan tanggal dan dapat dihapus", async () => {
-    await setSatuanOpenFrom(FUTURE_YEAR, "2090-01-01");
-    expect((await getSatuanStatus(FUTURE_YEAR)).open).toBe(false);
+    await setSatuanOpenFrom(db, FUTURE_YEAR, "2090-01-01");
+    expect((await getSatuanStatus(db, FUTURE_YEAR)).open).toBe(false);
 
-    await setSatuanOverride(FUTURE_YEAR, "open");
-    expect((await getSatuanStatus(FUTURE_YEAR)).open).toBe(true);
+    await setSatuanOverride(db, FUTURE_YEAR, "open");
+    expect((await getSatuanStatus(db, FUTURE_YEAR)).open).toBe(true);
 
-    await setSatuanOverride(FUTURE_YEAR, "closed");
-    expect((await getSatuanStatus(FUTURE_YEAR)).open).toBe(false);
+    await setSatuanOverride(db, FUTURE_YEAR, "closed");
+    expect((await getSatuanStatus(db, FUTURE_YEAR)).open).toBe(false);
 
-    await setSatuanOverride(FUTURE_YEAR, null);
-    expect((await getSatuanStatus(FUTURE_YEAR)).override).toBeNull();
+    await setSatuanOverride(db, FUTURE_YEAR, null);
+    expect((await getSatuanStatus(db, FUTURE_YEAR)).override).toBeNull();
 
     await clearSettings(FUTURE_YEAR);
   });
@@ -131,7 +131,7 @@ describe("Evaluasi cut-off satuan (spec: public-order-satuan)", () => {
     const augustFirst = new Date("2098-07-31T18:00:00.000Z");
     expect(currentAcademicYear(augustFirst)).toBe(ROLLOVER_YEAR);
 
-    const status = await getSatuanStatus(ROLLOVER_YEAR, augustFirst);
+    const status = await getSatuanStatus(db, ROLLOVER_YEAR, augustFirst);
     expect(status.todayWIB).toBe("2098-08-01");
     expect(status.open).toBe(false);
   });
@@ -170,7 +170,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
     const year = currentAcademicYear();
     await clearSettings(year);
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    await setSatuanOpenFrom(year, yesterday);
+    await setSatuanOpenFrom(db, year, yesterday);
 
     const studentId = await seedVerifiedStudent(stamp);
     const bookA = await seedBook(stamp, 45000);
@@ -264,8 +264,8 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
     const stamp = Date.now();
     const year = currentAcademicYear();
     await clearSettings(year);
-    await setSatuanOpenFrom(year, new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
-    await setSatuanOverride(year, "closed");
+    await setSatuanOpenFrom(db, year, new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
+    await setSatuanOverride(db, year, "closed");
 
     const studentId = await seedVerifiedStudent(stamp);
     const bookId = await seedBook(stamp, 25000);
@@ -393,7 +393,7 @@ describe("Katalog satuan terpadu cut-off (spec: c4-single-capability)", () => {
       expect(closed.data.open).toBe(false);
       expect(closed.data.books).toEqual([]);
 
-      await setSatuanOverride(FUTURE_YEAR, "open");
+      await setSatuanOverride(db, FUTURE_YEAR, "open");
       const openRes = await publicOrdersRouter.request(`/satuan-catalog?academicYear=${encodeURIComponent(FUTURE_YEAR)}`);
       expect(openRes.status).toBe(200);
       const opened = await openRes.json();

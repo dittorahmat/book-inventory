@@ -55,19 +55,6 @@ export default tseslint.config(
     },
   },
   {
-    // GRANDFATHERED: utang impor-db lama, hanya boleh menyusut. Modul baru
-    // wajib inject-database; sentuh file ini hanya untuk menghapus impor db.
-    // stock-summary/sales-report/whatsapp/public-order/po-delivery sudah
-    // keluar dari daftar ini via inject-database.
-    files: [
-      "src/server/services/email/factory.ts",
-      "src/server/services/satuan-cutoff.ts",
-    ],
-    rules: {
-      "no-restricted-imports": "off",
-    },
-  },
-  {
     // Data uji terisolasi: impor db langsung di test sah.
     files: ["**/*.test.ts"],
     rules: {

@@ -102,7 +102,7 @@ export async function deliverPurchaseOrder(
     notes: po.notes,
   });
 
-  const sender: PoMailSender = deps.mail ?? new RealPoMailSender(deps.env);
+  const sender: PoMailSender = deps.mail ?? new RealPoMailSender(database, deps.env);
   const result = await sender.send({ to: supplierEmail, subject, html, text });
 
   if (!result.success) {

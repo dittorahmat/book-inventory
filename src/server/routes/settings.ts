@@ -64,7 +64,7 @@ settingsRouter.get("/satuan-cutoff", async (c) => {
   try {
     await assertSettingsAdmin(c, "cutoff");
     const academicYear = c.req.query("academicYear")?.trim() || currentAcademicYear();
-    const data = await getSatuanStatus(academicYear);
+    const data = await getSatuanStatus(db, academicYear);
     return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -76,7 +76,7 @@ settingsRouter.post("/satuan-cutoff/open-from", zValidator("json", openFromSchem
   try {
     await assertSettingsAdmin(c, "cutoff");
     const { academicYear, openFrom } = c.req.valid("json");
-    const data = await setSatuanOpenFrom(academicYear, openFrom);
+    const data = await setSatuanOpenFrom(db, academicYear, openFrom);
     return c.json({
       success: true,
       message: `Order satuan tahun ajaran ${academicYear} akan terbuka mulai ${openFrom} (WIB).`,
@@ -93,7 +93,7 @@ settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema
     await assertSettingsAdmin(c, "cutoff");
     const { academicYear, override } = c.req.valid("json");
     const next: SatuanOverride | null = override === "auto" ? null : override;
-    const data = await setSatuanOverride(academicYear, next);
+    const data = await setSatuanOverride(db, academicYear, next);
     return c.json({
       success: true,
       message:
@@ -112,7 +112,7 @@ settingsRouter.get("/smtp", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
-    const config = await getSmtpConfig(env);
+    const config = await getSmtpConfig(db, env);
     const smtpConfigured = Boolean(config.password);
     const brevoConfigured = Boolean(config.brevoApiKey);
     return c.json({
@@ -136,7 +136,7 @@ settingsRouter.post("/smtp", zValidator("json", updateSmtpSchema), async (c) => 
   try {
     await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
-    await saveSmtpConfig({ ...body, provider: body.emailProvider });
+    await saveSmtpConfig(db, { ...body, provider: body.emailProvider });
     return c.json({ success: true, message: "Pengaturan email berhasil disimpan" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -150,6 +150,7 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
     const { recipientEmail } = c.req.valid("json");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
     const result = await sendEmailNotification(
+      db,
       {
         to: recipientEmail,
         subject: "Uji Coba Notifikasi Email Al Wildan School Logistics",
