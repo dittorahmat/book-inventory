@@ -103,3 +103,29 @@ export const tallyPackages = (rows: PackageCountRow[]): PackageTally => {
   rows.forEach((row) => addPackage(tally, row));
   return tally;
 };
+
+const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.set(k, mk()).get(k) as V);
+
+/**
+ * Satu-satunya bentuk group-and-tally satuan: kelompokkan baris per kunci
+ * lalu tally tiap grup. Dipakai ringkasan inventory dan dasbor agar
+ * pengelompokan per judul dan aturan hitung berubah di satu tempat.
+ */
+export const tallyLooseByKey = <T extends LooseCountRow, K>(
+  rows: T[],
+  keyOf: (row: T) => K
+): Map<K, LooseTally> => {
+  const grouped = new Map<K, LooseTally>();
+  for (const row of rows) addLoose(getOrInit(grouped, keyOf(row), newLooseTally), row);
+  return grouped;
+};
+
+/** Satu-satunya bentuk group-and-tally bundel: kelompokkan per kunci lalu tally. */
+export const tallyPackagesByKey = <T extends PackageCountRow, K>(
+  rows: T[],
+  keyOf: (row: T) => K
+): Map<K, PackageTally> => {
+  const grouped = new Map<K, PackageTally>();
+  for (const row of rows) addPackage(getOrInit(grouped, keyOf(row), newPackageTally), row);
+  return grouped;
+};

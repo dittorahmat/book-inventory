@@ -1,4 +1,4 @@
-import { inArray, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import {
@@ -7,19 +7,16 @@ import {
   studentOrderItems,
   orderPayments,
   bookPackages,
-  books,
 } from "../../db/schema";
 import { defaultStorage, type StorageService } from "../../services/storage";
 import { decodeBase64ToBytes } from "../base64";
-import { effectiveSellPrice } from "../../lib/book-pricing";
 import type { SatuanStatus } from "../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./satuan-cutoff";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { allocateLooseStock } from "./stock-allocation";
+import { reserveLooseLines, resolveLooseLines } from "./order-intake";
 import {
   derivePaymentStatus,
   grossOrderAmount,
-  validateLooseBooks,
   validateOrderLines,
   validatePackageForOrder,
   validateSatuanCutoff,
@@ -132,38 +129,19 @@ export async function submitPublicOrder(
   const pkgCheck = validatePackageForOrder(pkg, input.packageId);
   if (!pkgCheck.ok) return pkgCheck;
 
-  // 4. Baris buku satuan: ambil harga jual efektif (aturan murni)
-  const bookIds = [...new Set(looseItems.map((i) => i.bookId))];
-  const bookRows: Array<typeof books.$inferSelect> =
-    bookIds.length > 0
-      ? await database.select().from(books).where(inArray(books.id, bookIds))
-      : [];
-  const booksCheck = validateLooseBooks(bookIds, new Set(bookRows.map((b) => b.id)));
-  if (!booksCheck.ok) return booksCheck;
-  const bookMap = new Map<string, typeof books.$inferSelect>(bookRows.map((b) => [b.id, b]));
-  const looseLines = looseItems.map((item) => {
-    const book = bookMap.get(item.bookId);
-    return {
-      bookId: item.bookId,
-      title: book?.title ?? "",
-      quantity: item.quantity,
-      unitPrice: effectiveSellPrice(book ?? { price: 0 }),
-    };
-  });
+  // 4. Baris buku satuan: resolusi harga + validasi judul via modul intake bersama.
+  const resolved = await resolveLooseLines(database, looseItems);
+  if (!resolved.ok) return resolved;
+  const looseLines = resolved.lines;
 
   // 5. Bukti beasiswa (aturan murni)
   const isScholarship = input.orderType === "scholarship";
   const scholarshipCheck = validateScholarshipProof(isScholarship, input.scholarshipProofBase64);
   if (!scholarshipCheck.ok) return scholarshipCheck;
 
-  // 6. Reservasi kuantitas satuan via seam alokasi SEBELUM upload bukti.
-  for (const line of looseLines) {
-    const reservation = await allocateLooseStock(
-      { bookId: line.bookId, schoolId: student.schoolId, quantity: line.quantity },
-      database
-    );
-    if (!reservation.ok) return { ok: false, status: reservation.status, message: reservation.message };
-  }
+  // 6. Reservasi kuantitas satuan via modul intake bersama SEBELUM upload bukti.
+  const reserved = await reserveLooseLines(database, student.schoolId, looseLines);
+  if (!reserved.ok) return { ok: false, status: reserved.status, message: reserved.message };
 
   // 7. Hitung nominal order dan status pembayaran (aturan murni)
   const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);

@@ -1,7 +1,7 @@
 import type { AppDatabase } from "../../db";
 import { systemSettings } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
-import { readSettingsMap } from "./email/factory";
+import { readSettingsMap } from "./settings-map";
 
 export interface WhatsAppConfig {
   gatewayUrl: string;
@@ -54,7 +54,7 @@ export interface WhatsAppRequest {
 }
 
 /**
- * Seam pengiriman WhatsApp (cermin modul po-mail).
+ * Seam pengiriman WhatsApp (cermin seam kirim PO).
  * Dua adapter: nyata (via gateway eksternal, tanpa socket in-process,
  * aman di runtime Cloudflare Workers) vs in-memory (rekam kiriman,
  * tanpa jaringan; kegagalan dapat diinjeksi sekali untuk test).
@@ -159,16 +159,4 @@ export class InMemoryWhatsAppSender implements WhatsAppSender {
     this.sent.push(request);
     return { success: true, messageId: `wa-mem-${this.sent.length}` };
   }
-}
-
-/**
- * Mengirim pesan WhatsApp via external REST gateway / sidecar.
- * Alias tipis di atas adapter nyata untuk kompatibilitas route yang ada.
- */
-export async function sendWhatsAppMessage(
-  targetPhone: string,
-  messageText: string,
-  database: AppDatabase
-): Promise<SendWhatsAppResult> {
-  return new RealWhatsAppSender(database).send({ to: targetPhone, text: messageText });
 }

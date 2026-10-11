@@ -3,17 +3,15 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import {
   bookItems,
-  books,
   orderPayments,
   schools,
   studentBookOrders,
   studentOrderItems,
   students,
 } from "../../db/schema";
-import { effectiveSellPrice } from "../../lib/book-pricing";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { derivePaymentStatus, validateLooseBooks, validateOrderLines } from "./order-validation";
-import { allocateLooseStock } from "./stock-allocation";
+import { derivePaymentStatus, validateOrderLines } from "./order-validation";
+import { reserveLooseLines, resolveLooseLines } from "./order-intake";
 import { normalizeNis } from "./student-lifecycle";
 
 export interface DirectSaleItemInput {
@@ -67,41 +65,32 @@ export async function sellDirect(
     };
   }
 
-  const bookIds = [...new Set(input.items.map((it) => it.bookId))];
-  const bookRows =
-    bookIds.length > 0
-      ? await database
-          .select({ id: books.id, title: books.title, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
-          .from(books)
-          .where(inArray(books.id, bookIds))
-      : [];
-  const bookMap = new Map<string, { id: string; title: string; price: number; buyPrice: number; sellPrice: number }>(
-    bookRows.map((b: { id: string; title: string; price: number; buyPrice: number; sellPrice: number }) => [b.id, b])
-  );
-  const looseCheck = validateLooseBooks(bookIds, new Set(bookMap.keys()));
-  if (!looseCheck.ok) return looseCheck;
+  const resolved = await resolveLooseLines(database, input.items);
+  if (!resolved.ok) return resolved;
+  const titleByBookId = new Map(resolved.lines.map((l) => [l.bookId, l.title] as const));
 
   let totalAmount = 0;
   const saleLines: Array<{ bookId: string; quantity: number; unitPrice: number }> = [];
-  const allocatedIds: string[] = [];
-  const aggregated = new Map<string, number>();
-  for (const item of input.items) aggregated.set(item.bookId, (aggregated.get(item.bookId) ?? 0) + item.quantity);
-  for (const [bookId, quantity] of aggregated) {
-    const book = bookMap.get(bookId)!;
-    const unitPrice = effectiveSellPrice(book);
-    totalAmount += unitPrice * quantity;
-    saleLines.push({ bookId, quantity, unitPrice });
-
-    const allocated = await allocateLooseStock({ bookId, schoolId: input.schoolId, quantity }, database);
-    if (!allocated.ok) {
-      return {
-        ok: false,
-        status: 400,
-        message: `Stok satuan tidak mencukupi untuk "${book.title}". Tersedia: ${allocated.available ?? 0}, diminta: ${quantity}`,
-      };
-    }
-    allocatedIds.push(...allocated.items.map((i) => i.id));
+  const aggregated = new Map<string, { quantity: number; unitPrice: number }>();
+  for (const line of resolved.lines) {
+    const agg = aggregated.get(line.bookId) ?? { quantity: 0, unitPrice: line.unitPrice };
+    agg.quantity += line.quantity;
+    aggregated.set(line.bookId, agg);
   }
+  for (const [bookId, agg] of aggregated) {
+    totalAmount += agg.unitPrice * agg.quantity;
+    saleLines.push({ bookId, quantity: agg.quantity, unitPrice: agg.unitPrice });
+  }
+
+  const reserved = await reserveLooseLines(database, input.schoolId, resolved.lines);
+  if (!reserved.ok) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Stok satuan tidak mencukupi untuk "${titleByBookId.get(reserved.bookId) ?? reserved.bookId}". Tersedia: ${reserved.available}, diminta: ${reserved.quantity}`,
+    };
+  }
+  const allocatedIds = reserved.allocatedIds;
 
   const { totalAmount: derivedTotal, paidAmount, paymentStatus } = derivePaymentStatus({
     isScholarship: false,

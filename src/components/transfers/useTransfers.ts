@@ -3,24 +3,12 @@ import type { School, TransferShipment } from "../../types";
 import { getJson, postJson, delJson } from "../../lib/api";
 import {
   buildReceiveShipmentPayload,
-  type ReceiptCondition,
+  type BundleConditionPick,
+  type LooseConditionPick,
 } from "../../lib/transfer-pricing";
-import { useTransferDraft } from "./useTransferDraft";
 
-export type { ReceiptCondition } from "../../lib/transfer-pricing";
-
-export interface LooseConditionPick {
-  bookItemId: string;
-  condition: ReceiptCondition;
-}
-
-export interface BundleConditionPick {
-  packageItemId: string;
-  condition: ReceiptCondition;
-}
-
-/** Komposer tipis (bentuk return identik seperti sebelumnya): paruh daftar + paruh draf. */
-export function useTransfers(activeSchool: School | null) {
+/** Paruh daftar transfer: muat, rincian, dispatch, terima, hapus. Paruh draf tinggal di useTransferDraft. */
+export function useTransfers() {
   const [shipments, setShipments] = useState<TransferShipment[]>([]);
   const [allSchools, setAllSchools] = useState<School[]>([]);
   const [selectedShipment, setSelectedShipment] = useState<TransferShipment | null>(null);
@@ -57,8 +45,6 @@ export function useTransfers(activeSchool: School | null) {
       alert(err instanceof Error ? err.message : "Terjadi kesalahan jaringan saat memuat rincian transfer");
     }
   }, []);
-
-  const draft = useTransferDraft(activeSchool, fetchShipments);
 
   const handleDispatch = useCallback(
     async (id: string) => {
@@ -122,27 +108,9 @@ export function useTransfers(activeSchool: School | null) {
     allSchools,
     schoolsError,
     fetchSchools,
-    availableItems: draft.availableItems,
-    selectedItems: draft.selectedItems,
-    bundles: draft.bundles,
-    selectedPackages: draft.selectedPackages,
-    destinationSchoolId: draft.destinationSchoolId,
-    setDestinationSchoolId: draft.setDestinationSchoolId,
-    transferReason: draft.transferReason,
-    setTransferReason: draft.setTransferReason,
-    isCreating: draft.isCreating,
-    setIsCreating: draft.setIsCreating,
-    isInstant: draft.isInstant,
-    setIsInstant: draft.setIsInstant,
     selectedShipment,
     setSelectedShipment,
-    looseTotal: draft.looseTotal,
-    packageTotal: draft.packageTotal,
-    toggleLooseItem: draft.toggleLooseItem,
-    togglePackageItem: draft.togglePackageItem,
     fetchShipments,
-    loadAvailableItemsForTransfer: draft.loadAvailableItemsForTransfer,
-    handleCreateShipment: draft.handleCreateShipment,
     handleDispatch,
     handleReceive,
     handleDeleteShipment,

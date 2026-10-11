@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Send, CheckCircle } from "lucide-react";
 import type { TransferShipment } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import type { BundleConditionPick, LooseConditionPick, ReceiptCondition } from "./useTransfers";
+import type { BundleConditionPick, LooseConditionPick, ReceiptCondition } from "../../lib/transfer-pricing";
 
 interface ShipmentDetailModalProps {
   shipment: TransferShipment;

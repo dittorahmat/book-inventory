@@ -10,7 +10,7 @@ import {
   validateSignedDoc,
 } from "./po-workflow";
 import { deliverPurchaseOrder } from "./po-delivery";
-import type { PoMailSender } from "./po-mail";
+import type { PoMailSender } from "./po-delivery";
 import type { EmailRuntimeEnv } from "./email/types";
 import { writeNow, runWriteBatch, type WriteDeps } from "../lib/d1-write";
 

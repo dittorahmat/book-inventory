@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import { addLoose, addPackage, newLooseTally, newPackageTally } from "./stock-kernel";
+import { tallyLooseByKey, tallyPackagesByKey } from "./stock-kernel";
 
 export interface LooseStockSummaryRow {
   schoolId: string;
@@ -33,8 +33,6 @@ export interface PackageStockSummaryRow {
   byStatus: { in_stock: number; reserved: number; dispatched: number; delivered: number };
 }
 
-const getOrInit = <K, V>(m: Map<K, V>, k: K, mk: () => V): V => m.get(k) ?? (m.set(k, mk()).get(k) as V);
-
 /**
  * Stok satuan sebagai satu baris per judul per lokasi (spec: inventory-summary).
  * Identitas fisik per barcode tidak dikembalikan; drill-down fisik terpisah.
@@ -63,32 +61,36 @@ export async function getLooseStockSummary(
     .innerJoin(schools, eq(bookItems.currentSchoolId, schools.id))
     .where(inArray(bookItems.currentSchoolId, schoolIds));
 
-  const grouped = new Map<string, { meta: Omit<LooseStockSummaryRow, "totalQty" | "availableQty" | "inTransitQty" | "byCondition" | "byStatus">; tally: ReturnType<typeof newLooseTally> }>();
-  for (const row of rows) {
-    const entry = getOrInit(grouped, `${row.schoolId}|${row.bookId}`, () => ({
-        meta: {
-          schoolId: row.schoolId,
-          schoolName: row.schoolName,
-          bookId: row.bookId,
-          title: row.title,
-          isbn: row.isbn,
-          coverUrl: row.coverUrl,
-          sellPrice: effectiveSellPrice(row),
-        },
-        tally: newLooseTally(),
-      }));
-    addLoose(entry.tally, row);
+  type Row = (typeof rows)[number];
+  const metas = new Map<string, Omit<LooseStockSummaryRow, "totalQty" | "availableQty" | "inTransitQty" | "byCondition" | "byStatus">>();
+  for (const row of rows as Row[]) {
+    const key = `${row.schoolId}|${row.bookId}`;
+    if (!metas.has(key)) {
+      metas.set(key, {
+        schoolId: row.schoolId,
+        schoolName: row.schoolName,
+        bookId: row.bookId,
+        title: row.title,
+        isbn: row.isbn,
+        coverUrl: row.coverUrl,
+        sellPrice: effectiveSellPrice(row),
+      });
+    }
   }
+  const tallies = tallyLooseByKey(rows as Row[], (row) => `${row.schoolId}|${row.bookId}`);
 
-  return [...grouped.values()]
-    .map(({ meta, tally }) => ({
-      ...meta,
-      totalQty: tally.totalQty,
-      availableQty: tally.availableQty,
-      inTransitQty: tally.inTransitQty,
-      byCondition: tally.byConditionAll,
-      byStatus: tally.byStatus,
-    }))
+  return [...tallies.entries()]
+    .map(([key, tally]) => {
+      const meta = metas.get(key)!;
+      return {
+        ...meta,
+        totalQty: tally.totalQty,
+        availableQty: tally.availableQty,
+        inTransitQty: tally.inTransitQty,
+        byCondition: tally.byConditionAll,
+        byStatus: tally.byStatus,
+      };
+    })
     .sort(
     (a, b) => a.schoolId.localeCompare(b.schoolId) || a.title.localeCompare(b.title)
   );
@@ -118,26 +120,27 @@ export async function getPackageStockSummary(
     .innerJoin(schools, eq(packageItems.currentSchoolId, schools.id))
     .where(inArray(packageItems.currentSchoolId, schoolIds));
 
-  const grouped = new Map<string, { meta: Omit<PackageStockSummaryRow, "totalQty" | "readyQty" | "byStatus">; tally: ReturnType<typeof newPackageTally> }>();
-  for (const row of rows) {
-    const entry = getOrInit(grouped, `${row.schoolId}|${row.packageId}`, () => ({
-        meta: {
-          schoolId: row.schoolId,
-          schoolName: row.schoolName,
-          packageId: row.packageId,
-          code: row.code,
-          name: row.name,
-          gradeLevel: row.gradeLevel,
-          curriculumType: row.curriculumType,
-          price: row.price,
-        },
-        tally: newPackageTally(),
-      }));
-    addPackage(entry.tally, row);
+  type Row = (typeof rows)[number];
+  const grouped = tallyPackagesByKey(rows as Row[], (row) => `${row.schoolId}|${row.packageId}`);
+  const metas = new Map<string, Omit<PackageStockSummaryRow, "totalQty" | "readyQty" | "byStatus">>();
+  for (const row of rows as Row[]) {
+    const key = `${row.schoolId}|${row.packageId}`;
+    if (!metas.has(key)) {
+      metas.set(key, {
+        schoolId: row.schoolId,
+        schoolName: row.schoolName,
+        packageId: row.packageId,
+        code: row.code,
+        name: row.name,
+        gradeLevel: row.gradeLevel,
+        curriculumType: row.curriculumType,
+        price: row.price,
+      });
+    }
   }
 
-  return [...grouped.values()]
-    .map(({ meta, tally }) => ({ ...meta, totalQty: tally.totalQty, readyQty: tally.readyQty, byStatus: tally.byStatus }))
+  return [...grouped.entries()]
+    .map(([key, tally]) => ({ ...metas.get(key)!, totalQty: tally.totalQty, readyQty: tally.readyQty, byStatus: tally.byStatus }))
     .sort(
     (a, b) => a.schoolId.localeCompare(b.schoolId) || a.name.localeCompare(b.name)
   );

@@ -11,7 +11,8 @@ import { bookItems, bookPackages, books, packageItems, schools } from "../../db/
 import { stockSummaryRouter } from "./stock-summary";
 import { shipmentsRouter } from "./shipments";
 import { getLooseStockSummary, getPackageStockSummary } from "../services/stock-summary";
-import { allocateLooseStock, resolveShipmentLines } from "../services/stock-allocation";
+import { allocateLooseStock } from "../services/stock-allocation";
+import { planCreateLines } from "../services/shipment-plan";
 
 const iso = (offsetMinutes: number) =>
   new Date(Date.now() + offsetMinutes * 60_000).toISOString();
@@ -302,26 +303,46 @@ describe("Alokasi FIFO berbasis kuantitas (spec: inventory-summary)", () => {
     await db.delete(schools).where(eq(schools.id, locationId));
   });
 
-  it("resolveShipmentLines menggabungkan satuan dan paket dalam satu resolution", async () => {
+  it("planCreateLines menggabungkan satuan dan paket dalam satu rencana", async () => {
     const from = await seedLocation("comboFrom");
     const bookId = await seedBook("combo", 20000);
     const pkgId = await seedPackage("combo");
     await seedLooseCopies({ bookId, schoolId: from, count: 4 });
     await seedBundles(pkgId, from, 2);
 
-    const result = await resolveShipmentLines(from, [
-      { itemType: "loose", bookId, quantity: 3 },
-      { itemType: "package", packageId: pkgId, quantity: 1 },
-    ], db);
+    const result = await planCreateLines(db, from, {
+      items: [
+        { itemType: "loose", bookId, quantity: 3 },
+        { itemType: "package", packageId: pkgId, quantity: 1 },
+      ],
+    });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.looseIds).toHaveLength(3);
-      expect(result.bundleIds).toHaveLength(1);
+      expect(result.plan.looseIds).toHaveLength(3);
+      expect(result.plan.bundleIds).toHaveLength(1);
+      expect(result.plan.total).toBeGreaterThan(0);
     }
 
     await db.delete(packageItems).where(eq(packageItems.currentSchoolId, from));
     await db.delete(bookItems).where(eq(bookItems.currentSchoolId, from));
     await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, from));
+  });
+
+  it("planCreateLines menolak ID eksplisit non-shippable dengan pesan yang sama", async () => {
+    const from = await seedLocation("predFrom");
+    const bookId = await seedBook("pred", 20000);
+    const [copyId] = await seedLooseCopies({ bookId, schoolId: from, count: 1 });
+    await db.update(bookItems).set({ status: "in_transit", updatedAt: iso(0) }).where(eq(bookItems.id, copyId!));
+
+    const result = await planCreateLines(db, from, { bookItemIds: [copyId!] });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.status).toBe(400);
+    expect(result.message).toMatch(/not in stock at origin school/);
+
+    await db.delete(bookItems).where(eq(bookItems.currentSchoolId, from));
     await db.delete(books).where(eq(books.id, bookId));
     await db.delete(schools).where(eq(schools.id, from));
   });

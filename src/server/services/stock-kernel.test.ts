@@ -19,7 +19,9 @@ import {
   newLooseTally,
   newPackageTally,
   tallyLoose,
+  tallyLooseByKey,
   tallyPackages,
+  tallyPackagesByKey,
 } from "./stock-kernel";
 import { getLooseStockSummary } from "./stock-summary";
 import { dashboardRouter } from "../routes/dashboard";
@@ -66,6 +68,33 @@ describe("stock-kernel tallies", () => {
     expect(tally.totalQty).toBe(3);
     expect(tally.readyQty).toBe(1);
     expect(tally.byStatus).toEqual({ in_stock: 1, reserved: 1, dispatched: 1, delivered: 0 });
+  });
+
+  it("groups loose rows per key under the same counting rule", () => {
+    const grouped = tallyLooseByKey(
+      [
+        { bookId: "b1", status: "in_stock", condition: "new" },
+        { bookId: "b1", status: "in_transit", condition: "new" },
+        { bookId: "b2", status: "in_stock", condition: "good" },
+      ],
+      (r) => r.bookId
+    );
+    expect(grouped.get("b1")).toMatchObject({ totalQty: 2, availableQty: 1, inTransitQty: 1 });
+    expect(grouped.get("b2")).toMatchObject({ totalQty: 1, availableQty: 1, inTransitQty: 0 });
+    expect(grouped.has("b3")).toBe(false);
+  });
+
+  it("groups bundles per key under the same ready rule", () => {
+    const grouped = tallyPackagesByKey(
+      [
+        { packageId: "p1", status: "in_stock" },
+        { packageId: "p1", status: "dispatched" },
+        { packageId: "p2", status: "reserved" },
+      ],
+      (r) => r.packageId
+    );
+    expect(grouped.get("p1")).toMatchObject({ totalQty: 2, readyQty: 1 });
+    expect(grouped.get("p2")).toMatchObject({ totalQty: 1, readyQty: 0 });
   });
 });
 
