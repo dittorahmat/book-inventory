@@ -64,14 +64,14 @@ const submitOrderSchema = z
 publicOrdersRouter.get("/satuan-status", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
   const status = academicYear
-    ? await getSatuanStatus(academicYear)
-    : await getCurrentSatuanStatus();
+    ? await getSatuanStatus(db, academicYear)
+    : await getCurrentSatuanStatus(db);
   return c.json({ success: true, data: status });
 });
 
 publicOrdersRouter.get("/satuan-catalog", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
-  const catalog = await getSatuanCatalogIfOpen(academicYear || undefined);
+  const catalog = await getSatuanCatalogIfOpen(db, academicYear || undefined);
   return c.json({ success: true, data: catalog });
 });
 

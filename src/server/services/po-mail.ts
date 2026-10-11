@@ -1,5 +1,6 @@
 import type { EmailRuntimeEnv, EmailSendResult } from "./email/types";
 import { sendEmailNotification } from "./email/factory";
+import type { AppDatabase } from "../../db";
 
 export interface PoMailRequest {
   to: string;
@@ -20,10 +21,14 @@ export interface PoMailSender {
 /** Adapter nyata: Brevo/SMTP/simulasi sesuai env, dipakai route production. */
 export class RealPoMailSender implements PoMailSender {
   readonly name = "real";
-  constructor(private readonly env?: EmailRuntimeEnv) {}
+  constructor(
+    private readonly database: AppDatabase,
+    private readonly env?: EmailRuntimeEnv
+  ) {}
 
   send(request: PoMailRequest): Promise<EmailSendResult> {
     return sendEmailNotification(
+      this.database,
       { to: request.to, subject: request.subject, html: request.html, text: request.text },
       this.env
     );
