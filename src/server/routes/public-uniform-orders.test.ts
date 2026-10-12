@@ -133,7 +133,9 @@ describe("Portal seragam publik", () => {
     });
     expect(first.status).toBe(201);
     const firstNo = (await first.json()).data.order.orderNumber as string;
-    expect(firstNo.startsWith("USO-")).toBe(true);
+    // Sengaja agnostik prefix (default USO, customizable via settings):
+    // assertion literal "USO-" rapuh terhadap test lain yang memutar prefix.
+    expect(/^[A-Z0-9-]+-/.test(firstNo)).toBe(true);
 
     const noSize = await postPublic("/orders", {
       studentId, academicYear: "2026/2027", homeAddress: addr, items: [{ packageId: pkgId }],
