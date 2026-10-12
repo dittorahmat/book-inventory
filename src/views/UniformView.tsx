@@ -5,6 +5,7 @@ import { isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { UniformShipmentSection } from "../components/uniform/UniformShipmentSection";
 import { UniformCatalogSection } from "../components/uniform/UniformCatalogSection";
 import { UniformReturnsSection } from "../components/uniform/UniformReturnsSection";
+import { UniformReportSection } from "../components/uniform/UniformReportSection";
 
 interface UniformViewProps {
   schools: School[];
@@ -15,7 +16,7 @@ interface UniformViewProps {
 
 export function UniformView({ schools, activeSchool, userRole, userSchoolId }: UniformViewProps) {
   const logistics = isLogisticsRole(userRole);
-  const [section, setSection] = useState<"kirim" | "katalog" | "retur">("kirim");
+  const [section, setSection] = useState<"kirim" | "katalog" | "retur" | "laporan">("kirim");
   const lockedSchoolId = logistics ? (activeSchool?.id ?? null) : (userSchoolId ?? null);
 
   return (
@@ -54,11 +55,19 @@ export function UniformView({ schools, activeSchool, userRole, userSchoolId }: U
         >
           Tukar & Refund
         </button>
+        <button
+          type="button"
+          onClick={() => setSection("laporan")}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${section === "laporan" ? "bg-white text-[#1877F2] shadow-xs" : "text-[#65676B] hover:text-[#050505]"}`}
+        >
+          Laporan
+        </button>
       </div>
 
       {section === "kirim" && <UniformShipmentSection schools={schools} lockedSchoolId={lockedSchoolId} />}
       {section === "katalog" && logistics && <UniformCatalogSection />}
       {section === "retur" && <UniformReturnsSection schools={schools} lockedSchoolId={lockedSchoolId} logistics={logistics} />}
+      {section === "laporan" && <UniformReportSection schools={schools} lockedSchoolId={lockedSchoolId} logistics={logistics} />}
     </div>
   );
 }

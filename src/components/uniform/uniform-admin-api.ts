@@ -99,3 +99,29 @@ export const requestUniformRefund = (payload: unknown): Promise<unknown> =>
 
 export const resolveUniformRefund = (id: string, action: "approve" | "refund" | "reject"): Promise<unknown> =>
   postJson(`/api/uniforms/refunds/${id}/resolve`, { action }, "Gagal memproses refund.");
+
+export interface UniformSalesReport {
+  period: { from: string; to: string };
+  totals: { orderCount: number; studentCount: number; quantity: number; revenue: number };
+  rows: Array<{
+    schoolId: string; schoolName: string; jenjang: string; size: string;
+    orderCount: number; studentCount: number; quantity: number; revenue: number;
+  }>;
+}
+
+export const fetchUniformSalesReport = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string }): Promise<UniformSalesReport> =>
+  getJson<UniformSalesReport>(buildQuery("/api/uniforms/reports/sales", params), "Gagal memuat laporan seragam.");
+
+export interface UniformClaimRow {
+  id: string; claimNumber: string; schoolId: string; period: string;
+  status: "draft" | "locked"; totalQty: number; totalAmount: number; lockedAt: string | null;
+}
+
+export const fetchUniformClaims = (schoolId?: string): Promise<UniformClaimRow[]> =>
+  getJson<UniformClaimRow[]>(buildQuery("/api/uniforms/claims", { schoolId }), "Gagal memuat klaim.");
+
+export const createUniformClaim = (schoolId: string, period: string): Promise<UniformClaimRow> =>
+  postJson<UniformClaimRow>("/api/uniforms/claims", { schoolId, period }, "Gagal membuat klaim.");
+
+export const lockUniformClaim = (id: string): Promise<UniformClaimRow> =>
+  postJson<UniformClaimRow>(`/api/uniforms/claims/${id}/lock`, {}, "Gagal mengunci klaim.");

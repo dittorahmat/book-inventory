@@ -333,3 +333,122 @@ describe("Uniform exchange & refund", () => {
     expect(cross.status).toBe(403);
   });
 });
+
+describe("Uniform sales report & claims", () => {
+  it("murid unik, urai paket, klaim terkunci", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const period = now.slice(0, 7);
+    const schoolId = `sch-rp-${stamp}`;
+    await db.insert(schools).values({ id: schoolId, name: `Sekolah RP-${stamp}`, code: `RP-${stamp}`, type: "branch", createdAt: now, updatedAt: now });
+    const mkStudent = async (id: string, grade: string) =>
+      db.insert(students).values({
+        id, schoolId, nis: `NIS-${id}`, name: `Anak ${id}`, gender: "male", gradeLevel: grade,
+        curriculumType: "international", academicYear: "2026/2027",
+        parentName: "Ortu", parentPhone: "081200000003", status: "active", createdAt: now, updatedAt: now,
+      });
+    await mkStudent(`stu-rp1-${stamp}`, "2");
+    await mkStudent(`stu-rp2-${stamp}`, "5");
+    const mkVariant = async (code: string, kind: "kain_harian" | "olahraga", price: number) => {
+      const res = await uniformsRouter.request("/variants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code, name: code, kind, gender: "male", jenjang: "sd",
+          academicYear: "2026/2027", price, sizes: kind === "olahraga" ? ["M", "L"] : [],
+        }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json()).data.variant.id as string;
+    };
+    const kainId = await mkVariant(`UK-RP-${stamp}`, "kain_harian", 120000);
+    const olId = await mkVariant(`UO-RP-${stamp}`, "olahraga", 95000);
+    await db.update(uniformStock).set({ quantity: 10, updatedAt: now }).where(and(eq(uniformStock.variantId, kainId), eq(uniformStock.size, "—")));
+    await db.update(uniformStock).set({ quantity: 10, updatedAt: now }).where(and(eq(uniformStock.variantId, olId), eq(uniformStock.size, "M")));
+
+    const pkgRes = await uniformsRouter.request("/packages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `UPK-RP-${stamp}`, name: "Paket RP", academicYear: "2026/2027", price: 215000,
+        items: [{ variantId: kainId }, { variantId: olId }],
+      }),
+    });
+    expect(pkgRes.status).toBe(201);
+    const pkgId = (await pkgRes.json()).data.id as string;
+    const asm = await uniformsRouter.request(`/packages/${pkgId}/assemble`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: 5, sizeOverrides: { [olId]: "M" } }),
+    });
+    expect(asm.status).toBe(200);
+
+    const addr = "Jl. Laporan No. 1, RT 01 RW 01, Depok 16413";
+    const o1 = await submitUniformOrder(db, {
+      studentId: `stu-rp1-${stamp}`, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: kainId }, { variantId: olId, size: "M" }],
+    }, { generateOrderNumber: () => `USO-RP1-${stamp}` });
+    const o2 = await submitUniformOrder(db, {
+      studentId: `stu-rp1-${stamp}`, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ packageId: pkgId }],
+      sizeOverrides: { [olId]: "M" },
+    }, { generateOrderNumber: () => `USO-RP2-${stamp}` });
+    const o3 = await submitUniformOrder(db, {
+      studentId: `stu-rp2-${stamp}`, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: olId, size: "M", quantity: 2 }],
+    }, { generateOrderNumber: () => `USO-RP3-${stamp}` });
+    if (!o1.ok || !o2.ok || !o3.ok) throw new Error("setup order laporan gagal");
+    const expectedRevenue = o1.data.totalAmount + o2.data.totalAmount + o3.data.totalAmount;
+
+    const rep = await uniformsRouter.request(
+      `/reports/sales?schoolId=${schoolId}&from=${period}-01&to=${now.slice(0, 10)}`, { method: "GET" }
+    );
+    expect(rep.status).toBe(200);
+    const report = (await rep.json()).data as {
+      totals: { orderCount: number; studentCount: number; quantity: number; revenue: number };
+      rows: Array<{ jenjang: string; size: string; orderCount: number; studentCount: number; quantity: number; revenue: number }>;
+    };
+    expect(report.totals.orderCount).toBe(3);
+    expect(report.totals.studentCount).toBe(2);
+    expect(report.totals.revenue).toBe(expectedRevenue);
+    const kainRow = report.rows.find((r) => r.size === "—");
+    expect(kainRow?.quantity).toBe(2);
+    const mRow = report.rows.find((r) => r.size === "M");
+    expect(mRow?.quantity).toBe(4);
+    expect(report.rows.every((r) => r.jenjang === "sd")).toBe(true);
+
+    const filtered = await uniformsRouter.request(
+      `/reports/sales?schoolId=${schoolId}&from=${period}-01&to=${now.slice(0, 10)}&jenjang=sma`, { method: "GET" }
+    );
+    expect(((await filtered.json()).data.rows as unknown[]).length).toBe(0);
+
+    const cl = await uniformsRouter.request("/claims", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, period }),
+    });
+    expect(cl.status).toBe(201);
+    const claim = (await cl.json()).data as { id: string; claimNumber: string; totalQty: number; totalAmount: number; status: string };
+    expect(claim.claimNumber.startsWith("CLM-")).toBe(true);
+    expect(claim.totalQty).toBe(5);
+    expect(claim.totalAmount).toBe(expectedRevenue);
+
+    const dup = await uniformsRouter.request("/claims", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, period }),
+    });
+    expect(dup.status).toBe(400);
+
+    const lock = await uniformsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    expect(lock.status).toBe(200);
+    expect((await lock.json()).data.status).toBe("locked");
+    const lockAgain = await uniformsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    expect(lockAgain.status).toBe(400);
+
+    mockActor("branch_admin", schoolId);
+    const branchClaims = await uniformsRouter.request(`/claims?schoolId=${schoolId}`, { method: "GET" });
+    expect(branchClaims.status).toBe(200);
+    expect(((await branchClaims.json()).data as unknown[]).length).toBe(1);
+  });
+});
