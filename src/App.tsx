@@ -42,6 +42,7 @@ export function App() {
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
+  const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
@@ -103,6 +104,7 @@ export function App() {
         {seedNotice && <SeedNotice message={seedNotice} />}
         <PublicOrderView
           onNavigateToStaffLogin={() => setShowStaffLogin(true)}
+          initialTab={isDirectUniformUrl ? "uniform" : undefined}
         />
       </div>
     );

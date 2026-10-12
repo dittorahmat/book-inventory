@@ -9,6 +9,7 @@ import { usersRouter } from "./routes/users";
 import { demoRouter } from "./routes/demo";
 import { packagesRouter } from "./routes/packages";
 import { publicOrdersRouter } from "./routes/public-orders";
+import { publicUniformOrdersRouter } from "./routes/public-uniform-orders";
 import { studentsRouter } from "./routes/students";
 import { paymentsRouter } from "./routes/payments";
 import { studentOrdersRouter } from "./routes/student-orders";
@@ -80,6 +81,7 @@ app.get("/api/media/*", async (c) => {
 });
 
 app.route("/api/public/orders", publicOrdersRouter);
+app.route("/api/public/uniform-orders", publicUniformOrdersRouter);
 app.route("/api/students", studentsRouter);
 app.route("/api/student-orders", studentOrdersRouter);
 app.route("/api/dashboard", dashboardRouter);

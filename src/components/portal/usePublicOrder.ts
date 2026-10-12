@@ -16,7 +16,7 @@ import type {
 } from "../../lib/portal-types";
 
 export type OrderStep = 1 | 2 | 3 | 4;
-export type PortalTab = "order" | "return";
+export type PortalTab = "order" | "return" | "uniform";
 
 export const PORTAL_STUDENT_SEARCH_INPUT_ID = "portal-student-search-input";
 
@@ -46,8 +46,8 @@ const EMPTY_NEW_STUDENT: NewStudentForm = {
   parentPhone: "",
 };
 
-export function usePublicOrder() {
-  const [activePortalTab, setActivePortalTab] = useState<PortalTab>("order");
+export function usePublicOrder(initialTab: PortalTab = "order") {
+  const [activePortalTab, setActivePortalTab] = useState<PortalTab>(initialTab);
 
   // Katalog server: milik usePortalCatalog, dipakai bersama alur retur.
   const catalog = usePortalCatalog();
