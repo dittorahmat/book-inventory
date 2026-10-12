@@ -136,33 +136,38 @@ export async function runIdempotentSeed(customDb?: any) {
         updatedAt: new Date(),
       }).onConflictDoNothing();
 
-      // For Better-Auth credential accounts:
+      // For Better-Auth credential accounts: accountId WAJIB user id —
+      // sign-in mencocokkan accountId === user.id (bukan email); baris
+      // ber-accountId email tak pernah ketemu → 401 permanen (Okt 2026).
       await targetDb.insert(accounts).values({
         id: `acc-${u.id}`,
         userId: u.id,
-        accountId: u.email,
+        accountId: u.id,
         providerId: "credential",
         password: demoPasswordHash,
         createdAt: new Date(),
         updatedAt: new Date(),
       }).onConflictDoNothing();
 
-      // Self-healing: baris stub warisan (tak terverifikasi) diganti hash asli.
+      // Self-healing: stub warisan (tak terverifikasi) diganti hash asli,
+      // dan accountId email warisan dipetakan ke user id.
       const [existing] = await targetDb
-        .select({ password: accounts.password })
+        .select({ accountId: accounts.accountId, password: accounts.password })
         .from(accounts)
         .where(eq(accounts.id, `acc-${u.id}`));
-      if (existing?.password) {
+      if (existing) {
         let valid = false;
         try {
-          valid = await verifyPassword({ hash: existing.password, password: "password123" });
+          valid = existing.password
+            ? await verifyPassword({ hash: existing.password, password: "password123" })
+            : false;
         } catch {
           valid = false;
         }
-        if (!valid) {
+        if (!valid || existing.accountId !== u.id) {
           await targetDb
             .update(accounts)
-            .set({ password: demoPasswordHash, updatedAt: new Date() })
+            .set({ accountId: u.id, password: demoPasswordHash, updatedAt: new Date() })
             .where(eq(accounts.id, `acc-${u.id}`));
         }
       }
