@@ -46,7 +46,7 @@ export async function reportReturn(
     .from(studentBookOrders)
     .where(eq(studentBookOrders.id, input.orderId));
   if (!order) {
-    return { ok: false, status: 404, message: "Data pesanan tidak ditemukan" };
+    return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
   }
   if (!isOrderReportable(order.fulfillmentStatus)) {
     return {

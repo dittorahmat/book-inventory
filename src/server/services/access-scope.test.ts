@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
+import { db } from "../../db";
+import { schools, studentBookOrders, students } from "../../db/schema";
 import {
   AccessHttpError,
   assertLocationAllowed,
   assertShipmentVisible,
+  loadScopedOrder,
   requireAuthenticatedActor,
   requireCentralAdmin,
   requireLogisticsRole,
@@ -111,6 +115,60 @@ describe("requireLogisticsRole", () => {
     expect(() => requireLogisticsRole(schoolA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(branchA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(null)).not.toThrow();
+  });
+});
+
+describe("loadScopedOrder (T1 seam: fetch + gate in one call)", () => {
+  it("404s unknown orders with the canonical message", async () => {
+    const res = await loadScopedOrder(db, central, LOCS, "ord-ghost-t1");
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.status).toBe(404);
+    expect(res.message).toBe("Pesanan tidak ditemukan");
+  });
+
+  it("loads own-school orders and gates cross-school ones at the seam", async () => {
+    const stamp = Date.now();
+    const schoolAId = `school-t1-a-${stamp}`;
+    const schoolBId = `school-t1-b-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: schoolAId, name: `T1 A ${stamp}`, code: `T1-A-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: schoolBId, name: `T1 B ${stamp}`, code: `T1-B-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+    ]).onConflictDoNothing();
+    const locs = [{ id: schoolAId }, { id: schoolBId }];
+    try {
+      await db.insert(students).values({
+        id: `st-t1-${stamp}`, schoolId: schoolBId, nis: `T1${stamp}`, name: `T1 Anak ${stamp}`,
+        gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027", status: "active",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-t1-${stamp}`, orderNumber: `ORD-T1-${String(stamp).slice(-6)}`, studentId: `st-t1-${stamp}`,
+        schoolId: schoolBId, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "picked_up",
+        totalAmount: 10000, paidAmount: 10000, createdAt: now, updatedAt: now,
+      });
+      const own: AccessActor = { role: "branch_admin", schoolId: schoolBId };
+      const loaded = await loadScopedOrder(db, own, locs, `ord-t1-${stamp}`);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      expect(loaded.order.schoolId).toBe(schoolBId);
+
+      const foreign: AccessActor = { role: "branch_admin", schoolId: schoolAId };
+      const blocked = await loadScopedOrder(db, foreign, locs, `ord-t1-${stamp}`);
+      expect(blocked.ok).toBe(false);
+      if (blocked.ok) return;
+      expect(blocked.status).toBe(403);
+      expect(blocked.message).toMatch(/penugasan/);
+
+      const roam = await loadScopedOrder(db, central, locs, `ord-t1-${stamp}`);
+      expect(roam.ok).toBe(true);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-t1-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-t1-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolAId));
+      await db.delete(schools).where(eq(schools.id, schoolBId));
+    }
   });
 });
 
