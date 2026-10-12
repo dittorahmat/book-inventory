@@ -310,3 +310,41 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     expect(waJson.data.simulated).toBe(true);
   });
 });
+
+describe("Settings penomoran seragam (USO/CLM customizable)", () => {
+  it("GET default USO/CLM; POST menyimpan; prefix dipakai order berikut", async () => {
+    mockActor("central_admin");
+    const getRes = await settingsRouter.request("/uniform-numbering", { method: "GET" });
+    expect(getRes.status).toBe(200);
+    const initial = (await getRes.json()).data as { orderPrefix: string; claimPrefix: string };
+    expect(initial.orderPrefix.length).toBeGreaterThan(0);
+
+    const bad = await settingsRouter.request("/uniform-numbering", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderPrefix: "uso kecil", claimPrefix: "CLM" }),
+    });
+    expect(bad.status).toBe(400);
+
+    const stamp = Date.now().toString().slice(-6);
+    const saveRes = await settingsRouter.request("/uniform-numbering", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderPrefix: `U${stamp}`, claimPrefix: `C${stamp}` }),
+    });
+    expect(saveRes.status).toBe(200);
+    const saved = (await saveRes.json()).data as { orderPrefix: string; claimPrefix: string };
+    expect(saved.orderPrefix).toBe(`U${stamp}`);
+
+    mockActor("branch_admin", "school-alw-1");
+    const forbidden = await settingsRouter.request("/uniform-numbering", { method: "GET" });
+    expect(forbidden.status).toBe(403);
+
+    mockActor("central_admin");
+    await settingsRouter.request("/uniform-numbering", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderPrefix: "USO", claimPrefix: "CLM" }),
+    });
+  });
+});

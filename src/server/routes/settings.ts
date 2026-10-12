@@ -2,6 +2,10 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
+import { systemSettings } from "../../db/schema";
+import { readSettingsMap } from "../services/settings-map";
+import { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY } from "../services/uniform-orders";
+import { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "../services/uniform-claims";
 import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import { currentAcademicYear } from "../../lib/wib-time";
@@ -250,6 +254,51 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
         : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
       data: result,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const prefixSchema = z.string().trim().regex(/^[A-Z0-9-]{1,10}$/, "Prefix 1–10 karakter (A–Z, 0–9, -)");
+
+const uniformNumberingSchema = z.object({
+  orderPrefix: prefixSchema,
+  claimPrefix: prefixSchema,
+});
+
+// GET prefix penomoran seragam (hanya central admin)
+settingsRouter.get("/uniform-numbering", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const map = await readSettingsMap(db);
+    return c.json({
+      success: true,
+      data: {
+        orderPrefix: map[UNIFORM_ORDER_PREFIX_KEY] ?? DEFAULT_UNIFORM_ORDER_PREFIX,
+        claimPrefix: map[UNIFORM_CLAIM_PREFIX_KEY] ?? DEFAULT_UNIFORM_CLAIM_PREFIX,
+      },
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan prefix penomoran seragam (hanya central admin)
+settingsRouter.post("/uniform-numbering", zValidator("json", uniformNumberingSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const { orderPrefix, claimPrefix } = c.req.valid("json");
+    const now = new Date().toISOString();
+    for (const [key, value] of [
+      [UNIFORM_ORDER_PREFIX_KEY, orderPrefix],
+      [UNIFORM_CLAIM_PREFIX_KEY, claimPrefix],
+    ] as const) {
+      await db
+        .insert(systemSettings)
+        .values({ key, value, description: "Prefix penomoran seragam (customizable)", updatedAt: now })
+        .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
+    }
+    return c.json({ success: true, data: { orderPrefix, claimPrefix } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
