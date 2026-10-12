@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { purchaseOrderItems, purchaseOrders } from "../../db/schema";
+import { books, purchaseOrderItems, purchaseOrders, schools, suppliers } from "../../db/schema";
 import { defaultStorage, type StorageService } from "../../services/storage";
 import {
   PRINTED_STATUS,
@@ -166,7 +166,6 @@ export const withSendReadiness = <
 export type DeletePoResult =
   | { ok: true; data: { id: string; poNumber: string } }
   | LifecycleError;
-
 /**
  * Satu-satunya pemilik guard hapus Supplier PO: hanya PO yang belum pernah
  * menerima barang. Route tidak lagi menghitung quantityReceived sendiri.
@@ -205,3 +204,115 @@ export async function deletePurchaseOrder(
   ]);
   return { ok: true, data: { id: po.id, poNumber: po.poNumber } };
 }
+
+export interface PoListRow {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierEmail: string | null;
+  targetSchoolId: string;
+  schoolName: string;
+  status: typeof purchaseOrders.$inferSelect["status"];
+  orderDate: string;
+  expectedArrivalDate: string | null;
+  subtotalGross: number;
+  discountTotal: number;
+  totalAmount: number;
+  notes: string | null;
+  printedAt: string | null;
+  signedDocUrl: string | null;
+  signedDocName: string | null;
+  signedDocType: string | null;
+  signedDocUploadedAt: string | null;
+  sentAt: string | null;
+  sentTo: string | null;
+  createdAt: string;
+  items: PoListItem[];
+  canSend: boolean;
+  sendBlockedReason: string | null;
+}
+
+export interface PoListItem {
+  purchaseOrderId: string;
+  id: string;
+  bookId: string;
+  title: string;
+  isbn: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitPrice: number;
+  discountPercent: number;
+}
+
+/**
+ * Satu-satunya pemilik bacaan daftar Supplier PO beserta baris bukunya:
+ * filter scope di WHERE SQL + LIMIT di server, kelayakan kirim diturunkan
+ * sekali di sini via withSendReadiness — bukan per baris di route, bukan
+ * saring JS pasca-fetch (§11 anti Pindai Penuh).
+ */
+export const listPOsWithItems = async (
+  database: AppDatabase,
+  scope: string[],
+  limit = 100
+): Promise<PoListRow[]> => {
+  const scoped = scope.length > 0 ? scope : ["__no_school__"];
+  const pos: Array<Omit<PoListRow, "items" | "canSend" | "sendBlockedReason">> = await database
+    .select({
+      id: purchaseOrders.id,
+      poNumber: purchaseOrders.poNumber,
+      supplierId: purchaseOrders.supplierId,
+      supplierName: suppliers.name,
+      supplierEmail: suppliers.email,
+      targetSchoolId: purchaseOrders.targetSchoolId,
+      schoolName: schools.name,
+      status: purchaseOrders.status,
+      orderDate: purchaseOrders.orderDate,
+      expectedArrivalDate: purchaseOrders.expectedArrivalDate,
+      subtotalGross: purchaseOrders.subtotalGross,
+      discountTotal: purchaseOrders.discountTotal,
+      totalAmount: purchaseOrders.totalAmount,
+      notes: purchaseOrders.notes,
+      printedAt: purchaseOrders.printedAt,
+      signedDocUrl: purchaseOrders.signedDocUrl,
+      signedDocName: purchaseOrders.signedDocName,
+      signedDocType: purchaseOrders.signedDocType,
+      signedDocUploadedAt: purchaseOrders.signedDocUploadedAt,
+      sentAt: purchaseOrders.sentAt,
+      sentTo: purchaseOrders.sentTo,
+      createdAt: purchaseOrders.createdAt,
+    })
+    .from(purchaseOrders)
+    .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+    .innerJoin(schools, eq(purchaseOrders.targetSchoolId, schools.id))
+    .where(inArray(purchaseOrders.targetSchoolId, scoped))
+    .orderBy(desc(purchaseOrders.createdAt))
+    .limit(limit);
+
+  const poIds = pos.map((po) => po.id);
+  const allItems: PoListItem[] =
+    poIds.length > 0
+      ? await database
+          .select({
+            purchaseOrderId: purchaseOrderItems.purchaseOrderId,
+            id: purchaseOrderItems.id,
+            bookId: purchaseOrderItems.bookId,
+            title: books.title,
+            isbn: books.isbn,
+            quantityOrdered: purchaseOrderItems.quantityOrdered,
+            quantityReceived: purchaseOrderItems.quantityReceived,
+            unitPrice: purchaseOrderItems.unitPrice,
+            discountPercent: purchaseOrderItems.discountPercent,
+          })
+          .from(purchaseOrderItems)
+          .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))
+          .where(inArray(purchaseOrderItems.purchaseOrderId, poIds))
+      : [];
+  const itemsByPo = new Map<string, typeof allItems>();
+  for (const it of allItems) {
+    const list = itemsByPo.get(it.purchaseOrderId) ?? [];
+    list.push(it);
+    itemsByPo.set(it.purchaseOrderId, list);
+  }
+  return withSendReadiness(pos.map((po: (typeof pos)[number]) => ({ ...po, items: itemsByPo.get(po.id) ?? [] })));
+};

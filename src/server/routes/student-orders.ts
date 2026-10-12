@@ -11,13 +11,12 @@ import {
   books,
 } from "../../db/schema";
 import { reportReturn } from "../services/return-intake";
-import { formatRupiah } from "../../lib/transfer-pricing";
 import { resolveReturn } from "../services/order-fulfilment";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
   accessErrorResponse,
-  assertLocationAllowed,
+  loadScopedOrder,
   requireScopedActor,
 } from "../services/access-scope";
 
@@ -120,11 +119,10 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
 
-    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-    if (!order) {
-      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    const scoped = await loadScopedOrder(db, actor, locations, orderId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, order.schoolId, locations);
 
     const result = await handoverPackage(db, orderId, body);
     if (!result.ok) {
@@ -146,9 +144,9 @@ studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async
   try {
     const { actor, locations } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
-    const [parentOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, body.orderId));
-    if (parentOrder) {
-      assertLocationAllowed(actor, parentOrder.schoolId, locations);
+    const scoped = await loadScopedOrder(db, actor, locations, body.orderId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
     const result = await reportReturn(db, { ...body, source: "staff" });
     if (!result.ok) {
@@ -226,9 +224,9 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
     if (!ret) {
       return c.json({ success: false, message: "Laporan retur tidak ditemukan" }, 404);
     }
-    const [retOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, ret.orderId));
-    if (retOrder) {
-      assertLocationAllowed(actor, retOrder.schoolId, locations);
+    const scoped = await loadScopedOrder(db, actor, locations, ret.orderId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
 
     const result = await resolveReturn(db, returnId, body);
@@ -236,23 +234,9 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
       return c.json({ success: false, message: result.message }, result.status);
     }
 
-    if (result.data.status === "replaced") {
-      return c.json({
-        success: true,
-        message: "Penggantian buku cacat berhasil diproses",
-        data: result.data,
-      });
-    }
-    if (result.data.status === "refunded") {
-      return c.json({
-        success: true,
-        message: `Permohonan refund berhasil disetujui. Dana sebesar ${formatRupiah(result.data.refundAmount)} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`,
-        data: result.data,
-      });
-    }
     return c.json({
       success: true,
-      message: "Laporan retur ditolak",
+      message: result.message,
       data: result.data,
     });
   } catch (err) {
@@ -266,11 +250,10 @@ studentOrdersRouter.delete("/:id", async (c) => {
     const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
 
-    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
-    if (!order) {
-      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, order.schoolId, locations);
 
     const cancelled = await cancelStudentOrder(db, id);
     if (!cancelled.ok) {
@@ -296,11 +279,10 @@ studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema)
     const id = c.req.param("id");
     const body = c.req.valid("json");
 
-    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
-    if (!order) {
-      return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, order.schoolId, locations);
 
     const applied = await applyDiscretion(db, id, body);
     if (!applied.ok) {

@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookReturns, studentBookOrders } from "../../db/schema";
+import { formatRupiah } from "../../lib/transfer-pricing";
 import { AVAILABLE_LOOSE_STATUSES, RETURNABLE_CONDITIONS } from "./stock-buckets";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import {
@@ -22,10 +23,18 @@ export interface ResolveReturnInput {
 }
 
 export type ResolveReturnResult =
-  | { ok: true; data: { status: "replaced" | "rejected" | "refunded"; replacementBookItemId: string | null; refundAmount: number; restoredBookItemId: string | null } }
+  | { ok: true; message: string; data: { status: "replaced" | "rejected" | "refunded"; replacementBookItemId: string | null; refundAmount: number; restoredBookItemId: string | null } }
   | FulfilmentError;
 
 export type ResolveDeps = WriteDeps;
+
+/** Pesan sukses milik seam agar route tak lagi bercabang per status hasil. */
+const resolveMessage = (action: ResolveReturnInput["action"], refundAmount: number): string =>
+  action === "replace"
+    ? "Penggantian buku cacat berhasil diproses"
+    : action === "refund"
+      ? `Permohonan refund berhasil disetujui. Dana sebesar ${formatRupiah(refundAmount)} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`
+      : "Laporan retur ditolak";
 
 /**
  * Satu-satunya pemilik penyelesaian retur: ganti dari stok satuan
@@ -51,6 +60,7 @@ export async function resolveReturn(
   if (transition.idempotent) {
     return {
       ok: true,
+      message: resolveMessage(input.action, ret.refundAmount ?? 0),
       data: {
         status: targetReturnStatus(input.action),
         replacementBookItemId: ret.replacementBookItemId,
@@ -163,6 +173,7 @@ export async function resolveReturn(
 
   return {
     ok: true,
+    message: resolveMessage(input.action, plan.refundAmount),
     data: {
       status: plan.returnStatus,
       replacementBookItemId: plan.replacementBookItemId,

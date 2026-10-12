@@ -1,7 +1,8 @@
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
   bookPackages,
+  books,
   internalPurchaseOrderItems,
   internalPurchaseOrders,
   internalShipmentItems,
@@ -52,6 +53,161 @@ export type FulfillInternalPoResult =
   | { ok: false; status: 400 | 404; message: string };
 
 type InternalPoItemRow = typeof internalPurchaseOrderItems.$inferSelect;
+
+export interface InternalPoListItem {
+  id: string;
+  internalPoId: string;
+  packageId: string;
+  packageName: string | null;
+  packageCode: string | null;
+  quantityOrdered: number;
+  quantityFulfilled: number | null;
+}
+
+export interface InternalPoListRow {
+  id: string;
+  poNumber: string;
+  schoolId: string;
+  schoolName: string;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: InternalPoListItem[];
+}
+
+export interface InternalShipmentListItem {
+  id: string;
+  shipmentId: string;
+  packageId: string | null;
+  packageName: string | null;
+  bookId: string | null;
+  bookTitle: string | null;
+  quantity: number;
+  isOutstandingFollowup: boolean | null;
+}
+
+export interface InternalShipmentListRow {
+  id: string;
+  internalPoId: string;
+  deliveryNoteNumber: string;
+  shippedDate: string | null;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  items: InternalShipmentListItem[];
+}
+
+export type ListInternalShipmentsResult =
+  | { ok: true; data: InternalShipmentListRow[] }
+  | { ok: false; status: 404; message: string };
+
+/**
+ * Satu-satunya pemilik bacaan daftar Internal PO beserta baris paketnya:
+ * join + pengelompokan per PO tinggal di sini agar route hanya validasi +
+ * scope. Filter cabang di WHERE SQL, LIMIT di server (§11).
+ */
+export const listInternalPOs = async (
+  database: AppDatabase,
+  schoolId?: string,
+  limit = 100
+): Promise<InternalPoListRow[]> => {
+  const orders = await database
+    .select({
+      id: internalPurchaseOrders.id,
+      poNumber: internalPurchaseOrders.poNumber,
+      schoolId: internalPurchaseOrders.schoolId,
+      schoolName: schools.name,
+      status: internalPurchaseOrders.status,
+      notes: internalPurchaseOrders.notes,
+      createdAt: internalPurchaseOrders.createdAt,
+      updatedAt: internalPurchaseOrders.updatedAt,
+    })
+    .from(internalPurchaseOrders)
+    .innerJoin(schools, eq(internalPurchaseOrders.schoolId, schools.id))
+    .where(schoolId ? eq(internalPurchaseOrders.schoolId, schoolId) : undefined)
+    .orderBy(desc(internalPurchaseOrders.createdAt))
+    .limit(limit);
+
+  const orderIds = orders.map((o: { id: string }) => o.id);
+  const allItems: InternalPoListItem[] =
+    orderIds.length > 0
+      ? await database
+          .select({
+            id: internalPurchaseOrderItems.id,
+            internalPoId: internalPurchaseOrderItems.internalPoId,
+            packageId: internalPurchaseOrderItems.packageId,
+            packageName: bookPackages.name,
+            packageCode: bookPackages.code,
+            quantityOrdered: internalPurchaseOrderItems.quantityOrdered,
+            quantityFulfilled: internalPurchaseOrderItems.quantityFulfilled,
+          })
+          .from(internalPurchaseOrderItems)
+          .innerJoin(bookPackages, eq(internalPurchaseOrderItems.packageId, bookPackages.id))
+          .where(inArray(internalPurchaseOrderItems.internalPoId, orderIds))
+      : [];
+
+  const itemsByPo = new Map<string, InternalPoListItem[]>();
+  for (const it of allItems) {
+    const list = itemsByPo.get(it.internalPoId) ?? [];
+    list.push(it);
+    itemsByPo.set(it.internalPoId, list);
+  }
+
+  return orders.map((o: (typeof orders)[number]) => ({ ...o, items: itemsByPo.get(o.id) ?? [] }));
+};
+
+/**
+ * Satu-satunya pemilik bacaan histori Surat Jalan Internal beserta
+ * barisnya: 404 milik seam agar pemanggil langsung aman tanpa fetch ganda.
+ */
+export const listInternalShipments = async (
+  database: AppDatabase,
+  poId: string,
+  limit = 100
+): Promise<ListInternalShipmentsResult> => {
+  const [po] = await database.select().from(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poId));
+  if (!po) return { ok: false, status: 404, message: "PO Internal tidak ditemukan" };
+
+  const shipments = await database
+    .select()
+    .from(internalShipments)
+    .where(eq(internalShipments.internalPoId, poId))
+    .orderBy(desc(internalShipments.createdAt))
+    .limit(limit);
+
+  const shipmentIds = shipments.map((s: { id: string }) => s.id);
+  const shipmentItemsList: InternalShipmentListItem[] =
+    shipmentIds.length > 0
+      ? await database
+          .select({
+            id: internalShipmentItems.id,
+            shipmentId: internalShipmentItems.shipmentId,
+            packageId: internalShipmentItems.packageId,
+            packageName: bookPackages.name,
+            bookId: internalShipmentItems.bookId,
+            bookTitle: books.title,
+            quantity: internalShipmentItems.quantity,
+            isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
+          })
+          .from(internalShipmentItems)
+          .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))
+          .leftJoin(books, eq(internalShipmentItems.bookId, books.id))
+          .where(inArray(internalShipmentItems.shipmentId, shipmentIds))
+      : [];
+
+  const itemsByShipment = new Map<string, InternalShipmentListItem[]>();
+  for (const it of shipmentItemsList) {
+    const list = itemsByShipment.get(it.shipmentId) ?? [];
+    list.push(it);
+    itemsByShipment.set(it.shipmentId, list);
+  }
+
+  return {
+    ok: true,
+    data: shipments.map((s: (typeof shipments)[number]) => ({ ...s, items: itemsByShipment.get(s.id) ?? [] })),
+  };
+};
 
 const validateCreateLines = (items: InternalPoItemInput[]): string | null => {
   if (!Array.isArray(items) || items.length === 0) return "Minimal 1 paket yang dipesan";

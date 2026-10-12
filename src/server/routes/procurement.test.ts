@@ -852,3 +852,58 @@ describe("spec-57 T4 PO receipt atomic write-set", () => {
     }
   });
 });
+
+describe("Supplier PO list seam (T3: list + readiness behind the module)", () => {
+  it("agrees list canSend with the send gate and partitions scope in SQL", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-t3-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-T3-${stamp}`, title: `Buku T3 ${stamp}`,
+      author: "Test", publisher: "Test", createdAt: now, updatedAt: now,
+    });
+    const supRes = await procurementRouter.request("/suppliers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-T3-${stamp}`, name: "Supplier T3", email: "t3@supplier.co.id" }),
+    });
+    const supplierId = (await supRes.json()).data.id;
+    const poRes = await procurementRouter.request("/purchase-orders", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ supplierId, orderDate: "2026-10-01", items: [{ bookId, quantityOrdered: 2, unitPrice: 15000 }] }),
+    });
+    expect(poRes.status).toBe(201);
+    const poId = (await poRes.json()).data.id;
+    try {
+      const listDraft = await procurementRouter.request("/purchase-orders", { method: "GET" });
+      const rowDraft = (await listDraft.json()).data.find((p: any) => p.id === poId);
+      expect(rowDraft.canSend).toBe(false);
+      expect(rowDraft.sendBlockedReason).toMatch(/tanda tangan/);
+      expect(rowDraft.items).toHaveLength(1);
+      expect(rowDraft.items[0].title).toBe(`Buku T3 ${stamp}`);
+
+      const blocked = await procurementRouter.request(`/purchase-orders/${poId}/send`, { method: "POST" });
+      expect(blocked.status).toBe(400);
+
+      await db.update(purchaseOrders)
+        .set({ signedDocUrl: "r2://t3/bukti.pdf", signedDocName: "bukti.pdf", updatedAt: now })
+        .where(eq(purchaseOrders.id, poId));
+      const listSigned = await procurementRouter.request("/purchase-orders", { method: "GET" });
+      const rowSigned = (await listSigned.json()).data.find((p: any) => p.id === poId);
+      expect(rowSigned.canSend).toBe(true);
+      expect(rowSigned.sendBlockedReason).toBeNull();
+
+      const [po] = await db.select({ targetSchoolId: purchaseOrders.targetSchoolId }).from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      mockActor("warehouse_admin", po.targetSchoolId);
+      const scopedList = await procurementRouter.request("/purchase-orders", { method: "GET" });
+      const rows = (await scopedList.json()).data;
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((r: any) => r.targetSchoolId === po.targetSchoolId)).toBe(true);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
+});

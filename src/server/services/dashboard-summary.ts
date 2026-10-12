@@ -51,17 +51,31 @@ type PurchaseOrderRow = typeof purchaseOrders.$inferSelect;
 
 type BookRow = typeof books.$inferSelect;
 
+interface SchoolScopedRows {
+  items: BookItemRow[];
+  pkgs: PackageItemRow[];
+  students: StudentRow[];
+  orders: OrderRow[];
+  returns: ReturnRow[];
+  shipments: ShipmentRow[];
+  pos: PurchaseOrderRow[];
+}
+
 interface DashboardRows {
-  itemRows: BookItemRow[];
-  pkgRows: PackageItemRow[];
   pkgDefs: BookPackageRow[];
   bookRows: BookRow[];
-  studentRows: StudentRow[];
-  orderRows: OrderRow[];
-  returnRows: ReturnRow[];
-  shipmentRows: ShipmentRow[];
-  poRows: PurchaseOrderRow[];
+  perSchool: Map<string, SchoolScopedRows>;
 }
+
+const newSchoolScopedRows = (): SchoolScopedRows => ({
+  items: [],
+  pkgs: [],
+  students: [],
+  orders: [],
+  returns: [],
+  shipments: [],
+  pos: [],
+});
 
 /**
  * Ambil baris ringkasan terpartisi scope sekolah di WHERE SQL (§11 anti
@@ -89,21 +103,38 @@ async function fetchDashboardRows(database: AppDatabase, scope: string[]): Promi
     .from(bookReturns)
     .innerJoin(students, eq(bookReturns.studentId, students.id))
     .where(inArray(students.schoolId, scoped));
-  return { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows };
+
+  // Partisi sekali di seam (bukan saring JS per sekolah per tabel): tiap
+  // baris dikelompokkan ke sekolahnya dalam satu lintasan O(total).
+  const perSchool = new Map<string, SchoolScopedRows>();
+  const scopedFor = (id: string): SchoolScopedRows => {
+    const existing = perSchool.get(id);
+    if (existing) return existing;
+    const fresh = newSchoolScopedRows();
+    perSchool.set(id, fresh);
+    return fresh;
+  };
+  for (const r of itemRows) if (r.currentSchoolId) scopedFor(r.currentSchoolId).items.push(r);
+  for (const r of pkgRows) if (r.currentSchoolId) scopedFor(r.currentSchoolId).pkgs.push(r);
+  for (const r of studentRows) scopedFor(r.schoolId).students.push(r);
+  for (const r of orderRows) scopedFor(r.schoolId).orders.push(r);
+  for (const r of shipmentRows) {
+    if (r.fromSchoolId) scopedFor(r.fromSchoolId).shipments.push(r);
+    if (r.toSchoolId && r.toSchoolId !== r.fromSchoolId) scopedFor(r.toSchoolId).shipments.push(r);
+  }
+  for (const r of poRows) if (r.targetSchoolId) scopedFor(r.targetSchoolId).pos.push(r);
+  const studentSchool = new Map<string, string>(studentRows.map((s: StudentRow) => [s.id, s.schoolId]));
+  for (const r of returnRows) {
+    const sid = studentSchool.get(r.studentId);
+    if (sid) scopedFor(sid).returns.push(r);
+  }
+  return { pkgDefs, bookRows, perSchool };
 }
 
-function buildSchoolSummary(school: SchoolRow, rows: DashboardRows): DashboardSchoolSummary {
-  const schoolId = school.id;
-  const { itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, returnRows, shipmentRows, poRows } = rows;
-  const items = itemRows.filter((r) => r.currentSchoolId === schoolId);
-  const pkgs = pkgRows.filter((r) => r.currentSchoolId === schoolId);
+function buildSchoolSummary(school: SchoolRow, rows: DashboardRows, scoped: SchoolScopedRows): DashboardSchoolSummary {
+  const { pkgDefs, bookRows } = rows;
+  const { items, pkgs, orders, returns, shipments, pos, students: schoolStudents } = scoped;
   const pkgTier = new Map(pkgDefs.map((p) => [p.id, p]));
-  const schoolStudents = studentRows.filter((r) => r.schoolId === schoolId);
-  const orders = orderRows.filter((r) => r.schoolId === schoolId);
-  const studentIds = new Set(schoolStudents.map((s) => s.id));
-  const returns = returnRows.filter((r) => studentIds.has(r.studentId));
-  const shipments = shipmentRows.filter((r) => r.fromSchoolId === schoolId || r.toSchoolId === schoolId);
-  const pos = poRows.filter((r) => r.targetSchoolId === schoolId);
 
   const stockTally = tallyLoose(items);
   const byCondition = stockTally.byConditionAvailable;
@@ -235,7 +266,7 @@ export async function getDashboardSummary(
     if (!school) {
       throw new DashboardHttpError(404, "School not found");
     }
-    summaries.push(buildSchoolSummary(school, rows));
+    summaries.push(buildSchoolSummary(school, rows, rows.perSchool.get(id) ?? newSchoolScopedRows()));
   }
   return { mode: requestedSchoolId ? "detail" : "comparison", schools: summaries };
 }

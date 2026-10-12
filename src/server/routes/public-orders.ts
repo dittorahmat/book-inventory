@@ -5,6 +5,7 @@ import { eq, or, like, and, notInArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
 import { getCurrentSatuanStatus, getSatuanCatalogIfOpen, getSatuanStatus } from "../services/satuan-cutoff";
+import { validateStudentForOrder } from "../services/order-validation";
 import { reportReturn } from "../services/return-intake";
 import { submitPublicOrder } from "../services/public-order";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
@@ -113,16 +114,22 @@ publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSche
     .limit(10);
 
   // Analyze potential promotion (naik kelas)
+  // Kelayakan order diiklankan server dari seam validasi yang sama dengan
+  // submit (satu sumber aturan): hook portal me-render verbatim, bukan
+  // menebak status mana yang boleh memesan.
   const results = foundStudents.map((st: any) => {
     const currentGrade = parseInt(st.gradeLevel, 10);
     const nextGrade = !isNaN(currentGrade) ? (currentGrade + 1).toString() : st.gradeLevel;
     const isPromoted = st.status === "promoted";
+    const eligibility = validateStudentForOrder(st);
 
     return {
       ...st,
       detectedStatus: isPromoted ? "naik_kelas" : st.status === "active" ? "aktif" : "baru",
       currentGradeLevel: st.gradeLevel,
       targetGradeLevel: isPromoted ? nextGrade : st.gradeLevel,
+      canOrder: eligibility.ok,
+      orderBlockedReason: eligibility.ok ? null : eligibility.message,
     };
   });
 

@@ -571,3 +571,86 @@ describe("Student orders search partition (§11 anti full-scan)", () => {
     }
   });
 });
+
+describe("Student Order scope seam (T1: loadScopedOrder)", () => {
+  it("rejects cross-school handover at the seam with 403", async () => {
+    const stamp = Date.now();
+    const schoolAId = `school-t1ra-${stamp}`;
+    const schoolBId = `school-t1rb-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: schoolAId, name: `T1 RA ${stamp}`, code: `T1-RA-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: schoolBId, name: `T1 RB ${stamp}`, code: `T1-RB-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+    ]).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-t1r-${stamp}`, schoolId: schoolBId, nis: `T1R${stamp}`, name: `T1R Anak ${stamp}`,
+        gradeLevel: "2", curriculumType: "national", academicYear: "2026/2027", status: "active",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-t1r-${stamp}`, orderNumber: `ORD-T1R-${String(stamp).slice(-6)}`, studentId: `st-t1r-${stamp}`,
+        schoolId: schoolBId, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 20000, paidAmount: 20000, createdAt: now, updatedAt: now,
+      });
+      mockActor("branch_admin", schoolAId);
+      const res = await studentOrdersRouter.request(`/ord-t1r-${stamp}/handover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: "Orang Tua Asing" }),
+      });
+      expect(res.status).toBe(403);
+      expect((await res.json()).message).toMatch(/penugasan/);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-t1r-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-t1r-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolAId));
+      await db.delete(schools).where(eq(schools.id, schoolBId));
+    }
+  });
+
+  it("resolve responses carry the seam-owned message per status", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t1m-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: `T1 M ${stamp}`, code: `T1-M-${stamp}`, type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-t1m-${stamp}`, schoolId, nis: `T1M${stamp}`, name: `T1M Anak ${stamp}`,
+        gradeLevel: "2", curriculumType: "national", academicYear: "2026/2027", status: "active",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: `b-t1m-${stamp}`, isbn: `ISBN-T1M-${stamp}`, title: `Buku T1M ${stamp}`,
+        author: "Anon", publisher: "Penerbit", createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: `ord-t1m-${stamp}`, orderNumber: `ORD-T1M-${String(stamp).slice(-6)}`, studentId: `st-t1m-${stamp}`,
+        schoolId, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "return_in_progress",
+        totalAmount: 30000, paidAmount: 30000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(bookReturns).values({
+        id: `ret-t1m-${stamp}`, orderId: `ord-t1m-${stamp}`, studentId: `st-t1m-${stamp}`,
+        defectiveBookId: `b-t1m-${stamp}`, reason: "Cacat", status: "reported", createdAt: now, updatedAt: now,
+      });
+      const res = await studentOrdersRouter.request(`/returns/ret-t1m-${stamp}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject" }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.message).toBe("Laporan retur ditolak");
+      expect(json.data.status).toBe("rejected");
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, `ret-t1m-${stamp}`));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-t1m-${stamp}`));
+      await db.delete(books).where(eq(books.id, `b-t1m-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-t1m-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});

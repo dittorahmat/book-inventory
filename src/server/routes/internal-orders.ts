@@ -1,24 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import {
-  internalPurchaseOrders,
-  internalPurchaseOrderItems,
-  internalShipments,
-  internalShipmentItems,
-  bookPackages,
-  books,
-  schools,
-} from "../../db/schema";
+import { internalPurchaseOrders } from "../../db/schema";
 import {
   accessErrorResponse,
   assertLocationAllowed,
   requireScopedActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { createInternalPo, fulfillInternalPo } from "../services/internal-po";
+import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "../services/internal-po";
 
 export const internalOrdersRouter = new Hono();
 
@@ -55,52 +47,7 @@ internalOrdersRouter.get("/", async (c) => {
     const scope = new Set(scopeList);
     const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
 
-    const orders = await db
-      .select({
-        id: internalPurchaseOrders.id,
-        poNumber: internalPurchaseOrders.poNumber,
-        schoolId: internalPurchaseOrders.schoolId,
-        schoolName: schools.name,
-        status: internalPurchaseOrders.status,
-        notes: internalPurchaseOrders.notes,
-        createdAt: internalPurchaseOrders.createdAt,
-        updatedAt: internalPurchaseOrders.updatedAt,
-      })
-      .from(internalPurchaseOrders)
-      .innerJoin(schools, eq(internalPurchaseOrders.schoolId, schools.id))
-      .where(schoolId ? eq(internalPurchaseOrders.schoolId, schoolId) : undefined)
-      .orderBy(desc(internalPurchaseOrders.createdAt));
-
-    const orderIds = orders.map((o: { id: string }) => o.id);
-    const allItems = orderIds.length > 0
-      ? await db
-          .select({
-            id: internalPurchaseOrderItems.id,
-            internalPoId: internalPurchaseOrderItems.internalPoId,
-            packageId: internalPurchaseOrderItems.packageId,
-            packageName: bookPackages.name,
-            packageCode: bookPackages.code,
-            quantityOrdered: internalPurchaseOrderItems.quantityOrdered,
-            quantityFulfilled: internalPurchaseOrderItems.quantityFulfilled,
-          })
-          .from(internalPurchaseOrderItems)
-          .innerJoin(bookPackages, eq(internalPurchaseOrderItems.packageId, bookPackages.id))
-          .where(inArray(internalPurchaseOrderItems.internalPoId, orderIds))
-      : [];
-
-    type PoItem = (typeof allItems)[number];
-    const itemsByPo = new Map<string, PoItem[]>();
-    for (const it of allItems) {
-      const list = itemsByPo.get(it.internalPoId) || [];
-      list.push(it);
-      itemsByPo.set(it.internalPoId, list);
-    }
-
-    const data = orders.map((o: (typeof orders)[number]) => ({
-      ...o,
-      items: itemsByPo.get(o.id) || [],
-    }));
-
+    const data = await listInternalPOs(db, schoolId);
     return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -170,45 +117,11 @@ internalOrdersRouter.get("/:id/shipments", async (c) => {
     }
     assertLocationAllowed(actor, po.schoolId, locations);
 
-    const shipments = await db
-      .select()
-      .from(internalShipments)
-      .where(eq(internalShipments.internalPoId, poId))
-      .orderBy(desc(internalShipments.createdAt));
-
-    const shipmentIds = shipments.map((s: { id: string }) => s.id);
-    const shipmentItemsList = shipmentIds.length > 0
-      ? await db
-          .select({
-            id: internalShipmentItems.id,
-            shipmentId: internalShipmentItems.shipmentId,
-            packageId: internalShipmentItems.packageId,
-            packageName: bookPackages.name,
-            bookId: internalShipmentItems.bookId,
-            bookTitle: books.title,
-            quantity: internalShipmentItems.quantity,
-            isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
-          })
-          .from(internalShipmentItems)
-          .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))
-          .leftJoin(books, eq(internalShipmentItems.bookId, books.id))
-          .where(inArray(internalShipmentItems.shipmentId, shipmentIds))
-      : [];
-
-    type ShipmentItem = (typeof shipmentItemsList)[number];
-    const itemsByShipment = new Map<string, ShipmentItem[]>();
-    for (const it of shipmentItemsList) {
-      const list = itemsByShipment.get(it.shipmentId) || [];
-      list.push(it);
-      itemsByShipment.set(it.shipmentId, list);
+    const result = await listInternalShipments(db, poId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
     }
-
-    const data = shipments.map((s: (typeof shipments)[number]) => ({
-      ...s,
-      items: itemsByShipment.get(s.id) || [],
-    }));
-
-    return c.json({ success: true, data });
+    return c.json({ success: true, data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

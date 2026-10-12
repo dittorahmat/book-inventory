@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { suppliers, purchaseOrders, purchaseOrderItems, books, schools } from "../../db/schema";
-import { sendPo, withSendReadiness, deletePurchaseOrder } from "../services/po-lifecycle";
+import { suppliers, purchaseOrders } from "../../db/schema";
+import { sendPo, deletePurchaseOrder, listPOsWithItems } from "../services/po-lifecycle";
 import { resolveWarehouseTarget, createPurchaseOrder } from "../services/po-workflow";
 import { recordPoReceipt, getPoReceiptHistory } from "../services/po-receipt";
 import type { EmailRuntimeEnv } from "../services/email/types";
@@ -99,73 +99,9 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 // 2. GET Purchase Orders
 procurementRouter.get("/purchase-orders", async (c) => {
   try {
-    const { locations, scope: scopeList } = await requireScopedLogisticsActor(db, c);
-    const scope = new Set(scopeList);
-    const scopedOnly = scope.size < locations.length;
-    const pos = await db
-    .select({
-      id: purchaseOrders.id,
-      poNumber: purchaseOrders.poNumber,
-      supplierId: purchaseOrders.supplierId,
-      supplierName: suppliers.name,
-      supplierEmail: suppliers.email,
-      targetSchoolId: purchaseOrders.targetSchoolId,
-      schoolName: schools.name,
-      status: purchaseOrders.status,
-      orderDate: purchaseOrders.orderDate,
-      expectedArrivalDate: purchaseOrders.expectedArrivalDate,
-      subtotalGross: purchaseOrders.subtotalGross,
-      discountTotal: purchaseOrders.discountTotal,
-      totalAmount: purchaseOrders.totalAmount,
-      notes: purchaseOrders.notes,
-      printedAt: purchaseOrders.printedAt,
-      signedDocUrl: purchaseOrders.signedDocUrl,
-      signedDocName: purchaseOrders.signedDocName,
-      signedDocType: purchaseOrders.signedDocType,
-      signedDocUploadedAt: purchaseOrders.signedDocUploadedAt,
-      sentAt: purchaseOrders.sentAt,
-      sentTo: purchaseOrders.sentTo,
-      createdAt: purchaseOrders.createdAt,
-    })
-    .from(purchaseOrders)
-    .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
-    .innerJoin(schools, eq(purchaseOrders.targetSchoolId, schools.id))
-    .orderBy(desc(purchaseOrders.createdAt));
-
-  // Attach items — satu query batch untuk semua PO (bukan N+1 per PO).
-  const poIds = pos.map((po: any) => po.id as string);
-  const allItems = poIds.length > 0
-    ? await db
-      .select({
-        purchaseOrderId: purchaseOrderItems.purchaseOrderId,
-        id: purchaseOrderItems.id,
-        bookId: purchaseOrderItems.bookId,
-        title: books.title,
-        isbn: books.isbn,
-        quantityOrdered: purchaseOrderItems.quantityOrdered,
-        quantityReceived: purchaseOrderItems.quantityReceived,
-        unitPrice: purchaseOrderItems.unitPrice,
-        discountPercent: purchaseOrderItems.discountPercent,
-      })
-      .from(purchaseOrderItems)
-      .innerJoin(books, eq(purchaseOrderItems.bookId, books.id))
-      .where(inArray(purchaseOrderItems.purchaseOrderId, poIds))
-    : [];
-  const itemsByPo = new Map<string, typeof allItems>();
-  for (const it of allItems) {
-    const list = itemsByPo.get(it.purchaseOrderId) ?? [];
-    list.push(it);
-    itemsByPo.set(it.purchaseOrderId, list);
-  }
-  const withItems = pos.map((po: any) => ({
-    ...po,
-    items: itemsByPo.get(po.id) ?? [],
-  }));
-  // Kelayakan kirim diturunkan sekali di modul (satu panggilan), bukan per baris di route.
-  const results = withSendReadiness(withItems);
-
-  const visible = scopedOnly ? results.filter((po: any) => scope.has(po.targetSchoolId)) : results;
-  return c.json({ success: true, data: visible });
+    const { scope } = await requireScopedLogisticsActor(db, c);
+    const data = await listPOsWithItems(db, scope);
+    return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

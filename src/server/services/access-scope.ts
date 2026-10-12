@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import { auth } from "../auth";
-import { schools } from "../../db/schema";
+import type { AppDatabase } from "../../db";
+import { schools, studentBookOrders } from "../../db/schema";
 
 export type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
 
@@ -183,3 +185,32 @@ export function assertShipmentVisible(
     throw new AccessHttpError(403, action);
   }
 }
+
+export type ScopedOrderRow = typeof studentBookOrders.$inferSelect;
+
+export type LoadScopedOrderResult =
+  | { ok: true; order: ScopedOrderRow }
+  | { ok: false; status: 403 | 404; message: string };
+
+/**
+ * Ambil satu Student Order sekaligus gerbang lokasinya dalam satu seam:
+ * menggantikan tarian `select order → 404 → assertLocationAllowed` yang
+ * diulang tiap handler mutasi. Null actor = legacy allow seperti
+ * assertLocationAllowed.
+ */
+export const loadScopedOrder = async (
+  database: AppDatabase,
+  actor: AccessActor | null,
+  locations: Array<{ id: string }>,
+  orderId: string
+): Promise<LoadScopedOrderResult> => {
+  const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+  if (!order) return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
+  try {
+    assertLocationAllowed(actor, order.schoolId, locations);
+  } catch (err) {
+    if (err instanceof AccessHttpError) return { ok: false, status: err.status as 403 | 404, message: err.message };
+    throw err;
+  }
+  return { ok: true, order };
+};

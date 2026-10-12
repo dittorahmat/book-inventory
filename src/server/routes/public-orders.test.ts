@@ -975,3 +975,56 @@ describe("Portal search partition (§11 anti full-scan)", () => {
     }
   });
 });
+
+describe("Portal eligibility seam (T5: canOrder advertised by server)", () => {
+  it("advertises canOrder from the shared guard and still enforces at submit", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-t5-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: `T5 Sekolah ${stamp}`, code: `T5-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(bookPackages).values({
+      id: `pkg-t5-${stamp}`, code: `PKG-T5-${stamp}`, name: "Paket T5",
+      gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027",
+      price: 50000, createdAt: now, updatedAt: now,
+    });
+    try {
+      await db.insert(students).values([
+        {
+          id: `st-t5a-${stamp}`, schoolId, nis: `T5A${stamp}`, name: `T5 Aktif ${stamp}`,
+          gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027",
+          status: "active", createdAt: now, updatedAt: now,
+        },
+        {
+          id: `st-t5g-${stamp}`, schoolId, nis: `T5G${stamp}`, name: `T5 Lulus ${stamp}`,
+          gradeLevel: "6", curriculumType: "national", academicYear: "2026/2027",
+          status: "graduated", createdAt: now, updatedAt: now,
+        },
+      ]);
+      const search = await publicOrdersRouter.request(
+        `/search-students?query=${encodeURIComponent(String(stamp))}&schoolId=${schoolId}`
+      );
+      expect(search.status).toBe(200);
+      const rows = (await search.json()).data;
+      const active = rows.find((r: any) => r.id === `st-t5a-${stamp}`);
+      const graduated = rows.find((r: any) => r.id === `st-t5g-${stamp}`);
+      expect(active.canOrder).toBe(true);
+      expect(active.orderBlockedReason).toBeNull();
+      expect(graduated.canOrder).toBe(false);
+      expect(graduated.orderBlockedReason).toMatch(/verifikasi/);
+
+      const submit = await publicOrdersRouter.request("/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: `st-t5g-${stamp}`, packageId: `pkg-t5-${stamp}`, orderType: "regular" }),
+      });
+      expect(submit.status).toBe(403);
+      expect((await submit.json()).message).toMatch(/verifikasi/);
+    } finally {
+      await db.delete(students).where(inArray(students.id, [`st-t5a-${stamp}`, `st-t5g-${stamp}`]));
+      await db.delete(bookPackages).where(eq(bookPackages.id, `pkg-t5-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
