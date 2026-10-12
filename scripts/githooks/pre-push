@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-push: tolak push langsung ke main — merge hanya via `gh pr merge`
+# (insiden Okt 2026: checkout -b gagal diam-diam, commit nyasar ke main).
+# Dipasang via `bun scripts/setup-hooks.ts` bersama pre-commit.
+while read -r _ _ remote_ref _; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "Ditolak: push langsung ke main dilarang — buka PR lalu \`gh pr merge\`." >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
