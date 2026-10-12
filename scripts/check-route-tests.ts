@@ -4,14 +4,21 @@
 // tiap bug) — preseden: direct-sales.ts tanpa test menyembunyikan bug
 // studentId null yang membuat endpoint selalu 500. Dijalankan via
 // `bun run check:route-tests` dan di CI (lihat .github/workflows/checks.yml).
-import { readdirSync } from "node:fs";
+// Hanya file pendefinisi router Hono yang dihitung (modul skema/helper
+// seperti uniform-schemas.ts versi lama tidak dituntut pasangan test).
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const ROUTES_DIR = "src/server/routes";
 const EXCLUDE = new Set(["test-actor.ts"]);
 
+const isRouterModule = (file: string): boolean =>
+  /new Hono\s*\(/.test(readFileSync(join(ROUTES_DIR, file), "utf8"));
+
 const entries = new Set(readdirSync(ROUTES_DIR));
 const offenders = [...entries]
   .filter((e) => /\.ts$/.test(e) && !/\.test\.ts$/.test(e) && !EXCLUDE.has(e))
+  .filter((e) => isRouterModule(e))
   .filter((e) => !entries.has(e.replace(/\.ts$/, ".test.ts")))
   .sort();
 
