@@ -3,6 +3,8 @@
 // memakai database lokal. Katalog kecil (books, book_packages + LIMIT)
 // boleh SCAN dan didaftarkan di ALLOWED_SCAN.
 import { Database } from "bun:sqlite";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 interface PlannedQuery {
   name: string;
@@ -24,7 +26,28 @@ const QUERIES: PlannedQuery[] = [
   { name: "book catalog (small)", sql: "SELECT * FROM books LIMIT 50", allowScan: true },
 ];
 
-const sqlite = new Database("./data/inventory.db", { readonly: true });
+// Bangun skema dari file migrasi ke DB memori agar gate deterministik di
+// mana pun (CI fresh checkout belum punya ./data/inventory.db). EXPLAIN
+// QUERY PLAN hanya butuh indeks, bukan data.
+const sqlite = new Database(":memory:");
+try {
+  const migrationFiles = readdirSync("./drizzle")
+    .filter((f) => /^0\d{3}_.*\.sql$/.test(f))
+    .sort();
+  if (migrationFiles.length === 0) {
+    throw new Error("Plan gate gagal: tidak ada file migrasi di drizzle/.");
+  }
+  for (const file of migrationFiles) {
+    const sql = readFileSync(join("./drizzle", file), "utf8");
+    for (const stmt of sql.split("--> statement-breakpoint")) {
+      const trimmed = stmt.trim();
+      if (trimmed) sqlite.run(trimmed);
+    }
+  }
+} catch (err) {
+  sqlite.close();
+  throw err;
+}
 let failed = 0;
 for (const q of QUERIES) {
   const rows = sqlite.query(`EXPLAIN QUERY PLAN ${q.sql}`).all() as Array<{ detail: string }>;
