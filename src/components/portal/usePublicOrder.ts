@@ -199,6 +199,12 @@ export function usePublicOrder() {
   };
 
   const handleSelectStudent = (st: StudentSearchResult) => {
+    // Kelayakan milik server: hook me-render flag search verbatim, bukan
+    // menebak ulang aturan status. Submit tetap ditegakkan di backend.
+    if (st.canOrder === false) {
+      setErrorMessage(st.orderBlockedReason ?? "Data siswa masih menunggu verifikasi admin sekolah.");
+      return;
+    }
     setErrorMessage(null);
     setSelectedStudent(st);
     setIsNewStudentMode(false);

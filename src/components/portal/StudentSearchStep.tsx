@@ -116,7 +116,11 @@ export function StudentSearchStep({
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                        {st.detectedStatus === "naik_kelas" ? (
+                        {st.canOrder === false ? (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Menunggu verifikasi
+                          </span>
+                        ) : st.detectedStatus === "naik_kelas" ? (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
                             Kelas {st.currentGradeLevel} &rarr; Naik ke Kelas {st.targetGradeLevel}
                           </span>
@@ -143,7 +147,9 @@ export function StudentSearchStep({
                     <button
                       type="button"
                       onClick={() => onSelectStudent(st)}
-                      className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5"
+                      disabled={st.canOrder === false}
+                      title={st.canOrder === false ? st.orderBlockedReason ?? undefined : undefined}
+                      className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <UserCheck className="w-4 h-4" />
                       <span>Pilih</span>

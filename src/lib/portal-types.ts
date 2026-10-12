@@ -21,6 +21,9 @@ export interface StudentSearchResult {
   detectedStatus: "naik_kelas" | "aktif" | "baru";
   currentGradeLevel: string;
   targetGradeLevel: string;
+  /** Kelayakan order milik server (seam validasi yang sama dengan submit). */
+  canOrder: boolean;
+  orderBlockedReason: string | null;
 }
 
 export interface BookPackageItem {
