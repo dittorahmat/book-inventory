@@ -51,7 +51,23 @@ export function PublicUniformOrderView() {
         </div>
       )}
 
-      {order.step === 1 && <UniformSearchStep order={order} />}
+      {order.step === 1 && (
+        <UniformSearchStep
+          order={{
+            schools: order.schools,
+            schoolId: order.schoolId,
+            setSchoolId: order.setSchoolId,
+            query: order.query,
+            setQuery: order.setQuery,
+            searching: order.searching,
+            searched: order.searched,
+            results: order.results,
+            handleSearch: order.handleSearch,
+            selectStudent: order.selectStudent,
+            loading: order.loadingCatalog,
+          }}
+        />
+      )}
 
       {order.step === 2 && order.student && (
         <div className="space-y-4">

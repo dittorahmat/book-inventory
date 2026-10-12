@@ -1,6 +1,21 @@
-import type { UniformOrder } from "./useUniformOrder";
+import type { SchoolOption } from "../../lib/portal-types";
+import type { UniformStudent } from "../../lib/uniform-types";
 
-export function UniformSearchStep({ order }: { order: UniformOrder }) {
+export interface UniformSearchProps {
+  schools: SchoolOption[];
+  schoolId: string;
+  setSchoolId: (v: string) => void;
+  query: string;
+  setQuery: (v: string) => void;
+  searching: boolean;
+  searched: boolean;
+  results: UniformStudent[];
+  handleSearch: () => void;
+  selectStudent: (s: UniformStudent) => void;
+  loading: boolean;
+}
+
+export function UniformSearchStep({ order }: { order: UniformSearchProps }) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] p-6 sm:p-7 space-y-4">
       <div>
@@ -46,7 +61,7 @@ export function UniformSearchStep({ order }: { order: UniformOrder }) {
               key={s.id}
               type="button"
               onClick={() => order.selectStudent(s)}
-              disabled={order.loadingCatalog}
+              disabled={order.loading}
               className="w-full text-left px-4 py-3 hover:bg-[#F0F2F5] active:scale-[0.99] disabled:opacity-50"
             >
               <div className="text-sm font-semibold">{s.name}</div>
