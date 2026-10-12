@@ -4,6 +4,7 @@ import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
 import { PackagesView } from "./views/PackagesView";
 import { StudentOrdersView } from "./views/StudentOrdersView";
+import { UniformView } from "./views/UniformView";
 import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
@@ -42,6 +43,7 @@ export function App() {
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
+  const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
@@ -103,6 +105,7 @@ export function App() {
         {seedNotice && <SeedNotice message={seedNotice} />}
         <PublicOrderView
           onNavigateToStaffLogin={() => setShowStaffLogin(true)}
+          initialTab={isDirectUniformUrl ? "uniform" : undefined}
         />
       </div>
     );
@@ -177,6 +180,14 @@ export function App() {
           </Suspense>
         )}
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
+        {activeTab === "uniforms" && (
+          <UniformView
+            schools={schools}
+            activeSchool={selectedSchool}
+            userRole={userRole}
+            userSchoolId={userSchoolId}
+          />
+        )}
         {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} userRole={userRole} />}

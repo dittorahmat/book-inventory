@@ -1,5 +1,6 @@
-import { BookOpen, RotateCcw, AlertCircle, Clock } from "lucide-react";
-import { usePublicOrder } from "../components/portal/usePublicOrder";
+import { BookOpen, RotateCcw, AlertCircle, Clock, Shirt } from "lucide-react";
+import { usePublicOrder, type PortalTab } from "../components/portal/usePublicOrder";
+import { PublicUniformOrderView } from "./PublicUniformOrderView";
 import { useReturnFlow } from "../components/portal/useReturnFlow";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
 import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal";
@@ -10,10 +11,11 @@ import { ReturnReportTab } from "../components/portal/ReturnReportTab";
 
 interface PublicOrderViewProps {
   onNavigateToStaffLogin?: () => void;
+  initialTab?: PortalTab;
 }
 
-export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps) {
-  const order = usePublicOrder();
+export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOrderViewProps) {
+  const order = usePublicOrder(initialTab);
   const returns = useReturnFlow(order.packages);
   const { activePortalTab, setActivePortalTab, step, errorMessage, setErrorMessage } = order;
 
@@ -86,6 +88,22 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
             >
               <RotateCcw className="w-4 h-4" />
               <span>Lapor Retur Buku Rusak</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActivePortalTab("uniform");
+                setErrorMessage(null);
+                order.cancelNoResult();
+              }}
+              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                activePortalTab === "uniform"
+                  ? "bg-white text-[#1877F2] shadow-xs"
+                  : "text-[#65676B] hover:text-[#050505]"
+              }`}
+            >
+              <Shirt className="w-4 h-4" />
+              <span>Pesan Seragam</span>
             </button>
           </div>
         </div>
@@ -263,6 +281,9 @@ export function PublicOrderView({ onNavigateToStaffLogin }: PublicOrderViewProps
             )}
           </div>
         )}
+
+        {/* ===================== TAB 3: PESAN SERAGAM (link terpisah /seragam) ===================== */}
+        {activePortalTab === "uniform" && <PublicUniformOrderView />}
 
         {/* ===================== TAB 2: LAPOR RETUR BUKU RUSAK ===================== */}
         {activePortalTab === "return" && (

@@ -87,3 +87,35 @@ _Avoid_: Adjust manual, koreksi diam-diam
 **Ambil Langsung**:
 Model distribusi v1: siswa/orang tua mengambil buku di sekolah dengan berita serah-terima; tanpa alamat, kurir, ongkir, atau pelacakan.
 _Avoid_: Delivery ke rumah, ekspedisi
+
+**Seragam**:
+Katalog varian seragam (bukan buku): kain harian atau olahraga jadi, dibedakan gender × jenjang.
+_Avoid_: Pakaian umum, uniform
+
+**Kain Harian**:
+Paket kain seragam harian per gender (L/P) × jenjang, tanpa ukuran; pakaian jadi bukan kain harian.
+_Avoid_: Seragam harian jadi
+
+**Olahraga Jadi**:
+Pakaian olahraga jadi bersize (subset S–10L per jenjang) dengan file size chart per varian.
+_Avoid_: Seragam olahraga kain
+
+**Paket Seragam**:
+Bundel 1 kain harian + 1 olahraga (gender × jenjang × size), dirakit di gudang pusat.
+_Avoid_: Paket campuran bebas
+
+**Kirim-Rumah**:
+Distribusi seragam ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; tanpa kurir, ongkir, atau resi.
+_Avoid_: SJ-SERAH, ekspedisi
+
+**Tukar Ukuran**:
+Exchange olahraga belum-dipakai ≤14 hari (size lama kembali ke stok, size baru keluar); kain yang sudah dipotong = final sale kecuali cacat.
+_Avoid_: Retur tukar umum
+
+**Refund Seragam**:
+Dana kembali atas order seragam (cacat/gagal kirim), terpisah dari Tukar Ukuran.
+_Avoid_: Void, retur dana manual
+
+**Klaim Cabang**:
+Snapshot rekonsiliasi gudang → cabang per periode + sekolah (nomor `CLM-*`, bisa lock); tukar/refund pasca-lock masuk periode berikut.
+_Avoid_: Tagihan manual, invoice campur

@@ -9,6 +9,7 @@ import { usersRouter } from "./routes/users";
 import { demoRouter } from "./routes/demo";
 import { packagesRouter } from "./routes/packages";
 import { publicOrdersRouter } from "./routes/public-orders";
+import { publicUniformOrdersRouter } from "./routes/public-uniform-orders";
 import { studentsRouter } from "./routes/students";
 import { paymentsRouter } from "./routes/payments";
 import { studentOrdersRouter } from "./routes/student-orders";
@@ -21,6 +22,7 @@ import { settingsRouter } from "./routes/settings";
 import { internalOrdersRouter } from "./routes/internal-orders";
 import { directSalesRouter } from "./routes/direct-sales";
 import { vendorReturnsRouter } from "./routes/vendor-returns";
+import { uniformsRouter } from "./routes/uniforms";
 import { auth } from "./auth";
 import { searchTiming } from "./middleware/search-timing";
 
@@ -79,6 +81,7 @@ app.get("/api/media/*", async (c) => {
 });
 
 app.route("/api/public/orders", publicOrdersRouter);
+app.route("/api/public/uniform-orders", publicUniformOrdersRouter);
 app.route("/api/students", studentsRouter);
 app.route("/api/student-orders", studentOrdersRouter);
 app.route("/api/dashboard", dashboardRouter);
@@ -95,6 +98,7 @@ app.route("/api/packages", packagesRouter);
 app.route("/api/internal-orders", internalOrdersRouter);
 app.route("/api/direct-sales", directSalesRouter);
 app.route("/api/vendor-returns", vendorReturnsRouter);
+app.route("/api/uniforms", uniformsRouter);
 app.route("/api/shipments", shipmentsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/demo", demoRouter);

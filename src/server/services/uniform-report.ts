@@ -1,0 +1,144 @@
+import { and, gte, inArray, lte } from "drizzle-orm";
+import type { AppDatabase } from "../../db";
+import {
+  schools,
+  students,
+  uniformOrders,
+  uniformOrderItems,
+  uniformPackageBom,
+  uniformVariants,
+} from "../../db/schema";
+import { gradeToJenjang, type UniformJenjang } from "../../lib/uniform-types";
+import { chunkRows, D1_INLIST_CHUNK_SIZE } from "../lib/d1-write";
+
+export interface UniformSalesRow {
+  schoolId: string;
+  schoolName: string;
+  jenjang: UniformJenjang;
+  size: string;
+  orderCount: number;
+  studentCount: number;
+  quantity: number;
+  revenue: number;
+}
+
+export interface UniformSalesReport {
+  period: { from: string; to: string };
+  scopeSchoolIds: string[];
+  totals: { orderCount: number; studentCount: number; quantity: number; revenue: number };
+  rows: UniformSalesRow[];
+}
+
+export interface UniformSalesInput {
+  database: AppDatabase;
+  from: string;
+  to: string;
+  schoolIds: string[];
+  jenjang?: string;
+  size?: string;
+}
+
+type OrderRow = typeof uniformOrders.$inferSelect;
+type ItemRow = typeof uniformOrderItems.$inferSelect;
+
+const selectInChunks = async <T>(ids: string[], run: (chunk: string[]) => Promise<T[]>): Promise<T[]> =>
+  ids.length === 0
+    ? []
+    : (await Promise.all(chunkRows(ids, D1_INLIST_CHUNK_SIZE).map((chunk) => run(chunk)))).flat();
+
+/**
+ * Rekap penjualan seragam terpisah dari buku: dimensi sekolah × jenjang
+ * (turunan gradeLevel) × ukuran; metrik order + murid unik + qty + omzet.
+ * Baris paket diurai via BOM (kain → "—", olahraga → size ter-resolve);
+ * omzet paket dibagi proporsional kuantitas seperti ADR-0005.
+ * Filter sekolah + periode di WHERE SQL; IN-list di-chunk (§10/§11).
+ */
+export async function getUniformSalesReport(input: UniformSalesInput): Promise<UniformSalesReport> {
+  const { database } = input;
+  const orders: OrderRow[] = (
+    await Promise.all(
+      chunkRows(input.schoolIds, D1_INLIST_CHUNK_SIZE).map((chunk) =>
+        database
+          .select()
+          .from(uniformOrders)
+          .where(and(inArray(uniformOrders.schoolId, chunk), gte(uniformOrders.createdAt, input.from), lte(uniformOrders.createdAt, `${input.to}T23:59:59.999Z`)))
+      )
+    )
+  ).flat();
+  const orderIds = orders.map((o) => o.id);
+  const items: ItemRow[] = await selectInChunks(orderIds, (chunk) =>
+    database.select().from(uniformOrderItems).where(inArray(uniformOrderItems.orderId, chunk))
+  );
+  const studentIds = [...new Set(orders.map((o) => o.studentId))];
+  const studentRows: Array<{ id: string; gradeLevel: string }> = await selectInChunks(studentIds, (chunk) =>
+    database.select({ id: students.id, gradeLevel: students.gradeLevel }).from(students).where(inArray(students.id, chunk))
+  );
+  const jenjangByStudent = new Map(studentRows.map((s) => [s.id, gradeToJenjang(s.gradeLevel)]));
+  const packageIds = [...new Set(items.filter((i) => i.packageId).map((i) => i.packageId as string))];
+  const bom: Array<typeof uniformPackageBom.$inferSelect> = await selectInChunks(packageIds, (chunk) =>
+    database.select().from(uniformPackageBom).where(inArray(uniformPackageBom.packageId, chunk))
+  );
+  const bomVariantIds = [...new Set([...items.filter((i) => i.variantId).map((i) => i.variantId as string), ...bom.map((b) => b.variantId)])];
+  const variantRows: Array<Pick<typeof uniformVariants.$inferSelect, "id" | "kind">> = await selectInChunks(
+    bomVariantIds,
+    (chunk) => database.select({ id: uniformVariants.id, kind: uniformVariants.kind }).from(uniformVariants).where(inArray(uniformVariants.id, chunk))
+  );
+  const kindByVariant = new Map(variantRows.map((v) => [v.id, v.kind]));
+  const schoolRows: Array<{ id: string; name: string }> = await database.select({ id: schools.id, name: schools.name }).from(schools);
+  const schoolName = new Map(schoolRows.map((s) => [s.id, s.name]));
+
+  const bomByPackage = new Map<string, typeof bom>();
+  for (const b of bom) bomByPackage.set(b.packageId, [...(bomByPackage.get(b.packageId) ?? []), b]);
+
+  const acc = new Map<string, UniformSalesRow & { orderIds: Set<string>; studentIds: Set<string> }>();
+  const accrue = (order: OrderRow, size: string, qty: number, revenue: number) => {
+    const jenjang = jenjangByStudent.get(order.studentId) ?? "sd";
+    const key = `${order.schoolId}::${jenjang}::${size}`;
+    const row = acc.get(key) ?? {
+      schoolId: order.schoolId, schoolName: schoolName.get(order.schoolId) ?? order.schoolId,
+      jenjang, size, orderCount: 0, studentCount: 0, quantity: 0, revenue: 0,
+      orderIds: new Set<string>(), studentIds: new Set<string>(),
+    };
+    row.orderIds.add(order.id);
+    row.studentIds.add(order.studentId);
+    row.orderCount = row.orderIds.size;
+    row.studentCount = row.studentIds.size;
+    row.quantity += qty;
+    row.revenue += revenue;
+    acc.set(key, row);
+  };
+
+  const itemsByOrder = new Map<string, ItemRow[]>();
+  for (const item of items) itemsByOrder.set(item.orderId, [...(itemsByOrder.get(item.orderId) ?? []), item]);
+  for (const order of orders) {
+    for (const item of itemsByOrder.get(order.id) ?? []) {
+      if (item.variantId) {
+        accrue(order, item.size, item.quantity, item.quantity * item.unitPriceSnapshot);
+      } else if (item.packageId) {
+        const lines = bomByPackage.get(item.packageId) ?? [];
+        const totalUnits = lines.reduce((s, l) => s + l.quantity, 0) || 1;
+        for (const line of lines) {
+          const size = line.size !== "—" ? line.size : kindByVariant.get(line.variantId) === "olahraga" ? item.size : "—";
+          const qty = item.quantity * line.quantity;
+          accrue(order, size, qty, (order.totalAmount * qty) / (totalUnits * item.quantity));
+        }
+      }
+    }
+  }
+  const rows = [...acc.values()]
+    .filter((r) => (!input.jenjang || r.jenjang === input.jenjang) && (!input.size || r.size === input.size))
+    .map(({ orderIds: _o, studentIds: _s, ...r }) => r)
+    .sort((a, b) => b.revenue - a.revenue);
+  const allStudents = new Set(orders.map((o) => o.studentId));
+  return {
+    period: { from: input.from, to: input.to },
+    scopeSchoolIds: input.schoolIds,
+    totals: {
+      orderCount: orders.length,
+      studentCount: allStudents.size,
+      quantity: rows.reduce((s, r) => s + r.quantity, 0),
+      revenue: rows.reduce((s, r) => s + r.revenue, 0),
+    },
+    rows,
+  };
+}

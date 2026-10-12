@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Building2, Users, Mail, CalendarClock, MessageSquare } from "lucide-react";
+import { Building2, Users, Mail, CalendarClock, MessageSquare, Shirt } from "lucide-react";
 import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSettings";
+import { UniformNumberingSettings } from "../components/settings/UniformNumberingSettings";
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { WhatsAppSettingsSection } from "../components/settings/WhatsAppSettingsSection";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
@@ -13,7 +14,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp" | "whatsapp" | "cutoff">("schools");
+  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp" | "whatsapp" | "cutoff" | "uniform">("schools");
   const [cutoffYear, setCutoffYear] = useState(currentAcademicYear());
   const { schoolsList, usersList, loadError, createSchool, createUser } = useSettingsData();
 
@@ -97,6 +98,18 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
             <CalendarClock className="w-4 h-4" />
             Cut-off Satuan
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("uniform")}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all active:scale-[0.98] ${
+              activeTab === "uniform"
+                ? "bg-white text-[#1877F2] font-bold shadow-xs"
+                : "text-[#65676B] hover:text-[#050505]"
+            }`}
+          >
+            <Shirt className="w-4 h-4" />
+            Seragam
+          </button>
         </div>
       </div>
 
@@ -122,6 +135,10 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
 
       {activeTab === "whatsapp" && (
         <WhatsAppSettingsSection />
+      )}
+
+      {activeTab === "uniform" && (
+        <UniformNumberingSettings />
       )}
 
       {activeTab === "cutoff" && (

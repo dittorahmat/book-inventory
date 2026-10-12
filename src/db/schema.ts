@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, unique } from "drizzle-orm/sqlite-core";
 
 export const schools = sqliteTable("schools", {
   id: text("id").primaryKey(),
@@ -438,3 +438,198 @@ export const systemSettings = sqliteTable("system_settings", {
   description: text("description"),
   updatedAt: text("updated_at").notNull(),
 });
+
+// ==========================================
+// 10. UNIFORM INVENTORY (SERAGAM TERPISAH DARI BUKU)
+// Kain Harian = paket kain per gender x jenjang, tanpa ukuran.
+// Olahraga Jadi = pakaian jadi bersize (subset per jenjang) + size chart.
+// Stok hanya di gudang pusat (kuantitas per varian-ukuran, tanpa barcode).
+// ==========================================
+export const uniformVariants = sqliteTable("uniform_variants", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["kain_harian", "olahraga"] }).notNull(),
+  gender: text("gender", { enum: ["male", "female"] }).notNull(),
+  jenjang: text("jenjang", { enum: ["tk", "sd", "smp", "sma"] }).notNull(),
+  academicYear: text("academic_year").notNull(),
+  price: integer("price").notNull().default(0),
+  sizeChartUrl: text("size_chart_url"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_variants_kind_gender_jenjang_idx").on(t.kind, t.gender, t.jenjang),
+]);
+
+/** Subset ukuran yang diizinkan per varian (mis. TK hanya S-M dari S-10L). */
+export const uniformSizes = sqliteTable("uniform_sizes", {
+  id: text("id").primaryKey(),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id, { onDelete: "cascade" }),
+  size: text("size").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_sizes_variant_idx").on(t.variantId),
+  unique("uniform_sizes_variant_size_unq").on(t.variantId, t.size),
+]);
+
+/** Stok gudang pusat: kuantitas per varian-ukuran. Kain memakai size "—". */
+export const uniformStock = sqliteTable("uniform_stock", {
+  id: text("id").primaryKey(),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id, { onDelete: "cascade" }),
+  size: text("size").notNull().default("—"),
+  quantity: integer("quantity").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_stock_variant_idx").on(t.variantId),
+  unique("uniform_stock_variant_size_unq").on(t.variantId, t.size),
+]);
+
+export const uniformPackages = sqliteTable("uniform_packages", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  academicYear: text("academic_year").notNull(),
+  price: integer("price").notNull().default(0),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const uniformPackageBom = sqliteTable("uniform_package_bom", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => uniformPackages.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
+  quantity: integer("quantity").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_bom_package_idx").on(t.packageId),
+]);
+
+/** Bundel paket seragam siap kirim hasil rakitan gudang (tanpa barcode). */
+export const uniformPackageStock = sqliteTable("uniform_package_stock", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => uniformPackages.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  unique("uniform_package_stock_package_unq").on(t.packageId),
+]);
+
+export const uniformPos = sqliteTable("uniform_pos", {
+  id: text("id").primaryKey(),
+  poNumber: text("po_number").notNull().unique(),
+  supplierId: text("supplier_id").notNull().references(() => suppliers.id),
+  status: text("status", { enum: ["draft", "ordered", "printed", "signed_uploaded", "sent", "partially_received", "received", "cancelled"] }).notNull().default("draft"),
+  orderDate: text("order_date").notNull(),
+  totalAmount: integer("total_amount").notNull().default(0),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_pos_supplier_idx").on(t.supplierId),
+]);
+
+export const uniformPoItems = sqliteTable("uniform_po_items", {
+  id: text("id").primaryKey(),
+  poId: text("po_id").notNull().references(() => uniformPos.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  quantityReceived: integer("quantity_received").notNull().default(0),
+  unitPrice: integer("unit_price").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_po_items_po_idx").on(t.poId),
+]);
+
+/** Satu order = satu murid; satu murid boleh multi-order (tiap transaksi kiriman sendiri). */
+export const uniformOrders = sqliteTable("uniform_orders", {
+  id: text("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  studentId: text("student_id").notNull().references(() => students.id),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  academicYear: text("academic_year").notNull(),
+  homeAddressSnapshot: text("home_address_snapshot").notNull(),
+  shipmentStatus: text("shipment_status", { enum: ["belum_dikirim", "sudah_dikirim"] }).notNull().default("belum_dikirim"),
+  shippedAt: text("shipped_at"),
+  totalAmount: integer("total_amount").notNull().default(0),
+  paidAmount: integer("paid_amount").notNull().default(0),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_orders_school_number_idx").on(t.schoolId, t.orderNumber),
+  index("uniform_orders_school_shipment_idx").on(t.schoolId, t.shipmentStatus),
+  index("uniform_orders_student_idx").on(t.studentId),
+]);
+
+export const uniformOrderItems = sqliteTable("uniform_order_items", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => uniformOrders.id, { onDelete: "cascade" }),
+  packageId: text("package_id").references(() => uniformPackages.id),
+  variantId: text("variant_id").references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceSnapshot: integer("unit_price_snapshot").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_order_items_order_idx").on(t.orderId),
+]);
+
+/** Tukar Ukuran: exchange olahraga belum-dipakai ≤14 hari (bukan refund dana). */
+export const uniformExchanges = sqliteTable("uniform_exchanges", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => uniformOrders.id),
+  studentId: text("student_id").notNull().references(() => students.id),
+  oldVariantId: text("old_variant_id").notNull().references(() => uniformVariants.id),
+  oldSize: text("old_size").notNull(),
+  newVariantId: text("new_variant_id").notNull().references(() => uniformVariants.id),
+  newSize: text("new_size").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status", { enum: ["requested", "approved", "completed", "rejected"] }).notNull().default("requested"),
+  handledByUserId: text("handled_by_user_id").references(() => users.id),
+  resolvedAt: text("resolved_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_exchanges_status_idx").on(t.status),
+  index("uniform_exchanges_order_idx").on(t.orderId),
+]);
+
+/** Refund Seragam: dana kembali (cacat/gagal kirim), terpisah dari tukar ukuran. */
+export const uniformRefunds = sqliteTable("uniform_refunds", {
+  id: text("id").primaryKey(),
+  refundNumber: text("refund_number").notNull().unique(),
+  orderId: text("order_id").notNull().references(() => uniformOrders.id),
+  studentId: text("student_id").notNull().references(() => students.id),
+  amount: integer("amount").notNull().default(0),
+  reason: text("reason").notNull(),
+  status: text("status", { enum: ["requested", "approved", "refunded", "rejected"] }).notNull().default("requested"),
+  handledByUserId: text("handled_by_user_id").references(() => users.id),
+  resolvedAt: text("resolved_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_refunds_order_idx").on(t.orderId),
+  index("uniform_refunds_status_idx").on(t.status),
+]);
+
+/** Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock. */
+export const uniformClaims = sqliteTable("uniform_claims", {
+  id: text("id").primaryKey(),
+  claimNumber: text("claim_number").notNull().unique(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  period: text("period").notNull(),
+  status: text("status", { enum: ["draft", "locked"] }).notNull().default("draft"),
+  totalQty: integer("total_qty").notNull().default(0),
+  totalAmount: integer("total_amount").notNull().default(0),
+  lockedAt: text("locked_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("uniform_claims_school_period_idx").on(t.schoolId, t.period),
+  unique("uniform_claims_school_period_unq").on(t.schoolId, t.period),
+]);
