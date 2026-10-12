@@ -7,7 +7,8 @@ afterEach(() => {
 });
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
-import { suppliers, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { submitUniformOrder } from "../services/uniform-orders";
 
 const postJson = (path: string, body: unknown) =>
   uniformsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -138,5 +139,69 @@ describe("Uniform catalog, PO & assembly API", () => {
     });
     expect(recvRes.status).toBe(200);
     expect((await recvRes.json()).data.status).toBe("received");
+  });
+});
+
+describe("Uniform shipment flag", () => {
+  it("list terpartisi, ship gudang, tolak ganda/cabang/anonim", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolA = `sch-ua-${stamp}`;
+    const schoolB = `sch-ub-${stamp}`;
+    for (const [id, code] of [[schoolA, `UA-${stamp}`], [schoolB, `UB-${stamp}`]] as const) {
+      await db.insert(schools).values({ id, name: `Sekolah ${code}`, code, type: "branch", createdAt: now, updatedAt: now });
+    }
+    const studentId = `stu-ua-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId: schoolA, nis: `NIS-UA-${stamp}`, name: `Anak Kirim ${stamp}`,
+      gender: "male", gradeLevel: "3", curriculumType: "international", academicYear: "2026/2027",
+      parentName: "Ortu", parentPhone: "081200000001", status: "active", createdAt: now, updatedAt: now,
+    });
+    const variantId = `uv-ship-${stamp}`;
+    await db.insert(uniformVariants).values({
+      id: variantId, code: `UV-SHIP-${stamp}`, name: "Kain Kirim", kind: "kain_harian",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 100000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(uniformStock).values({ id: `ust-ship-${stamp}`, variantId, size: "—", quantity: 5, updatedAt: now });
+    const submitted = await submitUniformOrder(
+      db,
+      {
+        studentId, academicYear: "2026/2027",
+        homeAddress: "Jl. Pengiriman No. 9, RT 01 RW 01, Depok 16411",
+        items: [{ variantId, quantity: 1 }],
+      },
+      { generateOrderNumber: () => `USO-SHIP-${stamp}` }
+    );
+    if (!submitted.ok) throw new Error(`setup order gagal: ${submitted.message}`);
+    const orderId = submitted.data.order.id;
+
+    const list = await uniformsRouter.request(`/orders?schoolId=${schoolA}&shipmentStatus=belum_dikirim`, { method: "GET" });
+    expect(list.status).toBe(200);
+    expect(((await list.json()).data as unknown[]).length).toBe(1);
+
+    const searchGlobal = await uniformsRouter.request("/orders?search=USO-SHIP", { method: "GET" });
+    expect(searchGlobal.status).toBe(400);
+
+    mockActor("warehouse_admin", null);
+    const ship = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(ship.status).toBe(200);
+    const shipped = (await ship.json()).data as { shipmentStatus: string; shippedAt: string };
+    expect(shipped.shipmentStatus).toBe("sudah_dikirim");
+    expect(shipped.shippedAt.length).toBeGreaterThan(0);
+
+    const shipAgain = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(shipAgain.status).toBe(400);
+
+    mockActor("branch_admin", schoolA);
+    const branchShip = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(branchShip.status).toBe(403);
+
+    mockActor("branch_admin", schoolB);
+    const crossList = await uniformsRouter.request(`/orders?schoolId=${schoolA}`, { method: "GET" });
+    expect(crossList.status).toBe(403);
+
+    mockActor(null);
+    const anon = await uniformsRouter.request(`/orders?schoolId=${schoolA}`, { method: "GET" });
+    expect(anon.status).toBe(401);
   });
 });

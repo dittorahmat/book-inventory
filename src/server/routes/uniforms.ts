@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { desc } from "drizzle-orm";
+import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { uniformPos } from "../../db/schema";
+import { schools, students, uniformOrders, uniformPos } from "../../db/schema";
 import { idSchema, academicYearSchema } from "../lib/validators";
 import {
   accessErrorResponse,
@@ -21,6 +21,7 @@ import {
   receiveUniformPo,
   assembleUniformPackages,
 } from "../services/uniform-supply";
+import { markUniformShipped } from "../services/uniform-orders";
 
 export const uniformsRouter = new Hono();
 
@@ -168,6 +169,70 @@ uniformsRouter.post("/pos/:id/receive", zValidator("json", receiveSchema), async
   try {
     await resolveLogisticsActor(c);
     const result = await receiveUniformPo(db, c.req.param("id"), c.req.valid("json").lines);
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Daftar order seragam: filter sekolah + status kirim + cari (cari wajib dalam sekolah).
+uniformsRouter.get("/orders", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
+    const shipmentStatus = c.req.query("shipmentStatus");
+    const search = c.req.query("search")?.trim();
+
+    const conditions = [];
+    if (schoolId) conditions.push(eq(uniformOrders.schoolId, schoolId));
+    if (shipmentStatus === "belum_dikirim" || shipmentStatus === "sudah_dikirim") {
+      conditions.push(eq(uniformOrders.shipmentStatus, shipmentStatus));
+    }
+    if (search) {
+      if (!schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
+      const pattern = `%${search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          like(sql`lower(${students.name})`, pattern),
+          like(sql`lower(${students.nis})`, pattern),
+          like(sql`lower(${uniformOrders.orderNumber})`, pattern)
+        )
+      );
+    }
+    const rows = await db
+      .select({
+        id: uniformOrders.id,
+        orderNumber: uniformOrders.orderNumber,
+        studentId: uniformOrders.studentId,
+        studentName: students.name,
+        nis: students.nis,
+        gradeLevel: students.gradeLevel,
+        schoolId: uniformOrders.schoolId,
+        schoolName: schools.name,
+        shipmentStatus: uniformOrders.shipmentStatus,
+        shippedAt: uniformOrders.shippedAt,
+        totalAmount: uniformOrders.totalAmount,
+        homeAddressSnapshot: uniformOrders.homeAddressSnapshot,
+        createdAt: uniformOrders.createdAt,
+      })
+      .from(uniformOrders)
+      .innerJoin(students, eq(uniformOrders.studentId, students.id))
+      .innerJoin(schools, eq(uniformOrders.schoolId, schools.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(uniformOrders.createdAt))
+      .limit(50);
+    return c.json({ success: true, data: rows });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Tandai terkirim (gudang/pusat saja).
+uniformsRouter.post("/orders/:id/ship", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await markUniformShipped(db, c.req.param("id"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
   } catch (err) {

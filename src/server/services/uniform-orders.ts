@@ -220,3 +220,24 @@ export async function submitUniformOrder(
   }
   return invalid("Gagal membuat order seragam, silakan ulangi.");
 }
+
+/** Tandai kiriman gudang: belum_dikirim → sudah_dikirim (+ shippedAt). Satu arah, tanpa un-ship. */
+export async function markUniformShipped(
+  database: AppDatabase,
+  orderId: string,
+  deps?: WriteDeps
+): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
+  const now = writeNow(deps);
+  const [order]: Array<typeof uniformOrders.$inferSelect> = await database
+    .select()
+    .from(uniformOrders)
+    .where(eq(uniformOrders.id, orderId));
+  if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
+  if (order.shipmentStatus === "sudah_dikirim") return invalid("Order sudah ditandai terkirim.");
+  await database
+    .update(uniformOrders)
+    .set({ shipmentStatus: "sudah_dikirim", shippedAt: now, updatedAt: now })
+    .where(eq(uniformOrders.id, orderId));
+  const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+  return { ok: true, data: updated };
+}

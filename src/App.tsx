@@ -4,6 +4,7 @@ import { CatalogView } from "./views/CatalogView";
 import { InventoryView } from "./views/InventoryView";
 import { PackagesView } from "./views/PackagesView";
 import { StudentOrdersView } from "./views/StudentOrdersView";
+import { UniformView } from "./views/UniformView";
 import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
@@ -179,6 +180,14 @@ export function App() {
           </Suspense>
         )}
         {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
+        {activeTab === "uniforms" && (
+          <UniformView
+            schools={schools}
+            activeSchool={selectedSchool}
+            userRole={userRole}
+            userSchoolId={userSchoolId}
+          />
+        )}
         {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
         {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
         {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} userRole={userRole} />}

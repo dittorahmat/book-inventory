@@ -11,6 +11,7 @@ import {
   Truck,
   BarChart3,
   Settings,
+  Shirt,
 } from "lucide-react";
 import { isCentralRole, isLogisticsRole, type StaffRole } from "../../lib/staff-roles";
 
@@ -21,6 +22,7 @@ export const TAB_IDS = [
   "inventory",
   "students",
   "student_orders",
+  "uniforms",
   "procurement",
   "internal_orders",
   "returns",
@@ -43,6 +45,7 @@ const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentT
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "students", label: "Database Siswa", icon: GraduationCap },
   { id: "student_orders", label: "Pesanan Siswa", icon: Users },
+  { id: "uniforms", label: "Seragam", icon: Shirt },
   { id: "packages", label: "Paket & Bundling", icon: Package },
   { id: "procurement", label: "Pengadaan PO", icon: ShoppingBag, requireLogistics: true },
   { id: "internal_orders", label: "Pesan ke Gudang", icon: Warehouse },
@@ -180,6 +183,19 @@ export function AppMobileNavigation({
         >
           <Truck className="w-5 h-5 mb-1" />
           <span className="text-[11px] font-semibold">Transfers</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectTab("uniforms")}
+          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+            activeTab === "uniforms"
+              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+          }`}
+        >
+          <Shirt className="w-5 h-5 mb-1" />
+          <span className="text-[11px] font-semibold">Seragam</span>
         </button>
 
         <button
