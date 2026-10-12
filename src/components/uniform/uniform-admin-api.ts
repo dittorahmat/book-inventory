@@ -64,3 +64,38 @@ export const createUniformPo = (payload: unknown): Promise<{ id: string }> =>
 
 export const receiveUniformPo = (id: string, lines: Array<{ variantId: string; size?: string; quantity: number }>): Promise<unknown> =>
   postJson(`/api/uniforms/pos/${id}/receive`, { lines }, "Gagal mencatat penerimaan PO.");
+
+export interface UniformOrderDetail {
+  order: UniformOrderRow & { academicYear: string; notes: string | null };
+  items: Array<{ id: string; packageId: string | null; variantId: string | null; size: string; quantity: number; unitPriceSnapshot: number }>;
+}
+
+export const fetchUniformOrderDetail = (id: string): Promise<UniformOrderDetail> =>
+  getJson<UniformOrderDetail>(`/api/uniforms/orders/${id}`, "Gagal memuat detail order.");
+
+export interface UniformExchangeRow {
+  id: string; orderId: string; oldVariantId: string; oldSize: string;
+  newVariantId: string; newSize: string; reason: string; status: string;
+}
+
+export const fetchUniformExchanges = (params: { schoolId?: string; status?: string }): Promise<UniformExchangeRow[]> =>
+  getJson<UniformExchangeRow[]>(buildQuery("/api/uniforms/exchanges", params), "Gagal memuat tukar ukuran.");
+
+export const requestUniformExchange = (payload: unknown): Promise<unknown> =>
+  postJson("/api/uniforms/exchanges", payload, "Gagal mengajukan tukar ukuran.");
+
+export const resolveUniformExchange = (id: string, action: "approve" | "complete" | "reject"): Promise<unknown> =>
+  postJson(`/api/uniforms/exchanges/${id}/resolve`, { action }, "Gagal memproses tukar ukuran.");
+
+export interface UniformRefundRow {
+  id: string; orderId: string; refundNumber: string; amount: number; reason: string; status: string;
+}
+
+export const fetchUniformRefunds = (params: { schoolId?: string; status?: string }): Promise<UniformRefundRow[]> =>
+  getJson<UniformRefundRow[]>(buildQuery("/api/uniforms/refunds", params), "Gagal memuat refund.");
+
+export const requestUniformRefund = (payload: unknown): Promise<unknown> =>
+  postJson("/api/uniforms/refunds", payload, "Gagal mengajukan refund.");
+
+export const resolveUniformRefund = (id: string, action: "approve" | "refund" | "reject"): Promise<unknown> =>
+  postJson(`/api/uniforms/refunds/${id}/resolve`, { action }, "Gagal memproses refund.");

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, students, uniformOrders, uniformPos } from "../../db/schema";
+import { schools, students, uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import { idSchema, academicYearSchema } from "../lib/validators";
 import {
+  AccessHttpError,
   accessErrorResponse,
   requireScopedActor,
   resolveLogisticsActor,
@@ -22,6 +23,14 @@ import {
   assembleUniformPackages,
 } from "../services/uniform-supply";
 import { markUniformShipped } from "../services/uniform-orders";
+import {
+  listUniformExchanges,
+  listUniformRefunds,
+  requestUniformExchange,
+  requestUniformRefund,
+  resolveUniformExchange,
+  resolveUniformRefund,
+} from "../services/uniform-returns";
 
 export const uniformsRouter = new Hono();
 
@@ -233,6 +242,126 @@ uniformsRouter.post("/orders/:id/ship", async (c) => {
   try {
     await resolveLogisticsActor(c);
     const result = await markUniformShipped(db, c.req.param("id"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const assertOrderInScope = async (scope: string[], orderId: string): Promise<void> => {
+  const [o] = await db
+    .select({ schoolId: uniformOrders.schoolId })
+    .from(uniformOrders)
+    .where(eq(uniformOrders.id, orderId));
+  if (!o) return;
+  if (!scope.includes(o.schoolId)) throw new AccessHttpError(403, "Akses order di luar sekolah penugasan dilarang");
+};
+
+// Detail order + baris (staf sesuai scope).
+uniformsRouter.get("/orders/:id", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c);
+    const orderId = c.req.param("id");
+    await assertOrderInScope(scope, orderId);
+    const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+    if (!order) return c.json({ success: false, message: "Order seragam tidak ditemukan." }, 404);
+    const items = await db
+      .select()
+      .from(uniformOrderItems)
+      .where(eq(uniformOrderItems.orderId, orderId));
+    return c.json({ success: true, data: { order, items } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const exchangeSchema = z.object({
+  orderId: idSchema,
+  oldVariantId: idSchema,
+  oldSize: z.string().min(1, "Size lama wajib diisi"),
+  newVariantId: idSchema,
+  newSize: z.string().min(1, "Size baru wajib diisi"),
+  reason: z.string().min(1, "Alasan wajib diisi"),
+});
+
+const resolveExchangeSchema = z.object({
+  action: z.enum(["approve", "complete", "reject"]),
+});
+
+const refundSchema = z.object({
+  orderId: idSchema,
+  amount: z.number().int().min(1).optional(),
+  reason: z.string().min(1, "Alasan wajib diisi"),
+});
+
+const resolveRefundSchema = z.object({
+  action: z.enum(["approve", "refund", "reject"]),
+});
+
+uniformsRouter.get("/exchanges", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
+    const status = c.req.query("status") || undefined;
+    return c.json({ success: true, data: await listUniformExchanges(db, schoolId, status) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.post("/exchanges", zValidator("json", exchangeSchema), async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c);
+    const body = c.req.valid("json");
+    await assertOrderInScope(scope, body.orderId);
+    const result = await requestUniformExchange(db, body);
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.post("/exchanges/:id/resolve", zValidator("json", resolveExchangeSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await resolveUniformExchange(db, c.req.param("id"), c.req.valid("json").action);
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.get("/refunds", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
+    const status = c.req.query("status") || undefined;
+    return c.json({ success: true, data: await listUniformRefunds(db, schoolId, status) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.post("/refunds", zValidator("json", refundSchema), async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c);
+    const body = c.req.valid("json");
+    await assertOrderInScope(scope, body.orderId);
+    const result = await requestUniformRefund(db, body);
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.post("/refunds/:id/resolve", zValidator("json", resolveRefundSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await resolveUniformRefund(db, c.req.param("id"), c.req.valid("json").action);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
   } catch (err) {

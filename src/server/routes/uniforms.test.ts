@@ -7,8 +7,10 @@ afterEach(() => {
 });
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
+import { and, eq } from "drizzle-orm";
 import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
 import { submitUniformOrder } from "../services/uniform-orders";
+import { requestUniformExchange } from "../services/uniform-returns";
 
 const postJson = (path: string, body: unknown) =>
   uniformsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -203,5 +205,131 @@ describe("Uniform shipment flag", () => {
     mockActor(null);
     const anon = await uniformsRouter.request(`/orders?schoolId=${schoolA}`, { method: "GET" });
     expect(anon.status).toBe(401);
+  });
+});
+
+describe("Uniform exchange & refund", () => {
+  it("tukar S->M: requested -> approved -> completed memindah stok; kain ditolak", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `sch-ur-${stamp}`;
+    await db.insert(schools).values({ id: schoolId, name: `Sekolah UR-${stamp}`, code: `UR-${stamp}`, type: "branch", createdAt: now, updatedAt: now });
+    const studentId = `stu-ur-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-UR-${stamp}`, name: `Anak Tukar ${stamp}`,
+      gender: "male", gradeLevel: "4", curriculumType: "international", academicYear: "2026/2027",
+      parentName: "Ortu", parentPhone: "081200000002", status: "active", createdAt: now, updatedAt: now,
+    });
+    const mkVariant = async (code: string, kind: "kain_harian" | "olahraga", sizes: string[]) => {
+      const res = await uniformsRouter.request("/variants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code, name: code, kind, gender: "male", jenjang: "sd",
+          academicYear: "2026/2027", price: kind === "kain_harian" ? 120000 : 95000, sizes,
+        }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json()).data.variant.id as string;
+    };
+    const kainId = await mkVariant(`UK-UR-${stamp}`, "kain_harian", []);
+    const olId = await mkVariant(`UO-UR-${stamp}`, "olahraga", ["S", "M"]);
+    await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(and(eq(uniformStock.variantId, kainId), eq(uniformStock.size, "—")));
+    await db.update(uniformStock).set({ quantity: 3, updatedAt: now }).where(and(eq(uniformStock.variantId, olId), eq(uniformStock.size, "S")));
+    await db.update(uniformStock).set({ quantity: 2, updatedAt: now }).where(and(eq(uniformStock.variantId, olId), eq(uniformStock.size, "M")));
+
+    const submitted = await submitUniformOrder(
+      db,
+      {
+        studentId, academicYear: "2026/2027",
+        homeAddress: "Jl. Tukar No. 3, RT 02 RW 01, Depok 16412",
+        items: [{ variantId: olId, size: "S", quantity: 1 }, { variantId: kainId, quantity: 1 }],
+      },
+      { generateOrderNumber: () => `USO-UR-${stamp}` }
+    );
+    if (!submitted.ok) throw new Error(`setup order gagal: ${submitted.message}`);
+    const orderId = submitted.data.order.id;
+
+    const stockOf = async (size: string) =>
+      (await db.select().from(uniformStock).where(eq(uniformStock.variantId, olId))).find(
+        (s: typeof uniformStock.$inferSelect) => s.size === size
+      )?.quantity;
+
+    const reqRes = await uniformsRouter.request("/exchanges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, oldVariantId: olId, oldSize: "S", newVariantId: olId, newSize: "M", reason: "Kekecilan" }),
+    });
+    expect(reqRes.status).toBe(201);
+    const exId = (await reqRes.json()).data.id as string;
+
+    // Kain tidak bisa tukar
+    const kainEx = await uniformsRouter.request("/exchanges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, oldVariantId: kainId, oldSize: "—", newVariantId: kainId, newSize: "—", reason: "Salah" }),
+    });
+    expect(kainEx.status).toBe(400);
+
+    // Kadaluarsa >14 hari ditolak (service langsung, jam injeksi)
+    const expired = await requestUniformExchange(
+      db,
+      { orderId, oldVariantId: olId, oldSize: "S", newVariantId: olId, newSize: "M", reason: "Telat" },
+      { now: new Date(Date.now() + 20 * 86400000).toISOString() }
+    );
+    expect(expired.ok).toBe(false);
+
+    mockActor("warehouse_admin", null);
+    const approve = await uniformsRouter.request(`/exchanges/${exId}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve" }),
+    });
+    expect(approve.status).toBe(200);
+    const complete = await uniformsRouter.request(`/exchanges/${exId}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "complete" }),
+    });
+    expect(complete.status).toBe(200);
+    expect(await stockOf("M")).toBe(1);
+    expect(await stockOf("S")).toBe(3);
+
+    // Refund parsial memulihkan stok dan tercatat
+    mockActor("central_admin", null);
+    const rfReq = await uniformsRouter.request("/refunds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, amount: 50000, reason: "Jahitan lepas" }),
+    });
+    expect(rfReq.status).toBe(201);
+    const rfBody = (await rfReq.json()).data as { refundNumber: string; id: string };
+    expect(rfBody.refundNumber.startsWith("RFD-U-")).toBe(true);
+    const rfId = rfBody.id;
+    const over = await uniformsRouter.request("/refunds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, amount: 999999999, reason: "Kebesaran" }),
+    });
+    expect(over.status).toBe(400);
+
+    mockActor("warehouse_admin", null);
+    expect((await uniformsRouter.request(`/refunds/${rfId}/resolve`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "approve" }),
+    })).status).toBe(200);
+    const refunded = await uniformsRouter.request(`/refunds/${rfId}/resolve`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refund" }),
+    });
+    expect(refunded.status).toBe(200);
+    expect(await stockOf("S")).toBe(4);
+
+    // Cabang lain tidak boleh ajukan; branch tidak boleh resolve
+    mockActor("branch_admin", `sch-lain-${stamp}`);
+    const cross = await uniformsRouter.request("/exchanges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, oldVariantId: olId, oldSize: "M", newVariantId: olId, newSize: "S", reason: "X" }),
+    });
+    expect(cross.status).toBe(403);
   });
 });
