@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { 
   schools, 
   books, 
@@ -119,6 +120,9 @@ export async function runIdempotentSeed(customDb?: any) {
     },
   ];
 
+  // Hash scrypt asli untuk 'password123' (stub base64 lama tak pernah lolos
+  // verifikasi Better-Auth → login demo selalu 401; lihat insiden Okt 2026).
+  const demoPasswordHash = await hashPassword("password123");
   for (const u of demoUsers) {
     try {
       await targetDb.insert(users).values({
@@ -132,17 +136,36 @@ export async function runIdempotentSeed(customDb?: any) {
         updatedAt: new Date(),
       }).onConflictDoNothing();
 
-      // Password hash for 'password123' used by Better-Auth scrypt/argon2 or fallback
       // For Better-Auth credential accounts:
       await targetDb.insert(accounts).values({
         id: `acc-${u.id}`,
         userId: u.id,
         accountId: u.email,
         providerId: "credential",
-        password: "cGFzc3dvcmQxMjM6Y2U2ZDIxYTNhOGQ2NDJkOTljMjJjNjIxMzNjMGFjMmI=", // salt & hash stub
+        password: demoPasswordHash,
         createdAt: new Date(),
         updatedAt: new Date(),
       }).onConflictDoNothing();
+
+      // Self-healing: baris stub warisan (tak terverifikasi) diganti hash asli.
+      const [existing] = await targetDb
+        .select({ password: accounts.password })
+        .from(accounts)
+        .where(eq(accounts.id, `acc-${u.id}`));
+      if (existing?.password) {
+        let valid = false;
+        try {
+          valid = await verifyPassword({ hash: existing.password, password: "password123" });
+        } catch {
+          valid = false;
+        }
+        if (!valid) {
+          await targetDb
+            .update(accounts)
+            .set({ password: demoPasswordHash, updatedAt: new Date() })
+            .where(eq(accounts.id, `acc-${u.id}`));
+        }
+      }
     } catch {
       // Ignored if user already exists
     }
