@@ -118,4 +118,12 @@ describe("Revamped Demo Seeding API", () => {
     expect(pusat.role).toBe("school_admin");
     expect(pusat.schoolId).toBe("school-alw-1");
   });
+
+  it("kredensial demo terverifikasi scrypt (login password123 tidak 401)", async () => {
+    const { verifyPassword } = await import("better-auth/crypto");
+    const { accounts } = await import("../../db/schema");
+    const [acc] = await db.select().from(accounts).where(eq(accounts.id, "acc-usr-admin-gudang"));
+    expect(acc).toBeDefined();
+    expect(await verifyPassword({ hash: acc.password as string, password: "password123" })).toBe(true);
+  });
 });
