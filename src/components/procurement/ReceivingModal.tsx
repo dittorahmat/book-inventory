@@ -21,6 +21,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
     });
     return initial;
   });
+  const [conditions, setConditions] = useState<Record<string, "good" | "damaged">>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
     }
     const receivedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
-      .map(([poItemId, quantityToReceive]) => ({ poItemId, quantityToReceive }));
+      .map(([poItemId, quantityToReceive]) => ({ poItemId, quantityToReceive, condition: conditions[poItemId] ?? "good" }));
     if (receivedItems.length === 0) {
       alert("Pilih minimal 1 item untuk diterima.");
       return;
@@ -127,7 +128,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
                       <span className="text-[#65676B]">{rc.receivedDate}</span>
                     </div>
                     <div className="text-[10px] text-[#65676B] mt-0.5">
-                      Item: {rc.items?.map((it: any) => `${it.title} (${it.quantityReceived} eks)`).join(", ")}
+                      Item: {rc.items?.map((it: any) => `${it.title} (${it.quantityReceived} eks${it.condition === "damaged" ? ", rusak" : ""})`).join(", ")}
                     </div>
                   </div>
                 ))}
@@ -154,6 +155,17 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        aria-label={`Kondisi ${it.title}`}
+                        value={conditions[it.id] ?? "good"}
+                        onChange={(e) =>
+                          setConditions({ ...conditions, [it.id]: e.target.value as "good" | "damaged" })
+                        }
+                        className="px-2 py-1.5 border border-[#CED0D4] rounded-lg text-[11px] font-semibold text-[#050505]"
+                      >
+                        <option value="good">Baik</option>
+                        <option value="damaged">Rusak</option>
+                      </select>
                       <input
                         type="number"
                         min={0}
@@ -176,7 +188,8 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2 text-[11px]">
             <AlertCircle className="w-4 h-4 shrink-0 text-[#1877F2] mt-0.5" />
             <span>
-              Buku yang dikonfirmasi akan langsung otomatis dibuatkan ID barcode lepasan dengan kondisi <strong>Baru (new)</strong> di gudang <strong>{po.schoolName}</strong>.
+              Buku yang dikonfirmasi akan langsung otomatis dibuatkan ID barcode lepasan di gudang <strong>{po.schoolName}</strong> —
+              kondisi <strong>Baik</strong> tercatat Baru, <strong>Rusak</strong> tercatat rusak dan muncul di perhatian.
             </span>
           </div>
 

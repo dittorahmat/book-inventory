@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { internalPurchaseOrders } from "../../db/schema";
+import { internalPurchaseOrders, internalShipments } from "../../db/schema";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -11,6 +11,8 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "../services/internal-po";
+import { receiveInternalShipment } from "../services/internal-receipt";
+import { idSchema } from "../lib/validators";
 
 export const internalOrdersRouter = new Hono();
 
@@ -102,9 +104,61 @@ internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSch
   }
 });
 
-// 4. GET shipment history for internal PO
-internalOrdersRouter.get("/:id/shipments", async (c) => {
+const receiveShipmentSchema = z.object({
+  receivedDate: z.string().optional(),
+  receivedByUserId: idSchema.optional(),
+  transferShipmentId: idSchema.optional(),
+  items: z.array(
+    z.object({
+      shipmentItemId: idSchema,
+      condition: z.enum(["good", "damaged", "missing"]),
+      notes: z.string().optional(),
+    })
+  ).min(1, "Minimal 1 baris kondisi penerimaan wajib diisi"),
+});
+
+// 4. POST receive Shipment (Penerimaan cabang + penyesuaian selisih)
+internalOrdersRouter.post("/shipments/:shipmentId/receive", zValidator("json", receiveShipmentSchema), async (c) => {
   try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const shipmentId = c.req.param("shipmentId");
+    const body = c.req.valid("json");
+
+    const [shipment] = await db
+      .select()
+      .from(internalShipments)
+      .where(eq(internalShipments.id, shipmentId));
+    if (!shipment) {
+      return c.json({ success: false, message: "Surat Jalan Internal tidak ditemukan" }, 404);
+    }
+    const [po] = await db
+      .select()
+      .from(internalPurchaseOrders)
+      .where(eq(internalPurchaseOrders.id, shipment.internalPoId));
+    if (!po) {
+      return c.json({ success: false, message: "PO Internal tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.schoolId, locations);
+
+    const result = await receiveInternalShipment(db, shipmentId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({
+      success: true,
+      message:
+        result.data.status === "discrepancy"
+          ? `Surat Jalan ${shipment.deliveryNoteNumber} diterima dengan selisih — perlu penyesuaian`
+          : `Surat Jalan ${shipment.deliveryNoteNumber} berhasil diterima cabang`,
+      data: result.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5. GET shipment history for internal PO
+internalOrdersRouter.get("/:id/shipments", async (c) => {  try {
     const { actor, locations } = await requireScopedActor(db, c);
     const poId = c.req.param("id");
 

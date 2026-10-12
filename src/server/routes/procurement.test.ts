@@ -6,7 +6,7 @@ import { mockActor, restoreActor } from "./test-actor";
 import { createPurchaseOrder } from "../services/po-workflow";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
-import { books, bookItems, purchaseOrders, purchaseOrderItems, suppliers } from "../../db/schema";
+import { books, bookItems, purchaseOrders, purchaseOrderItems, purchaseOrderReceipts, purchaseOrderReceiptItems, suppliers } from "../../db/schema";
 
 beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
@@ -900,6 +900,73 @@ describe("Supplier PO list seam (T3: list + readiness behind the module)", () =>
       expect(rows.every((r: any) => r.targetSchoolId === po.targetSchoolId)).toBe(true);
     } finally {
       mockActor("central_admin", null);
+      await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
+
+  it("mencatat kondisi rusak per baris terima: stok damaged + histori berkondisi (spec-111)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `b-pocond-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-POC-${stamp}`, title: "Buku Kondisi", author: "A", publisher: "P",
+      createdAt: now, updatedAt: now,
+    });
+    const supRes = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-COND-${stamp}`, name: "Supplier Kondisi" }),
+    });
+    expect(supRes.status).toBe(201);
+    const supplierId = (await supRes.json()).data.id;
+    const poRes = await procurementRouter.request("/purchase-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId, orderDate: "2026-10-01",
+        items: [{ bookId, quantityOrdered: 4, unitPrice: 50000 }],
+      }),
+    });
+    expect(poRes.status).toBe(201);
+    const poId = (await poRes.json()).data.id;
+    const listJson = await (await procurementRouter.request("/purchase-orders", { method: "GET" })).json();
+    const poItemId = listJson.data.find((p: any) => p.id === poId).items[0].id;
+
+    try {
+      const recRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryNoteNumber: `SJ-COND-${stamp}`,
+          receivedItems: [
+            { poItemId, quantityToReceive: 3, condition: "good" },
+            { poItemId, quantityToReceive: 1, condition: "damaged" },
+          ],
+        }),
+      });
+      expect(recRes.status).toBe(200);
+      expect((await recRes.json()).data.totalReceivedThisBatch).toBe(4);
+
+      const damaged = await db
+        .select()
+        .from(bookItems)
+        .where(eq(bookItems.bookId, bookId));
+      expect(damaged.filter((b: typeof bookItems.$inferSelect) => b.condition === "damaged")).toHaveLength(1);
+      expect(damaged.filter((b: typeof bookItems.$inferSelect) => b.condition === "new")).toHaveLength(3);
+
+      const history = await (await procurementRouter.request(`/purchase-orders/${poId}/receipts`, { method: "GET" })).json();
+      const conditions = history.data[0].items.map((i: any) => i.condition).sort();
+      expect(conditions).toEqual(["damaged", "good"]);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      const receipts = await db.select().from(purchaseOrderReceipts).where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
+      for (const r of receipts) {
+        await db.delete(purchaseOrderReceiptItems).where(eq(purchaseOrderReceiptItems.receiptId, r.id));
+      }
+      await db.delete(purchaseOrderReceipts).where(eq(purchaseOrderReceipts.purchaseOrderId, poId));
       await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, poId));
       await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
       await db.delete(books).where(eq(books.id, bookId));

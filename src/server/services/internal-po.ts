@@ -85,13 +85,18 @@ export interface InternalShipmentListItem {
   bookTitle: string | null;
   quantity: number;
   isOutstandingFollowup: boolean | null;
+  receivedCondition: string | null;
+  receivedNotes: string | null;
 }
 
 export interface InternalShipmentListRow {
   id: string;
   internalPoId: string;
   deliveryNoteNumber: string;
+  transferShipmentId: string | null;
   shippedDate: string | null;
+  receivedDate: string | null;
+  receivedByUserId: string | null;
   status: string;
   notes: string | null;
   createdAt: string;
@@ -189,6 +194,8 @@ export const listInternalShipments = async (
             bookTitle: books.title,
             quantity: internalShipmentItems.quantity,
             isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
+            receivedCondition: internalShipmentItems.receivedCondition,
+            receivedNotes: internalShipmentItems.receivedNotes,
           })
           .from(internalShipmentItems)
           .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))

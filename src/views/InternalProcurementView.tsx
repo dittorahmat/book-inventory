@@ -6,6 +6,8 @@ import { isCentralRole } from "../lib/staff-roles";
 import { useInternalOrders } from "../components/internal-orders/useInternalOrders";
 import { InternalOrdersTable } from "../components/internal-orders/InternalOrdersTable";
 import { CreateInternalOrderModal } from "../components/internal-orders/CreateInternalOrderModal";
+import { ReceiveInternalShipmentModal } from "../components/internal-orders/ReceiveInternalShipmentModal";
+import type { InternalShipment } from "../lib/internal-orders-types";
 
 interface InternalProcurementViewProps {
   activeSchool: School | null;
@@ -37,6 +39,7 @@ export function InternalProcurementView({
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [receiveTarget, setReceiveTarget] = useState<{ orderId: string; shipment: InternalShipment } | null>(null);
   const [createSchoolId, setCreateSchoolId] = useState<string | null>(null);
   const effectiveCreateSchoolId = isCentral
     ? (createSchoolId ?? activeSchool?.id ?? schools[0]?.id ?? "")
@@ -111,7 +114,19 @@ export function InternalProcurementView({
         onToggleShipments={(orderId, expanded) => {
           if (expanded) loadShipments(orderId);
         }}
+        onReceiveShipment={(orderId, shipment) => setReceiveTarget({ orderId, shipment })}
       />
+
+      {receiveTarget && (
+        <ReceiveInternalShipmentModal
+          shipment={receiveTarget.shipment}
+          onClose={() => setReceiveTarget(null)}
+          onReceived={async () => {
+            await loadShipments(receiveTarget.orderId);
+            setNotice(`Surat Jalan ${receiveTarget.shipment.deliveryNoteNumber} diterima cabang.`);
+          }}
+        />
+      )}
 
       {isCreateOpen && (
         <CreateInternalOrderModal
