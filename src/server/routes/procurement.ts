@@ -50,6 +50,7 @@ const receivePOSchema = z.object({
     z.object({
       poItemId: idSchema,
       quantityToReceive: z.number().int().min(1),
+      condition: z.enum(["good", "damaged"]).default("good"),
     })
   ).min(1, "Item yang diterima wajib ada"),
 });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Truck } from "lucide-react";
 import type { InternalOrder, InternalShipment } from "../../lib/internal-orders-types";
-import { internalPoProgress, internalPoStatusLabel, internalPoStatusTone } from "../../lib/internal-orders-types";
+import { internalPoProgress, internalPoStatusLabel, internalPoStatusTone, internalShipmentStatusLabel, internalShipmentStatusTone } from "../../lib/internal-orders-types";
 
 interface InternalOrdersTableProps {
   orders: InternalOrder[];
@@ -10,6 +10,7 @@ interface InternalOrdersTableProps {
   shipmentsLoading: Record<string, boolean>;
   shipmentsError: Record<string, string | null>;
   onToggleShipments: (orderId: string, expanded: boolean) => void;
+  onReceiveShipment?: (orderId: string, shipment: InternalShipment) => void;
 }
 
 function ShipmentHistory({
@@ -17,11 +18,15 @@ function ShipmentHistory({
   isLoading,
   error,
   onRetry,
+  orderId,
+  onReceiveShipment,
 }: {
   shipments: InternalShipment[];
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
+  orderId: string;
+  onReceiveShipment?: (orderId: string, shipment: InternalShipment) => void;
 }) {
   if (isLoading) {
     return (
@@ -61,7 +66,19 @@ function ShipmentHistory({
             <Truck className="h-3.5 w-3.5 text-[#65676B]" />
             <span className="font-bold text-[#050505]">{s.deliveryNoteNumber}</span>
             <span className="text-[#65676B]">{s.shippedDate ?? s.createdAt.slice(0, 10)}</span>
-            <span className="font-semibold text-emerald-700">{s.status}</span>
+            <span className={`rounded-lg border px-2 py-0.5 text-[11px] font-bold ${internalShipmentStatusTone(s.status)}`}>
+              {internalShipmentStatusLabel(s.status)}
+            </span>
+            {s.receivedDate && <span className="text-[#65676B]">diterima {s.receivedDate}</span>}
+            {s.status === "in_transit" && onReceiveShipment && (
+              <button
+                type="button"
+                onClick={() => onReceiveShipment(orderId, s)}
+                className="rounded-lg bg-[#1877F2] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#166FE5] active:scale-[0.98]"
+              >
+                Terima
+              </button>
+            )}
           </div>
           <p className="mt-1 text-xs text-[#050505]">
             {s.items.map((i) => `${i.packageName ?? i.bookTitle ?? "Item"} × ${i.quantity}`).join(" · ") || "—"}
@@ -81,6 +98,7 @@ export function InternalOrdersTable({
   shipmentsLoading,
   shipmentsError,
   onToggleShipments,
+  onReceiveShipment,
 }: InternalOrdersTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -150,6 +168,8 @@ export function InternalOrdersTable({
                     isLoading={!!shipmentsLoading[order.id]}
                     error={shipmentsError[order.id] ?? null}
                     onRetry={() => onToggleShipments(order.id, true)}
+                    orderId={order.id}
+                    onReceiveShipment={onReceiveShipment}
                   />
                 </div>
               )}

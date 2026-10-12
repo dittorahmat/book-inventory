@@ -320,6 +320,7 @@ export const purchaseOrderReceiptItems = sqliteTable("purchase_order_receipt_ite
   receiptId: text("receipt_id").notNull().references(() => purchaseOrderReceipts.id, { onDelete: "cascade" }),
   bookId: text("book_id").notNull().references(() => books.id),
   quantityReceived: integer("quantity_received").notNull(),
+  condition: text("condition", { enum: ["good", "damaged"] }).notNull().default("good"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -352,6 +353,7 @@ export const internalShipments = sqliteTable("internal_shipments", {
   id: text("id").primaryKey(),
   internalPoId: text("internal_po_id").notNull().references(() => internalPurchaseOrders.id, { onDelete: "cascade" }),
   deliveryNoteNumber: text("delivery_note_number").notNull().unique(), // Surat Jalan Pengiriman Internal
+  transferShipmentId: text("transfer_shipment_id").references(() => transferShipments.id),
   shippedDate: text("shipped_date").notNull(),
   receivedDate: text("received_date"),
   status: text("status", { enum: ["in_transit", "delivered", "discrepancy"] }).notNull().default("in_transit"),
@@ -360,7 +362,9 @@ export const internalShipments = sqliteTable("internal_shipments", {
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("internal_shipments_transfer_idx").on(t.transferShipmentId),
+]);
 
 export const internalShipmentItems = sqliteTable("internal_shipment_items", {
   id: text("id").primaryKey(),
@@ -370,6 +374,8 @@ export const internalShipmentItems = sqliteTable("internal_shipment_items", {
   bookId: text("book_id").references(() => books.id), // untuk pengiriman outstanding / susulan satuan
   quantity: integer("quantity").notNull().default(1),
   isOutstandingFollowup: integer("is_outstanding_followup", { mode: "boolean" }).notNull().default(false),
+  receivedCondition: text("received_condition", { enum: ["good", "damaged", "missing"] }),
+  receivedNotes: text("received_notes"),
   createdAt: text("created_at").notNull(),
 });
 

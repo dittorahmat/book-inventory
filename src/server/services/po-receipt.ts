@@ -14,6 +14,7 @@ import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writ
 export interface ReceivedItemInput {
   poItemId: string;
   quantityToReceive: number;
+  condition?: "good" | "damaged";
 }
 
 export type ReceivePoResult =
@@ -89,18 +90,19 @@ export const planPoReceive = (
   const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
   let totalReceivedThisBatch = 0;
   const stockRows: Array<typeof bookItems.$inferInsert> = [];
-  for (const [poItemId, qty] of increments) {
-    const poItem = poItemById.get(poItemId)!;
-    for (let k = 0; k < qty; k++) {
+  for (const rec of receivedItems) {
+    const poItem = poItemById.get(rec.poItemId)!;
+    const condition = rec.condition ?? "good";
+    for (let k = 0; k < rec.quantityToReceive; k++) {
       const newId = newWriteId(deps);
       stockRows.push({
         id: newId,
         bookId: poItem.bookId,
         currentSchoolId: po.targetSchoolId,
-        barcode: `INB-PO-${epoch}-${poItemId.replace(/-/g, "").slice(0, 4).toUpperCase()}-${k + 1}-${newId.replace(/-/g, "").slice(0, 4).toUpperCase()}`,
-        condition: "new",
+        barcode: `INB-PO-${epoch}-${rec.poItemId.replace(/-/g, "").slice(0, 4).toUpperCase()}-${k + 1}-${newId.replace(/-/g, "").slice(0, 4).toUpperCase()}`,
+        condition: condition === "damaged" ? "damaged" : "new",
         status: "in_stock",
-        notes: `Inbound receiving from ${po.poNumber}`,
+        notes: condition === "damaged" ? `Rusak saat terima dari ${po.poNumber}` : `Inbound receiving from ${po.poNumber}`,
         createdAt: now,
         updatedAt: now,
       });
@@ -250,6 +252,7 @@ export async function recordPoReceipt(
       receiptId,
       bookId: poItemMap.get(item.poItemId)!,
       quantityReceived: item.quantityToReceive,
+      condition: item.condition ?? "good",
       createdAt: now,
     }));
 
@@ -316,6 +319,7 @@ export async function getPoReceiptHistory(
       title: books.title,
       isbn: books.isbn,
       quantityReceived: purchaseOrderReceiptItems.quantityReceived,
+      condition: purchaseOrderReceiptItems.condition,
     })
     .from(purchaseOrderReceiptItems)
     .innerJoin(books, eq(purchaseOrderReceiptItems.bookId, books.id))

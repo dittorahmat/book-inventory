@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import {
   bookPackages,
+  bookPackageItems,
+  books,
   schools,
   studentBookOrders,
   studentOrderItems,
@@ -179,6 +181,69 @@ describe("Rekap penjualan (spec: sales-report)", () => {
     }
   });
 
+  it("mengelompokkan omzet per kategori buku untuk paket (via BOM) dan satuan (spec-111)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = await makeSchool("Kat");
+    const studentId = await makeStudent(schoolId, stamp);
+    const bookFiksi = `book-kat-fiksi-${stamp}`;
+    const bookSains = `book-kat-sains-${stamp}`;
+    const bookTanpa = `book-kat-tanpa-${stamp}`;
+    await db.insert(books).values([
+      { id: bookFiksi, isbn: `ISBN-KF-${stamp}`, title: "Novel", author: "A", publisher: "P", category: "Fiksi", createdAt: now, updatedAt: now },
+      { id: bookSains, isbn: `ISBN-KS-${stamp}`, title: "Fisika", author: "B", publisher: "P", category: "Sains", createdAt: now, updatedAt: now },
+      { id: bookTanpa, isbn: `ISBN-KT-${stamp}`, title: "Lain", author: "C", publisher: "P", createdAt: now, updatedAt: now },
+    ]);
+    const pkgId = `pkg-kat-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-KAT-${stamp}`, name: "Paket Kat", gradeLevel: "4",
+      curriculumType: "international", academicYear: "2026/2027", price: 300_000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookPackageItems).values([
+      { id: `bom-kat-1-${stamp}`, packageId: pkgId, bookId: bookFiksi, quantity: 2, createdAt: now },
+      { id: `bom-kat-2-${stamp}`, packageId: pkgId, bookId: bookSains, quantity: 1, createdAt: now },
+    ]);
+    const orderPkg = `ord-kat-pkg-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderPkg, orderNumber: `ORD-KAT-P-${stamp}`, studentId, schoolId, packageId: pkgId,
+      orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 300_000, paidAmount: 300_000, createdAt: now, updatedAt: now,
+    });
+    const orderLoose = `ord-kat-loose-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderLoose, orderNumber: `ORD-KAT-L-${stamp}`, studentId, schoolId, packageId: null,
+      orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 100_000, paidAmount: 100_000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(studentOrderItems).values({
+      id: `oi-kat-${stamp}`, orderId: orderLoose, bookId: bookTanpa, quantity: 2,
+      unitPriceSnapshot: 50_000, createdAt: now,
+    });
+
+    try {
+      const report = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolId] });
+      const byCat = new Map(report.byCategory.map((r) => [r.category, r]));
+      // Paket 300rb: BOM 2 Fiksi + 1 Sains → Fiksi 200rb, Sains 100rb
+      expect(byCat.get("Fiksi")?.revenue).toBe(200_000);
+      expect(byCat.get("Sains")?.revenue).toBe(100_000);
+      // Satuan 100rb buku tanpa kategori → "Tanpa Kategori"
+      expect(byCat.get("Tanpa Kategori")?.revenue).toBe(100_000);
+      expect(byCat.get("Tanpa Kategori")?.quantity).toBe(2);
+      const csv = salesReportToCsv(report);
+      expect(csv).toContain("Kategori");
+      expect(csv).toContain("Fiksi");
+    } finally {
+      await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderLoose));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderPkg));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderLoose));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, pkgId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      for (const id of [bookFiksi, bookSains, bookTanpa]) await db.delete(books).where(eq(books.id, id));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("mengabaikan order di luar periode", async () => {
     const stamp = Date.now();
     const schoolA = await makeSchool("Periode");
@@ -265,9 +330,9 @@ describe("Ekspor CSV (spec: sales-report)", () => {
       expect(lines[0]).toBe(
         "Sekolah,Order Paket,Order Satuan,Order Beasiswa,Total Order,Omzet,Terkumpul,Piutang"
       );
-      expect(lines).toHaveLength(report.bySchool.length + 2);
+      expect(lines.length).toBeGreaterThanOrEqual(report.bySchool.length + 2);
 
-      const totalLine = lines[lines.length - 1];
+      const totalLine = lines.find((l) => l.startsWith("TOTAL")) ?? "";
       expect(totalLine).toContain("TOTAL");
       expect(totalLine).toContain(String(report.totals.revenue));
       expect(totalLine).toContain(String(report.totals.collected));

@@ -1,0 +1,1 @@
+CREATE INDEX `internal_shipments_transfer_idx` ON `internal_shipments` (`transfer_shipment_id`);

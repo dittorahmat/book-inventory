@@ -181,3 +181,106 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
     expect((await missing.json()).success).toBe(false);
   });
 });
+
+describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
+  async function seedPoWithShipment(stamp: number, lineCount: number) {
+    const branchId = `school-rcv-${stamp}`;
+    const hqId = `school-rcvhq-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Terima", code: `RCV-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Terima", code: `RHQ-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+    const bookId = `book-rcv-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-RCV-${stamp}`, title: "Buku Terima", author: "A", publisher: "P", createdAt: now, updatedAt: now,
+    });
+    const packageId = `pkg-rcv-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: packageId, code: `PKG-RCV-${stamp}`, name: "Paket Terima", gradeLevel: "1",
+      curriculumType: "international", academicYear: "2026/2027", createdAt: now, updatedAt: now,
+    });
+    const createRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: branchId, items: [{ packageId, quantityOrdered: lineCount }] }),
+    });
+    expect(createRes.status).toBe(201);
+    const poId = (await createRes.json()).data.id;
+    const shipRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-RCV-${stamp}`,
+        items: Array.from({ length: lineCount }, (_, i) =>
+          i === 0 ? { packageId, quantity: lineCount } : { bookId, quantity: 1, isOutstandingFollowup: true }
+        ),
+      }),
+    });
+    expect(shipRes.status).toBe(200);
+    const shipmentId = (await shipRes.json()).data.shipmentId;
+    const historyRes = await internalOrdersRouter.request(`/${poId}/shipments`, { method: "GET" });
+    const history = (await historyRes.json()).data;
+    const shipment = history.find((s: any) => s.id === shipmentId);
+    expect(shipment).toBeDefined();
+    return { poId, shipmentId, lineIds: shipment.items.map((i: any) => i.id as string) };
+  }
+
+  it("menerima semua-baik menjadi delivered dengan tanggal terima", async () => {
+    const stamp = Date.now();
+    const { shipmentId, lineIds, poId } = await seedPoWithShipment(stamp, 2);
+    const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })) }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.status).toBe("delivered");
+
+    const history = (await (await internalOrdersRouter.request(`/${poId}/shipments`, { method: "GET" })).json()).data;
+    const received = history.find((s: any) => s.id === shipmentId);
+    expect(received.status).toBe("delivered");
+    expect(received.receivedDate).toBeDefined();
+    expect(received.items.every((i: any) => i.receivedCondition === "good")).toBe(true);
+  });
+
+  it("menandai discrepancy saat ada baris rusak dan menolak baris asing tanpa tulis", async () => {
+    const stamp = Date.now() + 1;
+    const { shipmentId, lineIds } = await seedPoWithShipment(stamp, 2);
+    const foreign = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{ shipmentItemId: "baris-asing", condition: "good" }] }),
+    });
+    expect(foreign.status).toBe(400);
+    expect((await foreign.json()).success).toBe(false);
+
+    const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: [
+          { shipmentItemId: lineIds[0], condition: "good" },
+          { shipmentItemId: lineIds[1], condition: "damaged", notes: "Dus penyok" },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.status).toBe("discrepancy");
+  });
+
+  it("menerima 30 baris sekaligus tanpa gagal (regresi volume D1)", async () => {
+    const stamp = Date.now() + 2;
+    const { shipmentId, lineIds } = await seedPoWithShipment(stamp, 30);
+    expect(lineIds.length).toBe(30);
+    const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })) }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.status).toBe("delivered");
+  });
+});
