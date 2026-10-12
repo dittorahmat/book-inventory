@@ -22,6 +22,8 @@ const QUERIES: PlannedQuery[] = [
   { name: "transfer_shipments from/to school", sql: "SELECT * FROM transfer_shipments WHERE from_school_id = 'x' OR to_school_id = 'x'", allowScan: false },
   { name: "book_returns via scoped students", sql: "SELECT book_returns.* FROM book_returns INNER JOIN students ON book_returns.student_id = students.id WHERE students.school_id = 'x'", allowScan: false },
   { name: "book_package_items by package", sql: "SELECT * FROM book_package_items WHERE package_id IN ('a','b')", allowScan: false },
+  { name: "books by id IN-list (category attribution)", sql: "SELECT id, category FROM books WHERE id IN ('a','b')", allowScan: false },
+  { name: "internal_shipment_items by shipment", sql: "SELECT * FROM internal_shipment_items WHERE shipment_id = 'x'", allowScan: false },
   { name: "package catalog (small, LIMIT)", sql: "SELECT * FROM book_packages LIMIT 50", allowScan: true },
   { name: "book catalog (small)", sql: "SELECT * FROM books LIMIT 50", allowScan: true },
 ];
