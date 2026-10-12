@@ -362,7 +362,9 @@ export const internalShipments = sqliteTable("internal_shipments", {
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("internal_shipments_transfer_idx").on(t.transferShipmentId),
+]);
 
 export const internalShipmentItems = sqliteTable("internal_shipment_items", {
   id: text("id").primaryKey(),
