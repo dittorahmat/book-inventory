@@ -30,6 +30,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      # bun run db:d1:migrate
      ```
      Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push.
+     Buktikan tanpa tebak: `bun run check:d1-drift` (membandingkan `drizzle/` vs remote, gagal bila ada tabel/kolom hilang) wajib hijau sebelum merge yang menyentuh skema.
 
 2. **Type Safety Verification**
    ```bash

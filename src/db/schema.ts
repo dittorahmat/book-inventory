@@ -377,7 +377,9 @@ export const internalShipmentItems = sqliteTable("internal_shipment_items", {
   receivedCondition: text("received_condition", { enum: ["good", "damaged", "missing"] }),
   receivedNotes: text("received_notes"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => [
+  index("internal_shipment_line_idx").on(t.shipmentId),
+]);
 
 // ==========================================
 // 7. RETURN TO VENDOR (RETUR KE SUPPLIER)

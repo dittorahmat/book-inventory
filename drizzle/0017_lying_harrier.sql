@@ -1,0 +1,1 @@
+CREATE INDEX `internal_shipment_line_idx` ON `internal_shipment_items` (`shipment_id`);

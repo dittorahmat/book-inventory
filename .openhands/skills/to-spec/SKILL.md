@@ -56,6 +56,8 @@ Do NOT include specific file paths or code snippets. They may end up being outda
 
 Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
 
+Exception: a `Seams & touch-points` section MAY list the test seam(s) from step 2 plus the modules' file paths, as context pointers for implementer subagents (which otherwise pay rediscovery). Paths only, no snippets; drop any path the implementer can reach in one lookup from the seam.
+
 ## Testing Decisions
 
 A list of testing decisions that were made. Include:
