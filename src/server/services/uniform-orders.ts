@@ -166,10 +166,13 @@ export async function submitUniformOrder(
   const prefix = deps?.orderPrefix ?? (await readSettingsMap(database))[UNIFORM_ORDER_PREFIX_KEY] ?? DEFAULT_UNIFORM_ORDER_PREFIX;
 
   // Tulis atomik (§10): order + item + kurangi stok dalam satu batch.
-  const orderId = newWriteId(deps);
+  // Tiap percobaan memakai orderId baru + best-effort hapus order yatim
+  // parsial — retry dengan id sama menabrak UNIQUE dan menyisakan order
+  // tanpa baris bila chunk items gagal setelah order ter-insert.
   const queries: unknown[] = [];
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const orderId = newWriteId(deps);
     const orderNumber = (deps?.generateOrderNumber ?? ((iso: string) => defaultOrderNumber(prefix, iso)))(now);
     try {
       queries.push(
@@ -209,9 +212,13 @@ export async function submitUniformOrder(
       return { ok: true, data: { order: created, totalAmount: total } };
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "membuat order seragam");
+      try {
+        await database.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
+      } catch {
+        // Abaikan: order mungkin tak pernah ter-insert.
+      }
       if (mapped && attempt < maxAttempts - 1) {
         queries.length = 0;
-        await new Promise((r) => setTimeout(r, 5));
         continue;
       }
       if (mapped) return { ok: false, ...mapped };
