@@ -126,4 +126,14 @@ describe("Revamped Demo Seeding API", () => {
     expect(acc).toBeDefined();
     expect(await verifyPassword({ hash: acc.password as string, password: "password123" })).toBe(true);
   });
+
+  it("accountId kredensial = user id (konvensi sign-in better-auth)", async () => {
+    const { accounts } = await import("../../db/schema");
+    const rows = await db.select().from(accounts).where(inArray(accounts.id, ["acc-usr-admin-gudang", "acc-usr-admin-pusat"]));
+    expect(rows.length).toBe(2);
+    for (const row of rows) {
+      expect(row.accountId).toBe(row.userId);
+      expect(row.providerId).toBe("credential");
+    }
+  });
 });
