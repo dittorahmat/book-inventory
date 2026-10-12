@@ -28,3 +28,45 @@ export interface SubmittedUniformOrder {
 
 export const submitUniformOrder = (payload: SubmitUniformOrderPayload): Promise<SubmittedUniformOrder> =>
   postJson<SubmittedUniformOrder>("/api/public/uniform-orders/orders", payload, "Gagal memproses pesanan seragam.");
+
+export interface UniformLookupOrder {
+  id: string;
+  orderNumber: string;
+  studentId: string;
+  studentName: string;
+  schoolId: string;
+  academicYear: string;
+  shipmentStatus: "belum_dikirim" | "sudah_dikirim";
+  shippedAt: string | null;
+  totalAmount: number;
+  createdAt: string;
+}
+
+export interface UniformLookupItem {
+  id: string;
+  orderId: string;
+  packageId: string | null;
+  variantId: string | null;
+  size: string;
+  quantity: number;
+  unitPriceSnapshot: number;
+}
+
+export const lookupUniformOrders = (params: { orderNumber?: string; studentId?: string; schoolId?: string }): Promise<{
+  orders: UniformLookupOrder[];
+  items: UniformLookupItem[];
+  itemsByOrder: Record<string, UniformLookupItem[]>;
+}> =>
+  getJson(buildQuery("/api/public/uniform-orders/lookup-order", params), "Pesanan tidak ditemukan.");
+
+export const requestUniformExchange = (payload: {
+  orderId: string; studentId: string;
+  oldVariantId: string; oldSize: string;
+  newVariantId: string; newSize: string; reason: string;
+}): Promise<unknown> =>
+  postJson("/api/public/uniform-orders/exchange-requests", payload, "Gagal mengajukan tukar ukuran.");
+
+export const requestUniformRefund = (payload: {
+  orderId: string; studentId: string; amount?: number; reason: string;
+}): Promise<unknown> =>
+  postJson("/api/public/uniform-orders/refund-requests", payload, "Gagal mengajukan refund.");

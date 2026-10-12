@@ -16,7 +16,7 @@ import type {
 } from "../../lib/portal-types";
 
 export type OrderStep = 1 | 2 | 3 | 4;
-export type PortalTab = "order" | "return" | "uniform";
+export type PortalTab = "order" | "return" | "uniform" | "uniform_return";
 
 export const PORTAL_STUDENT_SEARCH_INPUT_ID = "portal-student-search-input";
 

@@ -4,7 +4,7 @@ import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformStock, uniformOrders } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -200,5 +200,67 @@ describe("Portal seragam publik", () => {
       eq(uniformOrders.id, (await res.json()).data.order.id)
     );
     expect(created.paidAmount).toBe(created.totalAmount);
+  });
+});
+
+describe("Portal retur seragam mandiri", () => {
+  it("lookup by murid, ajukan tukar & refund, tolak milik orang lain", async () => {
+    const stamp = `r${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const now = new Date().toISOString();
+    const otherId = `stu-other-${stamp}`;
+    await db.insert(students).values({
+      id: otherId, schoolId, nis: `NIS-O-${stamp}`, name: `Anak Lain ${stamp}`, gender: "male",
+      gradeLevel: "2", curriculumType: "international", academicYear: "2026/2027",
+      parentName: "Ortu", parentPhone: "081299999999", status: "active", createdAt: now, updatedAt: now,
+    });
+    const vid = `uv-ret-${stamp}`;
+    await db.insert(uniformVariants).values({
+      id: vid, code: `UV-RET-${stamp}`, name: "Olahraga Retur", kind: "olahraga",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 95000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(uniformSizes).values({ id: `us-ret-s-${stamp}`, variantId: vid, size: "S", sortOrder: 0, createdAt: now });
+    await db.insert(uniformSizes).values({ id: `us-ret-m-${stamp}`, variantId: vid, size: "M", sortOrder: 1, createdAt: now });
+    await db.insert(uniformStock).values({ id: `ust-ret-s-${stamp}`, variantId: vid, size: "S", quantity: 4, updatedAt: now });
+    await db.insert(uniformStock).values({ id: `ust-ret-m-${stamp}`, variantId: vid, size: "M", quantity: 4, updatedAt: now });
+
+    const orderRes = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027",
+      homeAddress: "Jl. Retur No. 5, RT 01 RW 02, Depok 16414",
+      items: [{ variantId: vid, size: "S", quantity: 1 }],
+    });
+    expect(orderRes.status).toBe(201);
+    const orderId = (await orderRes.json()).data.order.id as string;
+
+    const lookup = await publicUniformOrdersRouter.request(
+      `/lookup-order?studentId=${studentId}&schoolId=${schoolId}`, { method: "GET" }
+    );
+    expect(lookup.status).toBe(200);
+    const found = await lookup.json();
+    expect((found.data.orders as unknown[]).length).toBe(1);
+    expect(Object.keys(found.data.itemsByOrder as Record<string, unknown[]>)).toContain(orderId);
+
+    const empty = await publicUniformOrdersRouter.request(`/lookup-order?schoolId=${schoolId}`, { method: "GET" });
+    expect(empty.status).toBe(400);
+
+    const exchange = await postPublic("/exchange-requests", {
+      orderId, studentId, oldVariantId: vid, oldSize: "S", newVariantId: vid, newSize: "M", reason: "Kekecilan",
+    });
+    expect(exchange.status).toBe(201);
+
+    const cross = await postPublic("/exchange-requests", {
+      orderId, studentId: otherId, oldVariantId: vid, oldSize: "S", newVariantId: vid, newSize: "M", reason: "Iseng",
+    });
+    expect(cross.status).toBe(403);
+
+    const refund = await postPublic("/refund-requests", {
+      orderId, studentId, amount: 50000, reason: "Jahitan lepas",
+    });
+    expect(refund.status).toBe(201);
+
+    const over = await postPublic("/refund-requests", {
+      orderId, studentId, amount: 999999999, reason: "Serakah",
+    });
+    expect(over.status).toBe(400);
   });
 });
