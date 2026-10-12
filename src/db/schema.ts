@@ -501,10 +501,21 @@ export const uniformPackageBom = sqliteTable("uniform_package_bom", {
   id: text("id").primaryKey(),
   packageId: text("package_id").notNull().references(() => uniformPackages.id, { onDelete: "cascade" }),
   variantId: text("variant_id").notNull().references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
   quantity: integer("quantity").notNull().default(1),
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("uniform_bom_package_idx").on(t.packageId),
+]);
+
+/** Bundel paket seragam siap kirim hasil rakitan gudang (tanpa barcode). */
+export const uniformPackageStock = sqliteTable("uniform_package_stock", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => uniformPackages.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  unique("uniform_package_stock_package_unq").on(t.packageId),
 ]);
 
 export const uniformPos = sqliteTable("uniform_pos", {

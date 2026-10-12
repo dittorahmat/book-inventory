@@ -21,6 +21,7 @@ import { settingsRouter } from "./routes/settings";
 import { internalOrdersRouter } from "./routes/internal-orders";
 import { directSalesRouter } from "./routes/direct-sales";
 import { vendorReturnsRouter } from "./routes/vendor-returns";
+import { uniformsRouter } from "./routes/uniforms";
 import { auth } from "./auth";
 import { searchTiming } from "./middleware/search-timing";
 
@@ -95,6 +96,7 @@ app.route("/api/packages", packagesRouter);
 app.route("/api/internal-orders", internalOrdersRouter);
 app.route("/api/direct-sales", directSalesRouter);
 app.route("/api/vendor-returns", vendorReturnsRouter);
+app.route("/api/uniforms", uniformsRouter);
 app.route("/api/shipments", shipmentsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/demo", demoRouter);
