@@ -126,7 +126,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 ## 2. Technology Stack Standards
 
 - **Runtime & Package Manager**: [Bun](https://bun.sh/) (or Node.js fallback where applicable).
-- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content`.
+- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content`. Hindari karakter `#` di dalam string perintah (dimakan sebagai komentar — tulis pesan commit tanpa `#`); proses latar via `Start-Process` (`Start-Job` tak persisten antar tool call).
 - **Backend**: [Hono](https://hono.dev/) with TypeScript.
 - **ORM & Database**: [Drizzle ORM](https://orm.drizzle.team/) with SQLite core.
   - Initial deployment: Cloudflare D1.
@@ -150,6 +150,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
 4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel.
+5. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
 
 ---
 
