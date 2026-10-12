@@ -51,3 +51,39 @@ _Avoid_: Full table scan, filter memori
 **FTS**:
 Pencarian full-text SQLite (virtual table + trigger) dengan query token-prefix (`salsa*`); hanya Tahap 2 untuk pencarian global bervolume, bukan default.
 _Avoid_: LIKE persen-depan global, pencarian fuzzy spekulatif
+
+**Refund**:
+Pengembalian dana + restorasi satu baris stok fisik (`RFD-*`) atas komplain buku yang disetujui (`book_returns` → `refunded` + `refundAmount`).
+_Avoid_: Retur dana manual, void pembayaran
+
+**Rakit Bundling**:
+Perakitan paket buku fisik dari stok satuan lepas sesuai BOM (`book_package_items`), hanya di gudang pusat; padanan istilah flowchart "SPK".
+_Avoid_: SPK, perakitan manual
+
+**Bongkar Paket**:
+Pengembalian paket rakitan yang tak terpakai menjadi stok satuan lepas (wajib alasan).
+_Avoid_: Unbundle manual, retur paket
+
+**Surat Jalan Pemasok**:
+Nomor surat jalan dari supplier saat penerimaan PO; duplikat per PO ditolak.
+_Avoid_: Delivery note manual, SJ supplier ganda
+
+**Surat Jalan Internal**:
+Nomor surat jalan administratif gudang ke cabang; tidak menggerakkan stok fisik — gerakan fisik lewat Transfer Shipment tertaut.
+_Avoid_: SJ transfer, surat jalan fisik
+
+**Surat Jalan Serah-Terima**:
+Nomor serah-terima paket/satuan ke siswa saat handover (`SJ-SERAH-*`, ambil langsung, bukan kurir).
+_Avoid_: Resi kurir, SJ pengiriman rumah
+
+**Sisa Stock**:
+Stok cabang yang tak terbagi ke siswa; penarikannya memakai pola transfer generik cabang → gudang, tanpa endpoint khusus.
+_Avoid_: Pull otomatis, penarikan terjadwal
+
+**Penyesuaian Selisih**:
+Penetapan status selisih atas baris berkondisi non-baik (`damaged`/`missing`) saat penerimaan, dengan mutasi stok yang mengikuti.
+_Avoid_: Adjust manual, koreksi diam-diam
+
+**Ambil Langsung**:
+Model distribusi v1: siswa/orang tua mengambil buku di sekolah dengan berita serah-terima; tanpa alamat, kurir, ongkir, atau pelacakan.
+_Avoid_: Delivery ke rumah, ekspedisi
