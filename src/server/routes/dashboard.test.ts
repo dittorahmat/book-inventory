@@ -8,7 +8,9 @@ afterEach(() => {
 import { dashboardRouter } from "./dashboard";
 import { db } from "../../db";
 import {
+  bookItems,
   bookPackages,
+  books,
   packageItems,
   schools,
   studentBookOrders,
@@ -180,6 +182,54 @@ describe("Dashboard summary API", () => {
       expect(s.coverage.waitingOrders).toBe(0);
     } finally {
       await cleanup();
+    }
+  });
+
+  it("partitions loose stock per school through the grouped seam (T4)", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-t4-a-${stamp}`;
+    const schoolB = `school-t4-b-${stamp}`;
+    const bookId = `b-t4-${stamp}`;
+    const nowT4 = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: schoolA, name: `T4 A ${stamp}`, code: `T4-A-${stamp}`, type: "branch", createdAt: nowT4, updatedAt: nowT4 },
+      { id: schoolB, name: `T4 B ${stamp}`, code: `T4-B-${stamp}`, type: "branch", createdAt: nowT4, updatedAt: nowT4 },
+    ]);
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-T4-${stamp}`, title: `Buku T4 ${stamp}`,
+      author: "Test", publisher: "Test", createdAt: nowT4, updatedAt: nowT4,
+    });
+    const item = (id: string, schoolId: string, status: string) => ({
+      id, bookId, currentSchoolId: schoolId, barcode: `T4-BC-${id}`, condition: "new", status,
+      createdAt: nowT4, updatedAt: nowT4,
+    });
+    await db.insert(bookItems).values([
+      item(`bi-t4-a1-${stamp}`, schoolA, "in_stock"),
+      item(`bi-t4-a2-${stamp}`, schoolA, "in_stock"),
+      item(`bi-t4-a3-${stamp}`, schoolA, "in_transit"),
+      item(`bi-t4-b1-${stamp}`, schoolB, "lost"),
+      item(`bi-t4-b2-${stamp}`, schoolB, "in_stock"),
+    ]);
+    try {
+      const res = await dashboardRouter.request("/summary", { method: "GET" });
+      expect(res.status).toBe(200);
+      const rows = (await res.json()).data.schools;
+      const a = rows.find((s: { school: { id: string } }) => s.school.id === schoolA);
+      const b = rows.find((s: { school: { id: string } }) => s.school.id === schoolB);
+      expect(a.stock.looseInStock).toBe(2);
+      expect(a.stock.inTransit).toBe(1);
+      expect(a.stock.byTitle.find((t: { bookId: string }) => t.bookId === bookId)).toMatchObject({
+        totalQty: 3, availableQty: 2, inTransitQty: 1,
+      });
+      expect(b.stock.looseInStock).toBe(1);
+      expect(b.stock.byTitle.find((t: { bookId: string }) => t.bookId === bookId)).toMatchObject({
+        totalQty: 2, availableQty: 1,
+      });
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolA));
+      await db.delete(schools).where(eq(schools.id, schoolB));
     }
   });
 });
