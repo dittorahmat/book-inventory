@@ -115,6 +115,7 @@ async function makeOrder(input: {
         quantity: input.looseQty,
         unitPriceSnapshot: Math.round(input.totalAmount / input.looseQty),
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
     }
   }
@@ -345,6 +346,35 @@ describe("Ekspor CSV (spec: sales-report)", () => {
       expect(res.headers.get("content-disposition")).toContain("attachment");
       const body = await res.text();
       expect(body).toBe(csv);
+    } finally {
+      await cleanupOrders(seeded);
+    }
+  });
+
+  it("memecah omzet per program kurikulum-kelas dan CSV sejajar JSON", async () => {
+    mockActor("central_admin");
+    const stamp = Date.now();
+    const schoolA = await makeSchool("Prog");
+    const studentA = await makeStudent(schoolA, stamp);
+    await db.update(students).set({ curriculumType: "national", gradeLevel: "7" }).where(eq(students.id, studentA));
+    const studentB = await makeStudent(schoolA, stamp + 1);
+    const pkg = await makePackage(stamp, 600_000);
+    const seeded = [
+      await makeOrder({ schoolId: schoolA, studentId: studentA, packageId: pkg, totalAmount: 600_000, paidAmount: 600_000 }),
+      await makeOrder({ schoolId: schoolA, studentId: studentB, packageId: null, totalAmount: 200_000, paidAmount: 50_000, looseQty: 2 }),
+    ];
+
+    try {
+      const report = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA] });
+      expect(report.byProgram.length).toBe(2);
+      const progRev = report.byProgram.reduce((s, r) => s + r.revenue, 0);
+      expect(progRev).toBe(report.totals.revenue);
+      expect(report.byProgram.map((r) => r.program).sort()).toEqual(
+        ["international · Kelas 4", "national · Kelas 7"].sort()
+      );
+      const csv = salesReportToCsv(report);
+      expect(csv).toContain("Program,Order,Omzet,Terkumpul,Piutang");
+      expect(csv).toContain("national · Kelas 7");
     } finally {
       await cleanupOrders(seeded);
     }

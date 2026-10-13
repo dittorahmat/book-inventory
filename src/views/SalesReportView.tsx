@@ -34,6 +34,8 @@ interface SalesReportPayload {
   };
   byChannel: { package: ChannelBreakdown; loose: ChannelBreakdown };
   bySchool: SchoolRow[];
+  byCategory: Array<{ category: string; orderCount: number; quantity: number; revenue: number; collected: number; outstanding: number }>;
+  byProgram: Array<{ program: string; orderCount: number; revenue: number; collected: number; outstanding: number }>;
 }
 
 interface SalesReportViewProps {
@@ -119,7 +121,7 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
               Laporan Penjualan
             </h1>
             <p className="text-xs text-[#65676B] mt-0.5">
-              Rekap omzet, penerimaan, dan piutang per periode — dipisah paket vs satuan.
+              Rekap omzet, penerimaan, dan piutang per periode — per cabang, per program, per kategori buku.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -276,6 +278,80 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
                       <td className="py-3 px-4 text-right">{formatRupiah(report.totals.outstanding)}</td>
                     </tr>
                   </tfoot>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
+            <header className="px-5 py-3 border-b border-[#E4E6EB]">
+              <h2 className="text-sm font-bold text-[#050505]">Per Program (Kurikulum · Kelas)</h2>
+            </header>
+            {(report.byProgram ?? []).length === 0 ? (
+              <p className="px-5 py-8 text-xs text-[#65676B] text-center">
+                Belum ada order pada periode {report.period.from} sampai {report.period.to}.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-2.5 px-4">Program</th>
+                      <th className="py-2.5 px-4 text-right">Order</th>
+                      <th className="py-2.5 px-4 text-right">Omzet</th>
+                      <th className="py-2.5 px-4 text-right">Terkumpul</th>
+                      <th className="py-2.5 px-4 text-right">Piutang</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E4E6EB]">
+                    {(report.byProgram ?? []).map((row) => (
+                      <tr key={row.program} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[#050505]">{row.program}</td>
+                        <td className="py-3 px-4 text-right">{row.orderCount}</td>
+                        <td className="py-3 px-4 text-right font-semibold">{formatRupiah(row.revenue)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-700">{formatRupiah(row.collected)}</td>
+                        <td className="py-3 px-4 text-right text-amber-700">{formatRupiah(row.outstanding)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
+            <header className="px-5 py-3 border-b border-[#E4E6EB]">
+              <h2 className="text-sm font-bold text-[#050505]">Per Kategori Buku</h2>
+            </header>
+            {(report.byCategory ?? []).length === 0 ? (
+              <p className="px-5 py-8 text-xs text-[#65676B] text-center">
+                Belum ada atribusi kategori pada periode {report.period.from} sampai {report.period.to}.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-2.5 px-4">Kategori</th>
+                      <th className="py-2.5 px-4 text-right">Order</th>
+                      <th className="py-2.5 px-4 text-right">Qty</th>
+                      <th className="py-2.5 px-4 text-right">Omzet</th>
+                      <th className="py-2.5 px-4 text-right">Terkumpul</th>
+                      <th className="py-2.5 px-4 text-right">Piutang</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E4E6EB]">
+                    {(report.byCategory ?? []).map((row) => (
+                      <tr key={row.category} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[#050505]">{row.category}</td>
+                        <td className="py-3 px-4 text-right">{row.orderCount}</td>
+                        <td className="py-3 px-4 text-right">{row.quantity}</td>
+                        <td className="py-3 px-4 text-right font-semibold">{formatRupiah(row.revenue)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-700">{formatRupiah(row.collected)}</td>
+                        <td className="py-3 px-4 text-right text-amber-700">{formatRupiah(row.outstanding)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             )}
