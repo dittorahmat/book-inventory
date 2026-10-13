@@ -64,6 +64,7 @@ Issue both sub-agent calls together, in the foreground, and aggregate the report
 - The full diff command and commit list.
 - The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full (the sub-agent has no other access to it).
 - The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Anchor every finding to its diff hunk header (`@@ … @@`): file-state observations without a hunk are inadmissible, never report pre-existing lines as introduced. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
+- Two repo-specific red flags (judgement calls, book-inventory): (a) a service input that gains a **required-at-runtime** validation (400 on missing) without its existing callers and their tests updated in the same diff — grep the constructor/service for all call sites; (b) a one-line edit anchor (`});`, `}`, bare `return`) in the change history — see AGENTS.md §12.
 
 **Spec sub-agent prompt** should include:
 
