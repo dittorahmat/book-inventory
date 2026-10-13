@@ -1,6 +1,6 @@
 import { and, gte, inArray, lte } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { bookPackageItems, books, schools, studentBookOrders, studentOrderItems } from "../../db/schema";
+import { bookPackageItems, books, schools, studentBookOrders, studentOrderItems, students } from "../../db/schema";
 import { D1_INLIST_CHUNK_SIZE, chunkRows } from "../lib/d1-write";
 
 export interface SalesChannelBreakdown {
@@ -32,6 +32,16 @@ export interface SalesCategoryRow {
   outstanding: number;
 }
 
+export interface SalesProgramRow {
+  program: string;
+  curriculumType: string;
+  gradeLevel: string;
+  orderCount: number;
+  revenue: number;
+  collected: number;
+  outstanding: number;
+}
+
 export interface SalesReport {
   period: { from: string; to: string };
   scopeSchoolIds: string[];
@@ -47,6 +57,7 @@ export interface SalesReport {
   };
   bySchool: SalesSchoolRow[];
   byCategory: SalesCategoryRow[];
+  byProgram: SalesProgramRow[];
 }
 
 export interface SalesReportInput {
@@ -130,6 +141,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
   const scholarshipOrders = orders.filter((o) => o.orderType === "scholarship");
   const bySchool = [...bySchoolMap.values()].sort((a, b) => b.revenue - a.revenue);
   const byCategory = await buildCategoryBreakdown(database, orders, lineRows);
+  const byProgram = await buildProgramBreakdown(database, orders);
 
   return {
     period: { from: input.from, to: input.to },
@@ -148,6 +160,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
     byChannel: { package: packageChannel, loose: looseChannel },
     bySchool,
     byCategory,
+    byProgram,
   };
 }
 
@@ -235,6 +248,46 @@ async function buildCategoryBreakdown(
     .sort((a, b) => b.revenue - a.revenue);
 }
 
+/**
+ * Per Program = curriculumType × gradeLevel dari murid pemilik order.
+ * Lookup murid di-chunk per IN-list agar D1-safe; baca boleh paralel.
+ */
+async function buildProgramBreakdown(
+  database: AppDatabase,
+  orders: Array<typeof studentBookOrders.$inferSelect>
+): Promise<SalesProgramRow[]> {
+  if (orders.length === 0) return [];
+  const studentIds = [...new Set(orders.map((o) => o.studentId))];
+  const rows: Array<Pick<typeof students.$inferSelect, "id" | "curriculumType" | "gradeLevel">> = (
+    await Promise.all(
+      chunkRows(studentIds, D1_INLIST_CHUNK_SIZE).map((chunk) =>
+        database
+          .select({ id: students.id, curriculumType: students.curriculumType, gradeLevel: students.gradeLevel })
+          .from(students)
+          .where(inArray(students.id, chunk))
+      )
+    )
+  ).flat();
+  const byStudent = new Map(rows.map((s) => [s.id, s]));
+  const byProgram = new Map<string, SalesProgramRow>();
+  for (const order of orders) {
+    const st = byStudent.get(order.studentId);
+    const curriculum = st?.curriculumType ?? "-";
+    const grade = st?.gradeLevel ?? "-";
+    const program = `${curriculum} · Kelas ${grade}`;
+    const row = byProgram.get(program) ?? {
+      program, curriculumType: curriculum, gradeLevel: grade,
+      orderCount: 0, revenue: 0, collected: 0, outstanding: 0,
+    };
+    row.orderCount += 1;
+    row.revenue += order.totalAmount;
+    row.collected += order.paidAmount;
+    row.outstanding += order.totalAmount - order.paidAmount;
+    byProgram.set(program, row);
+  }
+  return [...byProgram.values()].sort((a, b) => b.revenue - a.revenue);
+}
+
 /** Baris CSV dari shape yang sama dengan respons JSON (task 6.2). */
 export function salesReportToCsv(report: SalesReport): string {
   const header = [
@@ -278,6 +331,16 @@ export function salesReportToCsv(report: SalesReport): string {
     for (const cat of report.byCategory) {
       lines.push(
         [cat.category, String(cat.orderCount), String(cat.quantity), toCsvInt(cat.revenue), toCsvInt(cat.collected), toCsvInt(cat.outstanding)]
+          .map(escape)
+          .join(",")
+      );
+    }
+  }
+  if (report.byProgram.length > 0) {
+    lines.push("", ["Program", "Order", "Omzet", "Terkumpul", "Piutang"].map(escape).join(","));
+    for (const p of report.byProgram) {
+      lines.push(
+        [p.program, String(p.orderCount), toCsvInt(p.revenue), toCsvInt(p.collected), toCsvInt(p.outstanding)]
           .map(escape)
           .join(",")
       );

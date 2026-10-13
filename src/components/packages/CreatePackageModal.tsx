@@ -102,7 +102,7 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
               <Package className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-[#050505]">Buat Master Paket Buku Baru (BOM)</h3>
+              <h3 className="text-sm font-bold text-[#050505]">Buat Master Paket Buku Baru</h3>
               <p className="text-[11px] text-[#65676B]">Definisikan komposisi buku per paket untuk perakitan stok & penagihan murid</p>
             </div>
           </div>
@@ -206,7 +206,7 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
           <div className="pt-2 border-t border-[#E4E6EB]">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-bold text-[#050505]">
-                Daftar Komponen Buku Paket (BOM) ({newPkgItems.length} Buku)
+                Daftar Komponen Buku Paket ({newPkgItems.length} Buku)
               </label>
               <button
                 type="button"

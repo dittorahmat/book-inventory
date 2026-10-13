@@ -7,7 +7,7 @@ afterEach(() => {
 });
 import { studentOrdersRouter } from "./student-orders";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, books } from "../../db/schema";
+import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
@@ -650,6 +650,82 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `ord-t1m-${stamp}`));
       await db.delete(books).where(eq(books.id, `b-t1m-${stamp}`));
       await db.delete(students).where(eq(students.id, `st-t1m-${stamp}`));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("satuan kirim-rumah: butuh alamat, paket murni ditolak, tandai terkirim satu arah", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-sat-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: `Sat Ship ${stamp}`, code: `SAT-${stamp}`, type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    try {
+      await db.insert(students).values({
+        id: `st-sat-${stamp}`, schoolId, nis: `SAT${stamp}`, name: `Sat Anak ${stamp}`,
+        gradeLevel: "3", curriculumType: "national", academicYear: "2026/2027", status: "active",
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: `b-sat-${stamp}`, isbn: `ISBN-SAT-${stamp}`, title: `Buku Sat ${stamp}`,
+        author: "Anon", publisher: "Penerbit", sellPrice: 50000, createdAt: now, updatedAt: now,
+      });
+      // Order paket murni (tanpa baris satuan, tanpa alamat) -> flag kirim ditolak.
+      await db.insert(studentBookOrders).values({
+        id: `ord-sat-pkg-${stamp}`, orderNumber: `ORD-SATP-${String(stamp).slice(-6)}`,
+        studentId: `st-sat-${stamp}`, schoolId, orderType: "regular",
+        paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+      });
+      const pkgRes = await studentOrdersRouter.request(`/ord-sat-pkg-${stamp}/mark-satuan-shipped`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      expect(pkgRes.status).toBe(400);
+
+      // Order satuan tanpa alamat -> ditolak; dengan alamat -> terkirim + idempoten ditolak.
+      await db.insert(studentBookOrders).values({
+        id: `ord-sat-noaddr-${stamp}`, orderNumber: `ORD-SATN-${String(stamp).slice(-6)}`,
+        studentId: `st-sat-${stamp}`, schoolId, orderType: "regular",
+        paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentOrderItems).values({
+        id: `soi-sat-${stamp}`, orderId: `ord-sat-noaddr-${stamp}`, bookId: `b-sat-${stamp}`,
+        quantity: 1, unitPriceSnapshot: 50000, createdAt: now,
+      });
+      const noAddr = await studentOrdersRouter.request(`/ord-sat-noaddr-${stamp}/mark-satuan-shipped`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      expect(noAddr.status).toBe(400);
+
+      await db.insert(studentBookOrders).values({
+        id: `ord-sat-ok-${stamp}`, orderNumber: `ORD-SATO-${String(stamp).slice(-6)}`,
+        studentId: `st-sat-${stamp}`, schoolId, orderType: "regular",
+        paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        homeAddressSnapshot: "Jl. Mawar No. 10, Bogor",
+        totalAmount: 50000, paidAmount: 50000, createdAt: now, updatedAt: now,
+      });
+      await db.insert(studentOrderItems).values({
+        id: `soi-sat-ok-${stamp}`, orderId: `ord-sat-ok-${stamp}`, bookId: `b-sat-${stamp}`,
+        quantity: 1, unitPriceSnapshot: 50000, createdAt: now,
+      });
+      const okRes = await studentOrdersRouter.request(`/ord-sat-ok-${stamp}/mark-satuan-shipped`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      expect(okRes.status).toBe(200);
+      expect((await okRes.json()).data.satuanShipmentStatus).toBe("sudah_dikirim");
+      const repeat = await studentOrdersRouter.request(`/ord-sat-ok-${stamp}/mark-satuan-shipped`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      expect(repeat.status).toBe(400);
+    } finally {
+      for (const oid of [`ord-sat-pkg-${stamp}`, `ord-sat-noaddr-${stamp}`, `ord-sat-ok-${stamp}`]) {
+        await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, oid));
+        await db.delete(studentBookOrders).where(eq(studentBookOrders.id, oid));
+      }
+      await db.delete(books).where(eq(books.id, `b-sat-${stamp}`));
+      await db.delete(students).where(eq(students.id, `st-sat-${stamp}`));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });

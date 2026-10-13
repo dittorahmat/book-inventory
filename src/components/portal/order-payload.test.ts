@@ -45,6 +45,14 @@ describe("buildFinalOrderPayload", () => {
 
   test("mode satuan tanpa item ditolak; dengan item lolos tanpa packageId", () => {
     expect(() => buildFinalOrderPayload({ ...base, packageMode: false })).toThrow(/satuan/);
+    expect(() =>
+      buildFinalOrderPayload({
+        ...base,
+        packageMode: false,
+        looseItems: [{ bookId: "b-1", quantity: 2 }],
+        looseTotal: 100000,
+      })
+    ).toThrow(/Alamat rumah/);
     const payload = buildFinalOrderPayload({
       ...base,
       packageMode: false,
@@ -52,9 +60,11 @@ describe("buildFinalOrderPayload", () => {
       looseTotal: 100000,
       transferAmount: 100000,
       bookAllocationAmount: 100000,
+      homeAddress: "Jl. Mawar No. 10",
     });
     expect(payload.packageId).toBeUndefined();
     expect(payload.looseItems).toEqual([{ bookId: "b-1", quantity: 2 }]);
+    expect(payload.homeAddress).toBe("Jl. Mawar No. 10");
   });
 
   test("paket belum terkunci ditolak", () => {
@@ -82,6 +92,7 @@ describe("buildFinalOrderPayload", () => {
       looseTotal,
       transferAmount: looseTotal,
       bookAllocationAmount: looseTotal,
+      homeAddress: "Jl. Melati No. 1",
     });
     expect(payload.looseItems).toEqual(selections);
   });

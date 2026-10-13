@@ -90,6 +90,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [paymentProofBase64, setPaymentProofBase64] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [homeAddress, setHomeAddress] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -267,6 +268,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         referenceNumber,
         paymentProofBase64,
         notes,
+        homeAddress,
       });
       const data = await submitFinalOrder(payload);
 
@@ -309,6 +311,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     bookAllocationAmount, setBookAllocationAmount, bankName, setBankName,
     referenceNumber, setReferenceNumber, paymentProofBase64, setPaymentProofBase64,
     notes, setNotes,
+    homeAddress, setHomeAddress,
     isSubmitting, errorMessage, setErrorMessage, submittedOrder,
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,

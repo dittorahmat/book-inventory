@@ -160,7 +160,7 @@ export function PackageCard({
         <div className="border-t border-[#E4E6EB] bg-[#F7F8FA] p-4 sm:p-5">
           <h4 className="text-xs font-bold text-[#050505] uppercase tracking-wider mb-3 flex items-center gap-2">
             <BookOpen className="w-3.5 h-3.5 text-[#1877F2]" />
-            Rincian Komponen Buku Satuan (Bill of Materials):
+            Rincian Komponen Buku Satuan (Daftar Isi Paket):
           </h4>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -190,7 +190,7 @@ export function PackageCard({
                   </div>
 
                   <div className="mt-2.5 pt-2 border-t border-[#F0F2F5] flex items-center justify-between text-[11px]">
-                    <span className="text-[#65676B]">Stok Satuan (Loose):</span>
+                    <span className="text-[#65676B]">Stok Satuan:</span>
                     <span className={`font-semibold ${isShortage ? "text-amber-600" : "text-emerald-600"}`}>
                       {stockInfo?.availableLooseStock ?? 0} pcs
                     </span>

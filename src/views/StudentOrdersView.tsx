@@ -26,6 +26,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     errorMsg,
     loadOrders,
     removeOrder,
+    markSatuanShipped,
   } = useStudentOrders(activeSchool?.id ?? null);
 
   const [activePaymentOrder, setActivePaymentOrder] = useState<StudentOrder | null>(null);
@@ -104,6 +105,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
           onOpenHandover={setActiveHandoverOrder}
           onOpenDiscretion={setActiveDiscretionOrder}
           onDeleteOrder={removeOrder}
+          onMarkSatuanShipped={markSatuanShipped}
         />
       )}
 

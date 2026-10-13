@@ -95,7 +95,7 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
               className="px-4 py-2 bg-[#1877F2] text-white rounded-xl font-semibold flex items-center gap-1.5"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? "Memproses..." : "Konfirmasi & Terbitkan Surat Jalan"}</span>
+              <span>{isSubmitting ? "Memproses..." : "Konfirmasi & Terbitkan SJ Serah-Terima"}</span>
             </button>
           </div>
         </form>

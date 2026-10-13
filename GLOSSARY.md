@@ -73,8 +73,12 @@ Nomor surat jalan administratif gudang ke cabang; tidak menggerakkan stok fisik 
 _Avoid_: SJ transfer, surat jalan fisik
 
 **Surat Jalan Serah-Terima**:
-Nomor serah-terima paket/satuan ke siswa saat handover (`SJ-SERAH-*`, ambil langsung, bukan kurir).
+Nomor serah-terima paket/satuan-ambil ke siswa saat handover ambil-langsung di sekolah (`SJ-SERAH-*`); tidak dipakai untuk kirim-rumah.
 _Avoid_: Resi kurir, SJ pengiriman rumah
+
+**Kirim-Rumah Satuan**:
+Distribusi buku satuan ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; tanpa kurir, ongkir, atau resi. Paket tetap Ambil Langsung.
+_Avoid_: Ekspedisi, SJ-SERAH satuan
 
 **Sisa Stock**:
 Stok cabang yang tak terbagi ke siswa; penarikannya memakai pola transfer generik cabang → gudang, tanpa endpoint khusus.
@@ -85,8 +89,8 @@ Penetapan status selisih atas baris berkondisi non-baik (`damaged`/`missing`) sa
 _Avoid_: Adjust manual, koreksi diam-diam
 
 **Ambil Langsung**:
-Model distribusi v1: siswa/orang tua mengambil buku di sekolah dengan berita serah-terima; tanpa alamat, kurir, ongkir, atau pelacakan.
-_Avoid_: Delivery ke rumah, ekspedisi
+Model distribusi v1: paket selalu diambil di sekolah dengan berita serah-terima; satuan-ambil juga di sekolah, satuan-kirim ikut Kirim-Rumah Satuan. Tanpa kurir, ongkir, atau pelacakan.
+_Avoid_: Delivery paket ke rumah, ekspedisi
 
 **Seragam**:
 Katalog varian seragam (bukan buku): kain harian atau olahraga jadi, dibedakan gender × jenjang.

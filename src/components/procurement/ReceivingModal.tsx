@@ -9,7 +9,7 @@ interface ReceivingModalProps {
   onReceived: () => void | Promise<void>;
 }
 
-/** Modal penerimaan fisik inbound: input jumlah diterima per item PO dengan No Surat Jalan. */
+/** Modal penerimaan fisik inbound: input jumlah diterima per item PO dengan No SJ Supplier. */
 export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps) {
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
   const [receivingNotes, setReceivingNotes] = useState("");
@@ -33,7 +33,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deliveryNoteNumber.trim()) {
-      alert("Nomor Surat Jalan supplier wajib diisi.");
+      alert("Nomor SJ Supplier wajib diisi.");
       return;
     }
     const receivedItems = Object.entries(quantities)
@@ -89,7 +89,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold mb-1 text-[#050505]">
-                No. Surat Jalan Supplier (Wajib)
+                No. SJ Supplier (Wajib)
               </label>
               <input
                 type="text"
@@ -118,7 +118,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
             <div className="p-3 bg-gray-50 border border-[#CED0D4] rounded-xl space-y-2">
               <div className="font-bold text-[#050505] flex items-center gap-1.5 text-[11px]">
                 <FileText className="w-3.5 h-3.5 text-[#1877F2]" />
-                Riwayat Surat Jalan Sebelumnya ({receiptHistory.length} kali pengiriman):
+                Riwayat SJ Supplier Sebelumnya ({receiptHistory.length} kali pengiriman):
               </div>
               <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
                 {receiptHistory.map((rc: any) => (

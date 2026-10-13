@@ -123,7 +123,7 @@ export function InternalProcurementView({
           onClose={() => setReceiveTarget(null)}
           onReceived={async () => {
             await loadShipments(receiveTarget.orderId);
-            setNotice(`Surat Jalan ${receiveTarget.shipment.deliveryNoteNumber} diterima cabang.`);
+            setNotice(`SJ Internal ${receiveTarget.shipment.deliveryNoteNumber} diterima cabang.`);
           }}
         />
       )}

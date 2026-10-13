@@ -59,15 +59,15 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-md">
-              Kitting & Assembly
+              Rakit Bundling
             </span>
             <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Pilih Cabang"}</span>
           </div>
           <h1 className="text-xl font-bold text-[#050505] tracking-tight mt-1">
-            Master Paket Buku & Perakitan Stok
+            Master Paket Buku & Rakit Bundling
           </h1>
           <p className="text-xs text-[#65676B] max-w-2xl mt-0.5">
-            Kelola katalog paket terpadu (BOM), buat paket baru, pantau stok dua tingkat (*loose stock* vs *ready bundle*), dan lakukan perakitan/pembongkaran paket fisik secara transaksional.
+            Kelola katalog paket terpadu (BOM), buat paket baru, pantau stok dua tingkat (stok satuan vs bundel ready), dan lakukan rakit/bongkar paket fisik secara transaksional.
           </p>
         </div>
 

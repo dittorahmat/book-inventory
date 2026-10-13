@@ -44,6 +44,7 @@ const submitOrderSchema = z
     studentId: z.string().min(1, "Student ID wajib diisi"),
     packageId: idSchema.optional(),
     looseItems: z.array(looseOrderItemSchema).default([]),
+    homeAddress: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
     scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
     // Optional payment info submitted immediately

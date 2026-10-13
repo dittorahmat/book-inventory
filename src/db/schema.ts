@@ -259,9 +259,14 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   totalAmount: integer("total_amount").notNull().default(0),
   paidAmount: integer("paid_amount").notNull().default(0),
   assignedPackageItemId: text("assigned_package_item_id").references(() => packageItems.id),
-  handoverDeliveryNumber: text("handover_delivery_number"), // Surat Jalan Serah Terima
+  handoverDeliveryNumber: text("handover_delivery_number"), // SJ Serah-Terima (ambil langsung)
   handoverDate: text("handover_date"),
   handoverRecipient: text("handover_recipient"),
+  // Kirim-Rumah Satuan (cermin seragam): snapshot alamat + flag manual gudang.
+  // Paket murni -> null/belum_dikirim diabaikan; satuan kirim-rumah tanpa SJ-SERAH.
+  homeAddressSnapshot: text("home_address_snapshot"),
+  satuanShipmentStatus: text("satuan_shipment_status", { enum: ["belum_dikirim", "sudah_dikirim"] }).notNull().default("belum_dikirim"),
+  satuanShippedAt: text("satuan_shipped_at"),
   scholarshipProofUrl: text("scholarship_proof_url"),
   financeHandoverApproved: integer("finance_handover_approved", { mode: "boolean" }).notNull().default(false),
   discountAmount: integer("discount_amount").notNull().default(0),
@@ -276,6 +281,7 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
 }, (t) => [
   index("orders_school_number_idx").on(t.schoolId, t.orderNumber),
   index("orders_school_payment_fulfillment_idx").on(t.schoolId, t.paymentStatus, t.fulfillmentStatus),
+  index("orders_school_satuan_ship_idx").on(t.schoolId, t.satuanShipmentStatus),
 ]);
 
 export const orderPayments = sqliteTable("order_payments", {

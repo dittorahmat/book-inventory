@@ -281,6 +281,9 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 setPaymentProofBase64={order.setPaymentProofBase64}
                 notes={order.notes}
                 setNotes={order.setNotes}
+                isSatuan={!order.packageMode}
+                homeAddress={order.homeAddress}
+                setHomeAddress={order.setHomeAddress}
                 isSubmitting={order.isSubmitting}
                 onFileUpload={order.handleFileUpload}
                 onBack={() => order.goToStep(2)}

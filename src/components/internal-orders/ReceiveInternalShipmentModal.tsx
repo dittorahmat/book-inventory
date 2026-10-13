@@ -11,7 +11,7 @@ interface ReceiveInternalShipmentModalProps {
 
 const CONDITION_LABELS: Record<string, string> = { good: "Baik", damaged: "Rusak", missing: "Hilang" };
 
-/** Penerimaan Surat Jalan Internal oleh cabang: kondisi per baris + penyesuaian selisih otomatis. */
+/** Penerimaan SJ Internal oleh cabang: kondisi per baris + penyesuaian selisih otomatis. */
 export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: ReceiveInternalShipmentModalProps) {
   const [conditions, setConditions] = useState<Record<string, string>>(() =>
     Object.fromEntries(shipment.items.map((i) => [i.id, "good"]))
@@ -39,7 +39,7 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
       alert(
         result.status === "discrepancy"
           ? `Diterima dengan selisih — tercatat untuk penyesuaian.`
-          : `Surat Jalan ${shipment.deliveryNoteNumber} diterima.`
+          : `SJ Internal ${shipment.deliveryNoteNumber} diterima.`
       );
       await onReceived();
       onClose();
@@ -55,7 +55,7 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E4E6EB] bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-[#E4E6EB] px-6 py-4">
           <div>
-            <h3 className="text-sm font-bold text-[#050505]">Terima Surat Jalan {shipment.deliveryNoteNumber}</h3>
+            <h3 className="text-sm font-bold text-[#050505]">Terima SJ Internal {shipment.deliveryNoteNumber}</h3>
             <p className="text-[11px] text-[#65676B]">Cek kondisi tiap baris — baris tak-baik menandai selisih</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-[#65676B] hover:bg-[#F0F2F5] hover:text-[#050505]">
