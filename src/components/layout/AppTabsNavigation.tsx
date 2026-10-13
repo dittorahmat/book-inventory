@@ -46,8 +46,8 @@ const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentT
   { id: "students", label: "Database Siswa", icon: GraduationCap },
   { id: "student_orders", label: "Pesanan Siswa", icon: Users },
   { id: "uniforms", label: "Seragam", icon: Shirt },
-  { id: "packages", label: "Paket & Bundling", icon: Package },
-  { id: "procurement", label: "Pengadaan PO", icon: ShoppingBag, requireLogistics: true },
+  { id: "packages", label: "Paket & Rakit", icon: Package },
+  { id: "procurement", label: "PO Supplier", icon: ShoppingBag, requireLogistics: true },
   { id: "internal_orders", label: "Pesan ke Gudang", icon: Warehouse },
   { id: "returns", label: "Retur Buku", icon: RotateCcw },
   { id: "inventory", label: "Stok Satuan", icon: Layers },
@@ -130,7 +130,7 @@ export function AppMobileNavigation({
           }`}
         >
           <Layers className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Inventory</span>
+          <span className="text-[11px] font-semibold">Stok</span>
         </button>
 
         <button
@@ -156,7 +156,7 @@ export function AppMobileNavigation({
           }`}
         >
           <BookOpen className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Catalog</span>
+          <span className="text-[11px] font-semibold">Katalog</span>
         </button>
 
         <button
@@ -182,7 +182,7 @@ export function AppMobileNavigation({
           }`}
         >
           <Truck className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Transfers</span>
+          <span className="text-[11px] font-semibold">Transfer</span>
         </button>
 
         <button
@@ -208,7 +208,7 @@ export function AppMobileNavigation({
           }`}
         >
           <Warehouse className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Pesan</span>
+          <span className="text-[11px] font-semibold">Ke Gudang</span>
         </button>
 
         {isCentralRole(role) && (
@@ -222,7 +222,7 @@ export function AppMobileNavigation({
             }`}
           >
             <Settings className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Settings</span>
+          <span className="text-[11px] font-semibold">Pengaturan</span>
           </button>
         )}
       </div>

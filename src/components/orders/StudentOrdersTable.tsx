@@ -147,10 +147,10 @@ export function StudentOrdersTable({
                           <button
                             onClick={() => window.print()}
                             className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
-                            title="Cetak Surat Jalan Serah Terima"
+                            title="Cetak SJ Serah-Terima (Ambil di Sekolah)"
                           >
                             <Printer className="w-3.5 h-3.5 text-[#65676B]" />
-                            <span>Surat Jalan</span>
+                            <span>SJ Serah-Terima</span>
                           </button>
                         )}
                         <button

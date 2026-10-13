@@ -111,7 +111,7 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
             <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Pusat & Cabang"}</span>
           </div>
           <h1 className="text-xl font-bold text-[#050505] tracking-tight mt-1">
-            Pengadaan Buku Supplier (PO) & Stok Masuk
+            PO Supplier & Stok Masuk
           </h1>
           <p className="text-xs text-[#65676B] max-w-2xl mt-0.5">
             Kelola penerbit resmi, terbitkan Purchase Order (PO) pengadaan buku, dan catat penerimaan fisik barang masuk (*inbound receiving*) langsung menjadi stok satuan siap pakai.

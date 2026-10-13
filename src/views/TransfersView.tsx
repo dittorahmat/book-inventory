@@ -59,10 +59,10 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-xl border border-[#E4E6EB] shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-[#050505]">
-            Inter-School Stock Transfers
+            Transfer Antar Sekolah
           </h2>
           <p className="text-xs text-[#65676B] mt-0.5">
-            Logistik pengiriman dan mutasi buku antar kampus Al Wildan & HQ Pusat.
+            Gerakan fisik buku antar cabang & gudang pusat. Untuk tarik sisa stok cabang → buat transfer cabang ke gudang di sini (tanpa SJ Internal baru).
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
           className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors shadow-sm w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
-          Buat Surat Jalan Transfer
+          Buat Transfer (Gerakan Fisik)
         </button>
       </div>
 

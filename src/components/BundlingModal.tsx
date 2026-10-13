@@ -122,7 +122,7 @@ export function BundlingModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-[#050505]">
-                {mode === "bundle" ? "Rakit Paket Baru (Bundling)" : "Bongkar Paket (Unbundling)"}
+                {mode === "bundle" ? "Rakit Paket Baru dari Stok Satuan" : "Bongkar Paket ke Stok Satuan"}
               </h3>
               <p className="text-xs text-[#65676B]">{pkg.name} &bull; {activeSchool.name}</p>
             </div>
@@ -151,7 +151,7 @@ export function BundlingModal({
               <span className="font-semibold text-[#050505]">{stockPotential?.readyBundleCount ?? 0} box</span>
             </div>
             <div className="flex justify-between text-[#65676B]">
-              <span>Potensi Rakit dari Stok Satuan (Loose):</span>
+              <span>Potensi Rakit dari Stok Satuan:</span>
               <span className="font-semibold text-[#1877F2]">{stockPotential?.maxPossibleBundles ?? 0} box</span>
             </div>
           </div>
@@ -200,7 +200,7 @@ export function BundlingModal({
           {/* BOM Breakdown Preview */}
           <div className="border border-[#E4E6EB] rounded-xl overflow-hidden">
             <div className="px-3.5 py-2 bg-[#F7F8FA] border-b border-[#E4E6EB] text-[11px] font-semibold text-[#65676B]">
-              Komponen Buku Satuan (BOM):
+              Komponen Buku Satuan (Daftar Isi Paket):
             </div>
             <div className="max-h-36 overflow-y-auto divide-y divide-[#E4E6EB] text-xs">
               {stockPotential?.looseStockBreakdown.map((item) => {
