@@ -47,7 +47,7 @@ export interface FinalOrderPayload {
   studentId: string;
   packageId?: string;
   looseItems?: Array<{ bookId: string; quantity: number }>;
-  orderType: "regular" | "scholarship";
+  homeAddress?: string;  orderType: "regular" | "scholarship";
   scholarshipProofBase64?: string;
   payment?: {
     transferAmount: number;

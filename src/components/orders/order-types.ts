@@ -20,6 +20,9 @@ export interface StudentOrder {
   handoverDeliveryNumber?: string;
   handoverDate?: string;
   handoverRecipient?: string;
+  homeAddressSnapshot?: string | null;
+  satuanShipmentStatus?: "belum_dikirim" | "sudah_dikirim";
+  satuanShippedAt?: string | null;
   scholarshipProofUrl?: string;
   notes?: string;
   createdAt: string;

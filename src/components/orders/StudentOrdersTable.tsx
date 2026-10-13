@@ -9,6 +9,7 @@ interface StudentOrdersTableProps {
   onOpenHandover: (order: StudentOrder) => void;
   onOpenDiscretion: (order: StudentOrder) => void;
   onDeleteOrder: (order: StudentOrder) => void;
+  onMarkSatuanShipped: (order: StudentOrder) => void;
 }
 
 export function StudentOrdersTable({
@@ -18,6 +19,7 @@ export function StudentOrdersTable({
   onOpenHandover,
   onOpenDiscretion,
   onDeleteOrder,
+  onMarkSatuanShipped,
 }: StudentOrdersTableProps) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] overflow-hidden shadow-xs">
@@ -113,8 +115,7 @@ export function StudentOrdersTable({
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      {isPickedUp ? (
-                        <div>
+                      {isPickedUp ? (                        <div>
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800">
                             SUDAH DIAMBIL
                           </span>
@@ -132,9 +133,35 @@ export function StudentOrdersTable({
                           </div>
                         </div>
                       )}
+                      {o.homeAddressSnapshot ? (
+                        <div className="mt-1.5">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                              o.satuanShipmentStatus === "sudah_dikirim"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {o.satuanShipmentStatus === "sudah_dikirim" ? "SATUAN TERKIRIM" : "SATUAN BELUM DIKIRIM"}
+                          </span>
+                          <div className="text-[10px] text-[#65676B] mt-0.5 line-clamp-2">
+                            Ke rumah: {o.homeAddressSnapshot}
+                          </div>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {o.homeAddressSnapshot && o.satuanShipmentStatus !== "sudah_dikirim" ? (
+                          <button
+                            type="button"
+                            onClick={() => onMarkSatuanShipped(o)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            <span>Tandai Terkirim</span>
+                          </button>
+                        ) : null}
                         {!isPickedUp ? (
                           <button
                             onClick={() => onOpenHandover(o)}

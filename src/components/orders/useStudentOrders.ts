@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { buildQuery, getJson, delJson } from "../../lib/api";
+import { buildQuery, getJson, delJson, postJson } from "../../lib/api";
 import type { StudentOrder } from "./order-types";
 
 export function useStudentOrders(schoolId: string | null) {
@@ -48,6 +48,22 @@ export function useStudentOrders(schoolId: string | null) {
     }
   };
 
+  const markSatuanShipped = async (order: StudentOrder) => {
+    try {
+      const data = await postJson<{ orderNumber: string }>(
+        `/api/student-orders/${order.id}/mark-satuan-shipped`,
+        {},
+        "Gagal menandai satuan terkirim."
+      );
+      alert(`Satuan order ${order.orderNumber} ditandai sudah dikirim ke rumah.`);
+      loadOrders();
+      return data;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal menandai satuan terkirim.");
+      throw err;
+    }
+  };
+
   const filteredOrders = orders.filter((o) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
@@ -74,5 +90,6 @@ export function useStudentOrders(schoolId: string | null) {
     errorMsg,
     loadOrders,
     removeOrder,
+    markSatuanShipped,
   };
 }

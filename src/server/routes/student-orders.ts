@@ -12,6 +12,7 @@ import {
 } from "../../db/schema";
 import { reportReturn } from "../services/return-intake";
 import { resolveReturn } from "../services/order-fulfilment";
+import { markSatuanShipped } from "../services/satuan-shipment";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -95,6 +96,9 @@ studentOrdersRouter.get("/", async (c) => {
       handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
       handoverDate: studentBookOrders.handoverDate,
       handoverRecipient: studentBookOrders.handoverRecipient,
+      homeAddressSnapshot: studentBookOrders.homeAddressSnapshot,
+      satuanShipmentStatus: studentBookOrders.satuanShipmentStatus,
+      satuanShippedAt: studentBookOrders.satuanShippedAt,
       scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
       notes: studentBookOrders.notes,
       createdAt: studentBookOrders.createdAt,
@@ -208,6 +212,29 @@ studentOrdersRouter.get("/returns", async (c) => {
     .limit(50);
 
   return c.json({ success: true, data: visible });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5b. POST Tandai satuan terkirim (kirim-rumah, gudang/pusat saja, tanpa SJ-SERAH)
+studentOrdersRouter.post("/:id/mark-satuan-shipped", async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const id = c.req.param("id");
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    const result = await markSatuanShipped(db, id);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({
+      success: true,
+      message: `Satuan order ${result.data.orderNumber} ditandai sudah dikirim ke rumah.`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

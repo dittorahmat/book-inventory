@@ -41,6 +41,8 @@ export interface SubmitPublicOrderInput {
   studentId: string;
   packageId?: string;
   looseItems?: LooseOrderItemInput[];
+  /** Wajib bila ada looseItems (kirim-rumah satuan ala seragam). */
+  homeAddress?: string;
   orderType: "regular" | "scholarship";
   scholarshipProofBase64?: string;
   payment?: PaymentSubmissionInput;
@@ -119,6 +121,8 @@ export async function submitPublicOrder(
   if (looseItems.length > 0) {
     const cutoffCheck = validateSatuanCutoff(true, await (deps.getSatuanStatus ?? (() => getCurrentSatuanStatus(database)))());
     if (!cutoffCheck.ok) return cutoffCheck;
+    if (!input.homeAddress?.trim())
+      return { ok: false, status: 400, message: "Alamat rumah wajib diisi untuk buku satuan (dikirim ke rumah)." };
   }
 
   // 3. Resolusi paket buku jika dipilih (aturan murni)
@@ -224,6 +228,8 @@ export async function submitPublicOrder(
         fulfillmentStatus: "waiting_preparation",
         totalAmount,
         paidAmount,
+        homeAddressSnapshot: looseItems.length > 0 ? input.homeAddress!.trim() : null,
+        satuanShipmentStatus: "belum_dikirim",
         scholarshipProofUrl,
         notes: input.notes || null,
         createdAt: now,

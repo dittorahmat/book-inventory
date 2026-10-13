@@ -25,6 +25,9 @@ interface PaymentStepProps {
   setPaymentProofBase64: (val: string) => void;
   notes: string;
   setNotes: (val: string) => void;
+  isSatuan?: boolean;
+  homeAddress?: string;
+  setHomeAddress?: (val: string) => void;
   isSubmitting: boolean;
   onFileUpload: FileUploadHandler;
   onBack: () => void;
@@ -50,6 +53,9 @@ export function PaymentStep({
   setPaymentProofBase64,
   notes,
   setNotes,
+  isSatuan,
+  homeAddress,
+  setHomeAddress,
   isSubmitting,
   onFileUpload,
   onBack,
@@ -256,6 +262,25 @@ export function PaymentStep({
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {isSatuan && (
+        <div>
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Alamat Rumah (Wajib, satuan dikirim ke rumah)
+          </label>
+          <textarea
+            rows={2}
+            required
+            value={homeAddress ?? ""}
+            onChange={(e) => setHomeAddress?.(e.target.value)}
+            placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor"
+            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+          />
+          <span className="text-[10px] text-[#65676B] block mt-0.5">
+            *Buku satuan diantar ke alamat ini. Paket tetap diambil di sekolah dengan SJ Serah-Terima.
+          </span>
         </div>
       )}
 
