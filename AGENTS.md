@@ -204,6 +204,16 @@ Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` 
 
 ---
 
+## 12. Edit Anchor Discipline (Anti-Misplaced-Edit Rule)
+
+Latar (Okt 2026): `oldString: "});"` yang cocok di banyak tempat menimpa lokasi pertama dan mematahkan `sales-report.test.ts` — 3 putaran perbaikan untuk satu edit.
+
+1. **Jangkar edit wajib unik berkonteks**: setiap `oldString` minimal 3 baris mencakup pengenal unik (nama fungsi, string literal khas, atau komentar di sekitarnya) sehingga hanya cocok di satu lokasi.
+2. **Dilarang jangkar generik satu baris** (`});`, `}`, `return ...`, baris kosong) sebagai `oldString` — perluas dengan konteks lebih luas bila tool menolak karena multi-match, jangan persempit hingga generik.
+3. Reviewer: jangkar satu baris di diff tool-call adalah red flag.
+
+---
+
 ## Agent skills
 
 ### Issue tracker
