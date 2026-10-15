@@ -10,8 +10,7 @@ import {
   requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { PRINTED_STATUS } from "../services/po-workflow";
-import { markPrinted, uploadSignedDoc } from "../services/po-lifecycle";
+import { markPrinted, PRINTED_STATUS, uploadSignedDoc } from "../services/purchase-order";
 
 /** Endpoint alur PO cetak → tanda tangan → upload, plus ubah master supplier. */
 export const poWorkflowRouter = new Hono();

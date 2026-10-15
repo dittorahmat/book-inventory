@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { mockActor, restoreActor } from "./test-actor";
-import { createPurchaseOrder } from "../services/po-workflow";
+import { createPurchaseOrder } from "../services/purchase-order";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
 import { books, bookItems, purchaseOrders, purchaseOrderItems, purchaseOrderReceipts, purchaseOrderReceiptItems, suppliers } from "../../db/schema";
