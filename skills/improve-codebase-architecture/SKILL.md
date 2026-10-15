@@ -46,6 +46,7 @@ For each candidate, render a card with:
 - **Problem**: why the current architecture is causing friction
 - **Solution**: plain English description of what would change
 - **Benefits**: explained in terms of locality and leverage, and how tests would improve
+- **Equivalence note** (whenever the solution unifies implementations): cite the behavior-equivalence audit behind the promise — rounding, dedupe keys, clamping/defaulting, error mapping. If the audit finds semantic differences, defer the unification and say so in the card instead of silently changing behavior
 - **Before / After diagram**: side-by-side, custom-drawn, illustrating the shallowness and the deepening
 - **Recommendation strength**: one of `Strong`, `Worth exploring`, `Speculative`, rendered as a badge
 
