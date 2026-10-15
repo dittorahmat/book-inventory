@@ -1,5 +1,5 @@
 import { desc, eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   bookPackages,
   books,
@@ -8,8 +8,8 @@ import {
   internalShipmentItems,
   internalShipments,
   schools,
-} from "../../db/schema";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+} from "../../../db/schema";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 
 export interface InternalPoItemInput {
   packageId: string;

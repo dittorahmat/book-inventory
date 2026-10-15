@@ -12,7 +12,7 @@ import { stockSummaryRouter } from "./stock-summary";
 import { shipmentsRouter } from "./shipments";
 import { getLooseStockSummary, getPackageStockSummary } from "../services/stock-summary";
 import { allocateLooseStock } from "../services/stock-allocation";
-import { planCreateLines } from "../services/shipment-plan";
+import { planCreateLines } from "../services/shipment";
 
 const iso = (offsetMinutes: number) =>
   new Date(Date.now() + offsetMinutes * 60_000).toISOString();

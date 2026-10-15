@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
+import { db } from "../../../db";
 import {
   bookPackages,
   internalPurchaseOrderItems,
@@ -8,8 +8,8 @@ import {
   internalShipmentItems,
   internalShipments,
   schools,
-} from "../../db/schema";
-import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "./internal-po";
+} from "../../../db/schema";
+import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "./po";
 
 describe("Internal PO read seam (T2: list + history behind the module)", () => {
   it("lists POs with grouped lines and filters by school in SQL", async () => {
