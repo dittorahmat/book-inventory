@@ -1,14 +1,14 @@
 import { desc, eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
-import { schools, uniformClaims, uniformOrders, uniformOrderItems } from "../../db/schema";
+import type { AppDatabase } from "../../../db";
+import { schools, uniformClaims, uniformOrders, uniformOrderItems } from "../../../db/schema";
 import {
   d1WriteErrorStatus,
   newWriteId,
   writeNow,
   type WriteDeps,
-} from "../lib/d1-write";
-import { readSettingsMap } from "./settings-map";
-import type { UniformError } from "./uniform-catalog";
+} from "../../lib/d1-write";
+import { readSettingsMap } from "../settings-map";
+import type { UniformError } from "./catalog";
 
 export const UNIFORM_CLAIM_PREFIX_KEY = "uniform_claim_prefix";
 export const DEFAULT_UNIFORM_CLAIM_PREFIX = "CLM";

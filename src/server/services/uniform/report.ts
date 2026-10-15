@@ -1,5 +1,5 @@
 import { and, gte, inArray, lte } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   schools,
   students,
@@ -7,9 +7,9 @@ import {
   uniformOrderItems,
   uniformPackageBom,
   uniformVariants,
-} from "../../db/schema";
-import { gradeToJenjang, type UniformJenjang } from "../../lib/uniform-types";
-import { chunkRows, D1_INLIST_CHUNK_SIZE } from "../lib/d1-write";
+} from "../../../db/schema";
+import { gradeToJenjang, type UniformJenjang } from "../../../lib/uniform-types";
+import { chunkRows, D1_INLIST_CHUNK_SIZE } from "../../lib/d1-write";
 
 export interface UniformSalesRow {
   schoolId: string;

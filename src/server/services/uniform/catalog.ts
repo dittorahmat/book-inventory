@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   uniformVariants,
   uniformSizes,
@@ -7,7 +7,7 @@ import {
   uniformPackages,
   uniformPackageBom,
   uniformPackageStock,
-} from "../../db/schema";
+} from "../../../db/schema";
 import {
   chunkRows,
   d1WriteErrorStatus,
@@ -15,7 +15,7 @@ import {
   runWriteBatch,
   writeNow,
   type WriteDeps,
-} from "../lib/d1-write";
+} from "../../lib/d1-write";
 
 export type UniformError = { ok: false; status: 400 | 404; message: string };
 

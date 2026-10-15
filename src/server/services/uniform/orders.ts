@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   students,
   uniformVariants,
@@ -10,7 +10,7 @@ import {
   uniformPackageStock,
   uniformOrders,
   uniformOrderItems,
-} from "../../db/schema";
+} from "../../../db/schema";
 import {
   chunkRows,
   d1WriteErrorStatus,
@@ -18,10 +18,10 @@ import {
   runWriteBatch,
   writeNow,
   type WriteDeps,
-} from "../lib/d1-write";
-import { readSettingsMap } from "./settings-map";
-import { KAIN_SIZE, type UniformError } from "./uniform-catalog";
-import type { SubmitUniformOrderPayload } from "../../lib/uniform-types";
+} from "../../lib/d1-write";
+import { readSettingsMap } from "../settings-map";
+import { KAIN_SIZE, type UniformError } from "./catalog";
+import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 
 export interface SubmitUniformOrderDeps extends WriteDeps {
   generateOrderNumber?: (nowIso: string) => string;

@@ -4,8 +4,12 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { systemSettings } from "../../db/schema";
 import { readSettingsMap } from "../services/settings-map";
-import { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY } from "../services/uniform-orders";
-import { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "../services/uniform-claims";
+import {
+  DEFAULT_UNIFORM_CLAIM_PREFIX,
+  DEFAULT_UNIFORM_ORDER_PREFIX,
+  UNIFORM_CLAIM_PREFIX_KEY,
+  UNIFORM_ORDER_PREFIX_KEY,
+} from "../services/uniform";
 import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import { currentAcademicYear } from "../../lib/wib-time";

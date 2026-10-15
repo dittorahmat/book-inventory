@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   suppliers,
   uniformVariants,
@@ -10,7 +10,7 @@ import {
   uniformPackageStock,
   uniformPos,
   uniformPoItems,
-} from "../../db/schema";
+} from "../../../db/schema";
 import {
   chunkRows,
   d1WriteErrorStatus,
@@ -18,8 +18,8 @@ import {
   runWriteBatch,
   writeNow,
   type WriteDeps,
-} from "../lib/d1-write";
-import { KAIN_SIZE, type UniformError } from "./uniform-catalog";
+} from "../../lib/d1-write";
+import { KAIN_SIZE, type UniformError } from "./catalog";
 
 export interface UniformSupplyDeps extends WriteDeps {
   generatePoNumber?: (nowIso: string) => string;

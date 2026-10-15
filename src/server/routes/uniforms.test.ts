@@ -9,8 +9,7 @@ import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
 import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
-import { submitUniformOrder } from "../services/uniform-orders";
-import { requestUniformExchange } from "../services/uniform-returns";
+import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
 const postJson = (path: string, body: unknown) =>
   uniformsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
