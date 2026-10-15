@@ -625,3 +625,140 @@ INSERT OR IGNORE INTO package_items (id, package_id, current_school_id, barcode,
 ('pki-sd1int-7', 'pkg-sd1-int', 'school-alw-1', 'PKG-ALW1-2026-0008', 'in_stock', 'Pre-assembled ready bundle', '2026-09-24T00:39:13.933Z', '2026-09-24T00:39:13.933Z'),
 ('pki-sd1int-8', 'pkg-sd1-int', 'school-alw-1', 'PKG-ALW1-2026-0009', 'in_stock', 'Pre-assembled ready bundle', '2026-09-24T00:39:13.933Z', '2026-09-24T00:39:13.933Z'),
 ('pki-sd1int-9', 'pkg-sd1-int', 'school-alw-1', 'PKG-ALW1-2026-0010', 'in_stock', 'Pre-assembled ready bundle', '2026-09-24T00:39:13.933Z', '2026-09-24T00:39:13.933Z');
+
+-- 13. Uniform demo supplier (konveksi)
+INSERT OR IGNORE INTO suppliers (id, code, name, contact_person, email, phone, address, created_at, updated_at) VALUES
+('sup-demo-konveksi', 'SUP-KONV-DEMO', 'Konveksi Seragam Demo', 'H. Bambang Konveksi', 'order@konveksidemo.id', '+62 21 5550199', 'Jl. Konveksi Raya No. 9, Tangerang Selatan', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+-- 14. Uniform variants (demo prefix uv-demo-*)
+INSERT OR IGNORE INTO uniform_variants (id, code, name, kind, gender, jenjang, academic_year, price, size_chart_url, description, created_at, updated_at) VALUES
+('uv-demo-kain-sd-f', 'UV-KAIN-SD-F-2026', 'Kain Harian SD Perempuan', 'kain_harian', 'female', 'sd', '2026/2027', 120000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-sd-m', 'UV-KAIN-SD-M-2026', 'Kain Harian SD Laki-laki', 'kain_harian', 'male', 'sd', '2026/2027', 120000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-sma-f', 'UV-KAIN-SMA-F-2026', 'Kain Harian SMA Perempuan', 'kain_harian', 'female', 'sma', '2026/2027', 150000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-sma-m', 'UV-KAIN-SMA-M-2026', 'Kain Harian SMA Laki-laki', 'kain_harian', 'male', 'sma', '2026/2027', 150000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-smp-f', 'UV-KAIN-SMP-F-2026', 'Kain Harian SMP Perempuan', 'kain_harian', 'female', 'smp', '2026/2027', 135000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-smp-m', 'UV-KAIN-SMP-M-2026', 'Kain Harian SMP Laki-laki', 'kain_harian', 'male', 'smp', '2026/2027', 135000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-tk-f', 'UV-KAIN-TK-F-2026', 'Kain Harian TK Perempuan', 'kain_harian', 'female', 'tk', '2026/2027', 100000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-kain-tk-m', 'UV-KAIN-TK-M-2026', 'Kain Harian TK Laki-laki', 'kain_harian', 'male', 'tk', '2026/2027', 100000, NULL, 'Kain harian tanpa ukuran, dipotong penjahit.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-sd-f', 'UO-SD-F-2026', 'Olahraga SD Perempuan', 'olahraga', 'female', 'sd', '2026/2027', 110000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-sd-m', 'UO-SD-M-2026', 'Olahraga SD Laki-laki', 'olahraga', 'male', 'sd', '2026/2027', 110000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-sma-f', 'UO-SMA-F-2026', 'Olahraga SMA Perempuan', 'olahraga', 'female', 'sma', '2026/2027', 140000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-sma-m', 'UO-SMA-M-2026', 'Olahraga SMA Laki-laki', 'olahraga', 'male', 'sma', '2026/2027', 140000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-smp-f', 'UO-SMP-F-2026', 'Olahraga SMP Perempuan', 'olahraga', 'female', 'smp', '2026/2027', 125000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-smp-m', 'UO-SMP-M-2026', 'Olahraga SMP Laki-laki', 'olahraga', 'male', 'smp', '2026/2027', 125000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-tk-f', 'UO-TK-F-2026', 'Olahraga TK Perempuan', 'olahraga', 'female', 'tk', '2026/2027', 95000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('uv-demo-ol-tk-m', 'UO-TK-M-2026', 'Olahraga TK Laki-laki', 'olahraga', 'male', 'tk', '2026/2027', 95000, 'https://contoh.id/size-chart.png', 'Pakaian jadi bersize, lihat size chart sebelum pesan.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+-- 15. Uniform sizes (demo variants)
+INSERT OR IGNORE INTO uniform_sizes (id, variant_id, size, sort_order, created_at) VALUES
+('us-demo-ol-sd-f-L', 'uv-demo-ol-sd-f', 'L', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sd-f-M', 'uv-demo-ol-sd-f', 'M', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sd-f-S', 'uv-demo-ol-sd-f', 'S', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sd-m-L', 'uv-demo-ol-sd-m', 'L', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sd-m-M', 'uv-demo-ol-sd-m', 'M', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sd-m-S', 'uv-demo-ol-sd-m', 'S', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-f-L', 'uv-demo-ol-sma-f', 'L', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-f-XL', 'uv-demo-ol-sma-f', 'XL', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-f-XXL', 'uv-demo-ol-sma-f', 'XXL', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-m-L', 'uv-demo-ol-sma-m', 'L', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-m-XL', 'uv-demo-ol-sma-m', 'XL', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-sma-m-XXL', 'uv-demo-ol-sma-m', 'XXL', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-f-L', 'uv-demo-ol-smp-f', 'L', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-f-M', 'uv-demo-ol-smp-f', 'M', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-f-XL', 'uv-demo-ol-smp-f', 'XL', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-m-L', 'uv-demo-ol-smp-m', 'L', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-m-M', 'uv-demo-ol-smp-m', 'M', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-smp-m-XL', 'uv-demo-ol-smp-m', 'XL', 2, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-tk-f-M', 'uv-demo-ol-tk-f', 'M', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-tk-f-S', 'uv-demo-ol-tk-f', 'S', 0, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-tk-m-M', 'uv-demo-ol-tk-m', 'M', 1, '2026-10-15T05:49:52.318Z'),
+('us-demo-ol-tk-m-S', 'uv-demo-ol-tk-m', 'S', 0, '2026-10-15T05:49:52.318Z');
+
+-- 16. Uniform stock (demo variants, snapshot sisa)
+INSERT OR IGNORE INTO uniform_stock (id, variant_id, size, quantity, updated_at) VALUES
+('ust-demo-kain-sd-f', 'uv-demo-kain-sd-f', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-sd-m', 'uv-demo-kain-sd-m', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-sma-f', 'uv-demo-kain-sma-f', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-sma-m', 'uv-demo-kain-sma-m', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-smp-f', 'uv-demo-kain-smp-f', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-smp-m', 'uv-demo-kain-smp-m', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-tk-f', 'uv-demo-kain-tk-f', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-kain-tk-m', 'uv-demo-kain-tk-m', '—', 40, '2026-10-15T05:50:09.817Z'),
+('ust-demo-ol-sd-f-L', 'uv-demo-ol-sd-f', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sd-f-M', 'uv-demo-ol-sd-f', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sd-f-S', 'uv-demo-ol-sd-f', 'S', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sd-m-L', 'uv-demo-ol-sd-m', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sd-m-M', 'uv-demo-ol-sd-m', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sd-m-S', 'uv-demo-ol-sd-m', 'S', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-f-L', 'uv-demo-ol-sma-f', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-f-XL', 'uv-demo-ol-sma-f', 'XL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-f-XXL', 'uv-demo-ol-sma-f', 'XXL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-m-L', 'uv-demo-ol-sma-m', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-m-XL', 'uv-demo-ol-sma-m', 'XL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-sma-m-XXL', 'uv-demo-ol-sma-m', 'XXL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-f-L', 'uv-demo-ol-smp-f', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-f-M', 'uv-demo-ol-smp-f', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-f-XL', 'uv-demo-ol-smp-f', 'XL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-m-L', 'uv-demo-ol-smp-m', 'L', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-m-M', 'uv-demo-ol-smp-m', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-smp-m-XL', 'uv-demo-ol-smp-m', 'XL', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-tk-f-M', 'uv-demo-ol-tk-f', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-tk-f-S', 'uv-demo-ol-tk-f', 'S', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-tk-m-M', 'uv-demo-ol-tk-m', 'M', 15, '2026-10-15T05:49:52.318Z'),
+('ust-demo-ol-tk-m-S', 'uv-demo-ol-tk-m', 'S', 15, '2026-10-15T05:49:52.318Z');
+
+-- 17. Uniform packages + BOM + ready stock (demo prefix upk-demo-*)
+INSERT OR IGNORE INTO uniform_packages (id, code, name, academic_year, price, description, created_at, updated_at) VALUES
+('upk-demo-sd-f', 'UPK-DEMO-SD-F', 'Paket Seragam SD Perempuan 2026/2027', '2026/2027', 230000, 'Kain harian + set olahraga (size dipilih saat pesan).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('upk-demo-sd-m', 'UPK-DEMO-SD-M', 'Paket Seragam SD Laki-laki 2026/2027', '2026/2027', 230000, 'Kain harian + set olahraga (size dipilih saat pesan).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('upk-demo-smp-m', 'UPK-DEMO-SMP-M', 'Paket Seragam SMP Laki-laki 2026/2027', '2026/2027', 260000, 'Kain harian + set olahraga (size dipilih saat pesan).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+INSERT OR IGNORE INTO uniform_package_bom (id, package_id, variant_id, size, quantity, created_at) VALUES
+('ubom-demo-upk-demo-sd-f-kain', 'upk-demo-sd-f', 'uv-demo-kain-sd-f', '—', 1, '2026-10-15T05:49:52.318Z'),
+('ubom-demo-upk-demo-sd-f-ol', 'upk-demo-sd-f', 'uv-demo-ol-sd-f', '—', 1, '2026-10-15T05:49:52.318Z'),
+('ubom-demo-upk-demo-sd-m-kain', 'upk-demo-sd-m', 'uv-demo-kain-sd-m', '—', 1, '2026-10-15T05:49:52.318Z'),
+('ubom-demo-upk-demo-sd-m-ol', 'upk-demo-sd-m', 'uv-demo-ol-sd-m', '—', 1, '2026-10-15T05:49:52.318Z'),
+('ubom-demo-upk-demo-smp-m-kain', 'upk-demo-smp-m', 'uv-demo-kain-smp-m', '—', 1, '2026-10-15T05:49:52.318Z'),
+('ubom-demo-upk-demo-smp-m-ol', 'upk-demo-smp-m', 'uv-demo-ol-smp-m', '—', 1, '2026-10-15T05:49:52.318Z');
+
+INSERT OR IGNORE INTO uniform_package_stock (id, package_id, quantity, updated_at) VALUES
+('upst-demo-upk-demo-sd-f', 'upk-demo-sd-f', 4, '2026-10-15T05:50:09.817Z'),
+('upst-demo-upk-demo-sd-m', 'upk-demo-sd-m', 4, '2026-10-15T05:50:09.817Z'),
+('upst-demo-upk-demo-smp-m', 'upk-demo-smp-m', 5, '2026-10-15T05:50:09.817Z');
+
+-- 18. Uniform PO + lines (demo UPO-DEMO-*)
+INSERT OR IGNORE INTO uniform_pos (id, po_number, supplier_id, status, order_date, total_amount, notes, created_at, updated_at) VALUES
+('upo-demo-01', 'UPO-DEMO-2026-01', 'sup-demo-konveksi', 'received', '2026-09-20', 13600000, 'Pengadaan awal seragam demo (kain + olahraga SD).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+INSERT OR IGNORE INTO uniform_po_items (id, po_id, variant_id, size, quantity_ordered, quantity_received, unit_price, created_at) VALUES
+('upoi-demo-01-1', 'upo-demo-01', 'uv-demo-kain-sd-m', '—', 20, 20, 120000, '2026-10-15T05:49:52.318Z'),
+('upoi-demo-01-2', 'upo-demo-01', 'uv-demo-kain-sd-f', '—', 20, 20, 120000, '2026-10-15T05:49:52.318Z'),
+('upoi-demo-01-3', 'upo-demo-01', 'uv-demo-ol-sd-m', 'M', 20, 20, 110000, '2026-10-15T05:49:52.318Z'),
+('upoi-demo-01-4', 'upo-demo-01', 'uv-demo-ol-sd-m', 'L', 20, 20, 110000, '2026-10-15T05:49:52.318Z'),
+('upoi-demo-01-5', 'upo-demo-01', 'uv-demo-ol-sd-f', 'S', 20, 20, 110000, '2026-10-15T05:49:52.318Z'),
+('upoi-demo-01-6', 'upo-demo-01', 'uv-demo-ol-sd-f', 'M', 20, 20, 110000, '2026-10-15T05:49:52.318Z');
+
+-- 19. Uniform orders + items (demo USO-DEMO-*)
+INSERT OR IGNORE INTO uniform_orders (id, order_number, student_id, school_id, academic_year, home_address_snapshot, shipment_status, shipped_at, total_amount, paid_amount, notes, created_at, updated_at) VALUES
+('ord-demo-uso-01', 'USO-DEMO-01', 'std-aisyah-2', 'school-alw-1', '2026/2027', 'Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418', 'belum_dikirim', NULL, 230000, 230000, 'Order demo portal seragam.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('ord-demo-uso-02', 'USO-DEMO-02', 'std-farhan-3', 'school-alw-1', '2026/2027', 'Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418', 'sudah_dikirim', '2026-10-15T05:49:52.318Z', 230000, 230000, 'Order demo portal seragam.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('ord-demo-uso-03', 'USO-DEMO-03', 'std-farhan-3', 'school-alw-1', '2026/2027', 'Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418', 'belum_dikirim', NULL, 230000, 230000, 'Order demo portal seragam.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z'),
+('ord-demo-uso-04', 'USO-DEMO-04', 'std-kayla-5', 'school-alw-1', '2026/2027', 'Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418', 'belum_dikirim', NULL, 110000, 110000, 'Order demo portal seragam.', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+INSERT OR IGNORE INTO uniform_order_items (id, order_id, package_id, variant_id, size, quantity, unit_price_snapshot, created_at) VALUES
+('uoi-demo-01-1', 'ord-demo-uso-01', 'upk-demo-sd-f', NULL, 'M', 1, 230000, '2026-10-15T05:49:52.318Z'),
+('uoi-demo-02-1', 'ord-demo-uso-02', NULL, 'uv-demo-kain-sd-m', '—', 1, 120000, '2026-10-15T05:49:52.318Z'),
+('uoi-demo-02-2', 'ord-demo-uso-02', NULL, 'uv-demo-ol-sd-m', 'M', 1, 110000, '2026-10-15T05:49:52.318Z'),
+('uoi-demo-03-1', 'ord-demo-uso-03', 'upk-demo-sd-m', NULL, 'M', 1, 230000, '2026-10-15T05:49:52.318Z'),
+('uoi-demo-04-1', 'ord-demo-uso-04', NULL, 'uv-demo-ol-sd-f', 'S', 1, 110000, '2026-10-15T05:49:52.318Z');
+
+-- 20. Uniform exchange + refund demo
+INSERT OR IGNORE INTO uniform_exchanges (id, order_id, student_id, old_variant_id, old_size, new_variant_id, new_size, reason, status, handled_by_user_id, resolved_at, created_at, updated_at) VALUES
+('ex-demo-01', 'ord-demo-uso-04', 'std-kayla-5', 'uv-demo-ol-sd-f', 'S', 'uv-demo-ol-sd-f', 'M', 'Kekecilan, mohon tukar ke ukuran M.', 'requested', NULL, NULL, '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+INSERT OR IGNORE INTO uniform_refunds (id, refund_number, order_id, student_id, amount, reason, status, handled_by_user_id, resolved_at, created_at, updated_at) VALUES
+('rf-demo-01', 'RFD-U-DEMO-01', 'ord-demo-uso-02', 'std-farhan-3', 50000, 'Jahitan lepas pada lengan olahraga.', 'requested', NULL, NULL, '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+
+-- 21. Uniform claim demo (CLM-DEMO-*)
+INSERT OR IGNORE INTO uniform_claims (id, claim_number, school_id, period, status, total_qty, total_amount, locked_at, created_at, updated_at) VALUES
+('clm-demo-01', 'CLM-DEMO-2026-10', 'school-alw-1', '2026-10', 'draft', 5, 800000, NULL, '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');

@@ -245,6 +245,129 @@ out.push(
   )
 );
 
+out.push(
+  "-- 13. Uniform demo supplier (konveksi)",
+  insert(
+    "suppliers",
+    q(`SELECT id, code, name, contact_person, email, phone, address, created_at, updated_at
+         FROM suppliers WHERE code = 'SUP-KONV-DEMO' ORDER BY id`)
+  )
+);
+
+out.push(
+  "-- 14. Uniform variants (demo prefix uv-demo-*)",
+  insert(
+    "uniform_variants",
+    q(`SELECT id, code, name, kind, gender, jenjang, academic_year,
+              price, size_chart_url, description, created_at, updated_at
+         FROM uniform_variants WHERE id LIKE 'uv-demo-%' ORDER BY id`)
+  )
+);
+
+out.push(
+  "-- 15. Uniform sizes (demo variants)",
+  insert(
+    "uniform_sizes",
+    q(`SELECT s.id, s.variant_id, s.size, s.sort_order, s.created_at
+         FROM uniform_sizes s
+        WHERE s.variant_id LIKE 'uv-demo-%' ORDER BY s.id`)
+  )
+);
+
+out.push(
+  "-- 16. Uniform stock (demo variants, snapshot sisa)",
+  insert(
+    "uniform_stock",
+    q(`SELECT s.id, s.variant_id, s.size, s.quantity, s.updated_at
+         FROM uniform_stock s
+        WHERE s.variant_id LIKE 'uv-demo-%' ORDER BY s.id`)
+  )
+);
+
+out.push(
+  "-- 17. Uniform packages + BOM + ready stock (demo prefix upk-demo-*)",
+  insert(
+    "uniform_packages",
+    q(`SELECT id, code, name, academic_year, price, description, created_at, updated_at
+         FROM uniform_packages WHERE id LIKE 'upk-demo-%' ORDER BY id`)
+  ),
+  insert(
+    "uniform_package_bom",
+    q(`SELECT b.id, b.package_id, b.variant_id, b.size, b.quantity, b.created_at
+         FROM uniform_package_bom b
+        WHERE b.package_id LIKE 'upk-demo-%' ORDER BY b.id`)
+  ),
+  insert(
+    "uniform_package_stock",
+    q(`SELECT s.id, s.package_id, s.quantity, s.updated_at
+         FROM uniform_package_stock s
+        WHERE s.package_id LIKE 'upk-demo-%' ORDER BY s.package_id`)
+  )
+);
+
+out.push(
+  "-- 18. Uniform PO + lines (demo UPO-DEMO-*)",
+  insert(
+    "uniform_pos",
+    q(`SELECT id, po_number, supplier_id, status, order_date, total_amount,
+              notes, created_at, updated_at
+         FROM uniform_pos WHERE po_number LIKE 'UPO-DEMO-%' ORDER BY po_number`)
+  ),
+  insert(
+    "uniform_po_items",
+    q(`SELECT i.id, i.po_id, i.variant_id, i.size, i.quantity_ordered,
+              i.quantity_received, i.unit_price, i.created_at
+         FROM uniform_po_items i
+        WHERE i.po_id IN (SELECT id FROM uniform_pos WHERE po_number LIKE 'UPO-DEMO-%')
+        ORDER BY i.id`)
+  )
+);
+
+out.push(
+  "-- 19. Uniform orders + items (demo USO-DEMO-*)",
+  insert(
+    "uniform_orders",
+    q(`SELECT o.id, o.order_number, o.student_id, o.school_id, o.academic_year,
+              o.home_address_snapshot, o.shipment_status, o.shipped_at,
+              o.total_amount, o.paid_amount, o.notes, o.created_at, o.updated_at
+         FROM uniform_orders o WHERE o.order_number LIKE 'USO-DEMO-%' ORDER BY o.order_number`)
+  ),
+  insert(
+    "uniform_order_items",
+    q(`SELECT i.id, i.order_id, i.package_id, i.variant_id, i.size, i.quantity,
+              i.unit_price_snapshot, i.created_at
+         FROM uniform_order_items i
+        WHERE i.order_id IN (SELECT id FROM uniform_orders WHERE order_number LIKE 'USO-DEMO-%')
+        ORDER BY i.id`)
+  )
+);
+
+out.push(
+  "-- 20. Uniform exchange + refund demo",
+  insert(
+    "uniform_exchanges",
+    q(`SELECT id, order_id, student_id, old_variant_id, old_size, new_variant_id,
+              new_size, reason, status, handled_by_user_id, resolved_at, created_at, updated_at
+         FROM uniform_exchanges WHERE id LIKE 'ex-demo-%' ORDER BY id`)
+  ),
+  insert(
+    "uniform_refunds",
+    q(`SELECT id, refund_number, order_id, student_id, amount, reason, status,
+              handled_by_user_id, resolved_at, created_at, updated_at
+         FROM uniform_refunds WHERE id LIKE 'rf-demo-%' ORDER BY id`)
+  )
+);
+
+out.push(
+  "-- 21. Uniform claim demo (CLM-DEMO-*)",
+  insert(
+    "uniform_claims",
+    q(`SELECT id, claim_number, school_id, period, status, total_qty, total_amount,
+              locked_at, created_at, updated_at
+         FROM uniform_claims WHERE claim_number LIKE 'CLM-DEMO-%' ORDER BY id`)
+  )
+);
+
 db.close();
 writeFileSync(OUT_PATH, out.filter(Boolean).join("\n"), "utf8");
 console.log(`Wrote ${OUT_PATH}`);
