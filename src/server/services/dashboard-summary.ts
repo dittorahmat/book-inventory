@@ -27,13 +27,11 @@ import {
   isOpenOrder,
   isReadyBundle,
   outstandingOf,
-} from "./stock-buckets";
-import {
   tallyLoose,
   tallyLooseByKey,
   tallyPackages,
   tallyPackagesByKey,
-} from "./stock-kernel";
+} from "./stock";
 
 export type { StaffRole };
 export type DashboardActor = AccessActor;

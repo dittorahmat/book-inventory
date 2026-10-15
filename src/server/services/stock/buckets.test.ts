@@ -8,7 +8,7 @@ import {
   isReturnable,
   KITTABLE_CONDITIONS,
   RETURNABLE_CONDITIONS,
-} from "./stock-buckets";
+} from "./buckets";
 
 describe("stock-buckets condition seam (T2)", () => {
   it("allocatable admits new and good only", () => {

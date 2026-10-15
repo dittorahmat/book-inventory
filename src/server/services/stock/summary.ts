@@ -1,8 +1,8 @@
 import { eq, inArray } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
-import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
-import { effectiveSellPrice } from "../../lib/book-pricing";
-import { tallyLooseByKey, tallyPackagesByKey } from "./stock-kernel";
+import type { AppDatabase } from "../../../db";
+import { bookItems, bookPackages, books, packageItems, schools } from "../../../db/schema";
+import { effectiveSellPrice } from "../../../lib/book-pricing";
+import { tallyLooseByKey, tallyPackagesByKey } from "./kernel";
 
 export interface LooseStockSummaryRow {
   schoolId: string;

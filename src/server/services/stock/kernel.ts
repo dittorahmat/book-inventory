@@ -8,7 +8,7 @@ import {
   isLooseInTransit,
   isLost,
   isReadyBundle,
-} from "./stock-buckets";
+} from "./buckets";
 
 /**
  * Kernel agregasi stok fisik: satu-satunya pemilik aturan menghitung.

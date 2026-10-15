@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { auth } from "../auth";
+import { auth } from "../../auth";
 
 const realGetSession = auth.api.getSession;
 function actAs(role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin" | null, schoolId: string | null = null) {
@@ -10,8 +10,8 @@ beforeEach(() => actAs("central_admin", null));
 afterEach(() => {
   (auth.api as any).getSession = realGetSession;
 });
-import { db } from "../../db";
-import { bookItems, books, schools } from "../../db/schema";
+import { db } from "../../../db";
+import { bookItems, books, schools } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 import {
   addLoose,
@@ -22,9 +22,9 @@ import {
   tallyLooseByKey,
   tallyPackages,
   tallyPackagesByKey,
-} from "./stock-kernel";
-import { getLooseStockSummary } from "./stock-summary";
-import { dashboardRouter } from "../routes/dashboard";
+} from "./kernel";
+import { getLooseStockSummary } from "./summary";
+import { dashboardRouter } from "../../routes/dashboard";
 
 describe("stock-kernel tallies", () => {
   it("counts mixed loose rows once under one rule", () => {

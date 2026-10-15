@@ -15,7 +15,7 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { planVendorReturnDispose } from "../services/vendor-return";
+import { planVendorReturnDispose } from "../services/stock";
 
 export const vendorReturnsRouter = new Hono();
 

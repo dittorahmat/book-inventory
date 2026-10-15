@@ -10,7 +10,7 @@ import {
 import {
   getLooseStockSummary,
   getPackageStockSummary,
-} from "../services/stock-summary";
+} from "../services/stock";
 
 /** Endpoint agregasi stok: satu baris per judul/paket per lokasi (spec: inventory-summary). */
 export const stockSummaryRouter = new Hono();

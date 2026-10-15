@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { bookItems, books, schools } from "../../db/schema";
-import { allocateLooseStock } from "./stock-allocation";
+import { db } from "../../../db";
+import { bookItems, books, schools } from "../../../db/schema";
+import { allocateLooseStock } from "./allocation";
 
 describe("stock allocation FIFO via SQL", () => {
   it("returns the oldest available items first and reports exact shortage", async () => {

@@ -1,13 +1,13 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { AppDatabase } from "../../db";
-import { bookItems, packageItems } from "../../db/schema";
+import type { AppDatabase } from "../../../db";
+import { bookItems, packageItems } from "../../../db/schema";
 import {
   ALLOCATABLE_CONDITIONS,
   AVAILABLE_LOOSE_STATUSES,
   READY_BUNDLE_STATUSES,
   type AllocatableCondition,
-} from "./stock-buckets";
+} from "./buckets";
 
 export type AllocationError = { ok: false; status: ContentfulStatusCode; message: string; available?: number; needed?: number };
 export type AllocationResult<T> = { ok: true; items: T[] } | AllocationError;

@@ -3,7 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
-import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock-buckets";
+import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
 
