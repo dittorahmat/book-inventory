@@ -1,10 +1,10 @@
 import { inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { AppDatabase } from "../../db";
-import { books } from "../../db/schema";
-import { effectiveSellPrice } from "../../lib/book-pricing";
-import { allocateLooseStock } from "./stock-allocation";
-import { validateLooseBooks } from "./order-validation";
+import type { AppDatabase } from "../../../db";
+import { books } from "../../../db/schema";
+import { effectiveSellPrice } from "../../../lib/book-pricing";
+import { allocateLooseStock } from "../stock-allocation";
+import { validateLooseBooks } from "./validation";
 
 export interface IntakeLooseItem {
   bookId: string;

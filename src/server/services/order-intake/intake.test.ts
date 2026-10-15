@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { db } from "../../db";
+import { db } from "../../../db";
 import { eq } from "drizzle-orm";
-import { bookItems, books, schools } from "../../db/schema";
-import { reserveLooseLines, resolveLooseLines } from "./order-intake";
+import { bookItems, books, schools } from "../../../db/schema";
+import { reserveLooseLines, resolveLooseLines } from "./intake";
 
 const now = new Date().toISOString();
 const stamp = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;

@@ -1,5 +1,5 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { calcHeaderTotal } from "../../lib/transfer-pricing";
+import { calcHeaderTotal } from "../../../lib/transfer-pricing";
 
 export type ValidationError = { ok: false; status: ContentfulStatusCode; message: string };
 

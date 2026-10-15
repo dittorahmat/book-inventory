@@ -6,7 +6,7 @@ import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { sellDirect } from "../services/direct-sale";
+import { sellDirect } from "../services/order-intake";
 
 export const directSalesRouter = new Hono();
 

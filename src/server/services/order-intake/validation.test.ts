@@ -4,7 +4,7 @@ import {
   grossOrderAmount,
   validateSatuanCutoff,
   validateStudentForOrder,
-} from "./order-validation";
+} from "./validation";
 
 describe("order-validation murni", () => {
   test("siswa hilang → 404; pending → 403; aktif/promosi lolos", () => {
