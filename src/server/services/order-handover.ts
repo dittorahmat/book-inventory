@@ -4,7 +4,7 @@ import { packageItems, studentBookOrders } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { checkHandoverBundle } from "./return-flow";
+import { checkHandoverBundle } from "./return";
 
 export interface HandoverInput {
   recipientName: string;

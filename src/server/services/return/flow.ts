@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { bookItems } from "../../db/schema";
-import { writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
-import { isAvailableLoose, isReadyBundle, isReturnable } from "./stock";
+import type { bookItems } from "../../../db/schema";
+import { writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
+import { isAvailableLoose, isReadyBundle, isReturnable } from "../stock";
 
 export type FlowError = { ok: false; status: ContentfulStatusCode; message: string };
 

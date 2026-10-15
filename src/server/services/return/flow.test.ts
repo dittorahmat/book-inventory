@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { planReturnResolve } from "./return-flow";
+import { planReturnResolve } from "./flow";
 
 const base = {
   returnId: "ret-plan-1",
