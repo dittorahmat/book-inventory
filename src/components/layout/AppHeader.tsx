@@ -1,10 +1,8 @@
 import { BookOpen, Globe, LogOut, School as SchoolIcon, Shield } from "lucide-react";
-import { BranchSelector } from "../BranchSelector";
 import type { School } from "../../types";
 
 interface AppHeaderProps {
   selectedSchool: School | null;
-  onSelectSchool: (school: School | null) => void;
   isCentralAdmin: boolean;
   userName: string;
   onOpenPublicPortal: () => void;
@@ -13,7 +11,6 @@ interface AppHeaderProps {
 
 export function AppHeader({
   selectedSchool,
-  onSelectSchool,
   isCentralAdmin,
   userName,
   onOpenPublicPortal,
@@ -38,22 +35,13 @@ export function AppHeader({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Branch Selector */}
-          {isCentralAdmin ? (
-            <div className="max-w-[160px] sm:max-w-none">
-              <BranchSelector
-                selectedSchool={selectedSchool}
-                onSelectSchool={onSelectSchool}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
-              <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
-              <span className="truncate max-w-[110px] sm:max-w-none">
-                {selectedSchool?.name || "Assigned Branch"}
-              </span>
-            </div>
-          )}
+          {/* Assigned location badge (no switching: locked to account assignment) */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
+            <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
+            <span className="truncate max-w-[110px] sm:max-w-none">
+              {selectedSchool?.name || "Assigned Branch"}
+            </span>
+          </div>
 
           {/* User Badge & Logout */}
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/25">
