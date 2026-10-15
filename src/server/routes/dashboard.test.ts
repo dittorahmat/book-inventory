@@ -15,6 +15,7 @@ import {
   schools,
   studentBookOrders,
   students,
+  transferShipments,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { DashboardHttpError } from "../services/reporting";
@@ -276,6 +277,33 @@ describe("Dashboard summary API", () => {
       await db.delete(students).where(eq(students.id, `wh-st-${stamp}`));
       await db.delete(schools).where(eq(schools.id, warehouseId));
       await cleanup();
+    }
+  });
+
+  it("counts a cross-school shipment once per school (from/to split dedupe)", async () => {
+    const stamp = Date.now();
+    const schoolA = `school-sh-a-${stamp}`;
+    const schoolB = `school-sh-b-${stamp}`;
+    const shipId = `ship-${stamp}`;
+    const nowS = new Date().toISOString();
+    await db.insert(schools).values([
+      { id: schoolA, name: `SH A ${stamp}`, code: `SH-A-${stamp}`, type: "branch", createdAt: nowS, updatedAt: nowS },
+      { id: schoolB, name: `SH B ${stamp}`, code: `SH-B-${stamp}`, type: "branch", createdAt: nowS, updatedAt: nowS },
+    ]);
+    await db.insert(transferShipments).values({
+      id: shipId, shipmentNumber: `SH-NO-${stamp}`, fromSchoolId: schoolA, toSchoolId: schoolB,
+      status: "in_transit", totalDeclaredValue: 0, createdAt: nowS, updatedAt: nowS,
+    });
+    try {
+      const res = await dashboardRouter.request("/summary", { method: "GET" });
+      expect(res.status).toBe(200);
+      const rows = (await res.json()).data.schools as Array<{ school: { id: string }; attention: { transfersInTransit: number } }>;
+      expect(rows.find((s) => s.school.id === schoolA)?.attention.transfersInTransit).toBe(1);
+      expect(rows.find((s) => s.school.id === schoolB)?.attention.transfersInTransit).toBe(1);
+    } finally {
+      await db.delete(transferShipments).where(eq(transferShipments.id, shipId));
+      await db.delete(schools).where(eq(schools.id, schoolA));
+      await db.delete(schools).where(eq(schools.id, schoolB));
     }
   });
 
