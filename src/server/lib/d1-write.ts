@@ -28,6 +28,22 @@ export const newWriteId = (deps?: WriteDeps): string => (deps?.generateId ? deps
 /** Maksimal id per klausa IN (...): 1 parameter per id. */
 export const D1_INLIST_CHUNK_SIZE = 90;
 
+/**
+ * Baca aman-D1 (§10): potong daftar id `IN (...)` per D1_INLIST_CHUNK_SIZE
+ * lalu gabungkan hasilnya, dieksekusi sekuensial antar chunk. Scope besar
+ * (ratusan sekolah, termasuk gudang) tak menabrak batas bound-parameter D1.
+ * `PromiseLike` (bukan `Promise`) agar query builder drizzle langsung bisa
+ * dipakai tanpa cast — `await` sudah cukup sebagai bukti thenable.
+ * Pemanggil menganotasi `T` dengan tipe baris `$inferSelect`.
+ */
+export const selectInChunks = async <T>(ids: string[], query: (chunk: string[]) => PromiseLike<T[]>): Promise<T[]> => {
+  const out: T[] = [];
+  for (const chunk of chunkRows(ids, D1_INLIST_CHUNK_SIZE)) {
+    for (const r of await query(chunk)) out.push(r);
+  }
+  return out;
+};
+
 /** Potong array menjadi potongan-potongan kecil untuk insert/update bertahap. */
 export const chunkRows = <T>(rows: T[], size: number = D1_WRITE_CHUNK_SIZE): T[][] =>
   Array.from({ length: Math.ceil(rows.length / size) }, (_, i) => rows.slice(i * size, i * size + size));

@@ -232,6 +232,66 @@ describe("Dashboard summary API", () => {
       await db.delete(schools).where(eq(schools.id, schoolB));
     }
   });
+
+  it("returns aggregate total equal to the sum of per-school summaries", async () => {
+    try {
+      await cleanup();
+      await seed();
+      const res = await dashboardRouter.request("/summary", { method: "GET" });
+      expect(res.status).toBe(200);
+      const data = (await res.json()).data;
+      const schoolsArr = data.schools as Array<{
+        coverage: { waitingOrders: number; shortfall: number };
+        funnel: { ready: number; picked: number };
+        stock: { looseInStock: number; packagesReady: number; inTransit: number; lost: number };
+        payments: { totalOrders: number; outstandingRp: number; scholarshipPending: number };
+      }>;
+      expect(data.total.schools).toBe(schoolsArr.length);
+      expect(data.total.waitingOrders).toBe(schoolsArr.reduce((n, s) => n + s.coverage.waitingOrders, 0));
+      expect(data.total.shortfall).toBe(schoolsArr.reduce((n, s) => n + s.coverage.shortfall, 0));
+      expect(data.total.looseInStock).toBe(schoolsArr.reduce((n, s) => n + s.stock.looseInStock, 0));
+      expect(data.total.packagesReady).toBe(schoolsArr.reduce((n, s) => n + s.stock.packagesReady, 0));
+      expect(data.total.totalOrders).toBe(schoolsArr.reduce((n, s) => n + s.payments.totalOrders, 0));
+      expect(data.total.outstandingRp).toBe(schoolsArr.reduce((n, s) => n + s.payments.outstandingRp, 0));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("handles production volume: 30 orders in one school (D1 chunk regression)", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-vol-${stamp}`;
+    const nowV = new Date().toISOString();
+    await db.insert(schools).values({ id: schoolId, name: `Vol ${stamp}`, code: `VOL-${stamp}`, type: "branch", createdAt: nowV, updatedAt: nowV });
+    try {
+      for (let i = 1; i <= 30; i++) {
+        const sid = `vol-st-${stamp}-${i}`;
+        await db.insert(students).values({
+          id: sid, schoolId, nis: `VOL-NIS-${stamp}-${i}`, name: `Vol Siswa ${i}`,
+          gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+          createdAt: nowV, updatedAt: nowV,
+        });
+        await db.insert(studentBookOrders).values({
+          id: `vol-o-${stamp}-${i}`, orderNumber: `vol-o-${stamp}-${i}`, studentId: sid, schoolId,
+          paymentStatus: i % 3 === 0 ? "paid" : "unpaid", fulfillmentStatus: "waiting_preparation",
+          totalAmount: 100000, paidAmount: i % 3 === 0 ? 100000 : 0, createdAt: nowV, updatedAt: nowV,
+        });
+      }
+      const res = await dashboardRouter.request(`/summary?schoolId=${schoolId}`, { method: "GET" });
+      expect(res.status).toBe(200);
+      const [s] = (await res.json()).data.schools;
+      expect(s.coverage.waitingOrders).toBe(30);
+      expect(s.payments.totalOrders).toBe(30);
+      expect(s.payments.paidCount).toBe(10);
+      expect(s.payments.outstandingRp).toBe(20 * 100000);
+    } finally {
+      for (let i = 1; i <= 30; i++) {
+        await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `vol-o-${stamp}-${i}`));
+        await db.delete(students).where(eq(students.id, `vol-st-${stamp}-${i}`));
+      }
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });
 
 describe("Dashboard scope resolution (branch isolation)", () => {

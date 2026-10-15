@@ -28,6 +28,7 @@ function LoadingSkeleton() {
 export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: DashboardViewProps) {
   const [drillId, setDrillId] = useState<string | null>(null);
   const schoolId = isCentralAdmin ? drillId : activeSchool?.id ?? null;
+  const attemptedMode = !isCentralAdmin || drillId ? "detail" : "comparison";
   const { data, isLoading, error, retry } = useDashboard(schoolId);
 
   if (!isCentralAdmin && !activeSchool) {
@@ -56,7 +57,7 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
           <button
             type="button"
             onClick={() => {
-              const detail = `Dashboard error ${new Date().toISOString()} :: ${error ?? "unknown"} :: schoolId=${schoolId ?? "-"}`;
+              const detail = `Dashboard error ${new Date().toISOString()} :: ${error ?? "unknown"} :: mode=${attemptedMode} schoolId=${schoolId ?? "-"}`;
               if (navigator.clipboard) navigator.clipboard.writeText(detail).catch(() => {});
             }}
             className="px-4 py-2 text-sm font-semibold text-[#050505] bg-white border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] active:scale-[0.98] transition"
@@ -69,7 +70,7 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
   }
 
   if (data.mode === "comparison" && !drillId) {
-    return <ComparisonSection summaries={data.schools} onSelectSchool={setDrillId} />;
+    return <ComparisonSection summaries={data.schools} total={data.total} onSelectSchool={setDrillId} />;
   }
 
   const summary = drillId ? data.schools.find((s) => s.school.id === drillId) ?? data.schools[0] : data.schools[0];

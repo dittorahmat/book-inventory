@@ -104,13 +104,13 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5">
         <div className="flex items-center justify-between gap-2 mb-3">
           <div>
-            <div className="text-sm font-bold text-[#050505]">Alur Pemenuhan Nasional (Semua Cabang)</div>
+            <div className="text-sm font-bold text-[#050505]">Alur Pemenuhan Nasional (Semua Lokasi)</div>
             <div className="text-xs text-[#65676B]">
-              Total {formatCount(funnelTotal)} pesanan mengalir di {summaries.length} sekolah
+              Total {formatCount(funnelTotal)} pesanan mengalir di {summaries.length} lokasi
             </div>
           </div>
           <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2F5] text-[#65676B]">
-            {summaries.length} Cabang Aktif
+            {summaries.length} Lokasi Aktif
           </span>
         </div>
 
@@ -161,7 +161,7 @@ export function ComparisonOverview({ summaries }: { summaries: DashboardSchoolSu
                   {paidPct}% Lunas
                 </span>
               </div>
-              <div className="text-xs text-[#65676B] mt-1 mb-3">Status pelunasan buku siswa seluruh cabang</div>
+              <div className="text-xs text-[#65676B] mt-1 mb-3">Status pelunasan buku siswa seluruh lokasi</div>
             </div>
 
             <div className="rounded-xl bg-[#F0F2F5]/80 p-3 flex items-center justify-between my-2">
