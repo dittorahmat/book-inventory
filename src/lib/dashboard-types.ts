@@ -69,6 +69,22 @@ export interface DashboardAttention {
   poUnreceived: number;
 }
 
+/** Agregat lintas sekolah (include gudang): jumlah langsung dari ringkasan per sekolah. */
+export interface DashboardTotal {
+  schools: number;
+  looseInStock: number;
+  packagesReady: number;
+  inTransit: number;
+  lost: number;
+  waitingOrders: number;
+  shortfall: number;
+  readyForPickup: number;
+  pickedUp: number;
+  totalOrders: number;
+  outstandingRp: number;
+  scholarshipPending: number;
+}
+
 export interface DashboardTierBreakdown {
   gradeLevel: string;
   curriculumType: string;
@@ -91,6 +107,7 @@ export interface DashboardSchoolSummary {
 export interface DashboardSummaryPayload {
   mode: "comparison" | "detail";
   schools: DashboardSchoolSummary[];
+  total: DashboardTotal;
 }
 
 export interface DashboardSummaryResponse {

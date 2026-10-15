@@ -1,6 +1,7 @@
 import { LayoutDashboard } from "lucide-react";
-import type { DashboardSchoolSummary } from "../../lib/dashboard-types";
+import type { DashboardSchoolSummary, DashboardTotal } from "../../lib/dashboard-types";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { AggregateHero } from "./AggregateHero";
 import { coverageTone } from "../../lib/dashboard-tone";
 import { ComparisonOverview } from "./ComparisonOverview";
 import { BranchHealthScatter } from "./BranchHealthScatter";
@@ -13,16 +14,18 @@ function attentionTotal(s: DashboardSchoolSummary): number {
 
 interface ComparisonSectionProps {
   summaries: DashboardSchoolSummary[];
+  total: DashboardTotal;
   onSelectSchool: (id: string) => void;
 }
 
 /** Komposit perbandingan antar sekolah: hero perhatian + grafik + peringkat. */
-export function ComparisonSection({ summaries, onSelectSchool }: ComparisonSectionProps) {
+export function ComparisonSection({ summaries, total, onSelectSchool }: ComparisonSectionProps) {
   const ranked = [...summaries].sort((a, b) => (a.coverage.ratio ?? 2) - (b.coverage.ratio ?? 2));
   const weakest = ranked[0];
   const weakestTone = weakest ? coverageTone(weakest.coverage.ratio) : null;
   return (
     <div className="grid gap-4">
+      <AggregateHero total={total} />
       {weakest && weakestTone ? (
         <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[#E7F3FF] flex items-center justify-center shrink-0">
