@@ -1,5 +1,5 @@
 import { eq, getTableColumns, inArray, or } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
+import type { AppDatabase } from "../../../db";
 import {
   bookItems,
   bookPackages,
@@ -11,18 +11,18 @@ import {
   studentBookOrders,
   students,
   transferShipments,
-} from "../../db/schema";
+} from "../../../db/schema";
 import type {
   DashboardSchoolSummary,
   DashboardSummaryPayload,
-} from "../../lib/dashboard-types";
+} from "../../../lib/dashboard-types";
 
 import {
   AccessHttpError,
   resolveLocationScope,
   type AccessActor,
   type StaffRole,
-} from "./access-scope";
+} from "../access-scope";
 import {
   isOpenOrder,
   isReadyBundle,
@@ -31,7 +31,7 @@ import {
   tallyLooseByKey,
   tallyPackages,
   tallyPackagesByKey,
-} from "./stock";
+} from "../stock";
 
 export type { StaffRole };
 export type DashboardActor = AccessActor;

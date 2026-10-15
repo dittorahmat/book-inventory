@@ -6,7 +6,7 @@ import { requireAuthenticatedActor, resolveRequestActor } from "../services/acce
 import {
   DashboardHttpError,
   getDashboardSummary,
-} from "../services/dashboard-summary";
+} from "../services/reporting";
 import { idSchema } from "../lib/validators";
 
 export const dashboardRouter = new Hono();

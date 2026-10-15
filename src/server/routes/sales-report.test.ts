@@ -12,7 +12,7 @@ import {
 } from "../../db/schema";
 import { mockActor, restoreActor } from "./test-actor";
 import { salesReportRouter } from "./sales-report";
-import { getSalesReport, salesReportToCsv } from "../services/sales-report";
+import { getSalesReport, salesReportToCsv } from "../services/reporting";
 
 const FROM = "2020-01-01";
 const TO = "2099-12-31";

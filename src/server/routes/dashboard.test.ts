@@ -17,7 +17,7 @@ import {
   students,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { DashboardHttpError } from "../services/dashboard-summary";
+import { DashboardHttpError } from "../services/reporting";
 import { resolveLocationScope, type AccessActor } from "../services/access-scope";
 
 const scopeOf = (

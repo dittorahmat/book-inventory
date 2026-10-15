@@ -9,7 +9,7 @@ import {
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
-import { getSalesReport, salesReportToCsv } from "../services/sales-report";
+import { getSalesReport, salesReportToCsv } from "../services/reporting";
 import { idSchema } from "../lib/validators";
 
 /** Laporan penjualan per periode, sekolah, dan tipe paket-vs-satuan (spec: sales-report). */
