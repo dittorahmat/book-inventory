@@ -728,7 +728,7 @@ INSERT OR IGNORE INTO uniform_package_stock (id, package_id, quantity, updated_a
 
 -- 18. Uniform PO + lines (demo UPO-DEMO-*)
 INSERT OR IGNORE INTO uniform_pos (id, po_number, supplier_id, status, order_date, total_amount, notes, created_at, updated_at) VALUES
-('upo-demo-01', 'UPO-DEMO-2026-01', 'sup-demo-konveksi', 'received', '2026-09-20', 14200000, 'Pengadaan awal seragam demo (kain + olahraga SD).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
+('upo-demo-01', 'UPO-DEMO-2026-01', 'sup-demo-konveksi', 'received', '2026-09-20', 13600000, 'Pengadaan awal seragam demo (kain + olahraga SD).', '2026-10-15T05:49:52.318Z', '2026-10-15T05:49:52.318Z');
 
 INSERT OR IGNORE INTO uniform_po_items (id, po_id, variant_id, size, quantity_ordered, quantity_received, unit_price, created_at) VALUES
 ('upoi-demo-01-1', 'upo-demo-01', 'uv-demo-kain-sd-m', '—', 20, 20, 120000, '2026-10-15T05:49:52.318Z'),

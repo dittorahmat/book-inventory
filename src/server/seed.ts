@@ -815,7 +815,7 @@ export async function runIdempotentSeed(customDb?: any) {
       supplierId: "sup-demo-konveksi",
       status: "received",
       orderDate: "2026-09-20",
-      totalAmount: 14200000,
+      totalAmount: 13600000,
       notes: "Pengadaan awal seragam demo (kain + olahraga SD).",
       createdAt: now,
       updatedAt: now,
