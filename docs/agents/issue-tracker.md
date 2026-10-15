@@ -34,6 +34,14 @@ Create a GitHub issue.
 
 Read it as in **Read an issue** above.
 
+## When `gh` itself is unreachable
+
+Retry once. If it still fails (e.g. TLS timeout to `api.github.com`), write the spec/body to a local file, continue the work without the tracker, and report the issue as "pending publish" at the end. Network failure is not a reason to stall (see Anti-Delay Rule in `AGENTS.md` §4).
+
+## Test promises in specs
+
+Do not promise regression tests for surfaces with no test harness. Currently only small components (portal, catalog) and backend routes/services have tests — `App` has no render harness. Promise only what the repo's existing seams can test, or add the harness in the same spec.
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.

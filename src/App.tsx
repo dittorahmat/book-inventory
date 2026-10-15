@@ -75,18 +75,12 @@ export function App() {
     loadSchools();
   }, [loadSchools]);
 
-  // Adjust school assignment when user logs in
+  // Lock active location to the account assignment (no location switching)
   useEffect(() => {
     if (session?.user && schools.length > 0) {
-      const user = session.user as unknown as { role?: StaffRole; schoolId?: string | null };
-      if (!isCentralRole(user.role) && user.schoolId) {
-        const assigned = schools.find((s) => s.id === user.schoolId);
-        if (assigned) setSelectedSchool(assigned);
-      } else if (!selectedSchool && schools.length > 0) {
-        // Default to HQ or first school
-        const hq = schools.find((s) => s.type === "main") || schools[0];
-        setSelectedSchool(hq);
-      }
+      const user = session.user as unknown as { schoolId?: string | null };
+      const assigned = user.schoolId ? schools.find((s) => s.id === user.schoolId) : undefined;
+      if (assigned && assigned.id !== selectedSchool?.id) setSelectedSchool(assigned);
     }
   }, [session, schools, selectedSchool]);
 
@@ -151,7 +145,6 @@ export function App() {
       <header className="sticky top-0 z-40 shadow-xs">
         <AppHeader
           selectedSchool={selectedSchool}
-          onSelectSchool={(school) => setSelectedSchool(school)}
           isCentralAdmin={isCentralAdmin}
           userName={currentUser.name}
           onOpenPublicPortal={() => setIsPublicMode(true)}
