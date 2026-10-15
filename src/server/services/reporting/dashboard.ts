@@ -1,4 +1,4 @@
-import { eq, getTableColumns, inArray, or } from "drizzle-orm";
+import { eq, getTableColumns, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
   bookItems,
@@ -87,20 +87,25 @@ const newSchoolScopedRows = (): SchoolScopedRows => ({
  */
 async function fetchDashboardRows(database: AppDatabase, scope: string[]): Promise<DashboardRows> {
   const scoped = scope.length > 0 ? scope : ["__no_school__"];
-  const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, shipmentRows, poRows] = await Promise.all([
+  const [itemRows, pkgRows, pkgDefs, bookRows, studentRows, orderRows, poRows] = await Promise.all([
     selectInChunks<BookItemRow>(scoped, (c) => database.select().from(bookItems).where(inArray(bookItems.currentSchoolId, c))),
     selectInChunks<PackageItemRow>(scoped, (c) => database.select().from(packageItems).where(inArray(packageItems.currentSchoolId, c))),
     database.select().from(bookPackages),
     database.select().from(books),
     selectInChunks<StudentRow>(scoped, (c) => database.select().from(students).where(inArray(students.schoolId, c))),
     selectInChunks<OrderRow>(scoped, (c) => database.select().from(studentBookOrders).where(inArray(studentBookOrders.schoolId, c))),
-    selectInChunks<ShipmentRow>(scoped, (c) =>
-      database
-        .select()
-        .from(transferShipments)
-        .where(or(inArray(transferShipments.fromSchoolId, c), inArray(transferShipments.toSchoolId, c)))),
     selectInChunks<PurchaseOrderRow>(scoped, (c) => database.select().from(purchaseOrders).where(inArray(purchaseOrders.targetSchoolId, c))),
   ]);
+  // Shipments dipecah dua query (from / to) lalu digabung dedupe by id:
+  // satu statement OR dengan dua IN-list menggandakan param (90+90=180)
+  // dan D1 menolaknya — itu 500 comparison kemarin (bukti wrangler tail).
+  const [shipFrom, shipTo] = await Promise.all([
+    selectInChunks<ShipmentRow>(scoped, (c) =>
+      database.select().from(transferShipments).where(inArray(transferShipments.fromSchoolId, c))),
+    selectInChunks<ShipmentRow>(scoped, (c) =>
+      database.select().from(transferShipments).where(inArray(transferShipments.toSchoolId, c))),
+  ]);
+  const shipmentRows = [...new Map([...shipFrom, ...shipTo].map((s) => [s.id, s])).values()];
   const returnRows = await selectInChunks<ReturnRow>(scoped, (c) =>
     database
       .select({ ...getTableColumns(bookReturns) })
@@ -273,7 +278,7 @@ const buildTotal = (summaries: DashboardSchoolSummary[]): DashboardTotal => ({
 /** Petakan error baca D1/skema ke 4xx berpesan jelas (§10.4), bukan 500 generik. */
 const isDashboardSchemaError = (err: unknown): boolean => {
   const msg = err instanceof Error ? err.message : String(err);
-  return /D1_ERROR|no such (table|column)|SQLITE_|too many (SQL variables|bound parameters)/i.test(msg);
+  return /D1_ERROR|Failed query|no such (table|column)|SQLITE_|too many (SQL variables|bound parameters)/i.test(msg);
 };
 
 export async function getDashboardSummary(
