@@ -10,8 +10,13 @@ import {
   requireScopedActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "../services/internal-po";
-import { receiveInternalShipment } from "../services/internal-receipt";
+import {
+  createInternalPo,
+  fulfillInternalPo,
+  listInternalPOs,
+  listInternalShipments,
+  receiveInternalShipment,
+} from "../services/internal-po";
 import { idSchema } from "../lib/validators";
 
 export const internalOrdersRouter = new Hono();

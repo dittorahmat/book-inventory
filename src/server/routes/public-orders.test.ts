@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { publicOrdersRouter } from "./public-orders";
-import { submitPublicOrder } from "../services/public-order";
+import { submitPublicOrder } from "../services/order-intake";
 import { MemoryStorageService } from "../../services/storage";
 import { db } from "../../db";
 import {

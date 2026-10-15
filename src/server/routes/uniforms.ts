@@ -22,27 +22,25 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import {
-  createUniformVariant,
-  createUniformPackage,
-  listUniformVariants,
-  listUniformPackages,
-} from "../services/uniform-catalog";
-import {
-  createUniformPo,
-  receiveUniformPo,
   assembleUniformPackages,
-} from "../services/uniform-supply";
-import { markUniformShipped } from "../services/uniform-orders";
-import { getUniformSalesReport } from "../services/uniform-report";
-import { createUniformClaim, listUniformClaims, lockUniformClaim } from "../services/uniform-claims";
-import {
+  createUniformClaim,
+  createUniformPackage,
+  createUniformPo,
+  createUniformVariant,
+  getUniformSalesReport,
   listUniformExchanges,
+  listUniformPackages,
   listUniformRefunds,
+  listUniformVariants,
+  lockUniformClaim,
+  listUniformClaims,
+  markUniformShipped,
+  receiveUniformPo,
   requestUniformExchange,
   requestUniformRefund,
   resolveUniformExchange,
   resolveUniformRefund,
-} from "../services/uniform-returns";
+} from "../services/uniform";
 
 export const uniformsRouter = new Hono();
 

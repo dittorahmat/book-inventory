@@ -1,10 +1,11 @@
 #!/bin/sh
-# Pre-commit: gates cepat (type-check + file-size + route-tests + validators + dead-exports + plans).
+# Pre-commit: gates cepat (type-check + file-size + imports + route-tests + validators + dead-exports + plans).
 # Suite penuh (lint/build/test) ditanggung CI agar commit tetap ringan.
 # Terpasang via `bun scripts/setup-hooks.ts` (tanpa dependensi baru).
 set -e
 bun run type-check
 bun run check:file-size
+bun run check:imports
 bun run check:route-tests
 bun run check:validators
 bun run check:dead

@@ -1,0 +1,184 @@
+import { and, eq, inArray } from "drizzle-orm";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { AppDatabase } from "../../../db";
+import { bookItems, bookReturns, studentBookOrders } from "../../../db/schema";
+import { formatRupiah } from "../../../lib/transfer-pricing";
+import { AVAILABLE_LOOSE_STATUSES, RETURNABLE_CONDITIONS } from "../stock";
+import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../../lib/d1-write";
+import {
+  RETURN_OPEN_STATUSES,
+  checkReplacementLoose,
+  checkResolveTransition,
+  planReturnResolve,
+  targetReturnStatus,
+} from "./flow";
+
+export type FulfilmentError = { ok: false; status: ContentfulStatusCode; message: string };
+
+export interface ResolveReturnInput {
+  action: "replace" | "reject" | "refund";
+  replacementBookItemId?: string;
+  refundAmount?: number;
+  handledByUserId?: string;
+}
+
+export type ResolveReturnResult =
+  | { ok: true; message: string; data: { status: "replaced" | "rejected" | "refunded"; replacementBookItemId: string | null; refundAmount: number; restoredBookItemId: string | null } }
+  | FulfilmentError;
+
+export type ResolveDeps = WriteDeps;
+
+/** Pesan sukses milik seam agar route tak lagi bercabang per status hasil. */
+const resolveMessage = (action: ResolveReturnInput["action"], refundAmount: number): string =>
+  action === "replace"
+    ? "Penggantian buku cacat berhasil diproses"
+    : action === "refund"
+      ? `Permohonan refund berhasil disetujui. Dana sebesar ${formatRupiah(refundAmount)} dicatat dan 1 stok buku fisik dikembalikan ke inventaris.`
+      : "Laporan retur ditolak";
+
+/**
+ * Satu-satunya pemilik penyelesaian retur: ganti dari stok satuan
+ * (pilih otomatis bila tidak disebut), tolak, atau refund dana sekaligus
+ * kembalikan 1 stok fisik — lalu kembalikan order ke picked_up bila tak ada
+ * laporan terbuka lain. Berbagi mesin status dengan reportReturn; seluruh
+ * tulis satu batch atomik (§10 D1).
+ */
+export async function resolveReturn(
+  database: AppDatabase,
+  returnId: string,
+  input: ResolveReturnInput,
+  deps?: ResolveDeps
+): Promise<ResolveReturnResult> {
+  const now = writeNow(deps);
+  const [ret] = await database.select().from(bookReturns).where(eq(bookReturns.id, returnId));
+  if (!ret) {
+    return { ok: false, status: 404, message: "Laporan retur tidak ditemukan" };
+  }
+
+  const transition = checkResolveTransition(ret.status, input.action);
+  if (!transition.ok) return transition;
+  if (transition.idempotent) {
+    return {
+      ok: true,
+      message: resolveMessage(input.action, ret.refundAmount ?? 0),
+      data: {
+        status: targetReturnStatus(input.action),
+        replacementBookItemId: ret.replacementBookItemId,
+        refundAmount: ret.refundAmount ?? 0,
+        restoredBookItemId: null,
+      },
+    };
+  }
+
+  const [order] = await database
+    .select()
+    .from(studentBookOrders)
+    .where(eq(studentBookOrders.id, ret.orderId));
+  if (!order) {
+    return { ok: false, status: 404, message: "Pesanan terkait retur tidak ditemukan" };
+  }
+
+  const siblingOpen = await database
+    .select({ id: bookReturns.id })
+    .from(bookReturns)
+    .where(
+      and(
+        eq(bookReturns.orderId, ret.orderId),
+        inArray(bookReturns.status, [...RETURN_OPEN_STATUSES])
+      )
+    );
+  const otherOpen = siblingOpen.some((r: { id: string }) => r.id !== returnId);
+
+  let replacementId: string | null = null;
+  if (input.action === "replace") {
+    if (input.replacementBookItemId) {
+      const [item] = await database.select().from(bookItems).where(eq(bookItems.id, input.replacementBookItemId));
+      if (!item) {
+        return { ok: false, status: 404, message: "Buku pengganti tidak ditemukan" };
+      }
+      const blocked = checkReplacementLoose(
+        item,
+        { schoolId: order.schoolId, packageId: order.packageId },
+        ret.defectiveBookId
+      );
+      if (blocked) return blocked;
+      replacementId = input.replacementBookItemId;
+    } else {
+      const [availableLoose] = await database
+        .select()
+        .from(bookItems)
+        .where(
+          and(
+            eq(bookItems.bookId, ret.defectiveBookId),
+            eq(bookItems.currentSchoolId, order.schoolId),
+            inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
+            inArray(bookItems.condition, [...RETURNABLE_CONDITIONS])
+          )
+        )
+        .orderBy(bookItems.createdAt)
+        .limit(1);
+      if (availableLoose) replacementId = availableLoose.id;
+    }
+  }
+
+  const plan = planReturnResolve(
+    {
+      action: input.action,
+      returnId,
+      defectiveBookId: ret.defectiveBookId,
+      order: { schoolId: order.schoolId, packageId: order.packageId },
+      siblingOpen: otherOpen,
+      replacementId,
+      refundAmount: input.refundAmount,
+      handledByUserId: input.handledByUserId,
+    },
+    deps
+  );
+
+  try {
+    await runWriteBatch(database, [
+      ...(plan.disposeReplacementId
+        ? [
+            database
+              .update(bookItems)
+              .set({ status: "disposed", notes: `Replaced defective book return ${returnId}`, updatedAt: now })
+              .where(eq(bookItems.id, plan.disposeReplacementId)),
+          ]
+        : []),
+      database
+        .update(bookReturns)
+        .set({
+          status: plan.returnStatus,
+          replacementBookItemId: plan.replacementBookItemId,
+          ...(plan.returnStatus === "refunded" ? { refundAmount: plan.refundAmount } : {}),
+          handledByUserId: input.handledByUserId || null,
+          resolvedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(bookReturns.id, returnId)),
+      ...(plan.restoredStockRow ? [database.insert(bookItems).values(plan.restoredStockRow)] : []),
+      database
+        .update(studentBookOrders)
+        .set({ fulfillmentStatus: plan.orderStatusAfter, updatedAt: now })
+        .where(eq(studentBookOrders.id, ret.orderId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(
+      err,
+      input.action === "refund" ? "refund retur" : input.action === "reject" ? "penolakan retur" : "penyelesaian retur"
+    );
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return {
+    ok: true,
+    message: resolveMessage(input.action, plan.refundAmount),
+    data: {
+      status: plan.returnStatus,
+      replacementBookItemId: plan.replacementBookItemId,
+      refundAmount: plan.refundAmount,
+      restoredBookItemId: plan.restoredStockRow?.id ?? null,
+    },
+  };
+}

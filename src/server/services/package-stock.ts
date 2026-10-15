@@ -2,8 +2,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookPackageItems, bookPackages, books, packageItems } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
-import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock-buckets";
-import { tallyLooseByKey, tallyPackagesByKey } from "./stock-kernel";
+import {
+  AVAILABLE_LOOSE_STATUSES,
+  KITTABLE_CONDITIONS,
+  READY_BUNDLE_STATUSES,
+  tallyLooseByKey,
+  tallyPackagesByKey,
+} from "./stock";
 
 export type { StockPotential, StockPotentialBreakdown } from "../../types/stock-summary";
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
-import { evaluateSendGate, validateSignedDoc } from "../services/po-workflow";
+import { evaluateSendGate, validateSignedDoc } from "../services/purchase-order";
 import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
 import { purchaseOrders, purchaseOrderItems, suppliers, books, schools } from "../../db/schema";
@@ -416,9 +416,9 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   }
 
   it("runs print → upload → send through one module with injected adapters and custom slug id", async () => {
-    const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/po-lifecycle");
-    const { createPurchaseOrder } = await import("../services/po-workflow");
-    const { InMemoryPoMailSender } = await import("../services/po-delivery");
+    const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/purchase-order");
+    const { createPurchaseOrder } = await import("../services/purchase-order");
+    const { InMemoryPoMailSender } = await import("../services/purchase-order");
     const { MemoryStorageService } = await import("../../services/storage");
 
     const tag = "seam";
@@ -464,9 +464,9 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   });
 
   it("maps in-memory mail failure to 502 with a clear message (no fetch mock)", async () => {
-    const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/po-lifecycle");
-    const { createPurchaseOrder } = await import("../services/po-workflow");
-    const { InMemoryPoMailSender } = await import("../services/po-delivery");
+    const { markPrinted, uploadSignedDoc, sendPo } = await import("../services/purchase-order");
+    const { createPurchaseOrder } = await import("../services/purchase-order");
+    const { InMemoryPoMailSender } = await import("../services/purchase-order");
     const { MemoryStorageService } = await import("../../services/storage");
 
     const tag = "fail";
@@ -506,7 +506,7 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   });
 
   it("derives canSend once via withSendReadiness (independent literals)", async () => {
-    const { withSendReadiness } = await import("../services/po-lifecycle");
+    const { withSendReadiness } = await import("../services/purchase-order");
     const rows = withSendReadiness([
       { id: "x1", poNumber: "PO-DRAFT-1", status: "draft", signedDocUrl: null },
       { id: "x2", poNumber: "PO-SIGNED-2", status: "signed_uploaded", signedDocUrl: "/api/media/bukti.pdf" },
@@ -520,7 +520,7 @@ describe("T5: PO lifecycle single seam (gate, transition, delivery)", () => {
   });
 
   it("GET /purchase-orders exposes module-derived canSend (draft blocked, signed allowed)", async () => {
-    const { markPrinted, uploadSignedDoc } = await import("../services/po-lifecycle");
+    const { markPrinted, uploadSignedDoc } = await import("../services/purchase-order");
     const { MemoryStorageService } = await import("../../services/storage");
 
     const tag = "list";

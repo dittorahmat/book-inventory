@@ -6,7 +6,7 @@ afterEach(() => {
   restoreActor();
 });
 import { directSalesRouter } from "./direct-sales";
-import { sellDirect } from "../services/direct-sale";
+import { sellDirect } from "../services/order-intake";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
 import { schools, books, bookItems, studentBookOrders, studentOrderItems, orderPayments, students } from "../../db/schema";

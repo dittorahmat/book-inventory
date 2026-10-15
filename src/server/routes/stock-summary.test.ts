@@ -10,9 +10,8 @@ import { db } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
 import { stockSummaryRouter } from "./stock-summary";
 import { shipmentsRouter } from "./shipments";
-import { getLooseStockSummary, getPackageStockSummary } from "../services/stock-summary";
-import { allocateLooseStock } from "../services/stock-allocation";
-import { planCreateLines } from "../services/shipment-plan";
+import { allocateLooseStock, getLooseStockSummary, getPackageStockSummary } from "../services/stock";
+import { planCreateLines } from "../services/shipment";
 
 const iso = (offsetMinutes: number) =>
   new Date(Date.now() + offsetMinutes * 60_000).toISOString();

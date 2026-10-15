@@ -4,8 +4,15 @@ import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { transferShipments } from "../../db/schema";
-import { listShipmentsWithCounts, getShipmentDetail, type ShipmentListFilter } from "../services/shipment-read";
-import { createShipment, dispatchShipment, receiveShipment, rollbackShipment } from "../services/shipment-write";
+import {
+  createShipment,
+  dispatchShipment,
+  getShipmentDetail,
+  listShipmentsWithCounts,
+  receiveShipment,
+  rollbackShipment,
+  type ShipmentListFilter,
+} from "../services/shipment";
 import {
   accessErrorResponse,
   assertLocationAllowed,

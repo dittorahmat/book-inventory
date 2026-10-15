@@ -5,9 +5,13 @@ import { and, eq, inArray, like, notInArray, or, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { idSchema, academicYearSchema } from "../lib/validators";
-import { listUniformVariants, listUniformPackages } from "../services/uniform-catalog";
-import { submitUniformOrder } from "../services/uniform-orders";
-import { requestUniformExchange, requestUniformRefund } from "../services/uniform-returns";
+import {
+  listUniformPackages,
+  listUniformVariants,
+  requestUniformExchange,
+  requestUniformRefund,
+  submitUniformOrder,
+} from "../services/uniform";
 
 export const publicUniformOrdersRouter = new Hono();
 

@@ -10,9 +10,8 @@ import {
   bookReturns,
   books,
 } from "../../db/schema";
-import { reportReturn } from "../services/return-intake";
-import { resolveReturn } from "../services/order-fulfilment";
-import { markSatuanShipped } from "../services/satuan-shipment";
+import { reportReturn, resolveReturn } from "../services/return";
+import { markSatuanShipped } from "../services/order-intake";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {

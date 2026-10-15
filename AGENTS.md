@@ -126,7 +126,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 ## 2. Technology Stack Standards
 
 - **Runtime & Package Manager**: [Bun](https://bun.sh/) (or Node.js fallback where applicable).
-- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content`. Hindari karakter `#` di dalam string perintah (dimakan sebagai komentar — tulis pesan commit tanpa `#`); proses latar via `Start-Process` (`Start-Job` tak persisten antar tool call).
+- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`; `mkdir` hanya satu direktori per perintah (multi-dir gagal — pakai `New-Item -ItemType Directory -Force` per direktori); tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content`. Hindari karakter `#` di dalam string perintah (dimakan sebagai komentar — tulis pesan commit tanpa `#`); proses latar via `Start-Process` (`Start-Job` tak persisten antar tool call).
 - **Backend**: [Hono](https://hono.dev/) with TypeScript.
 - **ORM & Database**: [Drizzle ORM](https://orm.drizzle.team/) with SQLite core.
   - Initial deployment: Cloudflare D1.
@@ -206,11 +206,12 @@ Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` 
 
 ## 12. Edit Anchor Discipline (Anti-Misplaced-Edit Rule)
 
-Latar (Okt 2026): `oldString: "});"` yang cocok di banyak tempat menimpa lokasi pertama dan mematahkan `sales-report.test.ts` — 3 putaran perbaikan untuk satu edit.
+Latar (Okt 2026): `oldString: "});"` yang cocok di banyak tempat menimpa lokasi pertama dan mematahkan `sales-report.test.ts` — 3 putaran perbaikan untuk satu edit. Varian prefix: `replaceAll "../../db"` menimpa hasil `"../../../db/schema"` menjadi `"../../../../db/schema"` — prefix pendek cocok di dalam hasil prefix panjang.
 
 1. **Jangkar edit wajib unik berkonteks**: setiap `oldString` minimal 3 baris mencakup pengenal unik (nama fungsi, string literal khas, atau komentar di sekitarnya) sehingga hanya cocok di satu lokasi.
 2. **Dilarang jangkar generik satu baris** (`});`, `}`, `return ...`, baris kosong) sebagai `oldString` — perluas dengan konteks lebih luas bila tool menolak karena multi-match, jangan persempit hingga generik.
 3. Reviewer: jangkar satu baris di diff tool-call adalah red flag.
+4. **Quoted-prefix untuk `replaceAll` path bertingkat**: sertakan kutip penutup dalam `oldString` (`"../../db"` dengan kutip, bukan `../../db` telanjang) agar prefix pendek tak cocok di dalam hasil prefix panjang; ganti path terpanjang dulu. Ditegakkan oleh `bun run check:imports` (gagal bila import keluar `src/` atau target tak ada), pre-commit, dan CI.
 
 ---
 
