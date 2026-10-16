@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { books } from "../../db/schema";
+import { books, bookSuppliers, suppliers } from "../../db/schema";
+import { idSchema } from "../lib/validators";
 import { defaultStorage } from "../../services/storage";
 import {
   effectiveBuyPrice,
@@ -14,12 +15,46 @@ import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
+import { chunkRows, runWriteBatch } from "../lib/d1-write";
+
+/** Tulis ulang relasi Book–supplier secara atomik (chunk ≤10, sekuensial di D1). */
+async function replaceBookSuppliers(database: typeof db, bookId: string, supplierIds: string[], now: string) {
+  const uniq = [...new Set(supplierIds)];
+  if (uniq.length > 0) {
+    const known: Array<{ id: string }> = await database
+      .select({ id: suppliers.id })
+      .from(suppliers)
+      .where(inArray(suppliers.id, uniq));
+    const missing = uniq.filter((id: string) => !known.some((k: { id: string }) => k.id === id));
+    if (missing.length > 0) throw new Error(`Supplier tidak ditemukan: ${missing[0]}`);
+  }
+  await database.delete(bookSuppliers).where(eq(bookSuppliers.bookId, bookId));
+  const rows = uniq.map((supplierId) => ({ bookId, supplierId, createdAt: now }));
+  for (const chunk of chunkRows(rows)) {
+    await runWriteBatch(database, [database.insert(bookSuppliers).values(chunk)]);
+  }
+}
+
+const supplierIdsOf = async (database: typeof db, bookId: string): Promise<string[]> =>
+  (
+    (await database
+      .select({ supplierId: bookSuppliers.supplierId })
+      .from(bookSuppliers)
+      .where(eq(bookSuppliers.bookId, bookId))) as Array<{ supplierId: string }>
+  ).map((r: { supplierId: string }) => r.supplierId);
+
+const withSuppliers = async <T extends { id: string }>(database: typeof db, book: T): Promise<T & { supplierIds: string[] }> => ({
+  ...book,
+  supplierIds: await supplierIdsOf(database, book.id),
+});
 
 export const booksRouter = new Hono();
 
 const createBookSchema = z.object({
   isbn: z.string().min(10, "Valid ISBN required"),
   title: z.string().min(1, "Title is required"),
+  publicTitle: z.string().optional(),
+  supplierIds: z.array(idSchema).default([]),
   author: z.string().min(1, "Author is required"),
   publisher: z.string().min(1, "Publisher is required"),
   publishYear: z.number().int().optional(),
@@ -33,6 +68,8 @@ const createBookSchema = z.object({
 
 const updateBookSchema = z.object({
   title: z.string().min(1).optional(),
+  publicTitle: z.string().nullable().optional(),
+  supplierIds: z.array(idSchema).optional(),
   author: z.string().min(1).optional(),
   publisher: z.string().min(1).optional(),
   publishYear: z.number().int().optional(),
@@ -50,8 +87,29 @@ function withEffectivePrices<T extends { price: number; buyPrice: number; sellPr
 }
 
 booksRouter.get("/", async (c) => {
-  const allBooks = await db.select().from(books);
-  return c.json({ success: true, data: allBooks.map(withEffectivePrices) });
+  const allBooks: Array<typeof books.$inferSelect> = await db.select().from(books);
+  const links: Array<{ bookId: string; supplierId: string }> =
+    allBooks.length === 0
+      ? []
+      : await db
+          .select({ bookId: bookSuppliers.bookId, supplierId: bookSuppliers.supplierId })
+          .from(bookSuppliers)
+          .where(
+            inArray(
+              bookSuppliers.bookId,
+              allBooks.map((b: typeof books.$inferSelect) => b.id)
+            )
+          );
+  const byBook = new Map<string, string[]>();
+  for (const l of links) {
+    const list = byBook.get(l.bookId) ?? [];
+    list.push(l.supplierId);
+    byBook.set(l.bookId, list);
+  }
+  return c.json({
+    success: true,
+    data: allBooks.map((b: typeof books.$inferSelect) => ({ ...withEffectivePrices(b), supplierIds: byBook.get(b.id) ?? [] })),
+  });
 });
 
 booksRouter.get("/:id", async (c) => {
@@ -60,7 +118,7 @@ booksRouter.get("/:id", async (c) => {
   if (!book) {
     return c.json({ success: false, message: "Book not found" }, 404);
   }
-  return c.json({ success: true, data: withEffectivePrices(book) });
+  return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, book)) });
 });
 
 booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
@@ -80,6 +138,7 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
       id,
       isbn: body.isbn,
       title: body.title,
+      publicTitle: body.publicTitle?.trim() || null,
       author: body.author,
       publisher: body.publisher,
       publishYear: body.publishYear,
@@ -94,7 +153,13 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     })
     .returning();
 
-  return c.json({ success: true, data: withEffectivePrices(newBook) }, 201);
+  try {
+    await replaceBookSuppliers(db, id, body.supplierIds ?? [], now);
+  } catch (err) {
+    return c.json({ success: false, message: err instanceof Error ? err.message : "Supplier tidak valid" }, 400);
+  }
+
+  return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, newBook)) }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -107,14 +172,23 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
     const id = c.req.param("id");
   const body = c.req.valid("json");
 
+  const { supplierIds, publicTitle, ...rest } = body;
   const [updated] = await db
     .update(books)
-    .set({ ...body, updatedAt: new Date().toISOString() })
+    .set({ ...rest, ...(publicTitle !== undefined ? { publicTitle: publicTitle?.trim() || null } : {}), updatedAt: new Date().toISOString() })
     .where(eq(books.id, id))
     .returning();
 
   if (!updated) {
     return c.json({ success: false, message: "Book not found" }, 404);
+  }
+
+  if (supplierIds !== undefined) {
+    try {
+      await replaceBookSuppliers(db, id, supplierIds, new Date().toISOString());
+    } catch (err) {
+      return c.json({ success: false, message: err instanceof Error ? err.message : "Supplier tidak valid" }, 400);
+    }
   }
 
   // Perubahan harga jual / harga lama memicu hitung ulang semua paket pemakai buku ini.
@@ -123,12 +197,12 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
     if (recalcCount > 0) {
       return c.json({
         success: true,
-        data: withEffectivePrices(updated),
+        data: withEffectivePrices(await withSuppliers(db, updated)),
         message: `Harga jual diperbarui; ${recalcCount} paket dihitung ulang.`,
       });
     }
   }
-  return c.json({ success: true, data: withEffectivePrices(updated) });
+  return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, updated)) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Upload } from "lucide-react";
 import { BookPriceFields } from "./BookPriceFields";
 import { effectiveSellPrice } from "../../lib/book-pricing";
+import { getJson } from "../../lib/api";
+import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
 import type { NewBookPayload } from "./catalog-intent";
 
 interface CreateBookFormProps {
@@ -9,7 +11,7 @@ interface CreateBookFormProps {
   onCreate: (payload: NewBookPayload, coverFile: File | null) => Promise<unknown>;
 }
 
-const emptyForm = { isbn: "", title: "", author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 };
+const emptyForm = { isbn: "", title: "", publicTitle: "", supplierIds: [] as string[], author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 };
 
 /** Formulir pendaftaran judul katalog + cover; harga dasar fallback kanonik. */
 export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
@@ -17,6 +19,26 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [supplierOptions, setSupplierOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await getJson<Array<{ id: string; name: string; code: string }>>(
+          "/api/procurement/suppliers",
+          "Gagal memuat daftar supplier."
+        );
+        if (!cancelled) setSupplierOptions(list.map((s) => ({ value: s.id, label: s.name, hint: s.code })));
+      } catch (err) {
+        if (!cancelled) setSupplierError(err instanceof Error ? err.message : "Gagal memuat daftar supplier.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCoverChange = (file: File | null) => {
     setCoverFile(file);
@@ -104,6 +126,25 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Judul Publik (alias, tampil di portal)</label>
+            <input
+              className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
+              placeholder="Contoh: Matematika Seru Kelas 1 (kosong = pakai judul real)"
+              value={formData.publicTitle}
+              onChange={(e) => setFormData({ ...formData, publicTitle: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2">
+            <SearchableMultiSelect
+              label="Supplier (kosong = semua supplier)"
+              options={supplierOptions}
+              values={formData.supplierIds}
+              onChange={(values) => setFormData({ ...formData, supplierIds: values })}
+              placeholder="Pilih supplier..."
+            />
+            {supplierError ? <p className="mt-1 text-[11px] text-red-600">{supplierError}</p> : null}
           </div>
           <div className="col-span-2 sm:col-span-1">
             <label className="block text-xs font-semibold text-[#050505] mb-1">Penulis / Author</label>

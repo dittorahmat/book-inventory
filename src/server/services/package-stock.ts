@@ -16,6 +16,7 @@ export interface PackageBomItem {
   id: string;
   bookId: string;
   title: string;
+  publicTitle: string | null;
   isbn: string;
   author: string;
   category: string;
@@ -41,6 +42,7 @@ export async function listPackagesWithBom(
       id: bookPackageItems.id,
       bookId: books.id,
       title: books.title,
+      publicTitle: books.publicTitle,
       isbn: books.isbn,
       author: books.author,
       category: books.category,
@@ -56,6 +58,7 @@ export async function listPackagesWithBom(
       id: row.id,
       bookId: row.bookId,
       title: row.title,
+      publicTitle: row.publicTitle,
       isbn: row.isbn,
       author: row.author,
       category: row.category,

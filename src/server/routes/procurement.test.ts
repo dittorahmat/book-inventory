@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { mockActor, restoreActor } from "./test-actor";
@@ -971,6 +971,57 @@ describe("Supplier PO list seam (T3: list + readiness behind the module)", () =>
       await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
+});
+
+describe("PO supplier exclusivity (#143)", () => {
+  it("menolak buku eksklusif supplier lain dengan 400; buku universal lolos", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const { bookSuppliers } = await import("../../db/schema");
+    const supA = `sup-po-a-${stamp}`;
+    const supB = `sup-po-b-${stamp}`;
+    for (const id of [supA, supB]) {
+      await db.insert(suppliers).values({ id, name: `Sup ${id}`, code: `C-${id}`, createdAt: now, updatedAt: now }).onConflictDoNothing();
+    }
+    const exclusiveId = `book-po-ex-${stamp}`;
+    const universalId = `book-po-un-${stamp}`;
+    await db.insert(books).values([
+      { id: exclusiveId, isbn: `ISBN-EX-${stamp}`, title: "Eksklusif A", author: "A", publisher: "P", createdAt: now, updatedAt: now },
+      { id: universalId, isbn: `ISBN-UN-${stamp}`, title: "Universal", author: "A", publisher: "P", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(bookSuppliers).values({ bookId: exclusiveId, supplierId: supA, createdAt: now }).onConflictDoNothing();
+    try {
+      const bad = await createPurchaseOrder(db, {
+        supplierId: supB, orderDate: "2026-10-16",
+        items: [{ bookId: exclusiveId, quantityOrdered: 5 }],
+      });
+      expect(bad.ok).toBe(false);
+      if (!bad.ok) expect(bad.status).toBe(400);
+
+      const okExclusive = await createPurchaseOrder(db, {
+        supplierId: supA, orderDate: "2026-10-16",
+        items: [{ bookId: exclusiveId, quantityOrdered: 5 }],
+      });
+      expect(okExclusive.ok).toBe(true);
+
+      const okUniversal = await createPurchaseOrder(db, {
+        supplierId: supB, orderDate: "2026-10-16",
+        items: [{ bookId: universalId, quantityOrdered: 5 }],
+      });
+      expect(okUniversal.ok).toBe(true);
+
+      for (const r of [okExclusive, okUniversal]) {
+        if (r.ok) {
+          await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, r.data.id));
+          await db.delete(purchaseOrders).where(eq(purchaseOrders.id, r.data.id));
+        }
+      }
+    } finally {
+      await db.delete(bookSuppliers).where(eq(bookSuppliers.bookId, exclusiveId));
+      await db.delete(books).where(inArray(books.id, [exclusiveId, universalId]));
+      await db.delete(suppliers).where(inArray(suppliers.id, [supA, supB]));
     }
   });
 });

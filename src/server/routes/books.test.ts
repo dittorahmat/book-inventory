@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { booksRouter } from "./books";
 import { db } from "../../db";
 import { books } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 
 beforeEach(() => mockActor("central_admin", null));
@@ -246,6 +246,65 @@ describe("Books master RBAC (#43)", () => {
       expect(patched.status).toBe(200);
     } finally {
       await db.delete(books).where(eq(books.id, createdId));
+    }
+  });
+});
+
+describe("Books alias + supplier M2M (#143)", () => {
+  it("menyimpan alias dan relasi multi-supplier; menolak supplier tak dikenal", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const { suppliers, bookSuppliers } = await import("../../db/schema");
+    const supA = `sup143a-${stamp}`;
+    const supB = `sup143b-${stamp}`;
+    for (const [id, code] of [[supA, `S143A-${stamp}`], [supB, `S143B-${stamp}`]]) {
+      await db.insert(suppliers).values({ id, name: `Supplier ${id}`, code, createdAt: now, updatedAt: now }).onConflictDoNothing();
+    }
+    try {
+      mockActor("central_admin", null);
+      const created = await booksRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isbn: `978-143-${String(stamp).slice(-6)}`,
+          title: "Judul Real",
+          publicTitle: "Judul Ramah",
+          author: "A",
+          publisher: "P",
+          supplierIds: [supA, supB],
+        }),
+      });
+      expect(created.status).toBe(201);
+      const createdJson = await created.json();
+      const bookId = createdJson.data.id as string;
+      expect(createdJson.data.publicTitle).toBe("Judul Ramah");
+      expect(createdJson.data.supplierIds.sort()).toEqual([supA, supB].sort());
+
+      const bad = await booksRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isbn: `978-143bad-${String(stamp).slice(-6)}`,
+          title: "Bad",
+          author: "A",
+          publisher: "P",
+          supplierIds: ["supplier-ghost-143"],
+        }),
+      });
+      expect(bad.status).toBe(400);
+
+      const patched = await booksRouter.request(`/${bookId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplierIds: [supA], publicTitle: null }),
+      });
+      expect(patched.status).toBe(200);
+      expect(((await patched.json()) as any).data.supplierIds).toEqual([supA]);
+
+      await db.delete(bookSuppliers).where(eq(bookSuppliers.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+    } finally {
+      await db.delete(suppliers).where(inArray(suppliers.id, [supA, supB]));
     }
   });
 });

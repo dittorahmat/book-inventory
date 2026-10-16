@@ -8,6 +8,8 @@
 export interface NewBookPayload {
   isbn: string;
   title: string;
+  publicTitle?: string;
+  supplierIds?: string[];
   author: string;
   publisher: string;
   publishYear: number;

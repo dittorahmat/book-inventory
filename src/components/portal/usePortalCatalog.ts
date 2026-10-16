@@ -20,16 +20,27 @@ export function usePortalCatalog() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [schoolList, packageList, satuan] = await Promise.all([
+      // Independen per sumber: satu gagal tidak boleh mengosongkan yang lain.
+      const [schoolRes, packageRes, satuanRes] = await Promise.allSettled([
         fetchSchools(),
         fetchPackages(),
         // Gagal memuat status satuan tidak boleh memblokir pemesanan paket.
         fetchSatuanCatalog().catch(() => ({ open: false as const, status: undefined as never, books: [] })),
       ]);
+      const schoolList = schoolRes.status === "fulfilled" ? schoolRes.value : ([] as SchoolOption[]);
+      const packageList = packageRes.status === "fulfilled" ? packageRes.value : ([] as BookPackageOption[]);
+      const satuan = satuanRes.status === "fulfilled" ? satuanRes.value : ({ open: false as const, books: [] });
       setSchools(schoolList);
       setPackages(packageList);
       setSatuanOpen(satuan.open);
       setSatuanBooks(satuan.books);
+      const firstError =
+        schoolRes.status === "rejected"
+          ? schoolRes.reason
+          : packageRes.status === "rejected"
+            ? packageRes.reason
+            : null;
+      setLoadError(firstError instanceof Error ? firstError.message : firstError ? String(firstError) : null);
       return { schoolList };
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Gagal memuat katalog portal.");

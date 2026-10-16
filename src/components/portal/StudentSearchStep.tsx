@@ -1,5 +1,6 @@
 import { Search, UserCheck, UserPlus, ArrowRight } from "lucide-react";
 import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -57,21 +58,15 @@ export function StudentSearchStep({
 
           <form onSubmit={onSearch} className="mt-4 space-y-3">
             <div>
-              <label htmlFor="portal-student-search-school" className="block text-xs font-semibold text-[#050505] mb-1">
-                Sekolah / Unit Cabang
-              </label>
-              <select
+              <SearchableSingleSelect
                 id="portal-student-search-school"
-                required
+                label="Sekolah / Unit Cabang"
+                options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                 value={searchSchoolId}
-                onChange={(e) => setSearchSchoolId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-xl text-xs sm:text-sm text-[#050505] transition-colors"
-              >
-                <option value="" disabled>Pilih sekolah murid...</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                onChange={setSearchSchoolId}
+                placeholder="Pilih sekolah murid..."
+                required
+              />
             </div>
             <div className="flex gap-2">
             <div className="relative flex-1">

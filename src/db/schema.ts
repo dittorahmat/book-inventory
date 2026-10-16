@@ -63,6 +63,7 @@ export const books = sqliteTable("books", {
   id: text("id").primaryKey(),
   isbn: text("isbn").notNull().unique(),
   title: text("title").notNull(),
+  publicTitle: text("public_title"),
   author: text("author").notNull(),
   publisher: text("publisher").notNull(),
   publishYear: integer("publish_year"),
@@ -225,6 +226,16 @@ export const bookPackageItems = sqliteTable("book_package_items", {
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("bom_package_idx").on(t.packageId),
+]);
+
+/** Relasi Book–supplier banyak-ke-banyak: tanpa baris = universal (semua supplier). */
+export const bookSuppliers = sqliteTable("book_suppliers", {
+  bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  supplierId: text("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("book_suppliers_supplier_idx").on(t.supplierId),
+  unique("book_suppliers_book_supplier_unq").on(t.bookId, t.supplierId),
 ]);
 
 export const packageItems = sqliteTable("package_items", {
