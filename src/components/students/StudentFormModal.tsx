@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
 
 interface StudentFormModalProps {
@@ -95,14 +96,14 @@ export function StudentFormModal({
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className={labelCls}>Sekolah</label>
-              <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className={inputCls}>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSingleSelect
+                label="Sekolah"
+                options={schools.map((s) => ({ value: s.id, label: s.name }))}
+                value={schoolId}
+                onChange={setSchoolId}
+                placeholder="Pilih sekolah..."
+                required
+              />
             </div>
             <div>
               <label className={labelCls}>NIS</label>
@@ -113,46 +114,56 @@ export function StudentFormModal({
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Jenis Kelamin</label>
-              <select value={gender} onChange={(e) => setGender(e.target.value as "male" | "female")} className={inputCls}>
-                <option value="male">Laki-laki</option>
-                <option value="female">Perempuan</option>
-              </select>
+              <SearchableSingleSelect
+                label="Jenis Kelamin"
+                options={[
+                  { value: "male", label: "Laki-laki" },
+                  { value: "female", label: "Perempuan" },
+                ]}
+                value={gender}
+                onChange={(v) => setGender(v as "male" | "female")}
+                placeholder="Pilih..."
+              />
             </div>
             <div>
-              <label className={labelCls}>Kelas</label>
-              <select value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)} className={inputCls}>
-                {GRADES.map((g) => (
-                  <option key={g} value={g}>
-                    Kelas {g}
-                  </option>
-                ))}
-              </select>
+              <SearchableSingleSelect
+                label="Kelas"
+                options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+                value={gradeLevel}
+                onChange={setGradeLevel}
+                placeholder="Pilih kelas..."
+              />
             </div>
             <div>
-              <label className={labelCls}>Kurikulum</label>
-              <select
+              <SearchableSingleSelect
+                label="Kurikulum"
+                options={[
+                  { value: "international", label: "Internasional" },
+                  { value: "national", label: "Nasional" },
+                ]}
                 value={curriculumType}
-                onChange={(e) => setCurriculumType(e.target.value as "international" | "national")}
-                className={inputCls}
-              >
-                <option value="international">Internasional</option>
-                <option value="national">Nasional</option>
-              </select>
+                onChange={(v) => setCurriculumType(v as "international" | "national")}
+                placeholder="Pilih..."
+              />
             </div>
             <div>
               <label className={labelCls}>Tahun Ajaran</label>
               <input type="text" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} className={inputCls} />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls}>Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
-                <option value="active">Aktif</option>
-                <option value="promoted">Naik Kelas</option>
-                <option value="new_pending">Menunggu Verifikasi</option>
-                <option value="rejected">Ditolak</option>
-                <option value="graduated">Lulus</option>
-              </select>
+              <SearchableSingleSelect
+                label="Status"
+                options={[
+                  { value: "active", label: "Aktif" },
+                  { value: "promoted", label: "Naik Kelas" },
+                  { value: "new_pending", label: "Menunggu Verifikasi" },
+                  { value: "rejected", label: "Ditolak" },
+                  { value: "graduated", label: "Lulus" },
+                ]}
+                value={status}
+                onChange={setStatus}
+                placeholder="Pilih status..."
+              />
             </div>
             <div>
               <label className={labelCls}>Nama Orang Tua</label>

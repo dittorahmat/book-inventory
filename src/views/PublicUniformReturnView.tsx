@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { AlertCircle, CheckCircle2, ArrowLeftRight } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useUniformReturn } from "../components/uniform/useUniformReturn";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
 import { formatRupiah } from "../lib/transfer-pricing";
@@ -67,14 +68,17 @@ export function PublicUniformReturnView() {
           {ret.orders.length > 0 && (
             <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 space-y-4">
               <div>
-                <label className={labelCls}>Pilih order</label>
-                <select value={ret.selectedOrderId} onChange={(e) => ret.setSelectedOrderId(e.target.value)} className={inputCls}>
-                  {ret.orders.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.orderNumber} · {formatRupiah(o.totalAmount)} · {o.shipmentStatus === "sudah_dikirim" ? "terkirim" : "belum kirim"}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSingleSelect
+                  label="Pilih order"
+                  options={ret.orders.map((o) => ({
+                    value: o.id,
+                    label: o.orderNumber,
+                    hint: `${formatRupiah(o.totalAmount)} · ${o.shipmentStatus === "sudah_dikirim" ? "terkirim" : "belum kirim"}`,
+                  }))}
+                  value={ret.selectedOrderId}
+                  onChange={ret.setSelectedOrderId}
+                  placeholder="Pilih order..."
+                />
               </div>
               {ret.selectedOrder && (
                 <div className="text-xs text-[#65676B]">{ret.selectedItems.map(ret.itemLabel).join(" · ")}</div>
@@ -94,30 +98,32 @@ export function PublicUniformReturnView() {
               {ret.mode === "exchange" ? (
                 <div className="space-y-3">
                   <div>
-                    <label className={labelCls}>Item yang ditukar</label>
-                    <select value={ret.exItemId} onChange={(e) => ret.setExItemId(e.target.value)} className={inputCls}>
-                      <option value="">— Pilih item —</option>
-                      {ret.selectedItems.filter((i) => i.variantId).map((i) => (
-                        <option key={i.id} value={i.id}>{ret.itemLabel(i)}</option>
-                      ))}
-                    </select>
+                    <SearchableSingleSelect
+                      label="Item yang ditukar"
+                      options={ret.selectedItems.filter((i) => i.variantId).map((i) => ({ value: i.id, label: ret.itemLabel(i) }))}
+                      value={ret.exItemId}
+                      onChange={ret.setExItemId}
+                      placeholder="— Pilih item —"
+                    />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className={labelCls}>Varian baru</label>
-                      <select value={ret.exNewVariant} onChange={(e) => { ret.setExNewVariant(e.target.value); ret.setExNewSize(""); }} className={inputCls}>
-                        <option value="">— Pilih varian —</option>
-                        {ret.olahraga.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                      </select>
+                      <SearchableSingleSelect
+                        label="Varian baru"
+                        options={ret.olahraga.map((v) => ({ value: v.id, label: v.name }))}
+                        value={ret.exNewVariant}
+                        onChange={(v) => { ret.setExNewVariant(v); ret.setExNewSize(""); }}
+                        placeholder="— Pilih varian —"
+                      />
                     </div>
                     <div>
-                      <label className={labelCls}>Size baru</label>
-                      <select value={ret.exNewSize} onChange={(e) => ret.setExNewSize(e.target.value)} className={inputCls}>
-                        <option value="">— Pilih size —</option>
-                        {(ret.olahraga.find((v) => v.id === ret.exNewVariant)?.sizes ?? []).map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <SearchableSingleSelect
+                        label="Size baru"
+                        options={(ret.olahraga.find((v) => v.id === ret.exNewVariant)?.sizes ?? []).map((s) => ({ value: s, label: s }))}
+                        value={ret.exNewSize}
+                        onChange={ret.setExNewSize}
+                        placeholder="— Pilih size —"
+                      />
                     </div>
                   </div>
                 </div>

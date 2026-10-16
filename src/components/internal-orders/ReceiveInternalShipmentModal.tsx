@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PackageCheck, X } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { postJson } from "../../lib/api";
 import type { InternalShipment } from "../../lib/internal-orders-types";
 
@@ -82,16 +83,12 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
                     {item.packageName ?? item.bookTitle ?? "Item"} × {item.quantity}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <select
-                      aria-label={`Kondisi ${item.packageName ?? item.bookTitle ?? "item"}`}
+                    <SearchableSingleSelect
+                      options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label }))}
                       value={conditions[item.id] ?? "good"}
-                      onChange={(e) => setConditions({ ...conditions, [item.id]: e.target.value })}
-                      className="rounded-lg border border-[#CED0D4] px-2.5 py-1.5 font-semibold text-[#050505]"
-                    >
-                      {Object.entries(CONDITION_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setConditions({ ...conditions, [item.id]: v })}
+                      placeholder="Kondisi..."
+                    />
                     <input
                       type="text"
                       placeholder="Catatan baris (opsional)"

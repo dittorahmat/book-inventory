@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, RefreshCw } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { apiEnvelope, postJson } from "../../lib/api";
 
 export function SmtpSettingsSection() {
@@ -229,16 +230,17 @@ export function SmtpSettingsSection() {
         </div>
 
         <div>
-          <label className="block font-semibold mb-1">Provider Pengiriman</label>
-          <select
+          <SearchableSingleSelect
+            label="Provider Pengiriman"
+            options={[
+              { value: "auto", label: "Otomatis", hint: "SMTP di lokal, API di Workers" },
+              { value: "brevo", label: "API HTTP (Brevo)" },
+              { value: "smtp", label: "SMTP" },
+            ]}
             value={emailProvider}
-            onChange={(e) => setEmailProvider(e.target.value as "auto" | "brevo" | "smtp")}
-            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl"
-          >
-            <option value="auto">Otomatis (SMTP di lokal, API di Workers)</option>
-            <option value="brevo">API HTTP (Brevo)</option>
-            <option value="smtp">SMTP</option>
-          </select>
+            onChange={(v) => setEmailProvider(v as "auto" | "brevo" | "smtp")}
+            placeholder="Pilih provider..."
+          />
         </div>
 
         <div>

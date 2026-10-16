@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School, User } from "../../types";
 import type { NewUserInput } from "./useSettingsData";
 
@@ -23,8 +24,8 @@ export function UsersSettingsTab({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userRole === "branch_admin" && !userSchoolId) {
-      alert("Branch administrator must be assigned to a specific school");
+    if (userRole !== "central_admin" && !userSchoolId) {
+      alert("Administrator non-pusat wajib ditugaskan ke sekolah/gudang tertentu.");
       return;
     }
 
@@ -102,36 +103,30 @@ export function UsersSettingsTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">Peran / Role *</label>
-              <select
+              <SearchableSingleSelect
+                label="Peran / Role *"
+                options={[
+                  { value: "school_admin", label: "Admin Sekolah" },
+                  { value: "warehouse_admin", label: "Admin Gudang (Gudang Logistik)" },
+                  { value: "branch_admin", label: "Branch Admin (Admin Cabang)" },
+                  { value: "central_admin", label: "Central Admin (Admin Pusat HQ)" },
+                ]}
                 value={userRole}
-                onChange={(e) => setUserRole(e.target.value as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin")}
-                className="w-full px-3.5 py-2.5 border border-[#CED0D4] rounded-lg text-xs font-semibold focus:outline-hidden focus:border-[#1877F2]"
-              >
-                <option value="school_admin">Admin Sekolah</option>
-                <option value="warehouse_admin">Admin Gudang (Gudang Logistik)</option>
-                <option value="branch_admin">Branch Admin (Admin Cabang)</option>
-                <option value="central_admin">Central Admin (Admin Pusat HQ)</option>
-              </select>
+                onChange={(v) => setUserRole(v as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin")}
+                placeholder="Pilih peran..."
+                required
+              />
             </div>
             {userRole !== "central_admin" && (
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">
-                  Cabang Sekolah yang Ditugaskan *
-                </label>
-                <select
-                  required
+                <SearchableSingleSelect
+                  label="Cabang Sekolah yang Ditugaskan *"
+                  options={schoolsList.map((s) => ({ value: s.id, label: s.name, hint: `${s.code} - ${s.type.toUpperCase()}` }))}
                   value={userSchoolId}
-                  onChange={(e) => setUserSchoolId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-[#CED0D4] rounded-lg text-xs font-semibold focus:outline-hidden focus:border-[#1877F2]"
-                >
-                  <option value="">-- Pilih Cabang Penugasan --</option>
-                  {schoolsList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code}) - {s.type.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setUserSchoolId}
+                  placeholder="-- Pilih Cabang Penugasan --"
+                  required
+                />
               </div>
             )}
             <div className="md:col-span-2 flex justify-end gap-2.5 pt-3 border-t border-[#E4E6EB]">

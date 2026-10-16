@@ -1,7 +1,6 @@
 import { Search, UserCheck, UserPlus, ArrowRight } from "lucide-react";
 import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import type {
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";import type {
   SchoolOption,
   StudentSearchResult,
   NewStudentForm,
@@ -193,19 +192,14 @@ export function StudentSearchStep({
           <form onSubmit={onRegister} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Sekolah / Unit Cabang</label>
-                <select
+                <SearchableSingleSelect
+                  label="Sekolah / Unit Cabang"
+                  options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                   value={newStudent.schoolId}
-                  onChange={(e) => setNewStudent({ ...newStudent, schoolId: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+                  onChange={(v) => setNewStudent({ ...newStudent, schoolId: v })}
+                  placeholder="Pilih sekolah..."
                   required
-                >
-                  {schools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div>
@@ -221,37 +215,39 @@ export function StudentSearchStep({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Tingkat Kelas Masuk</label>
-                <select
+                <SearchableSingleSelect
+                  label="Tingkat Kelas Masuk"
+                  options={[
+                    { value: "1", label: "Kelas 1 SD" },
+                    { value: "2", label: "Kelas 2 SD" },
+                    { value: "3", label: "Kelas 3 SD" },
+                    { value: "4", label: "Kelas 4 SD" },
+                    { value: "5", label: "Kelas 5 SD" },
+                    { value: "6", label: "Kelas 6 SD" },
+                    { value: "7", label: "Kelas 7 SMP" },
+                    { value: "8", label: "Kelas 8 SMP" },
+                    { value: "9", label: "Kelas 9 SMP" },
+                    { value: "10", label: "Kelas 10 SMA" },
+                    { value: "11", label: "Kelas 11 SMA" },
+                    { value: "12", label: "Kelas 12 SMA" },
+                  ]}
                   value={newStudent.gradeLevel}
-                  onChange={(e) => setNewStudent({ ...newStudent, gradeLevel: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                >
-                  <option value="1">Kelas 1 SD</option>
-                  <option value="2">Kelas 2 SD</option>
-                  <option value="3">Kelas 3 SD</option>
-                  <option value="4">Kelas 4 SD</option>
-                  <option value="5">Kelas 5 SD</option>
-                  <option value="6">Kelas 6 SD</option>
-                  <option value="7">Kelas 7 SMP</option>
-                  <option value="8">Kelas 8 SMP</option>
-                  <option value="9">Kelas 9 SMP</option>
-                  <option value="10">Kelas 10 SMA</option>
-                  <option value="11">Kelas 11 SMA</option>
-                  <option value="12">Kelas 12 SMA</option>
-                </select>
+                  onChange={(v) => setNewStudent({ ...newStudent, gradeLevel: v })}
+                  placeholder="Pilih kelas..."
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Pilihan Kurikulum</label>
-                <select
+                <SearchableSingleSelect
+                  label="Pilihan Kurikulum"
+                  options={[
+                    { value: "international", label: "Internasional (Cambridge)" },
+                    { value: "national", label: "Nasional" },
+                  ]}
                   value={newStudent.curriculumType}
-                  onChange={(e) => setNewStudent({ ...newStudent, curriculumType: e.target.value as NewStudentForm["curriculumType"] })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                >
-                  <option value="international">Internasional (Cambridge)</option>
-                  <option value="national">Nasional</option>
-                </select>
+                  onChange={(v) => setNewStudent({ ...newStudent, curriculumType: v as NewStudentForm["curriculumType"] })}
+                  placeholder="Pilih kurikulum..."
+                />
               </div>
 
               <div>

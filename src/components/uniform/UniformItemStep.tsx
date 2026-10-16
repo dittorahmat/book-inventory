@@ -1,4 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { UniformOrder } from "./useUniformOrder";
 
 const stepper = (qty: number, onChange: (delta: number) => void, disabled = false) => (
@@ -62,17 +63,13 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   </div>
                   {needsSize && (order.packageQty[p.id] ?? 0) > 0 && (
                     <div>
-                      <label className="block text-xs font-semibold text-[#050505] mb-1">Ukuran olahraga dalam paket</label>
-                      <select
+                      <SearchableSingleSelect
+                        label="Ukuran olahraga dalam paket"
+                        options={sizeOptions.map((s) => ({ value: s, label: s }))}
                         value={order.sizeFor[p.id] ?? ""}
-                        onChange={(e) => order.setSizeFor((s) => ({ ...s, [p.id]: e.target.value }))}
-                        className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white"
-                      >
-                        <option value="">— Pilih ukuran —</option>
-                        {sizeOptions.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => order.setSizeFor((s) => ({ ...s, [p.id]: v }))}
+                        placeholder="— Pilih ukuran —"
+                      />
                     </div>
                   )}
                 </div>
@@ -123,17 +120,13 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                     {stepper(order.satuanQty[key] ?? 0, (d) => order.bumpSatuan(key, d), !picked)}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#050505] mb-1">Ukuran</label>
-                    <select
+                    <SearchableSingleSelect
+                      label="Ukuran"
+                      options={v.sizes.map((s) => ({ value: s, label: `${s} (stok ${stockOf(v.id, s)})` }))}
                       value={picked}
-                      onChange={(e) => order.setSizeFor((s) => ({ ...s, [v.id]: e.target.value }))}
-                      className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white"
-                    >
-                      <option value="">— Pilih ukuran —</option>
-                      {v.sizes.map((s) => (
-                        <option key={s} value={s}>{s} (stok {stockOf(v.id, s)})</option>
-                      ))}
-                    </select>
+                      onChange={(val) => order.setSizeFor((s) => ({ ...s, [v.id]: val }))}
+                      placeholder="— Pilih ukuran —"
+                    />
                   </div>
                 </div>
               );

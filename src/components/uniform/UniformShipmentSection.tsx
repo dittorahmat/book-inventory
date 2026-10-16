@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { fetchUniformOrders, markUniformShipped, type UniformOrderRow } from "./uniform-admin-api";
 
@@ -49,30 +50,27 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 grid gap-3 sm:grid-cols-4">
         <div>
-          <label className="block text-xs font-semibold text-[#050505] mb-1">Sekolah</label>
-          <select
+          <SearchableSingleSelect
+            label="Sekolah"
+            options={schools.map((s) => ({ value: s.id, label: s.name }))}
             value={schoolId}
+            onChange={setSchoolId}
+            placeholder="Semua sekolah"
             disabled={!!lockedSchoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white disabled:opacity-60"
-          >
-            <option value="">Semua sekolah</option>
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[#050505] mb-1">Status kirim</label>
-          <select
+          <SearchableSingleSelect
+            label="Status kirim"
+            options={[
+              { value: "belum_dikirim", label: "Belum terkirim" },
+              { value: "sudah_dikirim", label: "Sudah terkirim" },
+              { value: "", label: "Semua" },
+            ]}
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white"
-          >
-            <option value="belum_dikirim">Belum terkirim</option>
-            <option value="sudah_dikirim">Sudah terkirim</option>
-            <option value="">Semua</option>
-          </select>
+            onChange={setStatus}
+            placeholder="Pilih status..."
+          />
         </div>
         <div className="sm:col-span-2">
           <label className="block text-xs font-semibold text-[#050505] mb-1">Cari (nama/NIS/nomor)</label>

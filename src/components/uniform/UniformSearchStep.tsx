@@ -1,5 +1,6 @@
 import type { SchoolOption } from "../../lib/portal-types";
 import type { UniformStudent } from "../../lib/uniform-types";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 
 export interface UniformSearchProps {
   schools: SchoolOption[];
@@ -19,17 +20,13 @@ export function UniformSearchStep({ order }: { order: UniformSearchProps }) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] p-6 sm:p-7 space-y-4">
       <div>
-        <label className="block text-xs font-semibold text-[#050505] mb-1">Sekolah</label>
-        <select
+        <SearchableSingleSelect
+          label="Sekolah"
+          options={order.schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
           value={order.schoolId}
-          onChange={(e) => order.setSchoolId(e.target.value)}
-          className="w-full rounded-xl border border-[#CED0D4] px-3 py-2.5 text-sm bg-white"
-        >
-          <option value="">— Pilih sekolah —</option>
-          {order.schools.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+          onChange={order.setSchoolId}
+          placeholder="— Pilih sekolah —"
+        />
       </div>
       <div>
         <label className="block text-xs font-semibold text-[#050505] mb-1">Nama atau NIS murid</label>

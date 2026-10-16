@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, Download, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { School } from "../types";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
@@ -161,14 +162,12 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
                 {schools.find((s) => s.id === lockedSchoolId)?.name ?? "Sekolah Anda"}
               </div>
             ) : (
-              <select className={`${inputClass} w-full`} value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
-                <option value="">Semua Sekolah</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSingleSelect
+                options={schools.map((s) => ({ value: s.id, label: s.name }))}
+                value={schoolId}
+                onChange={setSchoolId}
+                placeholder="Semua Sekolah"
+              />
             )}
           </div>
         </div>

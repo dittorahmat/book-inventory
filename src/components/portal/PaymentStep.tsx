@@ -1,5 +1,6 @@
 import { CreditCard, Award, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type {
   BookPackageOption,
   FileUploadHandler,
@@ -187,18 +188,17 @@ export function PaymentStep({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Bank Tujuan Transfer
-              </label>
-              <select
+              <SearchableSingleSelect
+                label="Bank Tujuan Transfer"
+                options={[
+                  { value: "BCA", label: "BCA", hint: "Yayasan Al Wildan - 882019283" },
+                  { value: "Mandiri", label: "Mandiri", hint: "Yayasan Al Wildan - 164000293" },
+                  { value: "BSI", label: "BSI", hint: "Yayasan Al Wildan - 772001928" },
+                ]}
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-              >
-                <option value="BCA">BCA (Yayasan Al Wildan - 882019283)</option>
-                <option value="Mandiri">Mandiri (Yayasan Al Wildan - 164000293)</option>
-                <option value="BSI">BSI (Yayasan Al Wildan - 772001928)</option>
-              </select>
+                onChange={setBankName}
+                placeholder="Pilih bank..."
+              />
             </div>
 
             <div>

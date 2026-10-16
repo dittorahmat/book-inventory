@@ -1,4 +1,5 @@
 import { Search, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type {
   MatchedOrder,
   PackageBookChoice,
@@ -122,20 +123,14 @@ export function ReturnReportTab({
 
             <form onSubmit={onLookupOrder} className="space-y-3">
               <div>
-                <label htmlFor="portal-return-lookup-school" className="block text-xs font-semibold text-[#050505] mb-1">
-                  Sekolah / Unit
-                </label>
-                <select
+                <SearchableSingleSelect
                   id="portal-return-lookup-school"
+                  label="Sekolah / Unit"
+                  options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                   value={returnLookupSchoolId}
-                  onChange={(e) => setReturnLookupSchoolId(e.target.value)}
-                  className="w-full px-3 py-3 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-2xl text-xs sm:text-sm text-[#050505] transition-colors"
-                >
-                  <option value="">Pilih sekolah terlebih dahulu</option>
-                  {schools.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  onChange={setReturnLookupSchoolId}
+                  placeholder="Pilih sekolah terlebih dahulu"
+                />
               </div>
               <div className="flex gap-2">
               <div className="relative flex-1">
@@ -220,21 +215,14 @@ export function ReturnReportTab({
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#050505] mb-1.5">
-                    Pilih Judul Buku yang Cacat / Rusak
-                  </label>
-                  <select
+                  <SearchableSingleSelect
+                    label="Pilih Judul Buku yang Cacat / Rusak"
+                    options={packageBookList.map((bk) => ({ value: bk.bookId, label: bk.title, hint: `ISBN: ${bk.isbn}` }))}
                     value={selectedDefectiveBookId}
-                    onChange={(e) => setSelectedDefectiveBookId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-none focus:border-[#1877F2]"
+                    onChange={setSelectedDefectiveBookId}
+                    placeholder="Pilih judul buku..."
                     required
-                  >
-                    {packageBookList.map((bk) => (
-                      <option key={bk.bookId} value={bk.bookId}>
-                        {bk.title} (ISBN: {bk.isbn})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>

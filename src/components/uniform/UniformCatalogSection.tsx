@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { getJson } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
@@ -82,22 +83,40 @@ export function UniformCatalogSection() {
         <div className="grid gap-3 sm:grid-cols-3">
           <div><label className={labelCls}>Kode</label><input value={vCode} onChange={(e) => setVCode(e.target.value)} className={inputCls} /></div>
           <div className="sm:col-span-2"><label className={labelCls}>Nama</label><input value={vName} onChange={(e) => setVName(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Jenis</label>
-            <select value={vKind} onChange={(e) => setVKind(e.target.value)} className={inputCls}>
-              <option value="kain_harian">Kain harian</option>
-              <option value="olahraga">Olahraga jadi</option>
-            </select>
+          <div><SearchableSingleSelect
+            label="Jenis"
+            options={[
+              { value: "kain_harian", label: "Kain harian" },
+              { value: "olahraga", label: "Olahraga jadi" },
+            ]}
+            value={vKind}
+            onChange={setVKind}
+            placeholder="Pilih jenis..."
+          />
           </div>
-          <div><label className={labelCls}>Gender</label>
-            <select value={vGender} onChange={(e) => setVGender(e.target.value)} className={inputCls}>
-              <option value="male">Laki-laki</option>
-              <option value="female">Perempuan</option>
-            </select>
+          <div><SearchableSingleSelect
+            label="Gender"
+            options={[
+              { value: "male", label: "Laki-laki" },
+              { value: "female", label: "Perempuan" },
+            ]}
+            value={vGender}
+            onChange={setVGender}
+            placeholder="Pilih gender..."
+          />
           </div>
-          <div><label className={labelCls}>Jenjang</label>
-            <select value={vJenjang} onChange={(e) => setVJenjang(e.target.value)} className={inputCls}>
-              <option value="tk">TK</option><option value="sd">SD</option><option value="smp">SMP</option><option value="sma">SMA</option>
-            </select>
+          <div><SearchableSingleSelect
+            label="Jenjang"
+            options={[
+              { value: "tk", label: "TK" },
+              { value: "sd", label: "SD" },
+              { value: "smp", label: "SMP" },
+              { value: "sma", label: "SMA" },
+            ]}
+            value={vJenjang}
+            onChange={setVJenjang}
+            placeholder="Pilih jenjang..."
+          />
           </div>
           <div><label className={labelCls}>Tahun ajaran</label><input value={vYear} onChange={(e) => setVYear(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Harga (Rp)</label><input value={vPrice} inputMode="numeric" onChange={(e) => setVPrice(e.target.value)} className={inputCls} /></div>
@@ -188,11 +207,13 @@ export function UniformCatalogSection() {
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
         <h3 className="text-sm font-bold">PO ke Konveksi</h3>
         <div>
-          <label className={labelCls}>Supplier</label>
-          <select value={poSupplier} onChange={(e) => setPoSupplier(e.target.value)} className={inputCls}>
-            <option value="">— Pilih supplier —</option>
-            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <SearchableSingleSelect
+            label="Supplier"
+            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+            value={poSupplier}
+            onChange={setPoSupplier}
+            placeholder="— Pilih supplier —"
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           {variants.map(({ variant: v }) => (

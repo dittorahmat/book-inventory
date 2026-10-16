@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertCircle, PackageCheck, X, FileText } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { postJson, getJson } from "../../lib/api";
 import type { PurchaseOrder } from "./procurement-types";
 
@@ -155,17 +156,15 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <select
-                        aria-label={`Kondisi ${it.title}`}
+                      <SearchableSingleSelect
+                        options={[
+                          { value: "good", label: "Baik" },
+                          { value: "damaged", label: "Rusak" },
+                        ]}
                         value={conditions[it.id] ?? "good"}
-                        onChange={(e) =>
-                          setConditions({ ...conditions, [it.id]: e.target.value as "good" | "damaged" })
-                        }
-                        className="px-2 py-1.5 border border-[#CED0D4] rounded-lg text-[11px] font-semibold text-[#050505]"
-                      >
-                        <option value="good">Baik</option>
-                        <option value="damaged">Rusak</option>
-                      </select>
+                        onChange={(v) => setConditions({ ...conditions, [it.id]: v as "good" | "damaged" })}
+                        placeholder="Kondisi..."
+                      />
                       <input
                         type="number"
                         min={0}
