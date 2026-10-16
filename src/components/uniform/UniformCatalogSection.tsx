@@ -5,7 +5,8 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformVariants, createUniformVariant,
   fetchUniformPackages, createUniformPackage, assembleUniformPackage,
-  fetchUniformPos, createUniformPo, receiveUniformPo,
+  fetchUniformPos, createUniformPo, receiveUniformPo, adjustUniformStock,
+  fetchUniformRejects, createUniformReject, type UniformRejectRow,
   type UniformVariantRow, type UniformPackageRow,
 } from "./uniform-admin-api";
 
@@ -39,16 +40,29 @@ export function UniformCatalogSection() {
   const [asmQty, setAsmQty] = useState<Record<string, string>>({});
   const [asmSize, setAsmSize] = useState<Record<string, string>>({});
 
+  const [stVariant, setStVariant] = useState("");
+  const [stSize, setStSize] = useState("");
+  const [stQty, setStQty] = useState("0");
+  const [stMode, setStMode] = useState("add");
+  const [stReason, setStReason] = useState("");
+  const [rejects, setRejects] = useState<UniformRejectRow[]>([]);
+  const [rjVariant, setRjVariant] = useState("");
+  const [rjSize, setRjSize] = useState("");
+  const [rjQty, setRjQty] = useState("1");
+  const [rjReason, setRjReason] = useState("");
+
   const reload = async () => {
     try {
-      const [v, p, o, s] = await Promise.all([
+      const [v, p, o, s, r] = await Promise.all([
         fetchUniformVariants(), fetchUniformPackages(), fetchUniformPos(),
         getJson<Array<{ id: string; name: string }>>("/api/procurement/suppliers", "Gagal memuat supplier."),
+        fetchUniformRejects().catch(() => [] as UniformRejectRow[]),
       ]);
       setVariants(v);
       setPackages(p);
       setPos(o);
       setSuppliers(s);
+      setRejects(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat data seragam.");
     }
@@ -148,6 +162,77 @@ export function UniformCatalogSection() {
             <div className="text-[#65676B]">{sizes.length > 0 ? `Size: ${sizes.join(", ")}` : "Tanpa ukuran"} · Stok: {stock.map((s) => `${s.size}=${s.quantity}`).join(", ") || "0"}</div>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
+        <h3 className="text-sm font-bold">Stok Manual (Awal / Masuk)</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <SearchableSingleSelect
+              label="Varian"
+              options={variants.map(({ variant: v }) => ({ value: v.id, label: `${v.code} — ${v.name}` }))}
+              value={stVariant}
+              onChange={setStVariant}
+              placeholder="— Pilih varian —"
+            />
+          </div>
+          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={inputCls} /></div>
+          <div><label className={labelCls}>Qty</label><input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={inputCls} /></div>
+          <div>
+            <SearchableSingleSelect
+              label="Mode"
+              options={[
+                { value: "add", label: "Tambah (stok masuk)" },
+                { value: "set", label: "Set (stok awal/opname)" },
+              ]}
+              value={stMode}
+              onChange={setStMode}
+              placeholder="Pilih mode..."
+            />
+          </div>
+        </div>
+        <div><label className={labelCls}>Alasan (wajib)</label><input value={stReason} onChange={(e) => setStReason(e.target.value)} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} /></div>
+        <button
+          type="button" disabled={busy || !stVariant}
+          onClick={() => run(() => adjustUniformStock({ variantId: stVariant, size: stSize.trim() || undefined, quantity: Number(stQty) || 0, mode: stMode as "add" | "set", reason: stReason.trim() }), "Stok disesuaikan.")}
+          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
+        >
+          Simpan Stok
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
+        <h3 className="text-sm font-bold">Catatan Barang Reject</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <SearchableSingleSelect
+              label="Varian"
+              options={variants.map(({ variant: v }) => ({ value: v.id, label: `${v.code} — ${v.name}` }))}
+              value={rjVariant}
+              onChange={setRjVariant}
+              placeholder="— Pilih varian —"
+            />
+          </div>
+          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Qty reject</label><input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Alasan</label><input value={rjReason} onChange={(e) => setRjReason(e.target.value)} placeholder="Cacat / salah jahit ..." className={inputCls} /></div>
+        </div>
+        <button
+          type="button" disabled={busy || !rjVariant}
+          onClick={() => run(() => createUniformReject({ variantId: rjVariant, size: rjSize.trim() || undefined, quantity: Number(rjQty) || 0, reason: rjReason.trim() }), "Reject tercatat.")}
+          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98]"
+        >
+          Catat Reject
+        </button>
+        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB]">
+          {rejects.length === 0 && <div className="px-4 py-4 text-xs text-[#65676B]">Belum ada catatan reject.</div>}
+          {rejects.slice(0, 20).map((r) => (
+            <div key={r.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-2">
+              <span className="font-semibold">{r.size} × {r.quantity} — {r.reason}</span>
+              <span className="text-[#65676B]">{r.createdAt.slice(0, 10)}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">

@@ -6,6 +6,7 @@ import type {
   FileUploadHandler,
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
+import { WprQuestion } from "./WprQuestion";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
@@ -29,6 +30,12 @@ interface PaymentStepProps {
   isSatuan?: boolean;
   homeAddress?: string;
   setHomeAddress?: (val: string) => void;
+  paketKirim?: boolean;
+  setPaketKirim?: (val: boolean) => void;
+  hasTakenPackage?: boolean | null;
+  setHasTakenPackage?: (val: boolean) => void;
+  wprFee?: number;
+  wprLoading?: boolean;
   isSubmitting: boolean;
   onFileUpload: FileUploadHandler;
   onBack: () => void;
@@ -57,6 +64,12 @@ export function PaymentStep({
   isSatuan,
   homeAddress,
   setHomeAddress,
+  paketKirim,
+  setPaketKirim,
+  hasTakenPackage,
+  setHasTakenPackage,
+  wprFee,
+  wprLoading,
   isSubmitting,
   onFileUpload,
   onBack,
@@ -266,16 +279,49 @@ export function PaymentStep({
       )}
 
       {isSatuan && (
+        <WprQuestion
+          hasTakenPackage={hasTakenPackage ?? null}
+          setHasTakenPackage={setHasTakenPackage ?? (() => {})}
+          wprFee={wprFee ?? 0}
+          wprLoading={wprLoading ?? false}
+        />
+      )}
+
+      {!isSatuan && (
         <div>
           <label className="block text-xs font-semibold text-[#050505] mb-1">
-            Alamat Rumah (Wajib, satuan dikirim ke rumah)
+            Serah-terima paket
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {([false, true] as const).map((val) => (
+              <button
+                key={String(val)}
+                type="button"
+                onClick={() => setPaketKirim?.(val)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all active:scale-[0.98] ${
+                  (paketKirim ?? false) === val
+                    ? "border-[#1877F2] bg-[#E7F3FF]/40 text-[#050505]"
+                    : "border-[#E4E6EB] bg-white text-[#65676B] hover:border-[#CED0D4]"
+                }`}
+              >
+                {val ? "Kirim ke rumah" : "Ambil di sekolah"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(isSatuan || paketKirim) && (
+        <div>
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Alamat Rumah {isSatuan ? "(Wajib, satuan dikirim ke rumah)" : "(Wajib, paket dikirim ke rumah)"}
           </label>
           <textarea
             rows={2}
             required
             value={homeAddress ?? ""}
             onChange={(e) => setHomeAddress?.(e.target.value)}
-            placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor"
+            placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor 16111"
             className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
           />
           <span className="text-[10px] text-[#65676B] block mt-0.5">

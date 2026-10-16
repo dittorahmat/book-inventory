@@ -206,6 +206,9 @@ const NOTIF_ENDPOINTS: Array<{ method: string; path: string; body?: unknown }> =
   { method: "GET", path: "/whatsapp" },
   { method: "POST", path: "/whatsapp", body: { gatewayUrl: "https://wa.test.internal/send" } },
   { method: "POST", path: "/whatsapp/test", body: { phone: "08123456789" } },
+  { method: "GET", path: "/whatsapp-meta" },
+  { method: "POST", path: "/whatsapp-meta", body: { phoneNumberId: "123", accessToken: "tok" } },
+  { method: "POST", path: "/whatsapp-meta/test", body: { phone: "08123456789" } },
 ];
 
 function notifRequest(ep: (typeof NOTIF_ENDPOINTS)[number]) {

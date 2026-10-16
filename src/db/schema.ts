@@ -84,6 +84,7 @@ export const bookItems = sqliteTable("book_items", {
   barcode: text("barcode").notNull().unique(),
   condition: text("condition", { enum: ["new", "good", "fair", "damaged"] }).notNull().default("new"),
   status: text("status", { enum: ["in_stock", "in_transit", "disposed", "lost"] }).notNull().default("in_stock"),
+  isRejected: integer("is_rejected", { mode: "boolean" }).notNull().default(false),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -144,6 +145,8 @@ export const students = sqliteTable("students", {
   parentPhone: text("parent_phone"),
   status: text("status", { enum: ["active", "promoted", "new_pending", "rejected", "graduated"] }).notNull().default("active"),
   isScholarship: integer("is_scholarship", { mode: "boolean" }).notNull().default(false),
+  hasTakenPackage: integer("has_taken_package", { mode: "boolean" }).notNull().default(false),
+  hasTakenUniform: integer("has_taken_uniform", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
@@ -278,6 +281,10 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   homeAddressSnapshot: text("home_address_snapshot"),
   satuanShipmentStatus: text("satuan_shipment_status", { enum: ["belum_dikirim", "sudah_dikirim"] }).notNull().default("belum_dikirim"),
   satuanShippedAt: text("satuan_shipped_at"),
+  shippingCost: integer("shipping_cost").notNull().default(0),
+  shippingResi: text("shipping_resi"),
+  invoiceSentAt: text("invoice_sent_at"),
+  paymentToken: text("payment_token"),
   scholarshipProofUrl: text("scholarship_proof_url"),
   financeHandoverApproved: integer("finance_handover_approved", { mode: "boolean" }).notNull().default(false),
   discountAmount: integer("discount_amount").notNull().default(0),
@@ -572,6 +579,15 @@ export const uniformOrders = sqliteTable("uniform_orders", {
   homeAddressSnapshot: text("home_address_snapshot").notNull(),
   shipmentStatus: text("shipment_status", { enum: ["belum_dikirim", "sudah_dikirim"] }).notNull().default("belum_dikirim"),
   shippedAt: text("shipped_at"),
+  shippingCost: integer("shipping_cost").notNull().default(0),
+  shippingResi: text("shipping_resi"),
+  invoiceSentAt: text("invoice_sent_at"),
+  paymentToken: text("payment_token"),
+  paymentStatus: text("payment_status", {
+    enum: ["unpaid", "partial", "paid", "scholarship_pending"],
+  }).notNull().default("unpaid"),
+  orderType: text("order_type", { enum: ["regular", "scholarship"] }).notNull().default("regular"),
+  scholarshipProofUrl: text("scholarship_proof_url"),
   totalAmount: integer("total_amount").notNull().default(0),
   paidAmount: integer("paid_amount").notNull().default(0),
   notes: text("notes"),
@@ -594,6 +610,23 @@ export const uniformOrderItems = sqliteTable("uniform_order_items", {
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("uniform_order_items_order_idx").on(t.orderId),
+]);
+
+/** Pembayaran seragam via link konfirmasi (transfer manual, termin bebas). */
+export const uniformPayments = sqliteTable("uniform_payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => uniformOrders.id, { onDelete: "cascade" }),
+  transferAmount: integer("transfer_amount").notNull(),
+  uniformAllocationAmount: integer("uniform_allocation_amount").notNull(),
+  paymentProofUrl: text("payment_proof_url"),
+  bankName: text("bank_name"),
+  referenceNumber: text("reference_number"),
+  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+  verifiedAt: text("verified_at"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_payments_order_idx").on(t.orderId),
 ]);
 
 /** Tukar Ukuran: exchange olahraga belum-dipakai ≤14 hari (bukan refund dana). */
@@ -632,6 +665,18 @@ export const uniformRefunds = sqliteTable("uniform_refunds", {
 }, (t) => [
   index("uniform_refunds_order_idx").on(t.orderId),
   index("uniform_refunds_status_idx").on(t.status),
+]);
+
+/** Catatan barang reject seragam (gudang): varian-size + qty + alasan. */
+export const uniformRejects = sqliteTable("uniform_rejects", {
+  id: text("id").primaryKey(),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
+  quantity: integer("quantity").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_rejects_variant_idx").on(t.variantId),
 ]);
 
 /** Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock. */

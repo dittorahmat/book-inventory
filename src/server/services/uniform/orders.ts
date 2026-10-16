@@ -20,6 +20,9 @@ import {
   type WriteDeps,
 } from "../../lib/d1-write";
 import { readSettingsMap } from "../settings-map";
+import { validateHomeAddress } from "../../../lib/home-address";
+import { defaultStorage } from "../../../services/storage";
+import { decodeBase64ToBytes } from "../../base64";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 
@@ -30,6 +33,12 @@ export interface SubmitUniformOrderDeps extends WriteDeps {
 
 export const UNIFORM_ORDER_PREFIX_KEY = "uniform_order_prefix";
 export const DEFAULT_UNIFORM_ORDER_PREFIX = "USO";
+
+/** Toggle on/off pembelian satuan seragam (default buka agar kompatibel). */
+export const UNIFORM_SATUAN_KEY = "uniform_satuan_enabled";
+
+export const isUniformSatuanEnabled = async (database: AppDatabase): Promise<boolean> =>
+  (await readSettingsMap(database))[UNIFORM_SATUAN_KEY] !== "false";
 
 type VariantRow = typeof uniformVariants.$inferSelect;
 type PackageRow = typeof uniformPackages.$inferSelect;
@@ -53,8 +62,8 @@ export async function submitUniformOrder(
   deps?: SubmitUniformOrderDeps
 ): Promise<{ ok: true; data: { order: typeof uniformOrders.$inferSelect; totalAmount: number } } | UniformError> {
   const now = writeNow(deps);
-  const homeAddress = payload.homeAddress.trim();
-  if (!homeAddress) return invalid("Alamat rumah wajib diisi.");
+  const addressCheck = validateHomeAddress(payload.homeAddress);
+  if (!addressCheck.ok) return invalid(addressCheck.message as string);
   if (!payload.items || payload.items.length === 0) return invalid("Pilih minimal satu paket atau satuan.");
   if (!/^\d{4}\/\d{4}$/.test(payload.academicYear)) return invalid("Format tahun ajaran wajib YYYY/YYYY.");
 
@@ -64,6 +73,19 @@ export async function submitUniformOrder(
     return invalid("Murid belum terverifikasi admin sekolah.");
   }
   const schoolId: string = student.schoolId;
+  const isScholarship = payload.orderType === "scholarship";
+  if (isScholarship && !payload.scholarshipProofBase64) return invalid("Surat tanda beasiswa wajib dilampirkan.");
+  const priorCount = await database
+    .select({ id: uniformOrders.id })
+    .from(uniformOrders)
+    .where(eq(uniformOrders.studentId, payload.studentId))
+    .limit(1);
+  if (priorCount.length === 0 && !payload.items.some((i) => i.packageId)) {
+    return invalid("Murid baru/pindahan wajib membeli paket seragam terlebih dahulu.");
+  }
+  if (payload.items.some((i) => i.variantId) && !(await isUniformSatuanEnabled(database))) {
+    return invalid("Pembelian satuan seragam sedang ditutup oleh admin.");
+  }
 
   const packageIds = [...new Set(payload.items.filter((i) => i.packageId).map((i) => i.packageId as string))];
   const satuanVariantIds = [...new Set(payload.items.filter((i) => i.variantId).map((i) => i.variantId as string))];
@@ -152,7 +174,7 @@ export async function submitUniformOrder(
     if ((stockByKey.get(key)?.quantity ?? 0) < qty) return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
   }
 
-  // Total + baris order.
+  // Total + baris order (beasiswa/free: total 0 menunggu verifikasi).
   const lines: UniformOrderLine[] = payload.items.map((item) => {
     const qty = item.quantity ?? 1;
     if (item.packageId) {
@@ -162,8 +184,16 @@ export async function submitUniformOrder(
     const v = variantById.get(item.variantId as string);
     return { packageId: null, variantId: item.variantId as string, size: item.size?.trim() || KAIN_SIZE, quantity: qty, unitPrice: v?.price ?? 0 };
   });
-  const total = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+  const total = isScholarship ? 0 : lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
   const prefix = deps?.orderPrefix ?? (await readSettingsMap(database))[UNIFORM_ORDER_PREFIX_KEY] ?? DEFAULT_UNIFORM_ORDER_PREFIX;
+  let scholarshipProofUrl: string | null = null;
+  if (isScholarship && payload.scholarshipProofBase64) {
+    scholarshipProofUrl = await defaultStorage.upload(
+      `uniform-scholarships/${payload.studentId}_${Date.now()}.jpg`,
+      decodeBase64ToBytes(payload.scholarshipProofBase64),
+      "image/jpeg"
+    );
+  }
 
   // Tulis atomik (§10): order + item + kurangi stok dalam satu batch.
   // Tiap percobaan memakai orderId baru + best-effort hapus order yatim
@@ -182,10 +212,13 @@ export async function submitUniformOrder(
           studentId: payload.studentId,
           schoolId,
           academicYear: payload.academicYear,
-          homeAddressSnapshot: homeAddress,
+          homeAddressSnapshot: payload.homeAddress.trim(),
           shipmentStatus: "belum_dikirim",
           totalAmount: total,
-          paidAmount: total,
+          paidAmount: isScholarship ? 0 : total,
+          paymentStatus: isScholarship ? "scholarship_pending" : "unpaid",
+          orderType: isScholarship ? "scholarship" : "regular",
+          scholarshipProofUrl,
           notes: payload.notes?.trim() || null,
           createdAt: now,
           updatedAt: now,
@@ -228,6 +261,28 @@ export async function submitUniformOrder(
   return invalid("Gagal membuat order seragam, silakan ulangi.");
 }
 
+/** Verifikasi beasiswa seragam oleh staf: approve (lunas) atau reject. */
+export async function resolveUniformScholarship(
+  database: AppDatabase,
+  orderId: string,
+  action: "approve" | "reject",
+  deps?: WriteDeps
+): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
+  const now = writeNow(deps);
+  const [order]: Array<typeof uniformOrders.$inferSelect> = await database
+    .select()
+    .from(uniformOrders)
+    .where(eq(uniformOrders.id, orderId));
+  if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
+  if (order.orderType !== "scholarship" || order.paymentStatus !== "scholarship_pending") {
+    return invalid("Order ini bukan pengajuan beasiswa yang menunggu verifikasi.");
+  }
+  const paymentStatus = action === "approve" ? "paid" : "unpaid";
+  await database.update(uniformOrders).set({ paymentStatus, updatedAt: now }).where(eq(uniformOrders.id, orderId));
+  const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+  return { ok: true, data: updated };
+}
+
 /** Tandai kiriman gudang: belum_dikirim → sudah_dikirim (+ shippedAt). Satu arah, tanpa un-ship. */
 export async function markUniformShipped(
   database: AppDatabase,
@@ -245,6 +300,10 @@ export async function markUniformShipped(
     .update(uniformOrders)
     .set({ shipmentStatus: "sudah_dikirim", shippedAt: now, updatedAt: now })
     .where(eq(uniformOrders.id, orderId));
+  await database
+    .update(students)
+    .set({ hasTakenUniform: true, updatedAt: now })
+    .where(eq(students.id, order.studentId));
   const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   return { ok: true, data: updated };
 }

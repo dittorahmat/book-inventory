@@ -1,6 +1,7 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, students, uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import {
@@ -41,11 +42,12 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
+import { uniformOrderStage } from "../services/uniform/report";
+import { setUniformShipping } from "../services/order-shipping";
+import { sendUniformInvoice } from "../services/order-invoice";
+import { fail } from "../lib/route-fail";
 
 export const uniformsRouter = new Hono();
-
-const fail = (c: { json: (body: unknown, status?: 400 | 404) => Response }, result: { status: 400 | 404; message: string }) =>
-  c.json({ success: false, message: result.message }, result.status);
 
 uniformsRouter.get("/variants", async (c) => {
   try {
@@ -137,6 +139,8 @@ uniformsRouter.get("/orders", async (c) => {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const shipmentStatus = c.req.query("shipmentStatus");
+    const paymentStatus = c.req.query("paymentStatus");
+    const stage = c.req.query("stage");
     const search = c.req.query("search")?.trim();
 
     const conditions = [];
@@ -144,6 +148,17 @@ uniformsRouter.get("/orders", async (c) => {
     if (shipmentStatus === "belum_dikirim" || shipmentStatus === "sudah_dikirim") {
       conditions.push(eq(uniformOrders.shipmentStatus, shipmentStatus));
     }
+    if (paymentStatus === "unpaid" || paymentStatus === "partial" || paymentStatus === "paid" || paymentStatus === "scholarship_pending") {
+      conditions.push(eq(uniformOrders.paymentStatus, paymentStatus));
+    }
+    // Tahap dipetakan ke kondisi SQL (bukan filter JS): pemesanan/tagihan/konfirmasi/lunas.
+    if (stage === "pemesanan") conditions.push(isNull(uniformOrders.invoiceSentAt));
+    if (stage === "tagihan") {
+      conditions.push(isNotNull(uniformOrders.invoiceSentAt));
+      conditions.push(eq(uniformOrders.paymentStatus, "unpaid"));
+    }
+    if (stage === "konfirmasi") conditions.push(eq(uniformOrders.paymentStatus, "partial"));
+    if (stage === "lunas") conditions.push(eq(uniformOrders.paymentStatus, "paid"));
     if (search) {
       if (!schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
       const pattern = `%${search.toLowerCase()}%`;
@@ -167,7 +182,13 @@ uniformsRouter.get("/orders", async (c) => {
         schoolName: schools.name,
         shipmentStatus: uniformOrders.shipmentStatus,
         shippedAt: uniformOrders.shippedAt,
+        shippingCost: uniformOrders.shippingCost,
+        shippingResi: uniformOrders.shippingResi,
+        invoiceSentAt: uniformOrders.invoiceSentAt,
+        paymentStatus: uniformOrders.paymentStatus,
+        orderType: uniformOrders.orderType,
         totalAmount: uniformOrders.totalAmount,
+        paidAmount: uniformOrders.paidAmount,
         homeAddressSnapshot: uniformOrders.homeAddressSnapshot,
         createdAt: uniformOrders.createdAt,
       })
@@ -177,7 +198,19 @@ uniformsRouter.get("/orders", async (c) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(uniformOrders.createdAt))
       .limit(50);
-    return c.json({ success: true, data: rows });
+    return c.json({ success: true, data: rows.map((r: (typeof rows)[number]) => ({ ...r, stage: uniformOrderStage(r) })) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Kirim invoice WA (syarat ongkir sudah diinput).
+uniformsRouter.post("/orders/:id/send-invoice", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await sendUniformInvoice(db, c.req.param("id"), { baseUrl: new URL(c.req.url).origin });
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -190,6 +223,21 @@ uniformsRouter.post("/orders/:id/ship", async (c) => {
     const result = await markUniformShipped(db, c.req.param("id"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Input ongkir manual gudang (syarat tombol kirim invoice).
+uniformsRouter.post("/orders/:id/shipping", zValidator("json", z.object({
+  shippingCost: z.number().int().min(0, "Ongkir wajib angka bulat >= 0"),
+  shippingResi: z.string().optional(),
+})), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await setUniformShipping(db, c.req.param("id"), c.req.valid("json"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -306,6 +354,9 @@ uniformsRouter.get("/reports/sales", async (c) => {
       schoolIds,
       jenjang: c.req.query("jenjang") || undefined,
       size: c.req.query("size") || undefined,
+      gender: c.req.query("gender") || undefined,
+      paymentStatus: c.req.query("paymentStatus") || undefined,
+      shipmentStatus: c.req.query("shipmentStatus") || undefined,
     });
     return c.json({ success: true, data: report });
   } catch (err) {

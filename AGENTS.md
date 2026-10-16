@@ -128,7 +128,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 ## 2. Technology Stack Standards
 
 - **Runtime & Package Manager**: [Bun](https://bun.sh/) (or Node.js fallback where applicable).
-- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`/`grep`; `mkdir` hanya satu direktori per perintah (multi-dir gagal — pakai `New-Item -ItemType Directory -Force` per direktori); tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat/cari output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content` (atau tool `Grep`/`Read`, jangan `grep` shell — bukan cmdlet pwsh dan langsung gagal).
+- **Shell**: PowerShell 7+ (`pwsh`) di Windows — tanpa `head`/`awk`/`wc`/`printf`/`cat`/`grep`/`tail`/`rm`; `mkdir` hanya satu direktori per perintah (multi-dir gagal — pakai `New-Item -ItemType Directory -Force` per direktori); hapus file via `Remove-Item`; glob (`*.sql`) tidak mengembang di argumen skrip npm/bun — tulis path eksplisit; tulis skrip sekali-pakai via tool `Write` lalu `bun <file>` daripada `bun -e` dengan kutip bersarang, dan potong/hitung/lihat/cari output via `Select-String`/`Select-Object`/`Measure-Object`/`Get-Content` (atau tool `Grep`/`Read`, jangan `grep` shell — bukan cmdlet pwsh dan langsung gagal).
 - **Backend**: [Hono](https://hono.dev/) with TypeScript.
 - **ORM & Database**: [Drizzle ORM](https://orm.drizzle.team/) with SQLite core.
   - Initial deployment: Cloudflare D1.

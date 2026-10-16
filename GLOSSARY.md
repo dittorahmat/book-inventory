@@ -77,8 +77,12 @@ Nomor serah-terima paket/satuan-ambil ke siswa saat handover ambil-langsung di s
 _Avoid_: Resi kurir, SJ pengiriman rumah
 
 **Kirim-Rumah Satuan**:
-Distribusi buku satuan ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; tanpa kurir, ongkir, atau resi. Paket tetap Ambil Langsung.
+Distribusi buku satuan ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; ongkir + resi diinput manual gudang, invoice dikirim setelah ongkir terisi (ongkir 0 sah bila ada resi). Paket-ambil tetap diambil di sekolah; paket-kirim ke rumah wajib ongkir sebelum serah-terima.
 _Avoid_: Ekspedisi, SJ-SERAH satuan
+
+**Kirim-Rumah**:
+Distribusi seragam ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; ongkir + resi diinput manual gudang, invoice dikirim setelah ongkir terisi.
+_Avoid_: SJ-SERAH, ekspedisi
 
 **Sisa Stock**:
 Stok cabang yang tak terbagi ke siswa; penarikannya memakai pola transfer generik cabang → gudang, tanpa endpoint khusus.
@@ -109,7 +113,7 @@ Bundel 1 kain harian + 1 olahraga (gender × jenjang × size), dirakit di gudang
 _Avoid_: Paket campuran bebas
 
 **Kirim-Rumah**:
-Distribusi seragam ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; tanpa kurir, ongkir, atau resi.
+Distribusi seragam ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; ongkir + resi diinput manual gudang, invoice dikirim setelah ongkir terisi.
 _Avoid_: SJ-SERAH, ekspedisi
 
 **Tukar Ukuran**:
@@ -123,3 +127,19 @@ _Avoid_: Void, retur dana manual
 **Klaim Cabang**:
 Snapshot rekonsiliasi gudang → cabang per periode + sekolah (nomor `CLM-*`, bisa lock); tukar/refund pasca-lock masuk periode berikut.
 _Avoid_: Tagihan manual, invoice campur
+
+**WPR**:
+Buku Weekly Progress Report 750rb, wajib di BOM semua paket buku dan ditagihkan ke order satuan yang belum punya order paket (termasuk beasiswa). Bukan stok fisik rakitan: dikecualikan dari konsumsi stok saat kitting.
+_Avoid_: Fee admin, buku opsional
+
+**Invoice WhatsApp**:
+Tagihan satuan dikirim gudang via WA Meta Official setelah ongkir diinput; memuat link konfirmasi `/bayar/buku|seragam/:token` untuk bayar lunas/bertahap termin bebas.
+_Avoid_: Tagihan kertas, invoice tanpa link bayar
+
+**Tahap Seragam**:
+Status order seragam turunan: pemesanan (belum invoice) → tagihan (invoice terkirim) → konfirmasi (parsial) → lunas.
+_Avoid_: Status kirim, status bayar mentah
+
+**Reject**:
+Flag ok/reject barang: eksemplar buku via `is_rejected` per barcode; seragam via catatan `uniform_rejects` (varian-size + qty + alasan).
+_Avoid_: Kondisi rusak, retur publik

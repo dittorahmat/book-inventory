@@ -4,6 +4,7 @@ import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
 import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
+import { ShippingModal } from "../components/orders/ShippingModal";
 import { CashierPaymentModal } from "../components/orders/CashierPaymentModal";
 import { ScholarshipApprovalModal } from "../components/orders/ScholarshipApprovalModal";
 import { OrderHandoverModal } from "../components/orders/OrderHandoverModal";
@@ -28,9 +29,12 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     loadOrders,
     removeOrder,
     markSatuanShipped,
+    saveShipping,
+    sendInvoice,
   } = useStudentOrders(activeSchool?.id ?? null);
 
   const [activePaymentOrder, setActivePaymentOrder] = useState<StudentOrder | null>(null);
+  const [activeShippingOrder, setActiveShippingOrder] = useState<StudentOrder | null>(null);
   const [activeScholarshipOrder, setActiveScholarshipOrder] = useState<StudentOrder | null>(null);
   const [activeHandoverOrder, setActiveHandoverOrder] = useState<StudentOrder | null>(null);
   const [activeDiscretionOrder, setActiveDiscretionOrder] = useState<StudentOrder | null>(null);
@@ -113,6 +117,16 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
           onOpenDiscretion={setActiveDiscretionOrder}
           onDeleteOrder={removeOrder}
           onMarkSatuanShipped={markSatuanShipped}
+          onOpenShipping={setActiveShippingOrder}
+          onSendInvoice={sendInvoice}
+        />
+      )}
+
+      {activeShippingOrder && (
+        <ShippingModal
+          order={activeShippingOrder}
+          onClose={() => setActiveShippingOrder(null)}
+          onSave={saveShipping}
         />
       )}
 

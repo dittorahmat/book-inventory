@@ -5,7 +5,6 @@ import { eq, or, like, and, notInArray, sql, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
-import { reportReturn } from "../services/return";
 import {
   getCurrentSatuanStatus,
   getSatuanCatalogIfOpen,
@@ -14,6 +13,9 @@ import {
   validateStudentForOrder,
 } from "../services/order-intake";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
+import { countPackageOrders } from "../services/wpr";
+import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice";
+import { WPR_PRICE, needsWprCharge } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 
@@ -124,6 +126,17 @@ publicOrdersRouter.get("/schools", async (c) => {
     .from(schools)
     .where(ne(schools.type, "warehouse"));
   return c.json({ success: true, data: rows });
+});
+
+// 0d. Kelayakan WPR satuan: hijau bila murid sudah punya order paket (reguler/beasiswa).
+publicOrdersRouter.get("/wpr-eligibility", async (c) => {
+  const studentId = c.req.query("studentId")?.trim();
+  if (!studentId) return c.json({ success: false, message: "studentId wajib diisi" }, 400);
+  const [student] = await db.select({ id: students.id }).from(students).where(eq(students.id, studentId));
+  if (!student) return c.json({ success: false, message: "Murid tidak ditemukan" }, 404);
+  const packageCount = await countPackageOrders(db, studentId);
+  const needsWpr = needsWprCharge(packageCount);
+  return c.json({ success: true, data: { needsWpr, wprPrice: needsWpr ? WPR_PRICE : 0 } });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
@@ -244,6 +257,39 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   }, 201);
 });
 
+// 6. Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas)
+publicOrdersRouter.get("/confirm/:token", async (c) => {
+  const found = await lookupBookByToken(db, c.req.param("token"));
+  if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
+  return c.json({
+    success: true,
+    data: {
+      studentName: found.student?.name ?? null,
+      orderNumber: found.order.orderNumber,
+      totalAmount: found.order.totalAmount,
+      shippingCost: found.order.shippingCost ?? 0,
+      due: found.due,
+      paidAmount: found.order.paidAmount,
+      paymentStatus: found.order.paymentStatus,
+      invoiceSentAt: found.order.invoiceSentAt,
+    },
+  });
+});
+
+const confirmPaymentSchema = z.object({
+  transferAmount: z.number().int().min(1, "Nominal transfer minimal Rp 1"),
+  allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
+  bankName: z.string().optional(),
+  referenceNumber: z.string().optional(),
+  paymentProofBase64: z.string().optional(),
+});
+
+publicOrdersRouter.post("/confirm/:token", zValidator("json", confirmPaymentSchema), async (c) => {
+  const result = await confirmBookPayment(db, c.req.param("token"), c.req.valid("json"));
+  if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+  return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
+});
+
 // 4. Public Lookup Order for Defect Return (by Order Number or Student NIS)
 // Pencarian partisi (ADR-0002): wajib didahului school_id terindeks + LIMIT,
 // cerminan search-students. Pencarian global tanpa sekolah dilarang (Pindai Penuh).
@@ -294,31 +340,4 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   return c.json({ success: true, data: matchedOrders });
-});
-
-// 5. Public Submit Return (for parents/students reporting defect)
-const publicReturnSchema = z.object({
-  orderId: z.string().min(1, "ID pesanan wajib diisi"),
-  studentId: z.string().min(1, "ID murid wajib diisi"),
-  defectiveBookId: z.string().min(1, "Buku yang rusak wajib dipilih"),
-  reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
-  photoProofBase64: z.string().min(1, "Foto bukti fisik buku rusak wajib dilampirkan"),
-});
-
-publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
-  const body = c.req.valid("json");
-  const result = await reportReturn(db, { ...body, source: "public" });
-  if (!result.ok) {
-    return c.json({ success: false, message: result.message }, result.status);
-  }
-
-  return c.json({
-    success: true,
-    message: "Laporan retur buku rusak berhasil dikirimkan. Tim logistik sekolah akan segera memproses penggantian fisik buku Anda.",
-    data: {
-      returnId: result.created.id,
-      orderNumber: result.orderNumber,
-      status: "reported",
-    },
-  }, 201);
 });

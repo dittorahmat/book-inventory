@@ -45,24 +45,6 @@ export interface BookPackageOption {
   items: BookPackageItem[];
 }
 
-export interface MatchedOrder {
-  id: string;
-  orderNumber: string;
-  studentId: string;
-  studentName: string;
-  nis: string;
-  schoolId: string;
-  schoolName: string;
-  packageId: string;
-  packageName: string;
-  fulfillmentStatus: string;
-  paymentStatus: string;
-  handoverDate?: string;
-  handoverDeliveryNumber?: string;
-  handoverRecipient?: string;
-}
-
-/** Baris retur sisi staf (dibagi view staf + alur portal), bukan MatchedOrder portal. */
 export interface StaffBookReturn {
   id: string;
   orderId: string;
@@ -90,11 +72,6 @@ export interface NewStudentForm {  schoolId: string;
   parentName: string;
   parentEmail: string;
   parentPhone: string;
-}
-
-export interface PackageBookChoice {
-  bookId: string;
-  title: string;
 }
 
 export type FileUploadHandler = (

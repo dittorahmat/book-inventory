@@ -10,6 +10,7 @@ import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
 import { InternalProcurementView } from "./views/InternalProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
+import { PaymentConfirmView } from "./views/PaymentConfirmView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
 import { SalesReportView } from "./views/SalesReportView";
@@ -43,6 +44,7 @@ export function App() {
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
+  const payMatch = typeof window !== "undefined" ? window.location.pathname.match(/^\/bayar\/(buku|seragam)\/([^/]+)$/) : null;
   const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
@@ -90,6 +92,11 @@ export function App() {
         <Loader2 className="w-6 h-6 animate-spin mr-2.5 text-[#1877F2]" /> Loading logistics workspace...
       </div>
     );
+  }
+
+  // 0. Link konfirmasi pembayaran invoice (publik, tanpa login)
+  if (payMatch) {
+    return <PaymentConfirmView kind={payMatch[1] as "buku" | "seragam"} token={payMatch[2]} />;
   }
 
   // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)

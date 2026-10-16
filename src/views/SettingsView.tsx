@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Building2, Users, Mail, CalendarClock, MessageSquare, Shirt } from "lucide-react";
 import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSettings";
+import { UniformSatuanToggle } from "../components/settings/UniformSatuanToggle";
 import { UniformNumberingSettings } from "../components/settings/UniformNumberingSettings";
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { WhatsAppSettingsSection } from "../components/settings/WhatsAppSettingsSection";
+import { MetaWhatsAppSettingsSection } from "../components/settings/MetaWhatsAppSettingsSection";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
 import { UsersSettingsTab } from "../components/settings/UsersSettingsTab";
 import { useSettingsData } from "../components/settings/useSettingsData";
@@ -134,7 +136,10 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
       )}
 
       {activeTab === "whatsapp" && (
-        <WhatsAppSettingsSection />
+        <>
+          <WhatsAppSettingsSection />
+          <MetaWhatsAppSettingsSection />
+        </>
       )}
 
       {activeTab === "uniform" && (
@@ -153,6 +158,7 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
             />
           </div>
           <SatuanCutoffSettings academicYear={cutoffYear} />
+          <UniformSatuanToggle />
         </div>
       )}
     </div>

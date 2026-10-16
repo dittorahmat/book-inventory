@@ -35,7 +35,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
       {order.visiblePackages.length > 0 && (
         <section>
           <h3 className="text-sm font-bold text-[#050505] mb-1">Paket Seragam</h3>
-          <p className="text-xs text-[#65676B] mb-3">Bundel kain harian + olahraga, dirakit gudang pusat.</p>
+          <p className="text-xs text-[#65676B] mb-3">Bundel kain harian + olahraga, dirakit gudang pusat. Murid baru/pindahan wajib membeli paket.</p>
           <div className="space-y-3">
             {order.visiblePackages.map((p) => {
               const needsSize = p.bom.some((b) => {
@@ -79,7 +79,13 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </section>
       )}
 
-      {kain.length > 0 && (
+      {!order.satuanOpen && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800">
+          Pembelian satuan seragam sedang ditutup admin — silakan pilih paket.
+        </div>
+      )}
+
+      {order.satuanOpen && kain.length > 0 && (
         <section>
           <h3 className="text-sm font-bold text-[#050505] mb-1">Kain Harian Satuan</h3>
           <p className="text-xs text-[#65676B] mb-3">Paket kain tanpa ukuran.</p>
@@ -97,7 +103,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </section>
       )}
 
-      {olahraga.length > 0 && (
+      {order.satuanOpen && olahraga.length > 0 && (
         <section>
           <h3 className="text-sm font-bold text-[#050505] mb-1">Olahraga Satuan</h3>
           <p className="text-xs text-[#65676B] mb-3">Pakaian jadi — pilih ukuran sesuai size chart.</p>

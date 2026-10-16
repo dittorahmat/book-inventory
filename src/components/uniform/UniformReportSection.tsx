@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
-  fetchUniformSalesReport, fetchUniformClaims, createUniformClaim, lockUniformClaim,
+  fetchUniformSalesReport, fetchUniformClaims, createUniformClaim, lockUniformClaim, downloadUniformSalesCsv,
   type UniformSalesReport, type UniformClaimRow,
 } from "./uniform-admin-api";
 
@@ -24,6 +24,9 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
   const [to, setTo] = useState(today.toISOString().slice(0, 10));
   const [jenjang, setJenjang] = useState("");
   const [size, setSize] = useState("");
+  const [gender, setGender] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [shipmentStatus, setShipmentStatus] = useState("");
   const [report, setReport] = useState<UniformSalesReport | null>(null);
   const [claims, setClaims] = useState<UniformClaimRow[]>([]);
   const [claimPeriod, setClaimPeriod] = useState(monthOf(today));
@@ -42,6 +45,9 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
           to: to || undefined,
           jenjang: jenjang || undefined,
           size: size.trim() || undefined,
+          gender: gender || undefined,
+          paymentStatus: paymentStatus || undefined,
+          shipmentStatus: shipmentStatus || undefined,
         }),
         fetchUniformClaims(schoolId || undefined),
       ]);
@@ -52,7 +58,7 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
     } finally {
       setLoading(false);
     }
-  }, [schoolId, from, to, jenjang, size]);
+  }, [schoolId, from, to, jenjang, size, gender, paymentStatus, shipmentStatus]);
 
   useEffect(() => {
     load();
@@ -119,6 +125,61 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
         />
         </div>
         <div><label className={labelCls}>Ukuran</label><input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M / —" className={inputCls} /></div>
+        <div><SearchableSingleSelect
+          label="Ikhwan/Akhwat"
+          options={[
+            { value: "", label: "Semua" },
+            { value: "male", label: "Ikhwan" },
+            { value: "female", label: "Akhwat" },
+          ]}
+          value={gender}
+          onChange={setGender}
+          placeholder="Pilih..."
+        />
+        </div>
+        <div><SearchableSingleSelect
+          label="Status bayar"
+          options={[
+            { value: "", label: "Semua" },
+            { value: "unpaid", label: "Belum bayar" },
+            { value: "partial", label: "Cicilan" },
+            { value: "paid", label: "Lunas" },
+            { value: "scholarship_pending", label: "Beasiswa pending" },
+          ]}
+          value={paymentStatus}
+          onChange={setPaymentStatus}
+          placeholder="Pilih..."
+        />
+        </div>
+        <div><SearchableSingleSelect
+          label="Status bagi"
+          options={[
+            { value: "", label: "Semua" },
+            { value: "belum_dikirim", label: "Belum terbagi" },
+            { value: "sudah_dikirim", label: "Sudah terbagi" },
+          ]}
+          value={shipmentStatus}
+          onChange={setShipmentStatus}
+          placeholder="Pilih..."
+        />
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => downloadUniformSalesCsv({ schoolId: schoolId || undefined, from: from || undefined, to: to || undefined, jenjang: jenjang || undefined, size: size.trim() || undefined, gender: gender || undefined, paymentStatus: paymentStatus || undefined, shipmentStatus: shipmentStatus || undefined })}
+          className="px-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
+        >
+          Unduh CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="px-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
+        >
+          Cetak / PDF
+        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

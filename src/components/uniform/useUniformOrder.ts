@@ -5,8 +5,10 @@ import {
   fetchUniformSchools,
   searchUniformStudents,
   fetchUniformCatalog,
+  fetchUniformSatuanStatus,
   submitUniformOrder,
 } from "./uniform-portal-api";
+import { validateHomeAddress } from "../../lib/home-address";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
@@ -25,6 +27,9 @@ export function useUniformOrder() {
   const [sizeFor, setSizeFor] = useState<Record<string, string>>({});
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
+  const [scholarshipProof, setScholarshipProof] = useState("");
+  const [satuanOpen, setSatuanOpen] = useState(true);
   const [step, setStep] = useState<UniformStep>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +107,10 @@ export function useUniformOrder() {
     setLoadingCatalog(true);
     setError(null);
     try {
-      setCatalog(await fetchUniformCatalog(s.academicYear));
+      const [catalogData, satuan] = await Promise.all([fetchUniformCatalog(s.academicYear), fetchUniformSatuanStatus()]);
+      setCatalog(catalogData);
+      setSatuanOpen(satuan.open);
+      if (!satuan.open) setSatuanQty({});
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat katalog seragam.");
@@ -119,13 +127,16 @@ export function useUniformOrder() {
     setSizeFor({});
     setAddress("");
     setNotes("");
+    setOrderType("regular");
+    setScholarshipProof("");
     setSuccess(null);
     setStep(1);
   };
 
   const canSubmit =
     itemCount > 0 &&
-    address.trim().length >= 10 &&
+    validateHomeAddress(address).ok &&
+    (orderType === "regular" || scholarshipProof !== "") &&
     Object.entries(satuanQty).every(([key]) => {
       const variantId = key.split("::")[0];
       const variant = catalog?.variants.find((v) => v.id === variantId);
@@ -171,6 +182,7 @@ export function useUniformOrder() {
         items,
         sizeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
         notes: notes.trim() || undefined,
+        ...(orderType === "scholarship" ? { orderType, scholarshipProofBase64: scholarshipProof } : {}),
       });
       setSuccess({ orderNumber: res.order.orderNumber, total: res.totalAmount });
       setStep(4);
@@ -186,6 +198,7 @@ export function useUniformOrder() {
     student, catalog, loadingCatalog, visibleVariants, visiblePackages,
     packageQty, satuanQty, sizeFor, setSizeFor, bumpPackage, bumpSatuan,
     address, setAddress, notes, setNotes, step, setStep,
+    orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
   };

@@ -16,6 +16,13 @@ export interface UniformOrderRow {
   shipmentStatus: "belum_dikirim" | "sudah_dikirim";
   shippedAt: string | null;
   totalAmount: number;
+  paidAmount?: number;
+  paymentStatus?: string;
+  orderType?: string;
+  stage?: string;
+  shippingCost?: number;
+  shippingResi?: string | null;
+  invoiceSentAt?: string | null;
   homeAddressSnapshot: string;
   createdAt: string;
 }
@@ -25,6 +32,12 @@ export const fetchUniformOrders = (params: { schoolId?: string; shipmentStatus?:
 
 export const markUniformShipped = (id: string): Promise<UniformOrderRow> =>
   postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/ship`, {}, "Gagal menandai kiriman.");
+
+export const saveUniformShipping = (id: string, shippingCost: number, shippingResi?: string): Promise<UniformOrderRow> =>
+  postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/shipping`, { shippingCost, shippingResi }, "Gagal menyimpan ongkir.");
+
+export const sendUniformInvoice = (id: string): Promise<{ order: UniformOrderRow; confirmUrl: string }> =>
+  postJson<{ order: UniformOrderRow; confirmUrl: string }>(`/api/uniforms/orders/${id}/send-invoice`, {}, "Gagal mengirim invoice.");
 
 export interface UniformVariantRow {
   variant: {
@@ -109,8 +122,12 @@ export interface UniformSalesReport {
   }>;
 }
 
-export const fetchUniformSalesReport = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string }): Promise<UniformSalesReport> =>
+export const fetchUniformSalesReport = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string; gender?: string; paymentStatus?: string; shipmentStatus?: string }): Promise<UniformSalesReport> =>
   getJson<UniformSalesReport>(buildQuery("/api/uniforms/reports/sales", params), "Gagal memuat laporan seragam.");
+
+export const downloadUniformSalesCsv = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string; gender?: string; paymentStatus?: string; shipmentStatus?: string }): void => {
+  window.location.href = `/api/uniforms/reports/sales-csv${buildQuery("", params)}`;
+};
 
 export interface UniformClaimRow {
   id: string; claimNumber: string; schoolId: string; period: string;
@@ -125,3 +142,34 @@ export const createUniformClaim = (schoolId: string, period: string): Promise<Un
 
 export const lockUniformClaim = (id: string): Promise<UniformClaimRow> =>
   postJson<UniformClaimRow>(`/api/uniforms/claims/${id}/lock`, {}, "Gagal mengunci klaim.");
+
+export const adjustUniformStock = (payload: { variantId: string; size?: string; quantity: number; mode: "add" | "set"; reason: string }): Promise<unknown> =>
+  postJson("/api/uniforms/stock/adjust", payload, "Gagal menyesuaikan stok.");
+
+export interface UniformRejectRow {
+  id: string; variantId: string; size: string; quantity: number; reason: string; createdAt: string;
+}
+
+export const fetchUniformRejects = (): Promise<UniformRejectRow[]> =>
+  getJson<UniformRejectRow[]>("/api/uniforms/rejects", "Gagal memuat catatan reject.");
+
+export const createUniformReject = (payload: { variantId: string; size?: string; quantity: number; reason: string }): Promise<unknown> =>
+  postJson("/api/uniforms/rejects", payload, "Gagal menyimpan reject.");
+
+export const resolveUniformScholarship = (id: string, action: "approve" | "reject"): Promise<unknown> =>
+  postJson(`/api/uniforms/orders/${id}/scholarship`, { action }, "Gagal memproses beasiswa.");
+
+export const downloadUniformCsv = async (params: { schoolId: string; format: "packing" | "ekspedisi"; paidOnly?: boolean }): Promise<void> => {
+  const res = await fetch(buildQuery("/api/uniforms/orders/export", { ...params, paidOnly: String(params.paidOnly ?? true) }));
+  if (!res.ok) throw new Error("Gagal mengunduh data.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `seragam-${params.format}-${params.schoolId}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const importUniformShipping = (payload: { schoolId: string; markShipped?: boolean; rows: Array<{ nis: string; resi?: string; ongkir?: number }> }): Promise<{ updated: string[]; rejected: Array<{ nis: string; reason: string }> }> =>
+  postJson("/api/uniforms/orders/import-shipping", payload, "Gagal mengimpor data ekspedisi.");

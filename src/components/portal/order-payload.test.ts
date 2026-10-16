@@ -60,15 +60,29 @@ describe("buildFinalOrderPayload", () => {
       looseTotal: 100000,
       transferAmount: 100000,
       bookAllocationAmount: 100000,
-      homeAddress: "Jl. Mawar No. 10",
+      homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
     });
     expect(payload.packageId).toBeUndefined();
     expect(payload.looseItems).toEqual([{ bookId: "b-1", quantity: 2 }]);
-    expect(payload.homeAddress).toBe("Jl. Mawar No. 10");
+    expect(payload.homeAddress).toBe("Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111");
   });
 
   test("paket belum terkunci ditolak", () => {
     expect(() => buildFinalOrderPayload({ ...base, packageId: undefined })).toThrow(/terkunci/);
+  });
+
+  test("paket kirim-rumah wajib alamat; ambil boleh kosong", () => {
+    expect(() =>
+      buildFinalOrderPayload({ ...base, paketKirim: true })
+    ).toThrow(/kirim-rumah/);
+    const payload = buildFinalOrderPayload({
+      ...base,
+      paketKirim: true,
+      homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
+    });
+    expect(payload.homeAddress).toBe("Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111");
+    const ambil = buildFinalOrderPayload(base);
+    expect(ambil.homeAddress).toBeUndefined();
   });
 
   test("looseTotal paritas effectiveSellPrice (fallback harga lama) — T1", () => {
@@ -92,7 +106,7 @@ describe("buildFinalOrderPayload", () => {
       looseTotal,
       transferAmount: looseTotal,
       bookAllocationAmount: looseTotal,
-      homeAddress: "Jl. Melati No. 1",
+      homeAddress: "Jl. Melati No. 1, RT 01 RW 02, Depok 16411",
     });
     expect(payload.looseItems).toEqual(selections);
   });

@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { packageItems, studentBookOrders } from "../../db/schema";
+import { packageItems, studentBookOrders, students } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -75,6 +75,14 @@ export async function handoverPackage(
   const deliveryNumber = `SJ-SERAH-${now.replace(/\D/g, "").slice(-8)}`;
   const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
 
+  // Paket kirim-rumah wajib ongkir (nominal atau resi) sebelum serah-terima.
+  if (order.packageId && order.homeAddressSnapshot?.trim()) {
+    const hasShipping = (order.shippingCost ?? 0) > 0 || !!order.shippingResi?.trim();
+    if (!hasShipping) {
+      return { ok: false, status: 400, message: "Input ongkir terlebih dahulu untuk paket kirim-rumah." };
+    }
+  }
+
   if (input.packageItemId) {
     const [bundle] = await database
       .select()
@@ -106,6 +114,9 @@ export async function handoverPackage(
           .update(studentBookOrders)
           .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, bundle.id))
           .where(eq(studentBookOrders.id, orderId)),
+        ...(order.packageId
+          ? [database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId))]
+          : []),
       ]);
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "serah terima paket");
@@ -183,6 +194,7 @@ export async function handoverPackage(
         .update(studentBookOrders)
         .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, availableBundle.id))
         .where(eq(studentBookOrders.id, orderId)),
+      database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId)),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "serah terima paket");

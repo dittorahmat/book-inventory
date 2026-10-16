@@ -19,10 +19,14 @@ import {
   setSatuanOverride,
   type SatuanOverride,
 } from "../services/order-intake";
+import { UNIFORM_SATUAN_KEY, isUniformSatuanEnabled } from "../services/uniform";
 import {
   RealWhatsAppSender,
+  MetaWhatsAppSender,
   getWhatsAppConfig,
   saveWhatsAppConfig,
+  getMetaWhatsAppConfig,
+  saveMetaWhatsAppConfig,
 } from "../services/whatsapp";
 import { accessErrorResponse, requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from "../services/access-scope";
 
@@ -110,6 +114,32 @@ settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema
           : `Order satuan tahun ajaran ${academicYear} dipaksa ${override === "open" ? "buka" : "tutup"}.`,
       data,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET status on/off satuan seragam (peran logistik)
+settingsRouter.get("/uniform-satuan", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    return c.json({ success: true, data: { open: await isUniformSatuanEnabled(db) } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST on/off satuan seragam (peran logistik)
+settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.boolean() })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const now = new Date().toISOString();
+    const value = c.req.valid("json").enabled ? "true" : "false";
+    await db
+      .insert(systemSettings)
+      .values({ key: UNIFORM_SATUAN_KEY, value, updatedAt: now })
+      .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
+    return c.json({ success: true, message: `Pembelian satuan seragam ${value === "true" ? "dibuka" : "ditutup"}.`, data: { open: value === "true" } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -255,6 +285,63 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
       success: true,
       message: result.simulated
         ? "Pesan uji coba disimulasikan (gateway belum diisi atau dinonaktifkan)."
+        : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
+      data: result,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET konfigurasi WA Meta Official (token disamarkan; hanya central admin)
+settingsRouter.get("/whatsapp-meta", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const config = await getMetaWhatsAppConfig(db);
+    return c.json({
+      success: true,
+      data: { ...config, accessToken: config.accessToken ? "********" : "", isConfigured: Boolean(config.phoneNumberId) },
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const updateMetaWhatsAppSchema = z.object({
+  phoneNumberId: z.string().min(1, "Phone Number ID wajib diisi"),
+  accessToken: z.string().optional().default(""),
+  isEnabled: z.boolean().default(true),
+});
+
+// POST simpan konfigurasi WA Meta Official (hanya central admin)
+settingsRouter.post("/whatsapp-meta", zValidator("json", updateMetaWhatsAppSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const body = c.req.valid("json");
+    const existing = await getMetaWhatsAppConfig(db);
+    await saveMetaWhatsAppConfig(db, {
+      ...body,
+      accessToken: body.accessToken === "********" ? existing.accessToken : body.accessToken,
+    });
+    return c.json({ success: true, message: "Pengaturan WhatsApp Meta berhasil disimpan" });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST uji kirim via Meta Official
+settingsRouter.post("/whatsapp-meta/test", zValidator("json", testWhatsAppSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const { phone, message } = c.req.valid("json");
+    const result = await new MetaWhatsAppSender(db).send({ to: phone, text: message });
+    if (!result.success) {
+      return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
+    }
+    return c.json({
+      success: true,
+      message: result.simulated
+        ? "Pesan uji coba disimulasikan (Meta belum diisi atau dinonaktifkan)."
         : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
       data: result,
     });

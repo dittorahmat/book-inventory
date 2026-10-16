@@ -222,7 +222,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
             { bookId: bookA, quantity: 1 },
             { bookId: bookB, quantity: 1 },
           ],
-          homeAddress: "Jl. Mawar No. 10",
+          homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
         }),
       });
       expect(res.status).toBe(201);
@@ -230,23 +230,24 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
       const orderId: string = json.data.order.id;
       createdOrderIds.push(orderId);
 
-      expect(json.data.totalAmount).toBe(75000);
+      expect(json.data.totalAmount).toBe(75000 + 750000);
       expect(json.data.packageName).toBeNull();
-      expect(json.data.looseItems).toHaveLength(2);
+      expect(json.data.wprCharged).toBe(true);
+      expect(json.data.looseItems).toHaveLength(3);
 
       const [order] = await db
         .select()
         .from(studentBookOrders)
         .where(eq(studentBookOrders.id, orderId));
       expect(order.packageId).toBeNull();
-      expect(order.totalAmount).toBe(75000);
+      expect(order.totalAmount).toBe(75000 + 750000);
 
       const lines: Array<{ quantity: number; unitPriceSnapshot: number }> = await db
         .select()
         .from(studentOrderItems)
         .where(eq(studentOrderItems.orderId, orderId));
-      expect(lines).toHaveLength(2);
-      expect(lines.reduce((s, l) => s + l.quantity * l.unitPriceSnapshot, 0)).toBe(75000);
+      expect(lines).toHaveLength(3);
+      expect(lines.reduce((s, l) => s + l.quantity * l.unitPriceSnapshot, 0)).toBe(75000 + 750000);
     } finally {
       for (const id of createdOrderIds) {
         await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, id));

@@ -1,4 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { validateHomeAddress } from "../../lib/home-address";
 import type { FinalOrderPayload } from "./portal-api";
 
 export interface OrderTotalsInput {
@@ -17,6 +18,8 @@ export interface OrderTotalsInput {
   paymentProofBase64: string;
   notes: string;
   homeAddress?: string;
+  paketKirim?: boolean;
+  wprFee?: number;
 }
 
 /**
@@ -33,14 +36,18 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   if (!input.packageMode && looseItems.length === 0) {
     throw new Error("Pilih minimal 1 buku satuan sebelum melanjutkan pembayaran.");
   }
-  if (!input.packageMode && !input.homeAddress?.trim()) {
-    throw new Error("Alamat rumah wajib diisi untuk buku satuan (dikirim ke rumah).");
+  if (input.packageMode && input.paketKirim && !input.homeAddress?.trim()) {
+    throw new Error("Alamat rumah wajib diisi untuk paket kirim-rumah.");
+  }
+  if (!input.packageMode || input.homeAddress?.trim()) {
+    const addressCheck = validateHomeAddress(input.homeAddress);
+    if (!addressCheck.ok) throw new Error(addressCheck.message);
   }
   if (input.orderType === "scholarship" && !input.scholarshipProofBase64) {
     throw new Error("Dokumen bukti surat tanda beasiswa wajib dilampirkan.");
   }
 
-  const bookTotal = input.packageMode ? input.packagePrice : input.looseTotal;
+  const bookTotal = input.packageMode ? input.packagePrice : input.looseTotal + (input.wprFee ?? 0);
   if (input.orderType === "regular" && input.bookAllocationAmount > bookTotal) {
     throw new Error(
       `Alokasi buku ${formatRupiah(input.bookAllocationAmount)} melebihi total tagihan ${formatRupiah(bookTotal)}. Sesuaikan nominal lalu kirim ulang.`
@@ -50,7 +57,7 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   return {
     studentId: input.studentId,
     ...(input.packageMode ? { packageId: input.packageId } : { looseItems }),
-    ...(input.packageMode ? {} : { homeAddress: input.homeAddress!.trim() }),
+    ...(input.homeAddress?.trim() ? { homeAddress: input.homeAddress.trim() } : {}),
     orderType: input.orderType,
     notes: input.notes.trim() || undefined,
     ...(input.orderType === "scholarship" ? { scholarshipProofBase64: input.scholarshipProofBase64 } : {}),

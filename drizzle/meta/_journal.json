@@ -155,6 +155,41 @@
       "when": 1792115270767,
       "tag": "0021_late_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792139599643,
+      "tag": "0022_sparkling_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1792140362902,
+      "tag": "0023_blue_zarek",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792141585829,
+      "tag": "0024_crazy_gunslinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792142677590,
+      "tag": "0025_brave_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1792144317519,
+      "tag": "0026_confused_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

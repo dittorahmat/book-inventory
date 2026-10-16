@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { WPR_BOOK_ID } from "../../lib/wpr";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
@@ -63,9 +64,12 @@ export async function assemblePackageBundles(
     return { ok: false, status: 400, message: "Package has no BOM components" };
   }
 
+  // WPR bukan fisik rakitan: dikecualikan dari konsumsi stok (tetap di BOM untuk harga).
+  const kitBom = bom.filter((b: { bookId: string; quantity: number; title: string }) => b.bookId !== WPR_BOOK_ID);
+
   // Verifikasi kecukupan stok semua komponen dalam SATU query batch.
   const neededByBook = new Map<string, number>();
-  for (const item of bom) {
+  for (const item of kitBom) {
     neededByBook.set(item.bookId, (neededByBook.get(item.bookId) ?? 0) + item.quantity * quantity);
   }
   const candidates = await database
@@ -85,7 +89,7 @@ export async function assemblePackageBundles(
     list.push({ id: c.id });
     availableByBook.set(c.bookId, list);
   }
-  for (const item of bom) {
+  for (const item of kitBom) {
     const requiredTotal = neededByBook.get(item.bookId) ?? 0;
     const availableCount = availableByBook.get(item.bookId)?.length ?? 0;
     if (availableCount < requiredTotal) {
@@ -100,7 +104,7 @@ export async function assemblePackageBundles(
   // Potong stok satuan batch: satu UPDATE per komponen per chunk id (bukan per
   // eksemplar, bukan satu IN raksasa) + insert bundel di-chunk — §10 D1.
   const consumeWrites = [];
-  for (const item of bom) {
+  for (const item of kitBom) {
     const requiredTotal = neededByBook.get(item.bookId) ?? 0;
     const idsToConsume = (availableByBook.get(item.bookId) ?? []).slice(0, requiredTotal).map((c) => c.id);
     for (const ids of chunkRows(idsToConsume, D1_INLIST_CHUNK_SIZE)) {
@@ -212,12 +216,12 @@ export async function disassemblePackageBundles(
     D1_INLIST_CHUNK_SIZE
   ).map((ids) => database.delete(packageItems).where(inArray(packageItems.id, ids)));
 
-  // Pulihkan eksemplar satuan komponen BOM
+  // Pulihkan eksemplar satuan komponen BOM (WPR non-fisik dikecualikan).
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
   let totalRestoredLoose = 0;
   const timeFrag = now.replace(/\D/g, "").slice(-6);
 
-  for (const item of bom) {
+  for (const item of bom.filter((b: { bookId: string; quantity: number }) => b.bookId !== WPR_BOOK_ID)) {
     const returnCount = item.quantity * quantity;
     for (let j = 0; j < returnCount; j++) {
       const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;

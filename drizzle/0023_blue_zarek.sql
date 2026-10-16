@@ -1,0 +1,4 @@
+ALTER TABLE `students` ADD `has_taken_package` integer DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `students` ADD `has_taken_uniform` integer DEFAULT false NOT NULL;--> statement-breakpoint
+INSERT OR IGNORE INTO `books` (`id`, `isbn`, `title`, `author`, `publisher`, `price`, `buy_price`, `sell_price`, `created_at`, `updated_at`) VALUES ('book-wpr-weekly-report', 'WPR-750K', 'Weekly Progress Report', 'Al Wildan', 'Al Wildan', 750000, 0, 750000, '2026-10-16T00:00:00.000Z', '2026-10-16T00:00:00.000Z');--> statement-breakpoint
+INSERT INTO `book_package_items` (`id`, `package_id`, `book_id`, `quantity`, `created_at`) SELECT 'wpr-bom-' || `bp`.`id`, `bp`.`id`, 'book-wpr-weekly-report', 1, '2026-10-16T00:00:00.000Z' FROM `book_packages` `bp` WHERE NOT EXISTS (SELECT 1 FROM `book_package_items` `bpi` WHERE `bpi`.`package_id` = `bp`.`id` AND `bpi`.`book_id` = 'book-wpr-weekly-report');

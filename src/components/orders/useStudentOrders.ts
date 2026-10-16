@@ -64,6 +64,28 @@ export function useStudentOrders(schoolId: string | null) {
     }
   };
 
+  const saveShipping = async (order: StudentOrder, shippingCost: number, shippingResi?: string) => {
+    try {
+      await postJson(`/api/student-orders/${order.id}/shipping`, { shippingCost, shippingResi }, "Gagal menyimpan ongkir.");
+      alert(`Ongkir ${order.orderNumber} tersimpan. Tombol kirim invoice kini aktif.`);
+      loadOrders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal menyimpan ongkir.");
+      throw err;
+    }
+  };
+
+  const sendInvoice = async (order: StudentOrder) => {
+    if (!window.confirm(`Kirim invoice + link pembayaran ke ortu ${order.studentName} via WhatsApp?`)) return;
+    try {
+      await postJson(`/api/student-orders/${order.id}/send-invoice`, {}, "Gagal mengirim invoice.");
+      alert(`Invoice ${order.orderNumber} terkirim via WhatsApp.`);
+      loadOrders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal mengirim invoice.");
+    }
+  };
+
   const filteredOrders = orders.filter((o) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
@@ -91,5 +113,7 @@ export function useStudentOrders(schoolId: string | null) {
     loadOrders,
     removeOrder,
     markSatuanShipped,
+    saveShipping,
+    sendInvoice,
   };
 }

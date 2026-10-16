@@ -5,7 +5,9 @@ import {
   searchStudents,
   registerStudent,
   submitFinalOrder,
+  fetchWprEligibility,
 } from "./portal-api";
+import { WPR_PRICE } from "../../lib/wpr";
 import { buildFinalOrderPayload } from "./order-payload";
 import { usePortalCatalog } from "./usePortalCatalog";
 import type { LooseSelection } from "./OrderItemStep";
@@ -16,7 +18,7 @@ import type {
 } from "../../lib/portal-types";
 
 export type OrderStep = 1 | 2 | 3 | 4;
-export type PortalTab = "order" | "return" | "uniform" | "uniform_return";
+export type PortalTab = "order" | "uniform" | "uniform_return";
 
 export const PORTAL_STUDENT_SEARCH_INPUT_ID = "portal-student-search-input";
 
@@ -91,6 +93,13 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const [paymentProofBase64, setPaymentProofBase64] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
+  const [paketKirim, setPaketKirim] = useState(false);
+
+  // WPR satuan buku: jawaban paket (default dari server) + biaya estimasi.
+  const [hasTakenPackage, setHasTakenPackage] = useState<boolean | null>(null);
+  const [wprPrice, setWprPrice] = useState(WPR_PRICE);
+  const [wprLoading, setWprLoading] = useState(false);
+  const wprFee = !packageMode && hasTakenPackage === false ? wprPrice : 0;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -147,6 +156,19 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
       setLooseSelections([]);
     }
   }, [satuanOpen]);
+
+  // Default jawaban paket dari status server saat murid dipilih.
+  useEffect(() => {
+    if (!selectedStudent || !satuanOpen) return;
+    setWprLoading(true);
+    fetchWprEligibility(selectedStudent.id)
+      .then((elig) => {
+        setHasTakenPackage(!elig.needsWpr);
+        if (elig.wprPrice > 0) setWprPrice(elig.wprPrice);
+      })
+      .catch(() => setHasTakenPackage(false))
+      .finally(() => setWprLoading(false));
+  }, [selectedStudent, satuanOpen]);
 
   useEffect(() => {
     if (catalog.loadError) setErrorMessage(catalog.loadError);
@@ -264,6 +286,8 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         packagePrice: selectedPackage?.price ?? 0,
         looseItems: looseSelections,
         looseTotal,
+        paketKirim,
+        wprFee,
         orderType,
         scholarshipProofBase64,
         transferAmount,
@@ -296,6 +320,8 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     setSearchResults([]);
     setPackageMode(true);
     resetLooseSelection();
+    setHasTakenPackage(null);
+    setPaketKirim(false);
   };
 
   return {
@@ -316,6 +342,8 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     referenceNumber, setReferenceNumber, paymentProofBase64, setPaymentProofBase64,
     notes, setNotes,
     homeAddress, setHomeAddress,
+    paketKirim, setPaketKirim,
+    hasTakenPackage, setHasTakenPackage, wprFee, wprPrice, wprLoading,
     isSubmitting, errorMessage, setErrorMessage, submittedOrder,
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,

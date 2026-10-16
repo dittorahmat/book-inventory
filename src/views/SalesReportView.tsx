@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Download, RefreshCw, Loader2, AlertCircle } from "lucide-react";
-import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { BarChart3, Download, Printer, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { School } from "../types";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
+import { SalesReportFilters } from "../components/reports/SalesReportFilters";
+import { SalesHandoverSection, type HandoverData } from "../components/reports/SalesHandoverSection";
 
 interface ChannelBreakdown {
   orderCount: number;
@@ -32,11 +33,15 @@ interface SalesReportPayload {
     looseOrderCount: number;
     scholarshipOrderCount: number;
     scholarshipRevenue: number;
+    shippingTotal: number;
+    invoicedCount: number;
+    rejectedItems: number;
   };
   byChannel: { package: ChannelBreakdown; loose: ChannelBreakdown };
   bySchool: SchoolRow[];
   byCategory: Array<{ category: string; orderCount: number; quantity: number; revenue: number; collected: number; outstanding: number }>;
   byProgram: Array<{ program: string; orderCount: number; revenue: number; collected: number; outstanding: number }>;
+  handover: HandoverData;
 }
 
 interface SalesReportViewProps {
@@ -53,9 +58,6 @@ function firstDayOfMonth(): string {
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
-
-const inputClass =
-  "px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]";
 
 function MetricTile({ label, value, tone }: { label: string; value: string; tone?: "accent" | "positive" | "warning" }) {
   const toneClass =
@@ -79,11 +81,13 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   const [from, setFrom] = useState(firstDayOfMonth);
   const [to, setTo] = useState(today);
   const [schoolId, setSchoolId] = useState("");
+  const [gradeLevel, setGradeLevel] = useState("");
+  const [gender, setGender] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [fulfillmentStatus, setFulfillmentStatus] = useState("");
   const [report, setReport] = useState<SalesReportPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const isLocked = !!lockedSchoolId;
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -91,7 +95,15 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
     try {
       setReport(
         await getJson<SalesReportPayload>(
-          buildQuery("/api/sales-report", { from, to, schoolId: schoolId || undefined }),
+          buildQuery("/api/sales-report", {
+            from,
+            to,
+            schoolId: schoolId || undefined,
+            gradeLevel: gradeLevel.trim() || undefined,
+            gender: gender || undefined,
+            paymentStatus: paymentStatus || undefined,
+            fulfillmentStatus: fulfillmentStatus || undefined,
+          }),
           "Gagal memuat laporan penjualan."
         )
       );
@@ -100,7 +112,7 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
     } finally {
       setIsLoading(false);
     }
-  }, [from, to, schoolId]);
+  }, [from, to, schoolId, gradeLevel, gender, paymentStatus, fulfillmentStatus]);
 
   useEffect(() => {
     load();
@@ -109,6 +121,10 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   const downloadCsv = () => {
     const params = new URLSearchParams({ from, to });
     if (schoolId) params.set("schoolId", schoolId);
+    if (gradeLevel.trim()) params.set("gradeLevel", gradeLevel.trim());
+    if (gender) params.set("gender", gender);
+    if (paymentStatus) params.set("paymentStatus", paymentStatus);
+    if (fulfillmentStatus) params.set("fulfillmentStatus", fulfillmentStatus);
     window.location.href = `/api/sales-report/csv?${params.toString()}`;
   };
 
@@ -143,34 +159,27 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
               <Download className="w-3.5 h-3.5 text-[#65676B]" />
               <span>Unduh CSV</span>
             </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+            >
+              <Printer className="w-3.5 h-3.5 text-[#65676B]" />
+              <span>Cetak / PDF</span>
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4 pt-4 border-t border-[#E4E6EB]">
-          <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Dari Tanggal</label>
-            <input type="date" className={`${inputClass} w-full`} value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Sampai Tanggal</label>
-            <input type="date" className={`${inputClass} w-full`} value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Sekolah</label>
-            {isLocked ? (
-              <div className={`${inputClass} bg-[#F0F2F5] text-[#65676B]`}>
-                {schools.find((s) => s.id === lockedSchoolId)?.name ?? "Sekolah Anda"}
-              </div>
-            ) : (
-              <SearchableSingleSelect
-                options={schools.map((s) => ({ value: s.id, label: s.name }))}
-                value={schoolId}
-                onChange={setSchoolId}
-                placeholder="Semua Sekolah"
-              />
-            )}
-          </div>
-        </div>
+        <SalesReportFilters
+          from={from} setFrom={setFrom}
+          to={to} setTo={setTo}
+          schoolId={schoolId} setSchoolId={setSchoolId}
+          schools={schools} lockedSchoolId={lockedSchoolId}
+          gradeLevel={gradeLevel} setGradeLevel={setGradeLevel}
+          gender={gender} setGender={setGender}
+          paymentStatus={paymentStatus} setPaymentStatus={setPaymentStatus}
+          fulfillmentStatus={fulfillmentStatus} setFulfillmentStatus={setFulfillmentStatus}
+        />
       </div>
 
       {error && (
@@ -194,6 +203,14 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
             <MetricTile label="Total Order" value={String(report.totals.orderCount)} />
             <MetricTile label="Penerima Beasiswa" value={String(report.totals.scholarshipOrderCount)} />
           </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetricTile label="Ongkir Terkumpul" value={formatRupiah(report.totals.shippingTotal)} />
+            <MetricTile label="Invoice Terkirim" value={String(report.totals.invoicedCount)} />
+            <MetricTile label="Diserahkan (Finance)" value={String(report.handover.orderCount)} tone="positive" />
+            <MetricTile label="Eksemplar Reject" value={String(report.totals.rejectedItems)} tone="warning" />
+          </div>
+
+          <SalesHandoverSection handover={report.handover} />
 
           <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
             <header className="px-5 py-3 border-b border-[#E4E6EB]">

@@ -21,6 +21,9 @@ export const fetchUniformCatalog = (academicYear: string): Promise<UniformCatalo
     "Gagal memuat katalog seragam."
   );
 
+export const fetchUniformSatuanStatus = (): Promise<{ open: boolean }> =>
+  getJson<{ open: boolean }>("/api/public/uniform-orders/satuan-status", "Gagal memuat status satuan.");
+
 export interface SubmittedUniformOrder {
   order: { id: string; orderNumber: string; shipmentStatus: string };
   totalAmount: number;

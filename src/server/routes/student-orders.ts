@@ -12,6 +12,8 @@ import {
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
 import { markSatuanShipped } from "../services/order-intake";
+import { assertPaketActor, assertSatuanActor, assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
+import { sendBookInvoice } from "../services/order-invoice";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -98,6 +100,9 @@ studentOrdersRouter.get("/", async (c) => {
       homeAddressSnapshot: studentBookOrders.homeAddressSnapshot,
       satuanShipmentStatus: studentBookOrders.satuanShipmentStatus,
       satuanShippedAt: studentBookOrders.satuanShippedAt,
+      shippingCost: studentBookOrders.shippingCost,
+      shippingResi: studentBookOrders.shippingResi,
+      invoiceSentAt: studentBookOrders.invoiceSentAt,
       scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
       notes: studentBookOrders.notes,
       createdAt: studentBookOrders.createdAt,
@@ -125,6 +130,11 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
     const scoped = await loadScopedOrder(db, actor, locations, orderId);
     if (!scoped.ok) {
       return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    try {
+      assertPaketActor(actor);
+    } catch (err) {
+      return accessErrorResponse(c, err);
     }
 
     const result = await handoverPackage(db, orderId, body);
@@ -225,6 +235,11 @@ studentOrdersRouter.post("/:id/mark-satuan-shipped", async (c) => {
     if (!scoped.ok) {
       return c.json({ success: false, message: scoped.message }, scoped.status);
     }
+    try {
+      assertSatuanActor(actor);
+    } catch (err) {
+      return accessErrorResponse(c, err);
+    }
     const result = await markSatuanShipped(db, id);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
@@ -234,6 +249,58 @@ studentOrdersRouter.post("/:id/mark-satuan-shipped", async (c) => {
       message: `Satuan order ${result.data.orderNumber} ditandai sudah dikirim ke rumah.`,
       data: result.data,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5c. POST Input ongkir manual gudang (syarat tombol kirim invoice, spec satuan-invoice-wa)
+const shippingSchema = z.object({
+  shippingCost: z.number().int().min(0, "Ongkir wajib angka bulat >= 0"),
+  shippingResi: z.string().optional(),
+});
+
+studentOrdersRouter.post("/:id/shipping", zValidator("json", shippingSchema), async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const id = c.req.param("id");
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    try {
+      assertSatuanActor(actor);
+    } catch (err) {
+      return accessErrorResponse(c, err);
+    }
+    const result = await setBookShipping(db, id, c.req.valid("json"));
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5d. POST Kirim invoice WA (gudang input ongkir dulu; tombol aktif setelah ongkir terisi)
+studentOrdersRouter.post("/:id/send-invoice", async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const id = c.req.param("id");
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    const gate = await assertSendInvoiceAllowed(db, actor, id);
+    if (gate) {
+      return c.json({ success: false, message: gate.message }, gate.status);
+    }
+    const result = await sendBookInvoice(db, id, { baseUrl: new URL(c.req.url).origin });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

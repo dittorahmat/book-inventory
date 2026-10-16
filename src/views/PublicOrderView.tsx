@@ -1,14 +1,12 @@
-import { BookOpen, RotateCcw, AlertCircle, Clock, Shirt, ArrowLeftRight } from "lucide-react";
+import { BookOpen, AlertCircle, Clock, Shirt, ArrowLeftRight } from "lucide-react";
 import { usePublicOrder, type PortalTab } from "../components/portal/usePublicOrder";
 import { PublicUniformOrderView } from "./PublicUniformOrderView";
 import { PublicUniformReturnView } from "./PublicUniformReturnView";
-import { useReturnFlow } from "../components/portal/useReturnFlow";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
 import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal";
 import { OrderItemStep } from "../components/portal/OrderItemStep";
 import { PaymentStep } from "../components/portal/PaymentStep";
 import { OrderSuccessStep } from "../components/portal/OrderSuccessStep";
-import { ReturnReportTab } from "../components/portal/ReturnReportTab";
 
 interface PublicOrderViewProps {
   onNavigateToStaffLogin?: () => void;
@@ -17,7 +15,6 @@ interface PublicOrderViewProps {
 
 export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOrderViewProps) {
   const order = usePublicOrder(initialTab);
-  const returns = useReturnFlow(order.packages);
   const { activePortalTab, setActivePortalTab, step, errorMessage, setErrorMessage } = order;
 
   return (
@@ -73,22 +70,6 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
             >
               <BookOpen className="w-4 h-4" />
               <span>Formulir Pesan Buku</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActivePortalTab("return");
-                setErrorMessage(null);
-                order.cancelNoResult();
-              }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                activePortalTab === "return"
-                  ? "bg-white text-[#1877F2] shadow-xs"
-                  : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Lapor Retur Buku Rusak</span>
             </button>
             <button
               type="button"
@@ -259,7 +240,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                           | "international"
                           | "national",
                         academicYear: order.selectedStudent.academicYear,
-                        price: order.looseTotal,
+                        price: order.looseTotal + order.wprFee,
                         totalItemsCount: order.looseSelections.length,
                         items: [],
                       }
@@ -284,6 +265,12 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 isSatuan={!order.packageMode}
                 homeAddress={order.homeAddress}
                 setHomeAddress={order.setHomeAddress}
+                paketKirim={order.paketKirim}
+                setPaketKirim={order.setPaketKirim}
+                hasTakenPackage={order.hasTakenPackage}
+                setHasTakenPackage={order.setHasTakenPackage}
+                wprFee={order.wprFee}
+                wprLoading={order.wprLoading}
                 isSubmitting={order.isSubmitting}
                 onFileUpload={order.handleFileUpload}
                 onBack={() => order.goToStep(2)}
@@ -305,38 +292,8 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
         {/* ===================== TAB 3: PESAN SERAGAM (link terpisah /seragam) ===================== */}
         {activePortalTab === "uniform" && <PublicUniformOrderView />}
 
-        {/* ===================== TAB 4: RETUR SERAGAM MANDIRI ===================== */}
+        {/* ===================== TAB 3: RETUR SERAGAM MANDIRI ===================== */}
         {activePortalTab === "uniform_return" && <PublicUniformReturnView />}
-
-        {/* ===================== TAB 2: LAPOR RETUR BUKU RUSAK ===================== */}
-        {activePortalTab === "return" && (
-          <ReturnReportTab
-            errorMessage={returns.returnErrorMessage}
-            schools={order.schools}
-            returnLookupQuery={returns.returnLookupQuery}
-            setReturnLookupQuery={returns.setReturnLookupQuery}
-            returnLookupSchoolId={returns.returnLookupSchoolId}
-            setReturnLookupSchoolId={returns.setReturnLookupSchoolId}
-            isLookingUpReturn={returns.isLookingUpReturn}
-            matchedOrders={returns.matchedOrders}
-            selectedReturnOrder={returns.selectedReturnOrder}
-            setSelectedReturnOrder={returns.setSelectedReturnOrder}
-            packageBookList={returns.packageBookList}
-            selectedDefectiveBookId={returns.selectedDefectiveBookId}
-            setSelectedDefectiveBookId={returns.setSelectedDefectiveBookId}
-            returnReason={returns.returnReason}
-            setReturnReason={returns.setReturnReason}
-            defectPhotoBase64={returns.defectPhotoBase64}
-            setDefectPhotoBase64={returns.setDefectPhotoBase64}
-            returnSuccessData={returns.returnSuccessData}
-            isSubmitting={returns.isSubmittingReturn}
-            onFileUpload={order.handleFileUpload}
-            onLookupOrder={returns.handleLookupOrderForReturn}
-            onSelectOrder={returns.handleSelectOrderForReturn}
-            onSubmitReturn={returns.handleSubmitReturnReport}
-            onResetReturn={returns.resetReturnFlow}
-          />
-        )}
       </main>
 
       {/* Footer */}

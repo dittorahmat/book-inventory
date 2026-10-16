@@ -88,15 +88,49 @@ export function PublicUniformOrderView() {
       {order.step === 3 && order.student && (
         <div className="bg-white rounded-2xl border border-[#E4E6EB] p-6 sm:p-7 space-y-4">
           <div>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Jalur pembelian</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["regular", "scholarship"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => order.setOrderType(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all active:scale-[0.98] ${
+                    order.orderType === t ? "border-[#1877F2] bg-[#E7F3FF]/40" : "border-[#E4E6EB] bg-white hover:border-[#CED0D4]"
+                  }`}
+                >
+                  {t === "regular" ? "Reguler" : "Beasiswa / Free"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {order.orderType === "scholarship" && (
+            <div>
+              <label className="block text-xs font-semibold text-[#050505] mb-1">Surat tanda beasiswa (wajib)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => order.setScholarshipProof(reader.result as string);
+                  reader.readAsDataURL(file);
+                }}
+                className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white"
+              />
+            </div>
+          )}
+          <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Alamat rumah pengiriman</label>
             <textarea
               value={order.address}
               onChange={(e) => order.setAddress(e.target.value)}
               rows={3}
-              placeholder="Jalan, RT/RW, kelurahan, kecamatan, kota, kode pos"
+              placeholder="Jalan, RT/RW, kelurahan, kecamatan, kota, kode pos (wajib RT, RW, kode pos)"
               className="w-full rounded-xl border border-[#CED0D4] px-3 py-2.5 text-sm"
             />
-            <p className="text-[11px] text-[#65676B] mt-1">Minimal 10 karakter. Satu order dikirim ke satu alamat.</p>
+            <p className="text-[11px] text-[#65676B] mt-1">Wajib memuat RT, RW, dan kode pos. Satu order dikirim ke satu alamat.</p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Catatan (opsional)</label>
@@ -110,7 +144,7 @@ export function PublicUniformOrderView() {
           <div className="rounded-xl bg-[#F0F2F5] px-4 py-3 text-xs space-y-1">
             <div className="flex justify-between"><span className="text-[#65676B]">Murid</span><span className="font-semibold">{order.student.name}</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Item</span><span className="font-semibold">{order.itemCount} item</span></div>
-            <div className="flex justify-between"><span className="text-[#65676B]">Total bayar</span><span className="font-bold">{formatRupiah(order.total)}</span></div>
+            <div className="flex justify-between"><span className="text-[#65676B]">Total bayar</span><span className="font-bold">{order.orderType === "scholarship" ? "Rp 0 (Beasiswa)" : formatRupiah(order.total)}</span></div>
             <p className="text-[#65676B]">Seragam diasumsikan lunas — gudang menagih ke sekolah cabang.</p>
           </div>
           <div className="flex items-center justify-between gap-3">
