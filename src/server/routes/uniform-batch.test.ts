@@ -9,7 +9,7 @@ import { uniformBatchRouter } from "./uniform-batch";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, uniformOrders, uniformOrderItems, uniformStock, uniformVariants } from "../../db/schema";
+import { schools, students, uniformOrders, uniformOrderItems, uniformRejects, uniformStock, uniformVariants } from "../../db/schema";
 
 const postBatch = (path: string, body: unknown) =>
   uniformBatchRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -107,6 +107,24 @@ describe("Uniform batch: stok manual, export CSV, import ekspedisi", () => {
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));
+      await db.delete(uniformStock).where(eq(uniformStock.variantId, variantId));
+      await db.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
+    }
+  });
+
+  it("catatan reject seragam: simpan + daftar (gudang)", async () => {
+    const stamp = Date.now();
+    const { variantId } = await seedVariant(`r${stamp}`);
+    try {
+      const bad = await postBatch("/rejects", { variantId, quantity: 2, reason: "" });
+      expect(bad.status).toBe(400);
+      const created = await postBatch("/rejects", { variantId, quantity: 2, reason: "Jahitan lepas" });
+      expect(created.status).toBe(201);
+      const list = await uniformBatchRouter.request("/rejects", { method: "GET" });
+      expect(list.status).toBe(200);
+      expect(((await list.json()).data as Array<{ variantId: string }>).some((r) => r.variantId === variantId)).toBe(true);
+    } finally {
+      await db.delete(uniformRejects).where(eq(uniformRejects.variantId, variantId));
       await db.delete(uniformStock).where(eq(uniformStock.variantId, variantId));
       await db.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
     }

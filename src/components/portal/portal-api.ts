@@ -10,9 +10,7 @@ import type {
   SchoolOption,
   StudentSearchResult,
   BookPackageOption,
-  MatchedOrder,
   NewStudentForm,
-  PackageBookChoice,
   SatuanStatus,
 } from "../../lib/portal-types";
 
@@ -72,33 +70,6 @@ export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanSta
 
 export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");
-
-export const lookupOrders = (query: string, schoolId: string): Promise<MatchedOrder[]> =>
-  timed("lookup-order", () =>
-    getJson<MatchedOrder[]>(
-      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId }),
-      "Pesanan tidak ditemukan"
-    )
-  );
-
-export const fetchBookChoices = async (): Promise<PackageBookChoice[]> => {
-  const list = await getJson<Array<{ bookId: string; title: string }>>(
-    "/api/public/orders/book-choices",
-    "Gagal memuat daftar buku."
-  );
-  return list.map((b) => ({ bookId: b.bookId, title: b.title }));
-};
-
-export interface ReturnReportPayload {
-  orderId: string;
-  studentId: string;
-  defectiveBookId: string;
-  reason: string;
-  photoProofBase64: string;
-}
-
-export const submitReturnReport = (payload: ReturnReportPayload): Promise<any> =>
-  postJson("/api/public/orders/submit-return", payload, "Gagal mengirimkan laporan retur.");
 
 export interface WprEligibility {
   needsWpr: boolean;

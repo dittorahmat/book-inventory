@@ -356,6 +356,9 @@ uniformsRouter.get("/reports/sales", async (c) => {
       schoolIds,
       jenjang: c.req.query("jenjang") || undefined,
       size: c.req.query("size") || undefined,
+      gender: c.req.query("gender") || undefined,
+      paymentStatus: c.req.query("paymentStatus") || undefined,
+      shipmentStatus: c.req.query("shipmentStatus") || undefined,
     });
     return c.json({ success: true, data: report });
   } catch (err) {

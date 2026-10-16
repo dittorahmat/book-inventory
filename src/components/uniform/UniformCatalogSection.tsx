@@ -6,6 +6,7 @@ import {
   fetchUniformVariants, createUniformVariant,
   fetchUniformPackages, createUniformPackage, assembleUniformPackage,
   fetchUniformPos, createUniformPo, receiveUniformPo, adjustUniformStock,
+  fetchUniformRejects, createUniformReject, type UniformRejectRow,
   type UniformVariantRow, type UniformPackageRow,
 } from "./uniform-admin-api";
 
@@ -44,17 +45,24 @@ export function UniformCatalogSection() {
   const [stQty, setStQty] = useState("0");
   const [stMode, setStMode] = useState("add");
   const [stReason, setStReason] = useState("");
+  const [rejects, setRejects] = useState<UniformRejectRow[]>([]);
+  const [rjVariant, setRjVariant] = useState("");
+  const [rjSize, setRjSize] = useState("");
+  const [rjQty, setRjQty] = useState("1");
+  const [rjReason, setRjReason] = useState("");
 
   const reload = async () => {
     try {
-      const [v, p, o, s] = await Promise.all([
+      const [v, p, o, s, r] = await Promise.all([
         fetchUniformVariants(), fetchUniformPackages(), fetchUniformPos(),
         getJson<Array<{ id: string; name: string }>>("/api/procurement/suppliers", "Gagal memuat supplier."),
+        fetchUniformRejects().catch(() => [] as UniformRejectRow[]),
       ]);
       setVariants(v);
       setPackages(p);
       setPos(o);
       setSuppliers(s);
+      setRejects(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat data seragam.");
     }
@@ -191,6 +199,40 @@ export function UniformCatalogSection() {
         >
           Simpan Stok
         </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
+        <h3 className="text-sm font-bold">Catatan Barang Reject</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <SearchableSingleSelect
+              label="Varian"
+              options={variants.map(({ variant: v }) => ({ value: v.id, label: `${v.code} — ${v.name}` }))}
+              value={rjVariant}
+              onChange={setRjVariant}
+              placeholder="— Pilih varian —"
+            />
+          </div>
+          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Qty reject</label><input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Alasan</label><input value={rjReason} onChange={(e) => setRjReason(e.target.value)} placeholder="Cacat / salah jahit ..." className={inputCls} /></div>
+        </div>
+        <button
+          type="button" disabled={busy || !rjVariant}
+          onClick={() => run(() => createUniformReject({ variantId: rjVariant, size: rjSize.trim() || undefined, quantity: Number(rjQty) || 0, reason: rjReason.trim() }), "Reject tercatat.")}
+          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98]"
+        >
+          Catat Reject
+        </button>
+        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB]">
+          {rejects.length === 0 && <div className="px-4 py-4 text-xs text-[#65676B]">Belum ada catatan reject.</div>}
+          {rejects.slice(0, 20).map((r) => (
+            <div key={r.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-2">
+              <span className="font-semibold">{r.size} × {r.quantity} — {r.reason}</span>
+              <span className="text-[#65676B]">{r.createdAt.slice(0, 10)}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">

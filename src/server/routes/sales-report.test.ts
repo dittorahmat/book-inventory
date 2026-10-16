@@ -379,4 +379,41 @@ describe("Ekspor CSV (spec: sales-report)", () => {
       await cleanupOrders(seeded);
     }
   });
+
+  it("filter kelas/gender/bayar/serah-terima + agregat handover, ongkir, reject", async () => {
+    const stamp = Date.now();
+    const schoolA = await makeSchool(`h${stamp}`);
+    const studentA = await makeStudent(schoolA, stamp);
+    await db.update(students).set({ gender: "female", gradeLevel: "7" }).where(eq(students.id, studentA));
+    const studentB = await makeStudent(schoolA, stamp + 1);
+    const pkg = await makePackage(stamp, 600_000);
+    const o1 = await makeOrder({ schoolId: schoolA, studentId: studentA, packageId: pkg, totalAmount: 600_000, paidAmount: 600_000 });
+    const o2 = await makeOrder({ schoolId: schoolA, studentId: studentB, packageId: null, totalAmount: 200_000, paidAmount: 50_000, looseQty: 2 });
+    await db.update(studentBookOrders)
+      .set({ fulfillmentStatus: "picked_up", handoverDeliveryNumber: "SJ-SERAH-1", shippingCost: 25000, invoiceSentAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+      .where(eq(studentBookOrders.id, o1.orderId));
+    try {
+      const base = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA] });
+      expect(base.totals.orderCount).toBe(2);
+      expect(base.totals.shippingTotal).toBe(25000);
+      expect(base.totals.invoicedCount).toBe(1);
+      expect(base.handover.orderCount).toBe(1);
+      expect(base.handover.revenue).toBe(600_000);
+      expect(base.handover.bySchool).toHaveLength(1);
+
+      const female = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA], gender: "female" });
+      expect(female.totals.orderCount).toBe(1);
+      const grade = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA], gradeLevel: "4" });
+      expect(grade.totals.orderCount).toBe(1);
+      const paid = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA], paymentStatus: "paid" });
+      expect(paid.totals.orderCount).toBe(1);
+      const handed = await getSalesReport({ database: db, from: FROM, to: TO, schoolIds: [schoolA], fulfillmentStatus: "picked_up" });
+      expect(handed.totals.orderCount).toBe(1);
+
+      const csv = salesReportToCsv(base);
+      expect(csv).toContain("Serah-terima");
+    } finally {
+      await cleanupOrders([o1, o2]);
+    }
+  });
 });

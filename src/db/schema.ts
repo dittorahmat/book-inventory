@@ -84,6 +84,7 @@ export const bookItems = sqliteTable("book_items", {
   barcode: text("barcode").notNull().unique(),
   condition: text("condition", { enum: ["new", "good", "fair", "damaged"] }).notNull().default("new"),
   status: text("status", { enum: ["in_stock", "in_transit", "disposed", "lost"] }).notNull().default("in_stock"),
+  isRejected: integer("is_rejected", { mode: "boolean" }).notNull().default(false),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -664,6 +665,18 @@ export const uniformRefunds = sqliteTable("uniform_refunds", {
 }, (t) => [
   index("uniform_refunds_order_idx").on(t.orderId),
   index("uniform_refunds_status_idx").on(t.status),
+]);
+
+/** Catatan barang reject seragam (gudang): varian-size + qty + alasan. */
+export const uniformRejects = sqliteTable("uniform_rejects", {
+  id: text("id").primaryKey(),
+  variantId: text("variant_id").notNull().references(() => uniformVariants.id),
+  size: text("size").notNull().default("—"),
+  quantity: integer("quantity").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_rejects_variant_idx").on(t.variantId),
 ]);
 
 /** Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock. */

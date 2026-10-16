@@ -82,4 +82,46 @@ describe("Book Items (Physical Copies) API", () => {
     await db.delete(books).where(eq(books.id, bookId));
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
+
+  it("menandai eksemplar ok/reject (flag reject gudang)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `sch-rej-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Reject", code: `REJ-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    });
+    const bookId = `b-rej-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-REJ-${stamp}`, title: "Buku Reject",
+      author: "A", publisher: "P", createdAt: now, updatedAt: now,
+    });
+    const itemId = `bi-rej-${stamp}`;
+    await db.insert(bookItems).values({
+      id: itemId, bookId, currentSchoolId: schoolId, barcode: `REJ-${stamp}`,
+      condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+    });
+    try {
+      const mark = await bookItemsRouter.request(`/${itemId}/reject`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejected: true, notes: "Cetakan rusak" }),
+      });
+      expect(mark.status).toBe(200);
+      expect((await mark.json()).data.isRejected).toBe(true);
+      const unmark = await bookItemsRouter.request(`/${itemId}/reject`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejected: false }),
+      });
+      expect((await unmark.json()).data.isRejected).toBe(false);
+      const ghost = await bookItemsRouter.request("/id-hantu/reject", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejected: true }),
+      });
+      expect(ghost.status).toBe(404);
+    } finally {
+      await db.delete(bookItems).where(eq(bookItems.id, itemId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

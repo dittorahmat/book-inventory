@@ -5,7 +5,6 @@ import { eq, or, like, and, notInArray, sql, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
-import { reportReturn } from "../services/return";
 import {
   getCurrentSatuanStatus,
   getSatuanCatalogIfOpen,
@@ -341,31 +340,4 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   return c.json({ success: true, data: matchedOrders });
-});
-
-// 5. Public Submit Return (for parents/students reporting defect)
-const publicReturnSchema = z.object({
-  orderId: z.string().min(1, "ID pesanan wajib diisi"),
-  studentId: z.string().min(1, "ID murid wajib diisi"),
-  defectiveBookId: z.string().min(1, "Buku yang rusak wajib dipilih"),
-  reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
-  photoProofBase64: z.string().min(1, "Foto bukti fisik buku rusak wajib dilampirkan"),
-});
-
-publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
-  const body = c.req.valid("json");
-  const result = await reportReturn(db, { ...body, source: "public" });
-  if (!result.ok) {
-    return c.json({ success: false, message: result.message }, result.status);
-  }
-
-  return c.json({
-    success: true,
-    message: "Laporan retur buku rusak berhasil dikirimkan. Tim logistik sekolah akan segera memproses penggantian fisik buku Anda.",
-    data: {
-      returnId: result.created.id,
-      orderNumber: result.orderNumber,
-      status: "reported",
-    },
-  }, 201);
 });

@@ -19,6 +19,10 @@ const reportQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal awal harus YYYY-MM-DD"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal akhir harus YYYY-MM-DD"),
   schoolId: idSchema.optional(),
+  gradeLevel: z.string().optional(),
+  gender: z.enum(["male", "female"]).optional(),
+  paymentStatus: z.string().optional(),
+  fulfillmentStatus: z.string().optional(),
 });
 
 async function resolveReportScope(
@@ -33,12 +37,16 @@ async function resolveReportScope(
 salesReportRouter.get("/", zValidator("query", reportQuerySchema), async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const { from, to, schoolId } = c.req.valid("query");
+    const { from, to, schoolId, gradeLevel, gender, paymentStatus, fulfillmentStatus } = c.req.valid("query");
     const report = await getSalesReport({
       database: db,
       from,
       to,
       schoolIds: await resolveReportScope(actor, schoolId),
+      gradeLevel,
+      gender,
+      paymentStatus,
+      fulfillmentStatus,
     });
     return c.json({ success: true, data: report });
   } catch (err) {
@@ -49,12 +57,16 @@ salesReportRouter.get("/", zValidator("query", reportQuerySchema), async (c) => 
 salesReportRouter.get("/csv", zValidator("query", reportQuerySchema), async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const { from, to, schoolId } = c.req.valid("query");
+    const { from, to, schoolId, gradeLevel, gender, paymentStatus, fulfillmentStatus } = c.req.valid("query");
     const report = await getSalesReport({
       database: db,
       from,
       to,
       schoolIds: await resolveReportScope(actor, schoolId),
+      gradeLevel,
+      gender,
+      paymentStatus,
+      fulfillmentStatus,
     });
     const csv = salesReportToCsv(report);
     return new Response(csv, {

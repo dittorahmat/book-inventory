@@ -156,6 +156,39 @@ bookItemsRouter.post("/batch-generate", zValidator("json", batchGenerateCopiesSc
   }
 });
 
+// Tandai eksemplar OK / reject (catatan barang reject gudang/cabang).
+bookItemsRouter.patch("/:id/reject", zValidator("json", z.object({
+  rejected: z.boolean(),
+  notes: z.string().optional(),
+})), async (c) => {
+  try {
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const locations = await loadLocationIds(db);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [existing] = await db.select().from(bookItems).where(eq(bookItems.id, id));
+    if (!existing) {
+      return c.json({ success: false, message: "Copy not found" }, 404);
+    }
+    assertLocationAllowed(actor, existing.currentSchoolId, locations);
+
+    const [updated] = await db
+      .update(bookItems)
+      .set({
+        isRejected: body.rejected,
+        notes: body.notes ?? existing.notes,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(bookItems.id, id))
+      .returning();
+
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 // Update condition of a copy
 bookItemsRouter.patch("/:id/condition", zValidator("json", updateConditionSchema), async (c) => {
   try {

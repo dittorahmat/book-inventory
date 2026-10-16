@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { desc, and, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { students, uniformOrders } from "../../db/schema";
+import { students, uniformOrders, uniformRejects, uniformVariants } from "../../db/schema";
 import { idSchema } from "../lib/validators";
 import {
   accessErrorResponse,
@@ -16,6 +16,8 @@ import {
   buildEkspedisiCsv,
   buildPackingCsv,
   fetchUniformExportRows,
+  getUniformSalesReport,
+  uniformSalesToCsv,
 } from "../services/uniform/report";
 import { resolveUniformScholarship } from "../services/uniform";
 
@@ -53,6 +55,74 @@ uniformBatchRouter.post("/stock/adjust", zValidator("json", adjustSchema), async
     const result = await adjustManualStock(db, c.req.valid("json"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Stok berhasil disesuaikan.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Catatan barang reject seragam (gudang).
+uniformBatchRouter.get("/rejects", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const rows = await db.select().from(uniformRejects).orderBy(desc(uniformRejects.createdAt)).limit(100);
+    return c.json({ success: true, data: rows });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const rejectSchema = z.object({
+  variantId: idSchema,
+  size: z.string().optional(),
+  quantity: z.number().int().min(1, "Qty minimal 1"),
+  reason: z.string().min(1, "Alasan wajib diisi"),
+});
+
+uniformBatchRouter.post("/rejects", zValidator("json", rejectSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+    const [variant] = await db.select({ id: uniformVariants.id }).from(uniformVariants).where(eq(uniformVariants.id, body.variantId));
+    if (!variant) return c.json({ success: false, message: "Varian tidak dikenal." }, 404);
+    const now = new Date().toISOString();
+    const [created] = await db.insert(uniformRejects).values({
+      id: crypto.randomUUID(),
+      variantId: body.variantId,
+      size: body.size?.trim() || "—",
+      quantity: body.quantity,
+      reason: body.reason.trim(),
+      createdAt: now,
+    }).returning();
+    return c.json({ success: true, message: "Catatan reject tersimpan.", data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// CSV rekap penjualan seragam (sekolah × jenjang × size + filter).
+uniformBatchRouter.get("/reports/sales-csv", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const queried = c.req.query("schoolId");
+    const schoolIds = scope.length === 1 ? scope : queried ? [queried] : scope;
+    const today = new Date().toISOString().slice(0, 10);
+    const report = await getUniformSalesReport({
+      database: db,
+      from: c.req.query("from") || `${today.slice(0, 7)}-01`,
+      to: c.req.query("to") || today,
+      schoolIds,
+      jenjang: c.req.query("jenjang") || undefined,
+      size: c.req.query("size") || undefined,
+      gender: c.req.query("gender") || undefined,
+      paymentStatus: c.req.query("paymentStatus") || undefined,
+      shipmentStatus: c.req.query("shipmentStatus") || undefined,
+    });
+    return new Response(`\uFEFF${uniformSalesToCsv(report)}`, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="laporan-seragam.csv"`,
+      },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

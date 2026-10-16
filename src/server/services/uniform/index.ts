@@ -20,4 +20,4 @@ export { assembleUniformPackages, adjustManualStock, createUniformPo, receiveUni
 export { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "./claims";
 export { createUniformClaim, listUniformClaims, lockUniformClaim } from "./claims";
 export type { UniformSalesInput, UniformSalesReport, UniformSalesRow, UniformOrderStage } from "./report";
-export { buildEkspedisiCsv, buildPackingCsv, fetchUniformExportRows, getUniformSalesReport, uniformOrderStage } from "./report";
+export { buildEkspedisiCsv, buildPackingCsv, fetchUniformExportRows, getUniformSalesReport, uniformOrderStage, uniformSalesToCsv } from "./report";

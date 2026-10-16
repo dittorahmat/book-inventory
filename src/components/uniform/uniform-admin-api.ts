@@ -122,8 +122,12 @@ export interface UniformSalesReport {
   }>;
 }
 
-export const fetchUniformSalesReport = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string }): Promise<UniformSalesReport> =>
+export const fetchUniformSalesReport = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string; gender?: string; paymentStatus?: string; shipmentStatus?: string }): Promise<UniformSalesReport> =>
   getJson<UniformSalesReport>(buildQuery("/api/uniforms/reports/sales", params), "Gagal memuat laporan seragam.");
+
+export const downloadUniformSalesCsv = (params: { schoolId?: string; from?: string; to?: string; jenjang?: string; size?: string; gender?: string; paymentStatus?: string; shipmentStatus?: string }): void => {
+  window.location.href = `/api/uniforms/reports/sales-csv${buildQuery("", params)}`;
+};
 
 export interface UniformClaimRow {
   id: string; claimNumber: string; schoolId: string; period: string;
@@ -141,6 +145,16 @@ export const lockUniformClaim = (id: string): Promise<UniformClaimRow> =>
 
 export const adjustUniformStock = (payload: { variantId: string; size?: string; quantity: number; mode: "add" | "set"; reason: string }): Promise<unknown> =>
   postJson("/api/uniforms/stock/adjust", payload, "Gagal menyesuaikan stok.");
+
+export interface UniformRejectRow {
+  id: string; variantId: string; size: string; quantity: number; reason: string; createdAt: string;
+}
+
+export const fetchUniformRejects = (): Promise<UniformRejectRow[]> =>
+  getJson<UniformRejectRow[]>("/api/uniforms/rejects", "Gagal memuat catatan reject.");
+
+export const createUniformReject = (payload: { variantId: string; size?: string; quantity: number; reason: string }): Promise<unknown> =>
+  postJson("/api/uniforms/rejects", payload, "Gagal menyimpan reject.");
 
 export const resolveUniformScholarship = (id: string, action: "approve" | "reject"): Promise<unknown> =>
   postJson(`/api/uniforms/orders/${id}/scholarship`, { action }, "Gagal memproses beasiswa.");

@@ -36,6 +36,9 @@ export interface UniformSalesInput {
   schoolIds: string[];
   jenjang?: string;
   size?: string;
+  gender?: string;
+  paymentStatus?: string;
+  shipmentStatus?: string;
 }
 
 type OrderRow = typeof uniformOrders.$inferSelect;
@@ -55,14 +58,23 @@ const selectInChunks = async <T>(ids: string[], run: (chunk: string[]) => Promis
  */
 export async function getUniformSalesReport(input: UniformSalesInput): Promise<UniformSalesReport> {
   const { database } = input;
+  const payFilter =
+    input.paymentStatus && ["unpaid", "partial", "paid", "scholarship_pending"].includes(input.paymentStatus)
+      ? (input.paymentStatus as OrderRow["paymentStatus"])
+      : null;
+  const shipFilter =
+    input.shipmentStatus === "belum_dikirim" || input.shipmentStatus === "sudah_dikirim" ? input.shipmentStatus : null;
   const orders: OrderRow[] = (
     await Promise.all(
-      chunkRows(input.schoolIds, D1_INLIST_CHUNK_SIZE).map((chunk) =>
-        database
+      chunkRows(input.schoolIds, D1_INLIST_CHUNK_SIZE).map((chunk) => {
+        const conds = [inArray(uniformOrders.schoolId, chunk), gte(uniformOrders.createdAt, input.from), lte(uniformOrders.createdAt, `${input.to}T23:59:59.999Z`)];
+        if (payFilter) conds.push(eq(uniformOrders.paymentStatus, payFilter));
+        if (shipFilter) conds.push(eq(uniformOrders.shipmentStatus, shipFilter));
+        return database
           .select()
           .from(uniformOrders)
-          .where(and(inArray(uniformOrders.schoolId, chunk), gte(uniformOrders.createdAt, input.from), lte(uniformOrders.createdAt, `${input.to}T23:59:59.999Z`)))
-      )
+          .where(and(...conds));
+      })
     )
   ).flat();
   const orderIds = orders.map((o) => o.id);
@@ -70,9 +82,15 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
     database.select().from(uniformOrderItems).where(inArray(uniformOrderItems.orderId, chunk))
   );
   const studentIds = [...new Set(orders.map((o) => o.studentId))];
-  const studentRows: Array<{ id: string; gradeLevel: string }> = await selectInChunks(studentIds, (chunk) =>
-    database.select({ id: students.id, gradeLevel: students.gradeLevel }).from(students).where(inArray(students.id, chunk))
+  const studentRows: Array<{ id: string; gradeLevel: string; gender: string | null }> = await selectInChunks(studentIds, (chunk) =>
+    database.select({ id: students.id, gradeLevel: students.gradeLevel, gender: students.gender }).from(students).where(inArray(students.id, chunk))
   );
+  const genderByStudent = new Map(studentRows.map((s) => [s.id, s.gender]));
+  const inGender = (order: OrderRow): boolean =>
+    !input.gender || (input.gender === "female" ? genderByStudent.get(order.studentId) === "female" : genderByStudent.get(order.studentId) !== "female");
+  const scopedOrders = orders.filter(inGender);
+  const scopedIds = new Set(scopedOrders.map((o) => o.id));
+  const scopedItems = items.filter((i) => scopedIds.has(i.orderId));
   const jenjangByStudent = new Map(studentRows.map((s) => [s.id, gradeToJenjang(s.gradeLevel)]));
   const packageIds = [...new Set(items.filter((i) => i.packageId).map((i) => i.packageId as string))];
   const bom: Array<typeof uniformPackageBom.$inferSelect> = await selectInChunks(packageIds, (chunk) =>
@@ -109,8 +127,8 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
   };
 
   const itemsByOrder = new Map<string, ItemRow[]>();
-  for (const item of items) itemsByOrder.set(item.orderId, [...(itemsByOrder.get(item.orderId) ?? []), item]);
-  for (const order of orders) {
+  for (const item of scopedItems) itemsByOrder.set(item.orderId, [...(itemsByOrder.get(item.orderId) ?? []), item]);
+  for (const order of scopedOrders) {
     for (const item of itemsByOrder.get(order.id) ?? []) {
       if (item.variantId) {
         accrue(order, item.size, item.quantity, item.quantity * item.unitPriceSnapshot);
@@ -129,12 +147,12 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
     .filter((r) => (!input.jenjang || r.jenjang === input.jenjang) && (!input.size || r.size === input.size))
     .map(({ orderIds: _o, studentIds: _s, ...r }) => r)
     .sort((a, b) => b.revenue - a.revenue);
-  const allStudents = new Set(orders.map((o) => o.studentId));
+  const allStudents = new Set(scopedOrders.map((o) => o.studentId));
   return {
     period: { from: input.from, to: input.to },
     scopeSchoolIds: input.schoolIds,
     totals: {
-      orderCount: orders.length,
+      orderCount: scopedOrders.length,
       studentCount: allStudents.size,
       quantity: rows.reduce((s, r) => s + r.quantity, 0),
       revenue: rows.reduce((s, r) => s + r.revenue, 0),
@@ -224,6 +242,16 @@ export async function fetchUniformExportRows(
 const csvCell = (v: string | number): string => `"${String(v).replaceAll('"', '""')}"`;
 const toCsv = (header: string[], lines: Array<Array<string | number>>): string =>
   [header, ...lines].map((r) => r.map(csvCell).join(";")).join("\r\n");
+
+/** CSV rekap seragam: sekolah × jenjang × size. */
+export const uniformSalesToCsv = (report: UniformSalesReport): string =>
+  [
+    ["sekolah", "jenjang", "size", "order", "murid", "qty", "omzet"],
+    ...report.rows.map((r) => [r.schoolName, r.jenjang, r.size, String(r.orderCount), String(r.studentCount), String(r.quantity), String(Math.round(r.revenue))]),
+    ["TOTAL", "", "", String(report.totals.orderCount), String(report.totals.studentCount), String(report.totals.quantity), String(Math.round(report.totals.revenue))],
+  ]
+    .map((r) => r.map(csvCell).join(";"))
+    .join("\r\n");
 
 /** Packing: nama, NIS, kelas, jenjang, size, gender per baris item. */
 export const buildPackingCsv = (rows: UniformExportRow[]): string =>

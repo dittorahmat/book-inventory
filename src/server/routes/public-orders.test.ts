@@ -140,27 +140,6 @@ describe("Public Orders & Student Search API", () => {
     const lookupJson = await lookupRes.json();
     expect(lookupJson.data.length).toBeGreaterThan(0);
     expect(lookupJson.data[0].studentName).toBe("Hendra Wahyudi");
-
-    // 8. Test Public Return Submission for Defective Book (T3: report requires picked_up)
-    await db
-      .update(studentBookOrders)
-      .set({ fulfillmentStatus: "picked_up", updatedAt: now })
-      .where(eq(studentBookOrders.id, orderJson.data.order.id));
-    const returnSubmitRes = await publicOrdersRouter.request("/submit-return", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId: orderJson.data.order.id,
-        studentId: hendraId,
-        defectiveBookId: "b-math-1",
-        reason: "Halaman 15 sampai 22 sobek dan tidak tercetak",
-        photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr",
-      }),
-    });
-    expect(returnSubmitRes.status).toBe(201);
-    const returnJson = await returnSubmitRes.json();
-    expect(returnJson.success).toBe(true);
-    expect(returnJson.data.status).toBe("reported");
   });
 
   it("search exposes grade+curriculum for locked package matching with seeded string IDs", async () => {
@@ -399,7 +378,7 @@ describe("Public Orders & Student Search API", () => {
     expect(submitJson.message).toContain("verifikasi");
   });
 
-  it("rejects public return submission for unknown orders (shared intake)", async () => {
+  it("submit-return publik dihapus: lapor rusak hanya via staf", async () => {
     const stamp = Date.now();
     const res = await publicOrdersRouter.request("/submit-return", {
       method: "POST",
@@ -413,7 +392,6 @@ describe("Public Orders & Student Search API", () => {
       }),
     });
     expect(res.status).toBe(404);
-    expect(((await res.json()) as { success: boolean }).success).toBe(false);
   });
 });
 
