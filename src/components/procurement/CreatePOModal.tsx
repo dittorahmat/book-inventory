@@ -30,11 +30,13 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [poExpectedArrival, setPoExpectedArrival] = useState("");
   const [poNotes, setPoNotes] = useState("");
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() =>
-    catalogBooks.length > 0
-      ? [blankRow(catalogBooks[0].id, buyPriceOf(catalogBooks[0].id), 20)]
-      : []
-  );
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
+    const eligible = !defaultSupplierId
+      ? catalogBooks
+      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
+    const source = eligible.length > 0 ? eligible : catalogBooks;
+    return source.length > 0 ? [blankRow(source[0].id, buyPriceOf(source[0].id), 20)] : [];
+  });
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
 
