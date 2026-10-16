@@ -542,15 +542,16 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
       if (!result.ok) return;
       expect(result.data.order.id).toBe(orderId);
       expect(result.data.order.orderNumber).toBe(orderNo);
-      expect(result.data.totalAmount).toBe(120000);
+      expect(result.data.totalAmount).toBe(120000 + 750000);
       expect(result.data.paidAmount).toBe(120000);
-      expect(result.data.paymentStatus).toBe("paid");
+      expect(result.data.paymentStatus).toBe("partial");
+      expect(result.data.wprCharged).toBe(true);
 
       const items = await db
         .select()
         .from(studentOrderItems)
         .where(eq(studentOrderItems.orderId, orderId));
-      expect(items).toHaveLength(1);
+      expect(items).toHaveLength(2);
       expect(items[0].unitPriceSnapshot).toBe(60000);
 
       const payments = await db
@@ -855,13 +856,14 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.data.totalAmount).toBe(300000);
+      expect(result.data.totalAmount).toBe(300000 + 750000);
+      expect(result.data.wprCharged).toBe(true);
 
       const items = await db
         .select()
         .from(studentOrderItems)
         .where(eq(studentOrderItems.orderId, orderId));
-      expect(items).toHaveLength(30);
+      expect(items).toHaveLength(31);
     } finally {
       await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
@@ -1102,5 +1104,88 @@ describe("Public catalog tanpa login (#143)", () => {
     const res = await packagesRouter.request("/", { method: "GET" });
     expect(res.status).toBe(401);
     expect(((await res.json()) as { message: string }).message).toMatch(/login/i);
+  });
+});
+
+describe("WPR wajib satuan buku (750rb, bebas bila sudah paket)", () => {
+  it("satuan tanpa paket kena WPR; setelah ada order paket jadi hijau", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-wpr-${stamp}`;
+    const studentId = crypto.randomUUID();
+    const bookId = `book-wpr-${stamp}`;
+    const now = new Date().toISOString();
+    const addr = "Jl. WPR No. 1, RT 01 RW 02, Serpong 15310";
+    await db.insert(schools).values({
+      id: schoolId, name: `WPR School ${stamp}`, code: `WPR-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `WPR${String(stamp).slice(-6)}`, name: `WPR Kid ${stamp}`,
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-WPR-${stamp}`, title: `WPR Book ${stamp}`,
+      author: "A", publisher: "P", price: 50000, sellPrice: 60000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookItems).values({
+      id: `bi-wpr-${stamp}`, bookId, currentSchoolId: schoolId,
+      barcode: `WPR-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+    });
+    const pkgId = `pkg-wpr-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-WPR-${stamp}`, name: "Paket WPR",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      price: 900000, createdAt: now, updatedAt: now,
+    });
+    try {
+      const eligBefore = await publicOrdersRouter.request(`/wpr-eligibility?studentId=${studentId}`, { method: "GET" });
+      expect(eligBefore.status).toBe(200);
+      expect((await eligBefore.json()).data.needsWpr).toBe(true);
+
+      const first = await submitPublicOrder(
+        { studentId, looseItems: [{ bookId, quantity: 1 }], homeAddress: addr, orderType: "regular" },
+        { database: db, storage: new MemoryStorageService(), getSatuanStatus: openSatuan() }
+      );
+      expect(first.ok).toBe(true);
+      if (!first.ok) return;
+      expect(first.data.wprCharged).toBe(true);
+      expect(first.data.totalAmount).toBe(60000 + 750000);
+      const wprLines = await db.select().from(studentOrderItems).where(eq(studentOrderItems.orderId, first.data.order.id));
+      expect(wprLines.some((l: typeof studentOrderItems.$inferSelect) => l.bookId === "book-wpr-weekly-report" && l.unitPriceSnapshot === 750000)).toBe(true);
+
+      await db.insert(studentBookOrders).values({
+        id: `ord-wpr-pkg-${stamp}`, orderNumber: `ORD-WPRP-${String(stamp).slice(-6)}`,
+        studentId, schoolId, packageId: pkgId, orderType: "regular",
+        paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 900000, paidAmount: 900000, createdAt: now, updatedAt: now,
+      });
+      const eligAfter = await publicOrdersRouter.request(`/wpr-eligibility?studentId=${studentId}`, { method: "GET" });
+      expect((await eligAfter.json()).data.needsWpr).toBe(false);
+
+      await db.insert(bookItems).values({
+        id: `bi-wpr2-${stamp}`, bookId, currentSchoolId: schoolId,
+        barcode: `WPR2-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+      });
+      const second = await submitPublicOrder(
+        { studentId, looseItems: [{ bookId, quantity: 1 }], homeAddress: addr, orderType: "regular" },
+        { database: db, storage: new MemoryStorageService(), getSatuanStatus: openSatuan() }
+      );
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.data.wprCharged).toBe(false);
+      expect(second.data.totalAmount).toBe(60000);
+    } finally {
+      const orders = await db.select({ id: studentBookOrders.id }).from(studentBookOrders).where(eq(studentBookOrders.studentId, studentId));
+      for (const oid of orders.map((o: { id: string }) => o.id)) {
+        await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, oid));
+        await db.delete(studentBookOrders).where(eq(studentBookOrders.id, oid));
+      }
+      await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 });

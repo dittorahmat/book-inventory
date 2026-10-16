@@ -6,6 +6,7 @@ import type {
   FileUploadHandler,
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
+import { WprQuestion } from "./WprQuestion";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
@@ -29,6 +30,10 @@ interface PaymentStepProps {
   isSatuan?: boolean;
   homeAddress?: string;
   setHomeAddress?: (val: string) => void;
+  hasTakenPackage?: boolean | null;
+  setHasTakenPackage?: (val: boolean) => void;
+  wprFee?: number;
+  wprLoading?: boolean;
   isSubmitting: boolean;
   onFileUpload: FileUploadHandler;
   onBack: () => void;
@@ -57,6 +62,10 @@ export function PaymentStep({
   isSatuan,
   homeAddress,
   setHomeAddress,
+  hasTakenPackage,
+  setHasTakenPackage,
+  wprFee,
+  wprLoading,
   isSubmitting,
   onFileUpload,
   onBack,
@@ -263,6 +272,15 @@ export function PaymentStep({
             </div>
           </div>
         </div>
+      )}
+
+      {isSatuan && (
+        <WprQuestion
+          hasTakenPackage={hasTakenPackage ?? null}
+          setHasTakenPackage={setHasTakenPackage ?? (() => {})}
+          wprFee={wprFee ?? 0}
+          wprLoading={wprLoading ?? false}
+        />
       )}
 
       {isSatuan && (

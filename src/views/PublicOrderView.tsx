@@ -259,7 +259,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                           | "international"
                           | "national",
                         academicYear: order.selectedStudent.academicYear,
-                        price: order.looseTotal,
+                        price: order.looseTotal + order.wprFee,
                         totalItemsCount: order.looseSelections.length,
                         items: [],
                       }
@@ -284,6 +284,10 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 isSatuan={!order.packageMode}
                 homeAddress={order.homeAddress}
                 setHomeAddress={order.setHomeAddress}
+                hasTakenPackage={order.hasTakenPackage}
+                setHasTakenPackage={order.setHasTakenPackage}
+                wprFee={order.wprFee}
+                wprLoading={order.wprLoading}
                 isSubmitting={order.isSubmitting}
                 onFileUpload={order.handleFileUpload}
                 onBack={() => order.goToStep(2)}

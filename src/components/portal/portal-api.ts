@@ -99,3 +99,15 @@ export interface ReturnReportPayload {
 
 export const submitReturnReport = (payload: ReturnReportPayload): Promise<any> =>
   postJson("/api/public/orders/submit-return", payload, "Gagal mengirimkan laporan retur.");
+
+export interface WprEligibility {
+  needsWpr: boolean;
+  wprPrice: number;
+}
+
+/** Status WPR murid: hijau (bebas) bila sudah punya order paket. */
+export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> =>
+  getJson<WprEligibility>(
+    buildQuery("/api/public/orders/wpr-eligibility", { studentId }),
+    "Gagal memeriksa status WPR."
+  );

@@ -43,7 +43,7 @@ describe("Book pricing & computed package price (spec: book-pricing)", () => {
     const bookA = await seedBook("a", 30000, 25000);
     const bookB = await seedBook("b", 50000, 40000);
 
-    // Paket 1 memakai buku A + B -> total otomatis 80000
+    // Paket 1 memakai buku A + B + WPR otomatis -> total otomatis 830000
     const pkg1Res = await packagesRouter.request("/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -61,9 +61,9 @@ describe("Book pricing & computed package price (spec: book-pricing)", () => {
     });
     expect(pkg1Res.status).toBe(201);
     const pkg1 = (await pkg1Res.json()).data;
-    expect(pkg1.price).toBe(80000);
+    expect(pkg1.price).toBe(830000);
 
-    // Paket 2 hanya memakai buku A -> total 30000
+    // Paket 2 hanya memakai buku A -> total 810000 (termasuk WPR)
     const pkg2Res = await packagesRouter.request("/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,7 +77,7 @@ describe("Book pricing & computed package price (spec: book-pricing)", () => {
     });
     expect(pkg2Res.status).toBe(201);
     const pkg2 = (await pkg2Res.json()).data;
-    expect(pkg2.price).toBe(60000);
+    expect(pkg2.price).toBe(810000);
 
     // Ubah harga jual buku A 30000 -> 35000; kedua paket dihitung ulang
     const patchRes = await booksRouter.request(`/${bookA.id}`, {
@@ -92,8 +92,8 @@ describe("Book pricing & computed package price (spec: book-pricing)", () => {
 
     const [p1] = await db.select().from(bookPackages).where(eq(bookPackages.id, pkg1.id));
     const [p2] = await db.select().from(bookPackages).where(eq(bookPackages.id, pkg2.id));
-    expect(p1.price).toBe(85000); // 35000 + 50000
-    expect(p2.price).toBe(70000); // 35000 * 2
+    expect(p1.price).toBe(835000); // 35000 + 50000 + WPR
+    expect(p2.price).toBe(820000); // 35000 * 2 + WPR
 
     // Buku lama tanpa harga terpisah: fallback membaca harga lama
     const legacyRes = await booksRouter.request("/", {

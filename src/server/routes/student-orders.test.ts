@@ -812,4 +812,54 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
     expect(validateHomeAddress("Jl. Mawar RT 03, Bogor 15310").ok).toBe(false);
     expect(validateHomeAddress("Jl. Anggrek RT 03 RW 05, Serpong Utara, 15310").ok).toBe(true);
   });
+
+  it("handover paket menandai flag sudah-ambil-paket murid", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-flag-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Flag", code: `ALW-FLAG-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-flag-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-FLAG-${stamp}`, name: "Siswa Flag",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const pkgId = `pkg-flag-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-FLAG-${stamp}`, name: "Paket Flag",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      price: 500000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(packageItems).values({
+      id: `pi-flag-${stamp}`, packageId: pkgId, currentSchoolId: schoolId,
+      barcode: `PKG-FLAG-B-${stamp}`, status: "in_stock", createdAt: now, updatedAt: now,
+    });
+    const orderId = `ord-flag-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-FLAG-${String(stamp).slice(-6)}`,
+      studentId, schoolId, packageId: pkgId, orderType: "regular",
+      paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 500000, paidAmount: 500000, createdAt: now, updatedAt: now,
+    });
+    try {
+      mockActor("branch_admin", schoolId);
+      const res = await studentOrdersRouter.request(`/${orderId}/handover`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: "Ortu Flag" }),
+      });
+      expect(res.status).toBe(200);
+      const [st] = await db.select().from(students).where(eq(students.id, studentId));
+      expect(st.hasTakenPackage).toBe(true);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, `pi-flag-${stamp}`));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

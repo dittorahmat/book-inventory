@@ -1,5 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { WPR_PRICE, WPR_TITLE } from "../../lib/wpr";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
 interface OrderSuccessStepProps {
@@ -43,6 +44,12 @@ export function OrderSuccessStep({ submittedOrder, packageItems, onOrderAnother 
           <span>Total Tagihan:</span>
           <span>{formatRupiah(submittedOrder.totalAmount)}</span>
         </div>
+        {submittedOrder.wprCharged && (
+          <div className="flex justify-between text-emerald-700 font-semibold">
+            <span>Termasuk {WPR_TITLE}:</span>
+            <span>{formatRupiah(WPR_PRICE)}</span>
+          </div>
+        )}
       </div>
 
       {packageItems.length > 0 && (

@@ -491,6 +491,10 @@ describe("Uniform sales report & claims", () => {
     const okCost = await postJson(`/orders/${orderId}/shipping`, { shippingCost: 20000, shippingResi: "SRM-1" });
     expect(okCost.status).toBe(200);
     expect((await okCost.json()).data.shippingCost).toBe(20000);
+    const shipRes = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(shipRes.status).toBe(200);
+    const [flagged] = await db.select().from(students).where(eq(students.id, studentId));
+    expect(flagged.hasTakenUniform).toBe(true);
     await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
     await db.delete(students).where(eq(students.id, studentId));
     await db.delete(schools).where(eq(schools.id, schoolId));

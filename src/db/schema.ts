@@ -144,6 +144,8 @@ export const students = sqliteTable("students", {
   parentPhone: text("parent_phone"),
   status: text("status", { enum: ["active", "promoted", "new_pending", "rejected", "graduated"] }).notNull().default("active"),
   isScholarship: integer("is_scholarship", { mode: "boolean" }).notNull().default(false),
+  hasTakenPackage: integer("has_taken_package", { mode: "boolean" }).notNull().default(false),
+  hasTakenUniform: integer("has_taken_uniform", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [

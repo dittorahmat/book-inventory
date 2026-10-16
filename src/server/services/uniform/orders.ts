@@ -246,6 +246,10 @@ export async function markUniformShipped(
     .update(uniformOrders)
     .set({ shipmentStatus: "sudah_dikirim", shippedAt: now, updatedAt: now })
     .where(eq(uniformOrders.id, orderId));
+  await database
+    .update(students)
+    .set({ hasTakenUniform: true, updatedAt: now })
+    .where(eq(students.id, order.studentId));
   const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   return { ok: true, data: updated };
 }

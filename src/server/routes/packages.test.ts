@@ -396,7 +396,7 @@ describe("Packages & Bundling/Unbundling API", () => {
       });
       expect(createRes.status).toBe(201);
       const created = await createRes.json();
-      const expectedTotal = bookIds.reduce((sum, _, i) => sum + 10000 + i * 1000, 0);
+      const expectedTotal = bookIds.reduce((sum, _, i) => sum + 10000 + i * 1000, 0) + 750000;
       expect(created.data.price).toBe(expectedTotal);
       const pkgId = created.data.id as string;
 
@@ -406,8 +406,8 @@ describe("Packages & Bundling/Unbundling API", () => {
         (p) => p.id === pkgId
       );
       expect(listed).toBeDefined();
-      expect(listed?.items).toHaveLength(12);
-      expect(listed?.totalItemsCount).toBe(12);
+      expect(listed?.items).toHaveLength(13);
+      expect(listed?.totalItemsCount).toBe(13);
     } finally {
       const [pkg] = await db.select({ id: bookPackages.id }).from(bookPackages).where(eq(bookPackages.code, pkgCode));
       if (pkg) {
@@ -416,6 +416,33 @@ describe("Packages & Bundling/Unbundling API", () => {
       }
       await db.delete(books).where(inArray(books.id, bookIds));
     }
+  });
+
+  it("paket baru otomatis mengandung WPR di BOM", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const bookId = `test-wpr-bom-${stamp}`;
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-WBOM-${stamp}`, title: "BOM Book",
+      author: "A", publisher: "P", price: 40000, sellPrice: 50000, createdAt: now, updatedAt: now,
+    });
+    const code = `PKG-WBOM-${stamp}`;
+    const res = await packagesRouter.request("/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code, name: "Paket WBOM", gradeLevel: "1",
+        curriculumType: "international", academicYear: "2026/2027",
+        items: [{ bookId, quantity: 2 }],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()).data as { id: string; price: number };
+    expect(created.price).toBe(2 * 50000 + 750000);
+    const bom = await db.select().from(bookPackageItems).where(eq(bookPackageItems.packageId, created.id));
+    expect(bom.some((b: typeof bookPackageItems.$inferSelect) => b.bookId === "book-wpr-weekly-report" && b.quantity === 1)).toBe(true);
+    await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, created.id));
+    await db.delete(bookPackages).where(eq(bookPackages.id, created.id));
+    await db.delete(books).where(eq(books.id, bookId));
   });
 });
 

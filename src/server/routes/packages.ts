@@ -13,6 +13,7 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
+import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
 import { isCentralRole } from "../../lib/staff-roles";
@@ -180,6 +181,9 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   for (const rows of chunkRows(bomRows)) {
     await runWriteBatch(db, [db.insert(bookPackageItems).values(rows)]);
   }
+
+  // WPR wajib di semua BOM paket: tambah otomatis bila admin tidak menyertakan.
+  await ensurePackageHasWpr(db, packageId);
 
   // Harga paket terkomputasi: SUM(harga jual efektif * kuantitas) — input harga manual diabaikan.
   const computedTotal = await recalcPackagePrice(db, packageId);

@@ -5,7 +5,9 @@ import {
   searchStudents,
   registerStudent,
   submitFinalOrder,
+  fetchWprEligibility,
 } from "./portal-api";
+import { WPR_PRICE } from "../../lib/wpr";
 import { buildFinalOrderPayload } from "./order-payload";
 import { usePortalCatalog } from "./usePortalCatalog";
 import type { LooseSelection } from "./OrderItemStep";
@@ -92,6 +94,12 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const [notes, setNotes] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
 
+  // WPR satuan buku: jawaban paket (default dari server) + biaya estimasi.
+  const [hasTakenPackage, setHasTakenPackage] = useState<boolean | null>(null);
+  const [wprPrice, setWprPrice] = useState(WPR_PRICE);
+  const [wprLoading, setWprLoading] = useState(false);
+  const wprFee = !packageMode && hasTakenPackage === false ? wprPrice : 0;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedOrder, setSubmittedOrder] = useState<any>(null);
@@ -147,6 +155,19 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
       setLooseSelections([]);
     }
   }, [satuanOpen]);
+
+  // Default jawaban paket dari status server saat murid dipilih.
+  useEffect(() => {
+    if (!selectedStudent || !satuanOpen) return;
+    setWprLoading(true);
+    fetchWprEligibility(selectedStudent.id)
+      .then((elig) => {
+        setHasTakenPackage(!elig.needsWpr);
+        if (elig.wprPrice > 0) setWprPrice(elig.wprPrice);
+      })
+      .catch(() => setHasTakenPackage(false))
+      .finally(() => setWprLoading(false));
+  }, [selectedStudent, satuanOpen]);
 
   useEffect(() => {
     if (catalog.loadError) setErrorMessage(catalog.loadError);
@@ -264,6 +285,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         packagePrice: selectedPackage?.price ?? 0,
         looseItems: looseSelections,
         looseTotal,
+        wprFee,
         orderType,
         scholarshipProofBase64,
         transferAmount,
@@ -296,6 +318,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     setSearchResults([]);
     setPackageMode(true);
     resetLooseSelection();
+    setHasTakenPackage(null);
   };
 
   return {
@@ -316,6 +339,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     referenceNumber, setReferenceNumber, paymentProofBase64, setPaymentProofBase64,
     notes, setNotes,
     homeAddress, setHomeAddress,
+    hasTakenPackage, setHasTakenPackage, wprFee, wprPrice, wprLoading,
     isSubmitting, errorMessage, setErrorMessage, submittedOrder,
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,

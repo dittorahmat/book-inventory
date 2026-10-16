@@ -14,6 +14,8 @@ import type { SatuanStatus } from "../../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./cutoff";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { validateHomeAddress } from "../../../lib/home-address";
+import { WPR_BOOK_ID, WPR_PRICE, WPR_TITLE, needsWprCharge } from "../../../lib/wpr";
+import { countPackageOrders, ensureWprBook } from "../wpr";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
@@ -61,6 +63,7 @@ export type SubmitPublicOrderResult =
         totalAmount: number;
         paidAmount: number;
         paymentStatus: string;
+        wprCharged: boolean;
       };
     }
   | {
@@ -145,8 +148,19 @@ export async function submitPublicOrder(
   if (!scholarshipCheck.ok) return scholarshipCheck;
 
   // 6. Reservasi kuantitas satuan via modul intake bersama SEBELUM upload bukti.
+  // WPR bukan stok fisik: tidak direservasi, ditambahkan sebagai baris biaya sesudahnya.
   const reserved = await reserveLooseLines(database, student.schoolId, looseLines);
   if (!reserved.ok) return { ok: false, status: reserved.status, message: reserved.message };
+
+  // 6b. WPR wajib untuk satuan tanpa order paket (reguler maupun beasiswa).
+  let wprCharged = false;
+  if (looseLines.length > 0) {
+    await ensureWprBook(database);
+    if (needsWprCharge(await countPackageOrders(database, student.id))) {
+      looseLines.push({ bookId: WPR_BOOK_ID, title: WPR_TITLE, quantity: 1, unitPrice: WPR_PRICE });
+      wprCharged = true;
+    }
+  }
 
   // 7. Hitung nominal order dan status pembayaran (aturan murni)
   const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);
@@ -261,6 +275,7 @@ export async function submitPublicOrder(
       totalAmount,
       paidAmount,
       paymentStatus,
+      wprCharged,
     },
   };
 }

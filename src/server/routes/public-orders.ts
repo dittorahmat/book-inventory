@@ -14,6 +14,8 @@ import {
   validateStudentForOrder,
 } from "../services/order-intake";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
+import { countPackageOrders } from "../services/wpr";
+import { WPR_PRICE, needsWprCharge } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 
@@ -124,6 +126,17 @@ publicOrdersRouter.get("/schools", async (c) => {
     .from(schools)
     .where(ne(schools.type, "warehouse"));
   return c.json({ success: true, data: rows });
+});
+
+// 0d. Kelayakan WPR satuan: hijau bila murid sudah punya order paket (reguler/beasiswa).
+publicOrdersRouter.get("/wpr-eligibility", async (c) => {
+  const studentId = c.req.query("studentId")?.trim();
+  if (!studentId) return c.json({ success: false, message: "studentId wajib diisi" }, 400);
+  const [student] = await db.select({ id: students.id }).from(students).where(eq(students.id, studentId));
+  if (!student) return c.json({ success: false, message: "Murid tidak ditemukan" }, 404);
+  const packageCount = await countPackageOrders(db, studentId);
+  const needsWpr = needsWprCharge(packageCount);
+  return c.json({ success: true, data: { needsWpr, wprPrice: needsWpr ? WPR_PRICE : 0 } });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
