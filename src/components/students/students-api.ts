@@ -1,5 +1,9 @@
 import { buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
 
+/** Opsi sekolah kanonik (id + nama + kode) dipakai ulang dari tipe portal. */
+import type { SchoolOption } from "../../lib/portal-types";
+export type { SchoolOption };
+
 export interface StudentRecord {
   id: string;
   nis: string;
@@ -17,11 +21,6 @@ export interface StudentRecord {
   schoolName: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface SchoolOption {
-  id: string;
-  name: string;
 }
 
 export interface StudentListParams {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Truck } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { School } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
@@ -118,15 +119,18 @@ export function QuantityTransferModal({
 
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3 overflow-y-auto">
           <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Tujuan Transfer *</label>
-            <select required className={inputClass} value={destinationId} onChange={(e) => setDestinationId(e.target.value)}>
-              <option value="">Pilih lokasi tujuan...</option>
-              {available.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.type === "main" ? "Pusat" : s.type === "warehouse" ? "Gudang" : "Cabang"})
-                </option>
-              ))}
-            </select>
+            <SearchableSingleSelect
+              label="Tujuan Transfer *"
+              options={available.map((s) => ({
+                value: s.id,
+                label: s.name,
+                hint: s.type === "main" ? "Pusat" : s.type === "warehouse" ? "Gudang" : "Cabang",
+              }))}
+              value={destinationId}
+              onChange={setDestinationId}
+              placeholder="Pilih lokasi tujuan..."
+              required
+            />
           </div>
 
           <div>

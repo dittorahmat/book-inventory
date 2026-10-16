@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, ShoppingBag, AlertCircle } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
@@ -122,15 +123,16 @@ export function DirectSaleModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[#050505] font-semibold mb-1">Metode Bayar</label>
-              <select
+              <SearchableSingleSelect
+                label="Metode Bayar"
+                options={[
+                  { value: "cash", label: "Tunai (Cash)" },
+                  { value: "transfer", label: "Transfer Bank / QRIS" },
+                ]}
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as "cash" | "transfer")}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs"
-              >
-                <option value="cash">Tunai (Cash)</option>
-                <option value="transfer">Transfer Bank / QRIS</option>
-              </select>
+                onChange={(v) => setPaymentMethod(v as "cash" | "transfer")}
+                placeholder="Pilih metode..."
+              />
             </div>
             <div>
               <label className="block text-[#050505] font-semibold mb-1">No. Ref / Struk</label>

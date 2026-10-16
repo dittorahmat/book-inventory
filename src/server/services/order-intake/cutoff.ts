@@ -128,6 +128,7 @@ export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear
       id: books.id,
       isbn: books.isbn,
       title: books.title,
+      publicTitle: books.publicTitle,
       author: books.author,
       publisher: books.publisher,
       category: books.category,
@@ -137,5 +138,5 @@ export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear
     })
     .from(books)
     .orderBy(books.title);
-  return { open: true, status, books: rows.map((b: SatuanCatalogBook & { price: number }) => ({ ...b, sellPrice: effectiveSellPrice(b) })) };
+  return { open: true, status, books: rows.map((b: SatuanCatalogBook & { price: number; publicTitle: string | null }) => ({ ...b, title: b.publicTitle ?? b.title, sellPrice: effectiveSellPrice(b) })) };
 }

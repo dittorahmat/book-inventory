@@ -17,7 +17,7 @@ import type {
 } from "../../lib/portal-types";
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
-  getJson<SchoolOption[]>("/api/schools", "Gagal memuat daftar sekolah.");
+  getJson<SchoolOption[]>("/api/public/orders/schools", "Gagal memuat daftar sekolah.");
 
 /** Ukur latensi yang dirasakan ortu; hanya tampil di dev (nol overhead produksi). */
 const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
@@ -30,7 +30,7 @@ const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
 };
 
 export const fetchPackages = (): Promise<BookPackageOption[]> =>
-  getJson<BookPackageOption[]>("/api/packages", "Gagal memuat daftar paket buku.");
+  getJson<BookPackageOption[]>("/api/public/orders/packages", "Gagal memuat daftar paket buku.");
 
 export const searchStudents = (query: string, schoolId: string): Promise<StudentSearchResult[]> =>
   timed("search-students", () =>

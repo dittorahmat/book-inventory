@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School } from "../../types";
 
 interface SchoolsSettingsTabProps {
@@ -92,16 +93,18 @@ export function SchoolsSettingsTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">Tipe *</label>
-              <select
+              <SearchableSingleSelect
+                label="Tipe *"
+                options={[
+                  { value: "branch", label: "Branch (Cabang)" },
+                  { value: "main", label: "Headquarters (Pusat / Central HQ)" },
+                  { value: "warehouse", label: "Warehouse (Gudang Logistik)" },
+                ]}
                 value={schoolType}
-                onChange={(e) => setSchoolType(e.target.value as "main" | "branch" | "warehouse")}
-                className="w-full px-3.5 py-2.5 border border-[#CED0D4] rounded-lg text-xs font-semibold focus:outline-hidden focus:border-[#1877F2]"
-              >
-                <option value="branch">Branch (Cabang)</option>
-                <option value="main">Headquarters (Pusat / Central HQ)</option>
-                <option value="warehouse">Warehouse (Gudang Logistik)</option>
-              </select>
+                onChange={(v) => setSchoolType(v as "main" | "branch" | "warehouse")}
+                placeholder="Pilih tipe..."
+                required
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#050505] mb-1">Nomor Telepon</label>

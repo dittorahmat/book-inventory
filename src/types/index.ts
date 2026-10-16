@@ -22,6 +22,8 @@ export interface Book {
   id: string;
   isbn: string;
   title: string;
+  publicTitle?: string | null;
+  supplierIds?: string[];
   author: string;
   publisher: string;
   publishYear?: number;

@@ -66,9 +66,11 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
      - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
      - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
+     - Komponen input custom berlabel (`SearchableSingleSelect`/`SearchableMultiSelect`) mematikan validasi native `required`: setiap `required` di komponen ini **wajib** didampingi guard JS (cek kosong di submit/disabled tombol + pesan inline), dan `<label>` lama wajib dihapus saat migrasi (dilarang label ganda).
     - **Regression Test Updates**:
       - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
-      - Setiap route di `src/server/routes/*.ts` **wajib punya pasangan** `*.test.ts` — ditegakkan oleh `bun run check:route-tests` dan CI (`.github/workflows/checks.yml`).
+      - Setiap route di `src/server/routes/*.ts` **wajib punya pasangan** `*.test.ts` - ditegakkan oleh `bun run check:route-tests` dan CI (`.github/workflows/checks.yml`).
+      - Test komponen UI meniru pola `src/components/portal/StudentSearchStep.test.tsx`: shim DOM `test-dom` terdekat + dynamic import `@testing-library/react` + `fireEvent` — paket `@testing-library/user-event` tidak terinstal, jangan diimpor.
 
 6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend` Enforcement)**
    Setiap developer dan AI agent yang membuat atau memodifikasi UI/UX di codebase ini **WAJIB** mematuhi pedoman anti-slop dari skill `design-taste-frontend`:

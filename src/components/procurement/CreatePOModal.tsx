@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import type { Book } from "../../types";
 import { calcPoHeader, effectiveBookPrice } from "../../lib/book-pricing";
 import { postJson } from "../../lib/api";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { CreateSupplierModal } from "./CreateSupplierModal";
 import type { NewPOItemInput, Supplier } from "./procurement-types";
@@ -29,22 +30,50 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [poExpectedArrival, setPoExpectedArrival] = useState("");
   const [poNotes, setPoNotes] = useState("");
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() =>
-    catalogBooks.length > 0
-      ? [blankRow(catalogBooks[0].id, buyPriceOf(catalogBooks[0].id), 20)]
-      : []
-  );
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
+    const eligible = !defaultSupplierId
+      ? catalogBooks
+      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
+    const source = eligible.length > 0 ? eligible : catalogBooks;
+    return source.length > 0 ? [blankRow(source[0].id, buyPriceOf(source[0].id), 20)] : [];
+  });
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+
+  // Buku valid per supplier: universal (tanpa mapping) atau memuat supplier terpilih.
+  const eligibleBooks = useMemo(
+    () =>
+      !poSupplierId
+        ? catalogBooks
+        : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(poSupplierId)),
+    [catalogBooks, poSupplierId]
+  );
 
   function buyPriceOf(bookId: string, fallback = 0): number {
     const b = catalogBooks.find((x) => x.id === bookId);
     return b ? effectiveBookPrice(b).buy : fallback;
   }
 
+  const handleSupplierChange = (next: string) => {
+    setPoSupplierId(next);
+    setPoItems((prev) => {
+      const kept = prev.filter((it) => {
+        const b = catalogBooks.find((x) => x.id === it.bookId);
+        return !b || !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next);
+      });
+      if (kept.length !== prev.length) {
+        alert(`${prev.length - kept.length} baris dihapus karena tidak tersedia dari supplier terpilih.`);
+      }
+      return kept;
+    });
+  };
+
   const handleAddPOItemRow = () => {
-    if (catalogBooks.length === 0) return;
-    const defaultBook = catalogBooks[0];
+    if (eligibleBooks.length === 0) {
+      alert("Tidak ada judul buku yang tersedia dari supplier ini.");
+      return;
+    }
+    const defaultBook = eligibleBooks[0];
     setPoItems((prev) => [...prev, blankRow(defaultBook.id, buyPriceOf(defaultBook.id), 10)]);
   };
 
@@ -143,23 +172,16 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
               <label className="block text-xs font-semibold text-[#050505] mb-1">
                 Supplier / Vendor Resmi *
               </label>
-              <div className="flex gap-2">
-                <select
-                  value={poSupplierId}
-                  onChange={(e) => setPoSupplierId(e.target.value)}
-                  required
-                  className="flex-1 px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-                >
-                  {suppliers.length === 0 ? (
-                    <option value="">Belum ada supplier (Tambah baru)</option>
-                  ) : (
-                    suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))
-                  )}
-                </select>
+              <div className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <SearchableSingleSelect
+                    options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+                    value={poSupplierId}
+                    onChange={handleSupplierChange}
+                    placeholder={suppliers.length === 0 ? "Belum ada supplier (Tambah baru)" : "Pilih supplier..."}
+                    required
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(true)}
@@ -224,9 +246,11 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
               </button>
             </div>
 
-            {catalogBooks.length === 0 ? (
+            {eligibleBooks.length === 0 ? (
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-                Katalog buku masih kosong. Tambahkan buku di tab <strong>Katalog</strong> terlebih dahulu.
+                {catalogBooks.length === 0
+                  ? <>Katalog buku masih kosong. Tambahkan buku di tab <strong>Katalog</strong> terlebih dahulu.</>
+                  : "Tidak ada judul buku yang tersedia dari supplier ini. Ubah supplier atau tambah relasi di katalog."}
               </div>
             ) : poItems.length === 0 ? (
               <div className="p-4 bg-[#F0F2F5] border border-dashed border-[#CED0D4] rounded-xl text-center text-[#65676B]">
@@ -241,17 +265,12 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
                   >
                     <div className="col-span-12 sm:col-span-5">
                       <label className="block text-[10px] text-[#65676B] mb-0.5">Judul Buku</label>
-                      <select
+                      <SearchableSingleSelect
+                        options={eligibleBooks.map((b) => ({ value: b.id, label: b.title, hint: b.isbn }))}
                         value={item.bookId}
-                        onChange={(e) => handleUpdatePOItem(idx, "bookId", e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] font-medium"
-                      >
-                        {catalogBooks.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.title} ({b.isbn})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleUpdatePOItem(idx, "bookId", val)}
+                        placeholder="Cari judul..."
+                      />
                     </div>
 
                     <div className="col-span-5 sm:col-span-2">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Package, Plus, Trash2, X } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { Book } from "../../types";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
@@ -146,34 +147,28 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Tingkat Kelas *
-              </label>
-              <select
+              <SearchableSingleSelect
+                label="Tingkat Kelas *"
+                options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => ({ value: g.toString(), label: `Kelas ${g}` }))}
                 value={newPkgGrade}
-                onChange={(e) => setNewPkgGrade(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
-                  <option key={g} value={g.toString()}>
-                    Kelas {g}
-                  </option>
-                ))}
-              </select>
+                onChange={setNewPkgGrade}
+                placeholder="Pilih kelas..."
+                required
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Kurikulum *
-              </label>
-              <select
+              <SearchableSingleSelect
+                label="Kurikulum *"
+                options={[
+                  { value: "international", label: "Internasional (Cambridge)" },
+                  { value: "national", label: "Nasional (Kemendikbud)" },
+                ]}
                 value={newPkgCurriculum}
-                onChange={(e) => setNewPkgCurriculum(e.target.value as any)}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              >
-                <option value="international">Internasional (Cambridge)</option>
-                <option value="national">Nasional (Kemendikbud)</option>
-              </select>
+                onChange={(v) => setNewPkgCurriculum(v as "international" | "national")}
+                placeholder="Pilih kurikulum..."
+                required
+              />
             </div>
 
             <div>
@@ -234,18 +229,13 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
                     className="p-3 bg-[#F9FAFB] border border-[#E4E6EB] rounded-xl grid grid-cols-12 gap-2.5 items-center"
                   >
                     <div className="col-span-12 sm:col-span-8">
-                      <label className="block text-[10px] text-[#65676B] mb-0.5">Judul Buku dari Katalog</label>
-                      <select
+                      <SearchableSingleSelect
+                        label="Judul Buku dari Katalog"
+                        options={catalogBooks.map((b) => ({ value: b.id, label: b.title, hint: b.isbn }))}
                         value={item.bookId}
-                        onChange={(e) => handleUpdateBOMItem(idx, "bookId", e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] font-medium"
-                      >
-                        {catalogBooks.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.title} ({b.isbn})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleUpdateBOMItem(idx, "bookId", val)}
+                        placeholder="Cari judul..."
+                      />
                     </div>
 
                     <div className="col-span-8 sm:col-span-3">

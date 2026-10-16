@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
-import { books, purchaseOrders, purchaseOrderItems, suppliers, schools } from "../../../db/schema";
+import { books, purchaseOrders, purchaseOrderItems, suppliers, schools, bookSuppliers } from "../../../db/schema";
 import { calcPoHeader, effectiveBuyPrice } from "../../../lib/book-pricing";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 
@@ -191,13 +191,37 @@ export async function createPurchaseOrder(
   if (!target.ok) return { ok: false, status: 400, message: target.message };
 
   const bookIds = [...new Set(input.items.map((it) => it.bookId))];
-  const priceRows: Array<{ id: string; price: number; buyPrice: number; sellPrice: number }> = await database
-    .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
+  const priceRows: Array<{ id: string; title: string; price: number; buyPrice: number; sellPrice: number }> = await database
+    .select({ id: books.id, title: books.title, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
     .from(books)
     .where(inArray(books.id, bookIds));
   const priceById = new Map<string, number>(priceRows.map((r) => [r.id, effectiveBuyPrice(r)]));
+  const titleById = new Map<string, string>(priceRows.map((r) => [r.id, r.title]));
   const missing = bookIds.filter((id) => !priceById.has(id));
   if (missing.length > 0) return { ok: false, status: 400, message: `Buku tidak ditemukan: ${missing[0]}` };
+
+  // Eksklusivitas supplier: buku bermapping hanya boleh dipesan dari supplier terdaftar.
+  const links = await database
+    .select({ bookId: bookSuppliers.bookId, supplierId: bookSuppliers.supplierId })
+    .from(bookSuppliers)
+    .where(inArray(bookSuppliers.bookId, bookIds));
+  const allowedByBook = new Map<string, Set<string>>();
+  for (const l of links) {
+    const set = allowedByBook.get(l.bookId) ?? new Set<string>();
+    set.add(l.supplierId);
+    allowedByBook.set(l.bookId, set);
+  }
+  const offender = input.items.find((it) => {
+    const allowed = allowedByBook.get(it.bookId);
+    return allowed && allowed.size > 0 && !allowed.has(input.supplierId);
+  });
+  if (offender) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Buku "${titleById.get(offender.bookId) ?? offender.bookId}" hanya dapat dipesan dari supplier terdaftar.`,
+    };
+  }
 
   const resolved: CreatedPoItem[] = input.items.map((it) => ({
     id: "",

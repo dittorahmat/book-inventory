@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformSalesReport, fetchUniformClaims, createUniformClaim, lockUniformClaim,
@@ -92,18 +93,30 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 grid gap-3 sm:grid-cols-5">
         <div>
-          <label className={labelCls}>Sekolah</label>
-          <select value={schoolId} disabled={!!lockedSchoolId} onChange={(e) => setSchoolId(e.target.value)} className={`${inputCls} disabled:opacity-60`}>
-            <option value="">Semua</option>
-            {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <SearchableSingleSelect
+            label="Sekolah"
+            options={schools.map((s) => ({ value: s.id, label: s.name }))}
+            value={schoolId}
+            onChange={setSchoolId}
+            placeholder="Semua"
+            disabled={!!lockedSchoolId}
+          />
         </div>
         <div><label className={labelCls}>Dari</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} /></div>
         <div><label className={labelCls}>Sampai</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} /></div>
-        <div><label className={labelCls}>Jenjang</label>
-          <select value={jenjang} onChange={(e) => setJenjang(e.target.value)} className={inputCls}>
-            <option value="">Semua</option><option value="tk">TK</option><option value="sd">SD</option><option value="smp">SMP</option><option value="sma">SMA</option>
-          </select>
+        <div><SearchableSingleSelect
+          label="Jenjang"
+          options={[
+            { value: "", label: "Semua" },
+            { value: "tk", label: "TK" },
+            { value: "sd", label: "SD" },
+            { value: "smp", label: "SMP" },
+            { value: "sma", label: "SMA" },
+          ]}
+          value={jenjang}
+          onChange={setJenjang}
+          placeholder="Pilih jenjang..."
+        />
         </div>
         <div><label className={labelCls}>Ukuran</label><input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M / —" className={inputCls} /></div>
       </div>

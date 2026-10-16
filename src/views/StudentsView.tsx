@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { School } from "../types";
 import { Search, Plus, AlertCircle, Users, Loader2 } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useStudents } from "../components/students/useStudents";
 import { fetchSchools } from "../components/students/students-api";
 import type { SchoolOption } from "../components/students/students-api";
@@ -73,18 +74,21 @@ export function StudentsView({ activeSchool }: StudentsViewProps) {
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
           />
         </div>
-        <select
-          value={s.statusFilter}
-          onChange={(e) => s.setStatusFilter(e.target.value as typeof s.statusFilter)}
-          className="px-3 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
-        >
-          <option value="all">Semua Status</option>
-          <option value="new_pending">Menunggu Verifikasi</option>
-          <option value="active">Aktif</option>
-          <option value="promoted">Naik Kelas</option>
-          <option value="rejected">Ditolak</option>
-          <option value="graduated">Lulus</option>
-        </select>
+        <div className="w-full sm:w-56">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Status" },
+              { value: "new_pending", label: "Menunggu Verifikasi" },
+              { value: "active", label: "Aktif" },
+              { value: "promoted", label: "Naik Kelas" },
+              { value: "rejected", label: "Ditolak" },
+              { value: "graduated", label: "Lulus" },
+            ]}
+            value={s.statusFilter}
+            onChange={(v) => s.setStatusFilter(v as typeof s.statusFilter)}
+            placeholder="Filter status..."
+          />
+        </div>
       </div>
 
       {s.error && (

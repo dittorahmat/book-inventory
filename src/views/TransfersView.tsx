@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { School } from "../types";
 import { Plus, ArrowRight, Send, CheckCircle, Trash2, Zap } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { LoosePicker } from "../components/transfers/LoosePicker";
 import { PackagePicker } from "../components/transfers/PackagePicker";
 import { ShipmentDetailModal } from "../components/transfers/ShipmentDetailModal";
@@ -89,21 +90,15 @@ export function TransfersView({ activeSchool }: { activeSchool: School | null })
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Cabang / Sekolah Tujuan</label>
-            <select
-              value={destinationSchoolId}
-              onChange={(e) => setDestinationSchoolId(e.target.value)}
-              className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs bg-white font-medium focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-            >
-              <option value="">Pilih Cabang Tujuan</option>
-              {allSchools
+            <SearchableSingleSelect
+              label="Cabang / Sekolah Tujuan"
+              options={allSchools
                 .filter((s) => s.id !== activeSchool?.id)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-            </select>
+                .map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+              value={destinationSchoolId}
+              onChange={setDestinationSchoolId}
+              placeholder="Pilih Cabang Tujuan"
+            />
             {schoolsError && (
               <div className="flex items-center justify-between gap-2 mt-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5">
                 <p className="text-xs text-red-700">{schoolsError}</p>

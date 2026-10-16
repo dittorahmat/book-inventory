@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { School } from "../types";
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
 import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
 import { CashierPaymentModal } from "../components/orders/CashierPaymentModal";
@@ -64,26 +65,32 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
           />
         </div>
-        <select
-          value={paymentFilter}
-          onChange={(e) => setPaymentFilter(e.target.value)}
-          className="px-3 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
-        >
-          <option value="all">Semua Status Bayar</option>
-          <option value="unpaid">Belum Bayar</option>
-          <option value="partial">Cicilan (Parsial)</option>
-          <option value="paid">Lunas</option>
-          <option value="scholarship_pending">Verifikasi Beasiswa</option>
-        </select>
-        <select
-          value={fulfillmentFilter}
-          onChange={(e) => setFulfillmentFilter(e.target.value)}
-          className="px-3 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
-        >
-          <option value="all">Semua Status Buku</option>
-          <option value="waiting_preparation">Belum Diambil</option>
-          <option value="picked_up">Sudah Diambil</option>
-        </select>
+        <div className="w-full sm:w-52">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Status Bayar" },
+              { value: "unpaid", label: "Belum Bayar" },
+              { value: "partial", label: "Cicilan (Parsial)" },
+              { value: "paid", label: "Lunas" },
+              { value: "scholarship_pending", label: "Verifikasi Beasiswa" },
+            ]}
+            value={paymentFilter}
+            onChange={setPaymentFilter}
+            placeholder="Filter bayar..."
+          />
+        </div>
+        <div className="w-full sm:w-52">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Status Buku" },
+              { value: "waiting_preparation", label: "Belum Diambil" },
+              { value: "picked_up", label: "Sudah Diambil" },
+            ]}
+            value={fulfillmentFilter}
+            onChange={setFulfillmentFilter}
+            placeholder="Filter buku..."
+          />
+        </div>
       </div>
 
       {errorMsg && (

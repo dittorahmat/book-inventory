@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { School } from "../types";
 import { getJson, postJson, buildQuery } from "../lib/api";
 import type { StaffBookReturn } from "../lib/portal-types";
-import { 
-  Search, 
-  RefreshCw, 
-  X, 
+import {
+  Search,
+  RefreshCw,
+  X,
   Layers
 } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 
 type BookReturn = StaffBookReturn;
 
@@ -122,19 +123,21 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
             className="w-full pl-10 pr-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] placeholder-[#65676B] focus:outline-hidden focus:border-[#1877F2]"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          aria-label="Filter status retur"
-          className="px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-        >
-          <option value="all">Semua Status</option>
-          <option value="reported">Menunggu Periksa</option>
-          <option value="approved">Disetujui</option>
-          <option value="replaced">Sudah Diganti</option>
-          <option value="rejected">Ditolak</option>
-          <option value="refunded">Refund Dana</option>
-        </select>
+        <div className="w-full sm:w-64">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Status" },
+              { value: "reported", label: "Menunggu Periksa" },
+              { value: "approved", label: "Disetujui" },
+              { value: "replaced", label: "Sudah Diganti" },
+              { value: "rejected", label: "Ditolak" },
+              { value: "refunded", label: "Refund Dana" },
+            ]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            placeholder="Filter status..."
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">

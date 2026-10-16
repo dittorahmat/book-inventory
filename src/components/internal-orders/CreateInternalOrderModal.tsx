@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { InternalPoLine, PackageOption } from "../../lib/internal-orders-types";
 import { getJson } from "../../lib/api";
 
@@ -89,23 +90,21 @@ export function CreateInternalOrderModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold text-[#050505]">Cabang Pemesan</label>
           {canChooseSchool ? (
-            <select
+            <SearchableSingleSelect
+              label="Cabang Pemesan"
+              options={schoolOptions.map((s) => ({ value: s.id, label: s.name }))}
               value={schoolId}
-              onChange={(e) => onSchoolChange(e.target.value)}
-              className="w-full rounded-xl border border-[#CED0D4] bg-white p-2.5 text-xs font-medium text-[#050505] focus:border-[#1877F2] focus:outline-none"
-            >
-              {schoolOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={onSchoolChange}
+              placeholder="Pilih cabang..."
+            />
           ) : (
-            <p className="rounded-xl border border-[#E4E6EB] bg-[#F8F9FA] px-3 py-2.5 text-xs font-bold text-[#050505]">
-              {schoolName}
-            </p>
+            <>
+              <label className="mb-1 block text-xs font-semibold text-[#050505]">Cabang Pemesan</label>
+              <p className="rounded-xl border border-[#E4E6EB] bg-[#F8F9FA] px-3 py-2.5 text-xs font-bold text-[#050505]">
+                {schoolName}
+              </p>
+            </>
           )}
         </div>
 
@@ -114,19 +113,13 @@ export function CreateInternalOrderModal({
           {lines.map((line, i) => (
             <div key={i} className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-[#65676B]">Paket buku</label>
-                <select
+                <SearchableSingleSelect
+                  label="Paket buku"
+                  options={packages.map((p) => ({ value: p.id, label: p.name, hint: p.code }))}
                   value={line.packageId}
-                  onChange={(e) => setLine(i, { packageId: e.target.value })}
-                  className="w-full rounded-xl border border-[#CED0D4] bg-white p-2.5 text-xs font-medium text-[#050505] focus:border-[#1877F2] focus:outline-none"
-                >
-                  <option value="">Pilih paket…</option>
-                  {packages.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.code})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setLine(i, { packageId: v })}
+                  placeholder="Pilih paket…"
+                />
               </div>
               <div className="w-24">
                 <label className="mb-1 block text-xs font-medium text-[#65676B]">Jumlah</label>

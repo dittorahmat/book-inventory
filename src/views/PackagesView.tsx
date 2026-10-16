@@ -7,6 +7,7 @@ import { BundlingModal } from "../components/BundlingModal";
 import { CreatePackageModal } from "../components/packages/CreatePackageModal";
 import { PackageTransferModal } from "../components/packages/PackageTransferModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 
 type BookPackage = PackageRow;
 
@@ -103,16 +104,17 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select
+        <div className="w-full sm:w-64">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Kurikulum" },
+              { value: "international", label: "Internasional (Cambridge/dsb)" },
+              { value: "national", label: "Nasional" },
+            ]}
             value={selectedCurriculum}
-            onChange={(e) => setSelectedCurriculum(e.target.value)}
-            className="px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-          >
-            <option value="all">Semua Kurikulum</option>
-            <option value="international">Internasional (Cambridge/dsb)</option>
-            <option value="national">Nasional</option>
-          </select>
+            onChange={setSelectedCurriculum}
+            placeholder="Filter kurikulum..."
+          />
         </div>
       </div>
 

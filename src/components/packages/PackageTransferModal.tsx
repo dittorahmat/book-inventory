@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Send } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School } from "../../types";
 import { formatRupiah, calcHeaderTotal } from "../../lib/transfer-pricing";
 import { buildQuery, getJson, postJson } from "../../lib/api";
@@ -113,24 +114,16 @@ export function PackageTransferModal({
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
           <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">
-              Sekolah / Cabang Tujuan
-            </label>
-            <select
-              required
-              value={destinationSchoolId}
-              onChange={(e) => setDestinationSchoolId(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-            >
-              <option value="">Pilih tujuan transfer...</option>
-              {allSchools
+            <SearchableSingleSelect
+              label="Sekolah / Cabang Tujuan"
+              options={allSchools
                 .filter((s) => s.id !== activeSchool?.id)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-            </select>
+                .map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+              value={destinationSchoolId}
+              onChange={setDestinationSchoolId}
+              placeholder="Pilih tujuan transfer..."
+              required
+            />
           </div>
 
           <div>

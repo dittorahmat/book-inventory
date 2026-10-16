@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformOrders, fetchUniformOrderDetail,
@@ -112,11 +113,14 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 grid gap-3 sm:grid-cols-3">
         <div>
-          <label className={labelCls}>Sekolah</label>
-          <select value={schoolId} disabled={!!lockedSchoolId} onChange={(e) => setSchoolId(e.target.value)} className={`${inputCls} disabled:opacity-60`}>
-            <option value="">Semua sekolah</option>
-            {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <SearchableSingleSelect
+            label="Sekolah"
+            options={schools.map((s) => ({ value: s.id, label: s.name }))}
+            value={schoolId}
+            onChange={setSchoolId}
+            placeholder="Semua sekolah"
+            disabled={!!lockedSchoolId}
+          />
         </div>
         <div className="sm:col-span-2">
           <label className={labelCls}>Nomor order / nama / NIS</label>
@@ -152,23 +156,29 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-[#E4E6EB] p-3 space-y-2">
               <h4 className="text-xs font-bold">Tukar ukuran (olahraga ≤14 hari)</h4>
-              <div><label className={labelCls}>Item lama</label>
-                <select value={exItem} onChange={(e) => setExItem(e.target.value)} className={inputCls}>
-                  <option value="">— Pilih item —</option>
-                  {detail.items.filter((i) => i.variantId).map((i) => <option key={i.id} value={i.id}>{itemLabel(i)}</option>)}
-                </select>
+              <div><SearchableSingleSelect
+                label="Item lama"
+                options={detail.items.filter((i) => i.variantId).map((i) => ({ value: i.id, label: itemLabel(i) }))}
+                value={exItem}
+                onChange={setExItem}
+                placeholder="— Pilih item —"
+              />
               </div>
-              <div><label className={labelCls}>Varian baru</label>
-                <select value={exNewVariant} onChange={(e) => { setExNewVariant(e.target.value); setExNewSize(""); }} className={inputCls}>
-                  <option value="">— Pilih varian —</option>
-                  {olahraga.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
+              <div><SearchableSingleSelect
+                label="Varian baru"
+                options={olahraga.map((v) => ({ value: v.id, label: v.name }))}
+                value={exNewVariant}
+                onChange={(v) => { setExNewVariant(v); setExNewSize(""); }}
+                placeholder="— Pilih varian —"
+              />
               </div>
-              <div><label className={labelCls}>Size baru</label>
-                <select value={exNewSize} onChange={(e) => setExNewSize(e.target.value)} className={inputCls}>
-                  <option value="">— Pilih size —</option>
-                  {(olahraga.find((v) => v.id === exNewVariant)?.sizes ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+              <div><SearchableSingleSelect
+                label="Size baru"
+                options={(olahraga.find((v) => v.id === exNewVariant)?.sizes ?? []).map((s) => ({ value: s, label: s }))}
+                value={exNewSize}
+                onChange={setExNewSize}
+                placeholder="— Pilih size —"
+              />
               </div>
               <div><label className={labelCls}>Alasan</label><input value={exReason} onChange={(e) => setExReason(e.target.value)} className={inputCls} /></div>
               <button

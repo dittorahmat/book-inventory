@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Send, CheckCircle } from "lucide-react";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { TransferShipment } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import type { BundleConditionPick, LooseConditionPick, ReceiptCondition } from "../../lib/transfer-pricing";
@@ -96,25 +97,19 @@ export function ShipmentDetailModal({ shipment, onClose, onDispatch, onReceive }
                   </span>
                 )}
                 {isReceivable && !item.receivedCondition && (
-                  <label className="flex flex-col gap-0.5 shrink-0">
+                  <label className="flex flex-col gap-0.5 shrink-0 min-w-28">
                     <span className="text-[9px] font-bold uppercase text-[#65676B]">Kondisi terima</span>
-                    <select
-                      aria-label={`Kondisi terima ${item.barcode}`}
+                    <SearchableSingleSelect
+                      options={RECEIPT_OPTIONS}
                       value={pickFor(`${item.itemType === "package" ? "pkg:" : "loose:"}${item.itemType === "package" ? item.packageItemId : item.bookItemId}`)}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setPick(
                           `${item.itemType === "package" ? "pkg:" : "loose:"}${item.itemType === "package" ? item.packageItemId : item.bookItemId}`,
-                          e.target.value as ReceiptCondition
+                          v as ReceiptCondition
                         )
                       }
-                      className="text-[11px] font-semibold border border-[#CED0D4] rounded-lg px-1.5 py-1 bg-white text-[#050505] focus:outline-none focus:border-[#1877F2]"
-                    >
-                      {RECEIPT_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Kondisi..."
+                    />
                   </label>
                 )}
               </div>

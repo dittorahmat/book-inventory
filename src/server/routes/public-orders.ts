@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, notInArray, sql } from "drizzle-orm";
+import { eq, or, like, and, notInArray, sql, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
+import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
 import { reportReturn } from "../services/return";
 import {
   getCurrentSatuanStatus,
@@ -80,6 +81,27 @@ publicOrdersRouter.get("/satuan-catalog", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
   const catalog = await getSatuanCatalogIfOpen(db, academicYear || undefined);
   return c.json({ success: true, data: catalog });
+});
+
+// 0b. Katalog publik paket + sekolah (tanpa login): harga + BOM wajib terlihat,
+// judul memakai alias publik bila ada. Endpoint staf /api/packages tetap terkunci.
+publicOrdersRouter.get("/packages", async (c) => {
+  const pkgs = await listPackagesWithBom(db, PACKAGE_LIST_LIMIT);
+  return c.json({
+    success: true,
+    data: pkgs.map((p) => ({
+      ...p,
+      items: p.items.map((it) => ({ ...it, title: it.publicTitle ?? it.title })),
+    })),
+  });
+});
+
+publicOrdersRouter.get("/schools", async (c) => {
+  const rows = await db
+    .select({ id: schools.id, name: schools.name, code: schools.code })
+    .from(schools)
+    .where(ne(schools.type, "warehouse"));
+  return c.json({ success: true, data: rows });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)

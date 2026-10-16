@@ -217,6 +217,10 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
 
   const handleRegisterNewStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newStudent.schoolId) {
+      setErrorMessage("Pilih sekolah/unit terlebih dahulu sebelum mendaftar.");
+      return;
+    }
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
