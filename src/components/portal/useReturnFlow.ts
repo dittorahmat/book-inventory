@@ -78,7 +78,10 @@ export function useReturnFlow(packages: BookPackageOption[]) {
 
   const handleSubmitReturnReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedReturnOrder || !selectedDefectiveBookId) return;
+    if (!selectedReturnOrder || !selectedDefectiveBookId) {
+      setReturnErrorMessage("Pilih judul buku yang rusak terlebih dahulu.");
+      return;
+    }
     setIsSubmittingReturn(true);
     setReturnErrorMessage(null);
 
