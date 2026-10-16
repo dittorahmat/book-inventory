@@ -17,6 +17,7 @@
     "check:validators": "bun scripts/check-validators.ts",
     "check:plans": "bun scripts/explain-plan.ts",
     "check:d1-drift": "bun scripts/check-d1-drift.ts",
+    "check:d1-junk": "bun scripts/check-d1-junk.ts",
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "db:push": "drizzle-kit push",

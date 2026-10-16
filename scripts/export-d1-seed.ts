@@ -8,11 +8,24 @@
  */
 import { Database } from "bun:sqlite";
 import { writeFileSync } from "node:fs";
+import { isTestSeedValue } from "../src/server/lib/validators";
 
 const DB_PATH = "./data/inventory.db";
 const OUT_PATH = "./drizzle/seed-d1.sql";
 
 const db = new Database(DB_PATH, { readonly: true });
+
+// Fail-closed (§6 AGENTS.md): baris uji di DB lokal dilarang ikut ekspor —
+// vektor insiden 175 sekolah sampah di D1 production (Okt 2026).
+const junk = (
+  db.prepare("SELECT id, name FROM schools WHERE id LIKE 'school-%'").all() as Array<{ id: string; name: string }>
+).filter((r) => isTestSeedValue(r.id) || isTestSeedValue(r.name));
+if (junk.length > 0) {
+  console.error(`Export DITOLAK: ${junk.length} sekolah pola-uji di DB lokal (bersihkan dulu, jangan di-seed ke D1):`);
+  for (const r of junk.slice(0, 20)) console.error(`  ${r.id}  ← ${r.name}`);
+  if (junk.length > 20) console.error(`  ... dan ${junk.length - 20} lagi`);
+  process.exit(1);
+}
 
 type Row = Record<string, unknown>;
 
