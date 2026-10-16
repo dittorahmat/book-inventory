@@ -1,4 +1,4 @@
-import { and, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
   schools,
@@ -142,3 +142,102 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
     rows,
   };
 }
+
+/** Tahap order seragam: pemesanan → tagihan (invoice terkirim) → konfirmasi → lunas. */
+export type UniformOrderStage = "pemesanan" | "tagihan" | "konfirmasi" | "lunas";
+
+export const uniformOrderStage = (o: Pick<OrderRow, "invoiceSentAt" | "paymentStatus">): UniformOrderStage =>
+  !o.invoiceSentAt ? "pemesanan" : o.paymentStatus === "paid" ? "lunas" : o.paymentStatus === "partial" ? "konfirmasi" : "tagihan";
+
+export interface UniformExportRow {
+  orderId: string;
+  orderNumber: string;
+  studentName: string;
+  nis: string;
+  gradeLevel: string;
+  jenjang: UniformJenjang;
+  gender: string;
+  parentPhone: string;
+  address: string;
+  size: string;
+  quantity: number;
+  paymentStatus: string;
+  shippingCost: number;
+  shippingResi: string;
+}
+
+/** Baris export packing/ekspedisi: order lunas (default) per sekolah + item. */
+export async function fetchUniformExportRows(
+  database: AppDatabase,
+  schoolId: string,
+  paidOnly: boolean
+): Promise<UniformExportRow[]> {
+  const orders: OrderRow[] = await database
+    .select()
+    .from(uniformOrders)
+    .where(
+      paidOnly
+        ? and(eq(uniformOrders.schoolId, schoolId), eq(uniformOrders.paymentStatus, "paid"))
+        : eq(uniformOrders.schoolId, schoolId)
+    );
+  if (orders.length === 0) return [];
+  const orderIds = orders.map((o) => o.id);
+  const items: ItemRow[] = await selectInChunks(orderIds, (chunk) =>
+    database.select().from(uniformOrderItems).where(inArray(uniformOrderItems.orderId, chunk))
+  );
+  const studentIds = [...new Set(orders.map((o) => o.studentId))];
+  const studentRows: Array<{ id: string; name: string; nis: string; gradeLevel: string; gender: string | null; parentPhone: string | null }> =
+    await selectInChunks(studentIds, (chunk) =>
+      database
+        .select({ id: students.id, name: students.name, nis: students.nis, gradeLevel: students.gradeLevel, gender: students.gender, parentPhone: students.parentPhone })
+        .from(students)
+        .where(inArray(students.id, chunk))
+    );
+  const byStudent = new Map(studentRows.map((s) => [s.id, s]));
+  const itemsByOrder = new Map<string, ItemRow[]>();
+  for (const item of items) itemsByOrder.set(item.orderId, [...(itemsByOrder.get(item.orderId) ?? []), item]);
+  const rows: UniformExportRow[] = [];
+  for (const order of orders) {
+    const st = byStudent.get(order.studentId);
+    for (const item of itemsByOrder.get(order.id) ?? []) {
+      rows.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        studentName: st?.name ?? "",
+        nis: st?.nis ?? "",
+        gradeLevel: st?.gradeLevel ?? "",
+        jenjang: gradeToJenjang(st?.gradeLevel ?? ""),
+        gender: st?.gender === "female" ? "akhwat" : "ikhwan",
+        parentPhone: st?.parentPhone ?? "",
+        address: order.homeAddressSnapshot,
+        size: item.size,
+        quantity: item.quantity,
+        paymentStatus: order.paymentStatus,
+        shippingCost: order.shippingCost ?? 0,
+        shippingResi: order.shippingResi ?? "",
+      });
+    }
+  }
+  return rows;
+}
+
+const csvCell = (v: string | number): string => `"${String(v).replaceAll('"', '""')}"`;
+const toCsv = (header: string[], lines: Array<Array<string | number>>): string =>
+  [header, ...lines].map((r) => r.map(csvCell).join(";")).join("\r\n");
+
+/** Packing: nama, NIS, kelas, jenjang, size, gender per baris item. */
+export const buildPackingCsv = (rows: UniformExportRow[]): string =>
+  toCsv(
+    ["nama", "nis", "kelas", "jenjang", "size", "gender", "qty", "no_order"],
+    rows.map((r) => [r.studentName, r.nis, r.gradeLevel, r.jenjang, r.size, r.gender, r.quantity, r.orderNumber])
+  );
+
+/** Ekspedisi: nama, NIS, kontak ortu, alamat per order (satu baris per order). */
+export const buildEkspedisiCsv = (rows: UniformExportRow[]): string => {
+  const seen = new Map<string, UniformExportRow>();
+  for (const r of rows) if (!seen.has(r.orderId)) seen.set(r.orderId, r);
+  return toCsv(
+    ["nama", "nis", "kontak_ortu", "alamat", "ongkir", "resi", "no_order"],
+    [...seen.values()].map((r) => [r.studentName, r.nis, r.parentPhone, r.address, r.shippingCost, r.shippingResi, r.orderNumber])
+  );
+};

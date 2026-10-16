@@ -8,11 +8,26 @@ afterEach(() => {
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { schools, students, suppliers, systemSettings, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
 import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
 const postJson = (path: string, body: unknown) =>
   uniformsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** SimMenu order paket lampau agar submit satuan lolos aturan wajib-paket. */
+async function seedPriorUniformOrder(schoolId: string, studentId: string, stamp: string | number, shipped = false) {
+  const now = new Date().toISOString();
+  await db.insert(uniformOrders).values({
+    id: `uord-prior-${stamp}`,
+    orderNumber: `USO-PRIOR-${stamp}`,
+    studentId, schoolId, academicYear: "2026/2027",
+    homeAddressSnapshot: "Jl. Prior RT 01 RW 01, Depok 16411",
+    shipmentStatus: shipped ? "sudah_dikirim" : "belum_dikirim",
+    shippedAt: shipped ? now : null,
+    totalAmount: 215000, paidAmount: 215000,
+    createdAt: "2020-01-01T00:00:00.000Z", updatedAt: now,
+  });
+}
 
 describe("Uniform catalog, PO & assembly API", () => {
   it("menolak kain ber-size dan olahraga tanpa size", async () => {
@@ -164,6 +179,7 @@ describe("Uniform shipment flag", () => {
       gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 100000, createdAt: now, updatedAt: now,
     });
     await db.insert(uniformStock).values({ id: `ust-ship-${stamp}`, variantId, size: "—", quantity: 5, updatedAt: now });
+    await seedPriorUniformOrder(schoolA, studentId, `ship-${stamp}`, true);
     const submitted = await submitUniformOrder(
       db,
       {
@@ -237,6 +253,7 @@ describe("Uniform exchange & refund", () => {
     await db.update(uniformStock).set({ quantity: 3, updatedAt: now }).where(and(eq(uniformStock.variantId, olId), eq(uniformStock.size, "S")));
     await db.update(uniformStock).set({ quantity: 2, updatedAt: now }).where(and(eq(uniformStock.variantId, olId), eq(uniformStock.size, "M")));
 
+    await seedPriorUniformOrder(schoolId, studentId, `ur-${stamp}`);
     const submitted = await submitUniformOrder(
       db,
       {
@@ -348,6 +365,8 @@ describe("Uniform sales report & claims", () => {
       });
     await mkStudent(`stu-rp1-${stamp}`, "2");
     await mkStudent(`stu-rp2-${stamp}`, "5");
+    await seedPriorUniformOrder(schoolId, `stu-rp1-${stamp}`, `rp1-${stamp}`);
+    await seedPriorUniformOrder(schoolId, `stu-rp2-${stamp}`, `rp2-${stamp}`);
     const mkVariant = async (code: string, kind: "kain_harian" | "olahraga", price: number) => {
       const res = await uniformsRouter.request("/variants", {
         method: "POST",
@@ -478,6 +497,7 @@ describe("Uniform sales report & claims", () => {
     expect(kainRes.status).toBe(201);
     const kainId = (await kainRes.json()).data.variant.id;
     await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(eq(uniformStock.variantId, kainId));
+    await seedPriorUniformOrder(schoolId, studentId, `uship-${stamp}`);
     const goodOrder = await submitUniformOrder(db, {
       studentId, academicYear: "2026/2027",
       homeAddress: "Jl. Melati RT 02 RW 04, Serpong, 15310",
@@ -522,6 +542,7 @@ describe("Uniform sales report & claims", () => {
     expect(kainRes.status).toBe(201);
     const kainId = (await kainRes.json()).data.variant.id;
     await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(eq(uniformStock.variantId, kainId));
+    await seedPriorUniformOrder(schoolId, studentId, `uinv-${stamp}`);
     const goodOrder = await submitUniformOrder(db, {
       studentId, academicYear: "2026/2027",
       homeAddress: "Jl. Uinv RT 01 RW 01, Serpong 15310",
@@ -564,5 +585,120 @@ describe("Uniform sales report & claims", () => {
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
+  });
+});
+
+describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () => {
+  it("murid baru tanpa paket ditolak satuan-only; toggle off menutup satuan", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-urule-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Rule", code: `ALW-RULE-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-rule-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-RULE-${stamp}`, name: "Siswa Rule",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const kainRes = await postJson("/variants", {
+      code: `UK-RULE-${stamp}`, name: "Kain Rule", kind: "kain_harian",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 50000,
+    });
+    expect(kainRes.status).toBe(201);
+    const kainId = (await kainRes.json()).data.variant.id;
+    await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(eq(uniformStock.variantId, kainId));
+    const addr = "Jl. Rule RT 01 RW 01, Serpong 15310";
+
+    const fresh = await submitUniformOrder(db, {
+      studentId, academicYear: "2026/2027", homeAddress: addr, items: [{ variantId: kainId, quantity: 1 }],
+    });
+    expect(fresh.ok).toBe(false);
+    if (fresh.ok) return;
+    expect(fresh.message).toMatch(/wajib membeli paket/i);
+
+    await seedPriorUniformOrder(schoolId, studentId, `rule-${stamp}`);
+    await db.insert(systemSettings).values({ key: "uniform_satuan_enabled", value: "false", updatedAt: now });
+    try {
+      const closed = await submitUniformOrder(db, {
+        studentId, academicYear: "2026/2027", homeAddress: addr, items: [{ variantId: kainId, quantity: 1 }],
+      });
+      expect(closed.ok).toBe(false);
+      if (closed.ok) return;
+      expect(closed.message).toMatch(/ditutup/i);
+    } finally {
+      await db.delete(systemSettings).where(eq(systemSettings.key, "uniform_satuan_enabled"));
+    }
+
+    const noProof = await submitUniformOrder(db, {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+      orderType: "scholarship",
+    });
+    expect(noProof.ok).toBe(false);
+
+    const scholar = await submitUniformOrder(db, {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+      orderType: "scholarship", scholarshipProofBase64: "data:image/jpeg;base64,dGVzdA==",
+    });
+    expect(scholar.ok).toBe(true);
+    if (!scholar.ok) return;
+    expect(scholar.data.order.totalAmount).toBe(0);
+    expect(scholar.data.order.paymentStatus).toBe("scholarship_pending");
+
+    await db.delete(students).where(eq(students.id, studentId));
+    await db.delete(schools).where(eq(schools.id, schoolId));
+  });
+
+  it("beasiswa paket: total 0, approve melunaskan", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-usch-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Sch", code: `ALW-SCH-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-sch-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-SCH-${stamp}`, name: "Siswa Sch",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const kainRes = await postJson("/variants", {
+      code: `UK-SCH-${stamp}`, name: "Kain Sch", kind: "kain_harian",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 50000,
+    });
+    const kainId = (await kainRes.json()).data.variant.id;
+    await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(eq(uniformStock.variantId, kainId));
+    const pkgRes = await postJson("/packages", {
+      code: `UPK-SCH-${stamp}`, name: "Paket Sch", academicYear: "2026/2027",
+      items: [{ variantId: kainId }],
+    });
+    expect(pkgRes.status).toBe(201);
+    const pkgId = (await pkgRes.json()).data.id as string;
+    const asm = await postJson(`/packages/${pkgId}/assemble`, { quantity: 2 });
+    expect(asm.status).toBe(200);
+    const created = await submitUniformOrder(db, {
+      studentId, academicYear: "2026/2027",
+      homeAddress: "Jl. Sch RT 01 RW 01, Serpong 15310",
+      items: [{ packageId: pkgId, quantity: 1 }],
+      orderType: "scholarship", scholarshipProofBase64: "data:image/jpeg;base64,dGVzdA==",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.data.order.totalAmount).toBe(0);
+    expect(created.data.order.paymentStatus).toBe("scholarship_pending");
+    const { uniformBatchRouter } = await import("./uniform-batch");
+    const res = await uniformBatchRouter.request(`/orders/${created.data.order.id}/scholarship`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve" }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.paymentStatus).toBe("paid");
+    await db.delete(students).where(eq(students.id, studentId));
+    await db.delete(schools).where(eq(schools.id, schoolId));
   });
 });

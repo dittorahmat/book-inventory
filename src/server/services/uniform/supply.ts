@@ -183,6 +183,49 @@ export async function receiveUniformPo(
   return { ok: true, data: updated };
 }
 
+/** Stok awal / stok masuk manual gudang (tanpa PO): tambah atau set kuantitas varian-size. */
+export async function adjustManualStock(
+  database: AppDatabase,
+  input: { variantId: string; size?: string; quantity: number; mode: "add" | "set"; reason: string },
+  deps?: UniformSupplyDeps
+): Promise<{ ok: true; data: typeof uniformStock.$inferSelect } | UniformError> {
+  const now = writeNow(deps);
+  if (!input.reason.trim()) return invalid("Alasan penyesuaian wajib diisi.");
+  if (!Number.isInteger(input.quantity) || input.quantity < 0) return invalid("Kuantitas wajib angka bulat >= 0.");
+  const [variant] = await database.select().from(uniformVariants).where(eq(uniformVariants.id, input.variantId));
+  if (!variant) return { ok: false, status: 404, message: "Varian seragam tidak ditemukan." };
+  const size = input.size?.trim() || KAIN_SIZE;
+  if (variant.kind === "kain_harian" && size !== KAIN_SIZE) return invalid("Kain harian tanpa ukuran.");
+  if (variant.kind === "olahraga") {
+    const allowed = await database
+      .select({ size: uniformSizes.size })
+      .from(uniformSizes)
+      .where(and(eq(uniformSizes.variantId, variant.id), eq(uniformSizes.size, size)));
+    if (allowed.length === 0) return invalid(`Size ${size} tidak terdaftar untuk varian tersebut.`);
+  }
+  const [stock] = await database
+    .select()
+    .from(uniformStock)
+    .where(and(eq(uniformStock.variantId, input.variantId), eq(uniformStock.size, size)));
+  const nextQty = stock ? (input.mode === "add" ? stock.quantity + input.quantity : input.quantity) : input.quantity;
+  try {
+    if (stock) {
+      await database.update(uniformStock).set({ quantity: nextQty, updatedAt: now }).where(eq(uniformStock.id, stock.id));
+    } else {
+      await database.insert(uniformStock).values({ id: newWriteId(deps), variantId: input.variantId, size, quantity: nextQty, updatedAt: now });
+    }
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penyesuaian stok manual");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+  const [updated] = await database
+    .select()
+    .from(uniformStock)
+    .where(and(eq(uniformStock.variantId, input.variantId), eq(uniformStock.size, size)));
+  return { ok: true, data: updated };
+}
+
 export async function assembleUniformPackages(
   database: AppDatabase,
   packageId: string,

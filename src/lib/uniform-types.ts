@@ -61,4 +61,6 @@ export interface SubmitUniformOrderPayload {
   items: SubmitUniformOrderItem[];
   sizeOverrides?: Record<string, string>;
   notes?: string;
+  orderType?: "regular" | "scholarship";
+  scholarshipProofBase64?: string;
 }

@@ -5,7 +5,7 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformVariants, createUniformVariant,
   fetchUniformPackages, createUniformPackage, assembleUniformPackage,
-  fetchUniformPos, createUniformPo, receiveUniformPo,
+  fetchUniformPos, createUniformPo, receiveUniformPo, adjustUniformStock,
   type UniformVariantRow, type UniformPackageRow,
 } from "./uniform-admin-api";
 
@@ -38,6 +38,12 @@ export function UniformCatalogSection() {
   const [poLines, setPoLines] = useState<Array<{ variantId: string; size: string; qty: string; price: string }>>([]);
   const [asmQty, setAsmQty] = useState<Record<string, string>>({});
   const [asmSize, setAsmSize] = useState<Record<string, string>>({});
+
+  const [stVariant, setStVariant] = useState("");
+  const [stSize, setStSize] = useState("");
+  const [stQty, setStQty] = useState("0");
+  const [stMode, setStMode] = useState("add");
+  const [stReason, setStReason] = useState("");
 
   const reload = async () => {
     try {
@@ -148,6 +154,43 @@ export function UniformCatalogSection() {
             <div className="text-[#65676B]">{sizes.length > 0 ? `Size: ${sizes.join(", ")}` : "Tanpa ukuran"} · Stok: {stock.map((s) => `${s.size}=${s.quantity}`).join(", ") || "0"}</div>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
+        <h3 className="text-sm font-bold">Stok Manual (Awal / Masuk)</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <SearchableSingleSelect
+              label="Varian"
+              options={variants.map(({ variant: v }) => ({ value: v.id, label: `${v.code} — ${v.name}` }))}
+              value={stVariant}
+              onChange={setStVariant}
+              placeholder="— Pilih varian —"
+            />
+          </div>
+          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={inputCls} /></div>
+          <div><label className={labelCls}>Qty</label><input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={inputCls} /></div>
+          <div>
+            <SearchableSingleSelect
+              label="Mode"
+              options={[
+                { value: "add", label: "Tambah (stok masuk)" },
+                { value: "set", label: "Set (stok awal/opname)" },
+              ]}
+              value={stMode}
+              onChange={setStMode}
+              placeholder="Pilih mode..."
+            />
+          </div>
+        </div>
+        <div><label className={labelCls}>Alasan (wajib)</label><input value={stReason} onChange={(e) => setStReason(e.target.value)} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} /></div>
+        <button
+          type="button" disabled={busy || !stVariant}
+          onClick={() => run(() => adjustUniformStock({ variantId: stVariant, size: stSize.trim() || undefined, quantity: Number(stQty) || 0, mode: stMode as "add" | "set", reason: stReason.trim() }), "Stok disesuaikan.")}
+          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
+        >
+          Simpan Stok
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">

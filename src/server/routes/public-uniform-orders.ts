@@ -11,6 +11,7 @@ import {
   requestUniformExchange,
   requestUniformRefund,
   submitUniformOrder,
+  isUniformSatuanEnabled,
 } from "../services/uniform";
 import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
 
@@ -40,6 +41,8 @@ const submitUniformOrderSchema = z
     items: z.array(orderItemSchema).min(1, "Pilih minimal satu paket atau satuan"),
     sizeOverrides: z.record(z.string(), z.string().min(1)).optional(),
     notes: z.string().optional(),
+    orderType: z.enum(["regular", "scholarship"]).default("regular"),
+    scholarshipProofBase64: z.string().optional(),
   })
   .refine((v) => v.items.every((i) => (i.packageId ? 1 : 0) + (i.variantId ? 1 : 0) === 1), {
     message: "Tiap baris wajib paket atau satuan, bukan keduanya",
@@ -99,6 +102,11 @@ publicUniformOrdersRouter.get("/catalog", zValidator("query", catalogQuerySchema
         .map((p) => ({ ...p.package, bom: p.bom, readyQty: p.readyQty })),
     },
   });
+});
+
+// Status on/off pembelian satuan seragam (cermin satuan buku).
+publicUniformOrdersRouter.get("/satuan-status", async (c) => {
+  return c.json({ success: true, data: { open: await isUniformSatuanEnabled(db) } });
 });
 
 publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderSchema), async (c) => {

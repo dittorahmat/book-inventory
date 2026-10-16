@@ -176,6 +176,13 @@
       "when": 1792141585829,
       "tag": "0024_crazy_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792142677590,
+      "tag": "0025_brave_firelord",
+      "breakpoints": true
     }
   ]
 }

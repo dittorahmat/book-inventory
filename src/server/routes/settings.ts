@@ -19,6 +19,7 @@ import {
   setSatuanOverride,
   type SatuanOverride,
 } from "../services/order-intake";
+import { UNIFORM_SATUAN_KEY, isUniformSatuanEnabled } from "../services/uniform";
 import {
   RealWhatsAppSender,
   MetaWhatsAppSender,
@@ -113,6 +114,32 @@ settingsRouter.post("/satuan-cutoff/override", zValidator("json", overrideSchema
           : `Order satuan tahun ajaran ${academicYear} dipaksa ${override === "open" ? "buka" : "tutup"}.`,
       data,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET status on/off satuan seragam (peran logistik)
+settingsRouter.get("/uniform-satuan", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    return c.json({ success: true, data: { open: await isUniformSatuanEnabled(db) } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST on/off satuan seragam (peran logistik)
+settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.boolean() })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const now = new Date().toISOString();
+    const value = c.req.valid("json").enabled ? "true" : "false";
+    await db
+      .insert(systemSettings)
+      .values({ key: UNIFORM_SATUAN_KEY, value, updatedAt: now })
+      .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
+    return c.json({ success: true, message: `Pembelian satuan seragam ${value === "true" ? "dibuka" : "ditutup"}.`, data: { open: value === "true" } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

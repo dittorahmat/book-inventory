@@ -18,6 +18,8 @@ export interface UniformOrderRow {
   totalAmount: number;
   paidAmount?: number;
   paymentStatus?: string;
+  orderType?: string;
+  stage?: string;
   shippingCost?: number;
   shippingResi?: string | null;
   invoiceSentAt?: string | null;
@@ -136,3 +138,24 @@ export const createUniformClaim = (schoolId: string, period: string): Promise<Un
 
 export const lockUniformClaim = (id: string): Promise<UniformClaimRow> =>
   postJson<UniformClaimRow>(`/api/uniforms/claims/${id}/lock`, {}, "Gagal mengunci klaim.");
+
+export const adjustUniformStock = (payload: { variantId: string; size?: string; quantity: number; mode: "add" | "set"; reason: string }): Promise<unknown> =>
+  postJson("/api/uniforms/stock/adjust", payload, "Gagal menyesuaikan stok.");
+
+export const resolveUniformScholarship = (id: string, action: "approve" | "reject"): Promise<unknown> =>
+  postJson(`/api/uniforms/orders/${id}/scholarship`, { action }, "Gagal memproses beasiswa.");
+
+export const downloadUniformCsv = async (params: { schoolId: string; format: "packing" | "ekspedisi"; paidOnly?: boolean }): Promise<void> => {
+  const res = await fetch(buildQuery("/api/uniforms/orders/export", { ...params, paidOnly: String(params.paidOnly ?? true) }));
+  if (!res.ok) throw new Error("Gagal mengunduh data.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `seragam-${params.format}-${params.schoolId}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const importUniformShipping = (payload: { schoolId: string; markShipped?: boolean; rows: Array<{ nis: string; resi?: string; ongkir?: number }> }): Promise<{ updated: string[]; rejected: Array<{ nis: string; reason: string }> }> =>
+  postJson("/api/uniforms/orders/import-shipping", payload, "Gagal mengimpor data ekspedisi.");

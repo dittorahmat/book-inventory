@@ -89,6 +89,18 @@ async function seedCatalog(stamp: string) {
   return { kainId, olId, pkgId };
 }
 
+async function seedPriorOrder(schoolId: string, studentId: string, stamp: string) {
+  const now = new Date().toISOString();
+  await db.insert(uniformOrders).values({
+    id: `uord-prior-${stamp}`, orderNumber: `USO-PRIOR-${stamp}`,
+    studentId, schoolId, academicYear: "2026/2027",
+    homeAddressSnapshot: "Jl. Prior RT 01 RW 01, Depok 16411",
+    shipmentStatus: "sudah_dikirim", shippedAt: now,
+    totalAmount: 215000, paidAmount: 215000,
+    createdAt: "2020-01-01T00:00:00.000Z", updatedAt: now,
+  });
+}
+
 describe("Portal seragam publik", () => {
   it("search wajib sekolah, min 2 char, sembunyikan pending", async () => {
     const stamp = `s${Date.now()}`;
@@ -122,6 +134,7 @@ describe("Portal seragam publik", () => {
     const { schoolId, studentId } = await seedSchoolStudent(stamp);
     const { kainId, olId, pkgId } = await seedCatalog(stamp);
     const addr = "Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418";
+    await seedPriorOrder(schoolId, studentId, stamp);
 
     const short = await postPublic("/orders", {
       studentId, academicYear: "2026/2027", homeAddress: "Jl. X", items: [{ variantId: kainId }],
@@ -161,7 +174,7 @@ describe("Portal seragam publik", () => {
 
   it("payload ID format UUID juga lolos", async () => {
     const stamp = `u${Date.now()}`;
-    const { studentId } = await seedSchoolStudent(stamp, true);
+    const { schoolId, studentId } = await seedSchoolStudent(stamp, true);
     const now = new Date().toISOString();
     const vid = crypto.randomUUID();
     await db.insert(uniformVariants).values({
@@ -169,6 +182,7 @@ describe("Portal seragam publik", () => {
       gender: "female", jenjang: "sd", academicYear: "2026/2027", price: 110000, createdAt: now, updatedAt: now,
     });
     await db.insert(uniformStock).values({ id: crypto.randomUUID(), variantId: vid, size: "—", quantity: 5, updatedAt: now });
+    await seedPriorOrder(schoolId, studentId, stamp);
     const res = await postPublic("/orders", {
       studentId, academicYear: "2026/2027",
       homeAddress: "Jl. Anggrek No. 7, RT 01 RW 03, Jakarta Selatan 12510",
@@ -180,7 +194,8 @@ describe("Portal seragam publik", () => {
 
   it("order 30 baris satuan sekaligus lolos (chunked, §10)", async () => {
     const stamp = `v${Date.now()}`;
-    const { studentId } = await seedSchoolStudent(stamp);
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    await seedPriorOrder(schoolId, studentId, stamp);
     const now = new Date().toISOString();
     const ids: string[] = [];
     for (let i = 0; i < 30; i++) {
@@ -225,6 +240,7 @@ describe("Portal retur seragam mandiri", () => {
     await db.insert(uniformSizes).values({ id: `us-ret-m-${stamp}`, variantId: vid, size: "M", sortOrder: 1, createdAt: now });
     await db.insert(uniformStock).values({ id: `ust-ret-s-${stamp}`, variantId: vid, size: "S", quantity: 4, updatedAt: now });
     await db.insert(uniformStock).values({ id: `ust-ret-m-${stamp}`, variantId: vid, size: "M", quantity: 4, updatedAt: now });
+    await seedPriorOrder(schoolId, studentId, stamp);
 
     const orderRes = await postPublic("/orders", {
       studentId, academicYear: "2026/2027",
@@ -239,7 +255,8 @@ describe("Portal retur seragam mandiri", () => {
     );
     expect(lookup.status).toBe(200);
     const found = await lookup.json();
-    expect((found.data.orders as unknown[]).length).toBe(1);
+    const foundOrders = found.data.orders as Array<{ id: string }>;
+    expect(foundOrders.some((o) => o.id === orderId)).toBe(true);
     expect(Object.keys(found.data.itemsByOrder as Record<string, unknown[]>)).toContain(orderId);
 
     const empty = await publicUniformOrdersRouter.request(`/lookup-order?schoolId=${schoolId}`, { method: "GET" });

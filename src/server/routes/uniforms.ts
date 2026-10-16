@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, students, uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import {
@@ -42,6 +42,7 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
+import { uniformOrderStage } from "../services/uniform/report";
 import { setUniformShipping } from "../services/order-shipping";
 import { sendUniformInvoice } from "../services/order-invoice";
 
@@ -140,6 +141,8 @@ uniformsRouter.get("/orders", async (c) => {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const shipmentStatus = c.req.query("shipmentStatus");
+    const paymentStatus = c.req.query("paymentStatus");
+    const stage = c.req.query("stage");
     const search = c.req.query("search")?.trim();
 
     const conditions = [];
@@ -147,6 +150,17 @@ uniformsRouter.get("/orders", async (c) => {
     if (shipmentStatus === "belum_dikirim" || shipmentStatus === "sudah_dikirim") {
       conditions.push(eq(uniformOrders.shipmentStatus, shipmentStatus));
     }
+    if (paymentStatus === "unpaid" || paymentStatus === "partial" || paymentStatus === "paid" || paymentStatus === "scholarship_pending") {
+      conditions.push(eq(uniformOrders.paymentStatus, paymentStatus));
+    }
+    // Tahap dipetakan ke kondisi SQL (bukan filter JS): pemesanan/tagihan/konfirmasi/lunas.
+    if (stage === "pemesanan") conditions.push(isNull(uniformOrders.invoiceSentAt));
+    if (stage === "tagihan") {
+      conditions.push(isNotNull(uniformOrders.invoiceSentAt));
+      conditions.push(eq(uniformOrders.paymentStatus, "unpaid"));
+    }
+    if (stage === "konfirmasi") conditions.push(eq(uniformOrders.paymentStatus, "partial"));
+    if (stage === "lunas") conditions.push(eq(uniformOrders.paymentStatus, "paid"));
     if (search) {
       if (!schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
       const pattern = `%${search.toLowerCase()}%`;
@@ -173,7 +187,10 @@ uniformsRouter.get("/orders", async (c) => {
         shippingCost: uniformOrders.shippingCost,
         shippingResi: uniformOrders.shippingResi,
         invoiceSentAt: uniformOrders.invoiceSentAt,
+        paymentStatus: uniformOrders.paymentStatus,
+        orderType: uniformOrders.orderType,
         totalAmount: uniformOrders.totalAmount,
+        paidAmount: uniformOrders.paidAmount,
         homeAddressSnapshot: uniformOrders.homeAddressSnapshot,
         createdAt: uniformOrders.createdAt,
       })
@@ -183,7 +200,7 @@ uniformsRouter.get("/orders", async (c) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(uniformOrders.createdAt))
       .limit(50);
-    return c.json({ success: true, data: rows });
+    return c.json({ success: true, data: rows.map((r: (typeof rows)[number]) => ({ ...r, stage: uniformOrderStage(r) })) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
