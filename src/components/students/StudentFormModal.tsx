@@ -98,7 +98,7 @@ export function StudentFormModal({
             <div className="sm:col-span-2">
               <SearchableSingleSelect
                 label="Sekolah"
-                options={schools.map((s) => ({ value: s.id, label: s.name }))}
+                options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                 value={schoolId}
                 onChange={setSchoolId}
                 placeholder="Pilih sekolah..."
