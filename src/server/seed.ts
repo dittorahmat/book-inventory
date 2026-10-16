@@ -1,6 +1,8 @@
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
+import { WPR_PRICE } from "../lib/wpr";
+import { ensurePackageHasWpr } from "./services/wpr";
 import { 
   schools, 
   books, 
@@ -313,6 +315,12 @@ export async function runIdempotentSeed(customDb?: any) {
           createdAt: now,
         }).onConflictDoNothing();
       }
+      // WPR wajib di semua BOM paket (cermin migrasi + POST /api/packages).
+      await ensurePackageHasWpr(targetDb, packageId);
+      await targetDb
+        .update(bookPackages)
+        .set({ price: computePackagePrice(packageId) + WPR_PRICE, updatedAt: now })
+        .where(eq(bookPackages.id, packageId));
     }
   }
 

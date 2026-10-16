@@ -5,6 +5,7 @@ import { desc, and, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { students, uniformOrders, uniformRejects, uniformVariants } from "../../db/schema";
 import { idSchema } from "../lib/validators";
+import { fail } from "../lib/route-fail";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -22,9 +23,6 @@ import {
 import { resolveUniformScholarship } from "../services/uniform";
 
 export const uniformBatchRouter = new Hono();
-
-const fail = (c: { json: (body: unknown, status?: 400 | 403 | 404) => Response }, result: { status: 400 | 403 | 404; message: string }) =>
-  c.json({ success: false, message: result.message }, result.status);
 
 // Verifikasi pengajuan beasiswa seragam (logistik).
 uniformBatchRouter.post("/orders/:id/scholarship", zValidator("json", z.object({

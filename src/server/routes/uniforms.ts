@@ -45,11 +45,9 @@ import {
 import { uniformOrderStage } from "../services/uniform/report";
 import { setUniformShipping } from "../services/order-shipping";
 import { sendUniformInvoice } from "../services/order-invoice";
+import { fail } from "../lib/route-fail";
 
 export const uniformsRouter = new Hono();
-
-const fail = (c: { json: (body: unknown, status?: 400 | 403 | 404) => Response }, result: { status: 400 | 403 | 404; message: string }) =>
-  c.json({ success: false, message: result.message }, result.status);
 
 uniformsRouter.get("/variants", async (c) => {
   try {
