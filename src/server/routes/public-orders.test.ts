@@ -378,6 +378,72 @@ describe("Public Orders & Student Search API", () => {
     expect(submitJson.message).toContain("verifikasi");
   });
 
+  it("register via lifecycle seam sets REG- NIS and promoted view targets next grade", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-lifecycle-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Al Wildan Lifecycle Test",
+      code: `ALW-LC-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const regRes = await publicOrdersRouter.request("/register-student", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId,
+        name: `Lifecycle Kid ${stamp}`,
+        gender: "female",
+        gradeLevel: "2",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        parentName: "Ortu Lifecycle",
+        parentEmail: "lifecycle@example.com",
+        parentPhone: "+628100000009",
+      }),
+    });
+    expect(regRes.status).toBe(201);
+    const regJson = await regRes.json();
+    expect(regJson.data.status).toBe("new_pending");
+    expect(regJson.data.nis.startsWith("REG-")).toBe(true);
+
+    const promotedId = `st-promoted-${stamp}`;
+    await db.insert(students).values({
+      id: promotedId,
+      schoolId,
+      nis: `NIS-PROMO-${stamp}`,
+      name: `Promoted Kid ${stamp}`,
+      gender: "male",
+      gradeLevel: "2",
+      curriculumType: "national",
+      academicYear: "2026/2027",
+      parentName: "Ortu Promo",
+      parentEmail: "promo@example.com",
+      parentPhone: "+628100000010",
+      status: "promoted",
+      isScholarship: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const searchRes = await publicOrdersRouter.request(
+      `/search-students?query=${encodeURIComponent(`Promoted Kid ${stamp}`)}&schoolId=${schoolId}`,
+      { method: "GET" }
+    );
+    expect(searchRes.status).toBe(200);
+    const searchJson = await searchRes.json();
+    const found = searchJson.data.find((s: { id: string }) => s.id === promotedId);
+    expect(found.detectedStatus).toBe("naik_kelas");
+    expect(found.currentGradeLevel).toBe("2");
+    expect(found.targetGradeLevel).toBe("3");
+    expect(found.canOrder).toBe(true);
+    await db.delete(students).where(inArray(students.id, [regJson.data.id, promotedId]));
+    await db.delete(schools).where(eq(schools.id, schoolId));
+  });
+
   it("submit-return publik dihapus: lapor rusak hanya via staf", async () => {
     const stamp = Date.now();
     const res = await publicOrdersRouter.request("/submit-return", {

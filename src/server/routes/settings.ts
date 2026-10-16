@@ -3,8 +3,18 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
-import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
 import type { EmailRuntimeEnv } from "../services/email/types";
+import {
+  getMetaView,
+  getSmtpView,
+  getWhatsappView,
+  saveMeta,
+  saveSmtp,
+  saveWhatsapp,
+  testMeta,
+  testSmtp,
+  testWhatsapp,
+} from "../services/settings-notifications";
 import { currentAcademicYear } from "../../lib/wib-time";
 import {
   getSatuanStatus,
@@ -12,14 +22,6 @@ import {
   setSatuanOverride,
   type SatuanOverride,
 } from "../services/order-intake";
-import {
-  RealWhatsAppSender,
-  MetaWhatsAppSender,
-  getWhatsAppConfig,
-  saveWhatsAppConfig,
-  getMetaWhatsAppConfig,
-  saveMetaWhatsAppConfig,
-} from "../services/whatsapp";
 import { accessErrorResponse } from "../services/access-scope";
 import { assertSettingsAdmin } from "../services/settings-access";
 
@@ -128,20 +130,7 @@ settingsRouter.get("/smtp", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
-    const config = await getSmtpConfig(db, env);
-    const smtpConfigured = Boolean(config.password);
-    const brevoConfigured = Boolean(config.brevoApiKey);
-    return c.json({
-      success: true,
-      data: {
-        ...config,
-        password: smtpConfigured ? "********" : "",
-        brevoApiKey: brevoConfigured ? "********" : "",
-        isConfigured: smtpConfigured || brevoConfigured,
-        smtpConfigured,
-        brevoConfigured,
-      },
-    });
+    return c.json({ success: true, data: await getSmtpView(db, env) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -152,7 +141,7 @@ settingsRouter.post("/smtp", zValidator("json", updateSmtpSchema), async (c) => 
   try {
     await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
-    await saveSmtpConfig(db, { ...body, provider: body.emailProvider });
+    await saveSmtp(db, body);
     return c.json({ success: true, message: "Pengaturan email berhasil disimpan" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -165,21 +154,7 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
     await assertSettingsAdmin(c, "notif");
     const { recipientEmail } = c.req.valid("json");
     const env = c.env as unknown as EmailRuntimeEnv | undefined;
-    const result = await sendEmailNotification(
-      db,
-      {
-        to: recipientEmail,
-        subject: "Uji Coba Notifikasi Email Al Wildan School Logistics",
-        html: `
-      <div style="font-family: sans-serif; padding: 20px; color: #050505;">
-        <h2>Uji Coba Konfigurasi Email Berhasil</h2>
-        <p>Sistem inventaris dan pemesanan buku sekolah Al Wildan telah terhubung dengan layanan email.</p>
-        <p style="color: #65676B; font-size: 12px;">Waktu pengiriman: ${new Date().toLocaleString("id-ID")}</p>
-      </div>
-    `,
-      },
-      env
-    );
+    const result = await testSmtp(db, recipientEmail, env);
 
     if (!result.success) {
       return c.json(
@@ -208,15 +183,7 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
 settingsRouter.get("/whatsapp", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
-    const config = await getWhatsAppConfig(db);
-    return c.json({
-      success: true,
-      data: {
-        ...config,
-        apiKey: config.apiKey ? "********" : "",
-        isConfigured: Boolean(config.gatewayUrl),
-      },
-    });
+    return c.json({ success: true, data: await getWhatsappView(db) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -234,11 +201,7 @@ settingsRouter.post("/whatsapp", zValidator("json", updateWhatsAppSchema), async
   try {
     await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
-    const existing = await getWhatsAppConfig(db);
-    await saveWhatsAppConfig(db, {
-      ...body,
-      apiKey: body.apiKey === "********" ? existing.apiKey : body.apiKey,
-    });
+    await saveWhatsapp(db, body);
     return c.json({ success: true, message: "Pengaturan WhatsApp gateway berhasil disimpan" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -255,7 +218,7 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
   try {
     await assertSettingsAdmin(c, "notif");
     const { phone, message } = c.req.valid("json");
-    const result = await new RealWhatsAppSender(db).send({ to: phone, text: message });
+    const result = await testWhatsapp(db, phone, message);
     if (!result.success) {
       return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
     }
@@ -275,11 +238,7 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
 settingsRouter.get("/whatsapp-meta", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
-    const config = await getMetaWhatsAppConfig(db);
-    return c.json({
-      success: true,
-      data: { ...config, accessToken: config.accessToken ? "********" : "", isConfigured: Boolean(config.phoneNumberId) },
-    });
+    return c.json({ success: true, data: await getMetaView(db) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -296,11 +255,7 @@ settingsRouter.post("/whatsapp-meta", zValidator("json", updateMetaWhatsAppSchem
   try {
     await assertSettingsAdmin(c, "notif");
     const body = c.req.valid("json");
-    const existing = await getMetaWhatsAppConfig(db);
-    await saveMetaWhatsAppConfig(db, {
-      ...body,
-      accessToken: body.accessToken === "********" ? existing.accessToken : body.accessToken,
-    });
+    await saveMeta(db, body);
     return c.json({ success: true, message: "Pengaturan WhatsApp Meta berhasil disimpan" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -312,7 +267,7 @@ settingsRouter.post("/whatsapp-meta/test", zValidator("json", testWhatsAppSchema
   try {
     await assertSettingsAdmin(c, "notif");
     const { phone, message } = c.req.valid("json");
-    const result = await new MetaWhatsAppSender(db).send({ to: phone, text: message });
+    const result = await testMeta(db, phone, message);
     if (!result.success) {
       return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
     }

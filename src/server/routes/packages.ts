@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookPackages, bookPackageItems, packageItems } from "../../db/schema";
-import { recalcPackagePrice } from "../services/book-price";
+import { recalcPackagePrice } from "../services/pricing";
 import {
   accessErrorResponse,
   assertLocationAllowed,

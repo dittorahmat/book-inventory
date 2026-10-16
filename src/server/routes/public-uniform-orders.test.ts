@@ -116,6 +116,21 @@ describe("Portal seragam publik", () => {
     expect(noSchool.status).toBe(400);
   });
 
+  it("search seragam mengembalikan subset kolom yang sama persis (tanpa bocor eligibility buku)", async () => {
+    const stamp = `w${Date.now()}`;
+    const { schoolId } = await seedSchoolStudent(stamp);
+    const ok = await publicUniformOrdersRouter.request(
+      `/search-students?query=${encodeURIComponent(`Seragam ${stamp}`)}&schoolId=${schoolId}`, { method: "GET" }
+    );
+    expect(ok.status).toBe(200);
+    const rows = (await ok.json()).data as Array<Record<string, unknown>>;
+    expect(rows.length).toBeGreaterThan(0);
+    const whitelist = ["id", "nis", "name", "gender", "gradeLevel", "academicYear", "status", "schoolId", "schoolName", "parentName", "parentPhone"].sort();
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual(whitelist);
+    }
+  });
+
   it("katalog per tahun ajaran memuat size chart", async () => {
     const stamp = `k${Date.now()}`;
     await seedCatalog(stamp);

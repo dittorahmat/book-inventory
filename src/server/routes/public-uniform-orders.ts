@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, inArray, like, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, like, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, students, uniformOrders, uniformOrderItems } from "../../db/schema";
+import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { idSchema, academicYearSchema } from "../lib/validators";
 import {
   listUniformPackages,
@@ -14,7 +14,7 @@ import {
   isUniformSatuanEnabled,
 } from "../services/uniform";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
-import { matchAnyLower } from "../lib/partitioned-search";
+import { searchVerifiedStudents, toConfirmOrderView, toUniformSearchView } from "../services/public-order";
 
 export const publicUniformOrdersRouter = new Hono();
 
@@ -60,32 +60,8 @@ const lookupQuerySchema = z
 // Cari murid terverifikasi dalam satu sekolah (Pencarian Partisi §11).
 publicUniformOrdersRouter.get("/search-students", zValidator("query", searchStudentSchema), async (c) => {
   const { query, schoolId } = c.req.valid("query");
-  const matchFilter = matchAnyLower([students.name, students.nis], query);
-  const found = await db
-    .select({
-      id: students.id,
-      nis: students.nis,
-      name: students.name,
-      gender: students.gender,
-      gradeLevel: students.gradeLevel,
-      academicYear: students.academicYear,
-      status: students.status,
-      schoolId: students.schoolId,
-      schoolName: schools.name,
-      parentName: students.parentName,
-      parentPhone: students.parentPhone,
-    })
-    .from(students)
-    .innerJoin(schools, eq(students.schoolId, schools.id))
-    .where(
-      and(
-        eq(students.schoolId, schoolId),
-        matchFilter,
-        notInArray(students.status, ["new_pending", "rejected"])
-      )
-    )
-    .limit(10);
-  return c.json({ success: true, data: found });
+  const found = await searchVerifiedStudents(db, query, schoolId);
+  return c.json({ success: true, data: found.map(toUniformSearchView) });
 });
 
 // Katalog seragam per tahun ajaran (katalog kecil, tanpa partisi sekolah).
@@ -120,19 +96,7 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
 publicUniformOrdersRouter.get("/confirm/:token", async (c) => {
   const found = await lookupBillingByToken(db, c.req.param("token"), "seragam");
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
-  return c.json({
-    success: true,
-    data: {
-      studentName: found.student?.name ?? null,
-      orderNumber: found.order.orderNumber,
-      totalAmount: found.order.totalAmount,
-      shippingCost: found.order.shippingCost ?? 0,
-      due: found.due,
-      paidAmount: found.order.paidAmount,
-      paymentStatus: found.order.paymentStatus,
-      invoiceSentAt: found.order.invoiceSentAt,
-    },
-  });
+  return c.json({ success: true, data: toConfirmOrderView(found) });
 });
 
 const uniformConfirmSchema = z.object({

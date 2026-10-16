@@ -10,7 +10,7 @@ import {
   effectiveBuyPrice,
   effectiveSellPrice,
 } from "../../lib/book-pricing";
-import { recalcPackagesUsingBook } from "../services/book-price";
+import { recalcPackagesUsingBook } from "../services/pricing";
 import {
   accessErrorResponse,
   resolveLogisticsActor,

@@ -29,6 +29,49 @@ export interface BillingInvoiceOpts extends SendInvoiceDeps {
   kind: BillingKind;
 }
 
+type InvoiceGate = (
+  database: AppDatabase,
+  actor: AccessActor,
+  orderId: string
+) => Promise<null | { status: 403; message: string }>;
+
+/** Kapabilitas per kind: tambah kind baru = tambah satu baris, bukan cabang baru. */
+const ADAPTERS = {
+  buku: {
+    sendInvoice: sendBookInvoice,
+    setShipping: setBookShipping,
+    confirmPayment: confirmBookPayment,
+    lookupByToken: lookupBookByToken,
+    assertInvoiceGate: assertSendInvoiceAllowed as InvoiceGate,
+  },
+  seragam: {
+    sendInvoice: sendUniformInvoice,
+    setShipping: setUniformShipping,
+    confirmPayment: confirmUniformPayment,
+    lookupByToken: lookupUniformByToken,
+    assertInvoiceGate: ((_database, _actor, _orderId) => Promise.resolve(null)) as InvoiceGate,
+  },
+} satisfies Record<
+  BillingKind,
+  {
+    sendInvoice: (database: AppDatabase, orderId: string, opts: SendInvoiceDeps) => unknown;
+    setShipping: (
+      database: AppDatabase,
+      orderId: string,
+      input: { shippingCost: number; shippingResi?: string },
+      deps?: WriteDeps
+    ) => unknown;
+    confirmPayment: (
+      database: AppDatabase,
+      token: string,
+      input: ConfirmPaymentInput,
+      deps?: ConfirmDeps
+    ) => unknown;
+    lookupByToken: (database: AppDatabase, token: string) => unknown;
+    assertInvoiceGate: InvoiceGate;
+  }
+>;
+
 export const sendInvoice = (
   database: AppDatabase,
   orderId: string,
@@ -37,9 +80,10 @@ export const sendInvoice = (
   | { ok: true; data: { order: { id: string }; confirmUrl: string; notification: unknown } }
   | { ok: false; status: 400 | 404; message: string }
 > =>
-  opts.kind === "buku"
-    ? sendBookInvoice(database, orderId, opts)
-    : sendUniformInvoice(database, orderId, opts);
+  ADAPTERS[opts.kind].sendInvoice(database, orderId, opts) as Promise<
+    | { ok: true; data: { order: { id: string }; confirmUrl: string; notification: unknown } }
+    | { ok: false; status: 400 | 404; message: string }
+  >;
 
 export const setShipping = (
   database: AppDatabase,
@@ -47,7 +91,7 @@ export const setShipping = (
   input: { shippingCost: number; shippingResi?: string },
   kind: BillingKind,
   deps?: WriteDeps
-) => (kind === "buku" ? setBookShipping(database, orderId, input, deps) : setUniformShipping(database, orderId, input, deps));
+) => ADAPTERS[kind].setShipping(database, orderId, input, deps);
 
 export const confirmPayment = (
   database: AppDatabase,
@@ -55,10 +99,10 @@ export const confirmPayment = (
   input: ConfirmPaymentInput,
   kind: BillingKind,
   deps?: ConfirmDeps
-) => (kind === "buku" ? confirmBookPayment(database, token, input, deps) : confirmUniformPayment(database, token, input, deps));
+) => ADAPTERS[kind].confirmPayment(database, token, input, deps);
 
 export const lookupByToken = (database: AppDatabase, token: string, kind: BillingKind) =>
-  kind === "buku" ? lookupBookByToken(database, token) : lookupUniformByToken(database, token);
+  ADAPTERS[kind].lookupByToken(database, token);
 
 /** Gerbang kirim invoice: buku memakai gate satuan-vs-paket, seragam tanpa gate tambahan (gate ongkir di dalam pengirim). */
 export const assertInvoiceGate = (
@@ -66,5 +110,4 @@ export const assertInvoiceGate = (
   actor: AccessActor,
   orderId: string,
   kind: BillingKind
-): Promise<null | { status: 403; message: string }> =>
-  kind === "buku" ? assertSendInvoiceAllowed(database, actor, orderId) : Promise.resolve(null);
+): Promise<null | { status: 403; message: string }> => ADAPTERS[kind].assertInvoiceGate(database, actor, orderId);
