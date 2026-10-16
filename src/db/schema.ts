@@ -283,6 +283,7 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   shippingCost: integer("shipping_cost").notNull().default(0),
   shippingResi: text("shipping_resi"),
   invoiceSentAt: text("invoice_sent_at"),
+  paymentToken: text("payment_token"),
   scholarshipProofUrl: text("scholarship_proof_url"),
   financeHandoverApproved: integer("finance_handover_approved", { mode: "boolean" }).notNull().default(false),
   discountAmount: integer("discount_amount").notNull().default(0),
@@ -580,6 +581,10 @@ export const uniformOrders = sqliteTable("uniform_orders", {
   shippingCost: integer("shipping_cost").notNull().default(0),
   shippingResi: text("shipping_resi"),
   invoiceSentAt: text("invoice_sent_at"),
+  paymentToken: text("payment_token"),
+  paymentStatus: text("payment_status", {
+    enum: ["unpaid", "partial", "paid"],
+  }).notNull().default("unpaid"),
   totalAmount: integer("total_amount").notNull().default(0),
   paidAmount: integer("paid_amount").notNull().default(0),
   notes: text("notes"),
@@ -602,6 +607,23 @@ export const uniformOrderItems = sqliteTable("uniform_order_items", {
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("uniform_order_items_order_idx").on(t.orderId),
+]);
+
+/** Pembayaran seragam via link konfirmasi (transfer manual, termin bebas). */
+export const uniformPayments = sqliteTable("uniform_payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => uniformOrders.id, { onDelete: "cascade" }),
+  transferAmount: integer("transfer_amount").notNull(),
+  uniformAllocationAmount: integer("uniform_allocation_amount").notNull(),
+  paymentProofUrl: text("payment_proof_url"),
+  bankName: text("bank_name"),
+  referenceNumber: text("reference_number"),
+  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+  verifiedAt: text("verified_at"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("uniform_payments_order_idx").on(t.orderId),
 ]);
 
 /** Tukar Ukuran: exchange olahraga belum-dipakai ≤14 hari (bukan refund dana). */

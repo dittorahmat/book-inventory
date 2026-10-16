@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { studentBookOrders, uniformOrders } from "../../db/schema";
+import { studentBookOrders, studentOrderItems, uniformOrders } from "../../db/schema";
 import { writeNow, d1WriteErrorStatus, type WriteDeps } from "../lib/d1-write";
 import type { AccessActor } from "./access-scope";
 import { AccessHttpError } from "./access-scope";
@@ -20,6 +20,27 @@ export const assertPaketActor = (actor: AccessActor): void => {
 };
 
 const invalid = (message: string): ShippingError => ({ ok: false, status: 400, message });
+
+/** Gerbang kirim invoice buku: order satuan wajib aktor gudang, paket-ambil bebas. */
+export const assertSendInvoiceAllowed = async (
+  database: AppDatabase,
+  actor: AccessActor,
+  orderId: string
+): Promise<null | { status: 403; message: string }> => {
+  const loose = await database
+    .select({ id: studentOrderItems.id })
+    .from(studentOrderItems)
+    .where(eq(studentOrderItems.orderId, orderId))
+    .limit(1);
+  if (loose.length === 0) return null;
+  try {
+    assertSatuanActor(actor);
+    return null;
+  } catch (err) {
+    if (err instanceof AccessHttpError) return { status: 403, message: err.message };
+    throw err;
+  }
+};
 
 /** Input ongkir manual gudang untuk order buku (satuan maupun paket kirim-rumah). */
 export async function setBookShipping(

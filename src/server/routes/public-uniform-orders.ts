@@ -12,6 +12,7 @@ import {
   requestUniformRefund,
   submitUniformOrder,
 } from "../services/uniform";
+import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
 
 export const publicUniformOrdersRouter = new Hono();
 
@@ -104,6 +105,39 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
   const result = await submitUniformOrder(db, c.req.valid("json"));
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, data: result.data }, 201);
+});
+
+// Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas).
+publicUniformOrdersRouter.get("/confirm/:token", async (c) => {
+  const found = await lookupUniformByToken(db, c.req.param("token"));
+  if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
+  return c.json({
+    success: true,
+    data: {
+      studentName: found.student?.name ?? null,
+      orderNumber: found.order.orderNumber,
+      totalAmount: found.order.totalAmount,
+      shippingCost: found.order.shippingCost ?? 0,
+      due: found.due,
+      paidAmount: found.order.paidAmount,
+      paymentStatus: found.order.paymentStatus,
+      invoiceSentAt: found.order.invoiceSentAt,
+    },
+  });
+});
+
+const uniformConfirmSchema = z.object({
+  transferAmount: z.number().int().min(1, "Nominal transfer minimal Rp 1"),
+  allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
+  bankName: z.string().optional(),
+  referenceNumber: z.string().optional(),
+  paymentProofBase64: z.string().optional(),
+});
+
+publicUniformOrdersRouter.post("/confirm/:token", zValidator("json", uniformConfirmSchema), async (c) => {
+  const result = await confirmUniformPayment(db, c.req.param("token"), c.req.valid("json"));
+  if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+  return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });
 
 // Lacak kiriman: nomor order atau murid + (opsional) sekolah.

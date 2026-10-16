@@ -16,6 +16,11 @@ export interface UniformOrderRow {
   shipmentStatus: "belum_dikirim" | "sudah_dikirim";
   shippedAt: string | null;
   totalAmount: number;
+  paidAmount?: number;
+  paymentStatus?: string;
+  shippingCost?: number;
+  shippingResi?: string | null;
+  invoiceSentAt?: string | null;
   homeAddressSnapshot: string;
   createdAt: string;
 }
@@ -25,6 +30,12 @@ export const fetchUniformOrders = (params: { schoolId?: string; shipmentStatus?:
 
 export const markUniformShipped = (id: string): Promise<UniformOrderRow> =>
   postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/ship`, {}, "Gagal menandai kiriman.");
+
+export const saveUniformShipping = (id: string, shippingCost: number, shippingResi?: string): Promise<UniformOrderRow> =>
+  postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/shipping`, { shippingCost, shippingResi }, "Gagal menyimpan ongkir.");
+
+export const sendUniformInvoice = (id: string): Promise<{ order: UniformOrderRow; confirmUrl: string }> =>
+  postJson<{ order: UniformOrderRow; confirmUrl: string }>(`/api/uniforms/orders/${id}/send-invoice`, {}, "Gagal mengirim invoice.");
 
 export interface UniformVariantRow {
   variant: {

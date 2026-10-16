@@ -15,6 +15,7 @@ import {
 } from "../services/order-intake";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { countPackageOrders } from "../services/wpr";
+import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice";
 import { WPR_PRICE, needsWprCharge } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
@@ -255,6 +256,39 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     message: "Pesanan buku berhasil dibuat!",
     data: { ...result.data, notification },
   }, 201);
+});
+
+// 6. Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas)
+publicOrdersRouter.get("/confirm/:token", async (c) => {
+  const found = await lookupBookByToken(db, c.req.param("token"));
+  if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
+  return c.json({
+    success: true,
+    data: {
+      studentName: found.student?.name ?? null,
+      orderNumber: found.order.orderNumber,
+      totalAmount: found.order.totalAmount,
+      shippingCost: found.order.shippingCost ?? 0,
+      due: found.due,
+      paidAmount: found.order.paidAmount,
+      paymentStatus: found.order.paymentStatus,
+      invoiceSentAt: found.order.invoiceSentAt,
+    },
+  });
+});
+
+const confirmPaymentSchema = z.object({
+  transferAmount: z.number().int().min(1, "Nominal transfer minimal Rp 1"),
+  allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
+  bankName: z.string().optional(),
+  referenceNumber: z.string().optional(),
+  paymentProofBase64: z.string().optional(),
+});
+
+publicOrdersRouter.post("/confirm/:token", zValidator("json", confirmPaymentSchema), async (c) => {
+  const result = await confirmBookPayment(db, c.req.param("token"), c.req.valid("json"));
+  if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+  return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });
 
 // 4. Public Lookup Order for Defect Return (by Order Number or Student NIS)

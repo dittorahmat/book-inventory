@@ -12,7 +12,8 @@ import {
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
 import { markSatuanShipped } from "../services/order-intake";
-import { assertPaketActor, assertSatuanActor, setBookShipping } from "../services/order-shipping";
+import { assertPaketActor, assertSatuanActor, assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
+import { sendBookInvoice } from "../services/order-invoice";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -277,6 +278,29 @@ studentOrdersRouter.post("/:id/shipping", zValidator("json", shippingSchema), as
       return c.json({ success: false, message: result.message }, result.status);
     }
     return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5d. POST Kirim invoice WA (gudang input ongkir dulu; tombol aktif setelah ongkir terisi)
+studentOrdersRouter.post("/:id/send-invoice", async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const id = c.req.param("id");
+    const scoped = await loadScopedOrder(db, actor, locations, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    const gate = await assertSendInvoiceAllowed(db, actor, id);
+    if (gate) {
+      return c.json({ success: false, message: gate.message }, gate.status);
+    }
+    const result = await sendBookInvoice(db, id, { baseUrl: new URL(c.req.url).origin });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

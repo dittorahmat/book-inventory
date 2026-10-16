@@ -813,6 +813,91 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
     expect(validateHomeAddress("Jl. Anggrek RT 03 RW 05, Serpong Utara, 15310").ok).toBe(true);
   });
 
+  it("invoice satuan wajib ongkir dulu; konfirmasi lunas/bertahap via link", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-inv-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Invoice", code: `ALW-INV-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-inv-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-INV-${stamp}`, name: "Siswa Invoice",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", parentName: "Ortu", parentPhone: "+628120000001",
+      createdAt: now, updatedAt: now,
+    });
+    const orderId = `ord-inv-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-INV-${String(stamp).slice(-6)}`,
+      studentId, schoolId, orderType: "regular",
+      paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+      homeAddressSnapshot: "Jl. Inv RT 01 RW 02, Serpong 15310",
+      totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+    });
+    const { publicOrdersRouter } = await import("./public-orders");
+    try {
+      const blocked = await studentOrdersRouter.request(`/${orderId}/send-invoice`, { method: "POST" });
+      expect(blocked.status).toBe(200);
+
+      await db.insert(studentOrderItems).values({
+        id: `soi-inv-${stamp}`, orderId, bookId: "book-wpr-weekly-report",
+        quantity: 1, unitPriceSnapshot: 750000, createdAt: now,
+      });
+      const needShip = await studentOrdersRouter.request(`/${orderId}/send-invoice`, { method: "POST" });
+      expect(needShip.status).toBe(400);
+
+      mockActor("central_admin", null);
+      const ship = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 20000 }),
+      });
+      expect(ship.status).toBe(200);
+      const sent = await studentOrdersRouter.request(`/${orderId}/send-invoice`, { method: "POST" });
+      expect(sent.status).toBe(200);
+      const sentJson = await sent.json();
+      expect(sentJson.data.confirmUrl).toContain("/bayar/buku/");
+      const token = sentJson.data.confirmUrl.split("/").pop() as string;
+
+      const lookup = await publicOrdersRouter.request(`/confirm/${token}`, { method: "GET" });
+      expect(lookup.status).toBe(200);
+      expect((await lookup.json()).data.due).toBe(120000);
+
+      const bad = await publicOrdersRouter.request(`/confirm/${token}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 50000, allocationAmount: 60000 }),
+      });
+      expect(bad.status).toBe(400);
+
+      const partial = await publicOrdersRouter.request(`/confirm/${token}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 50000, allocationAmount: 50000, bankName: "BCA" }),
+      });
+      expect(partial.status).toBe(201);
+      expect((await partial.json()).data.paymentStatus).toBe("partial");
+
+      const paid = await publicOrdersRouter.request(`/confirm/${token}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 70000, allocationAmount: 70000, bankName: "BCA" }),
+      });
+      expect(paid.status).toBe(201);
+      expect((await paid.json()).data.paymentStatus).toBe("paid");
+
+      const ghost = await publicOrdersRouter.request("/confirm/token-hantu", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 10000, allocationAmount: 10000 }),
+      });
+      expect(ghost.status).toBe(404);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("handover paket menandai flag sudah-ambil-paket murid", async () => {
     const stamp = Date.now();
     const schoolId = `test-flag-${stamp}`;

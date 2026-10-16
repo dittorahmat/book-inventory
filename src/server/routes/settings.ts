@@ -21,8 +21,11 @@ import {
 } from "../services/order-intake";
 import {
   RealWhatsAppSender,
+  MetaWhatsAppSender,
   getWhatsAppConfig,
   saveWhatsAppConfig,
+  getMetaWhatsAppConfig,
+  saveMetaWhatsAppConfig,
 } from "../services/whatsapp";
 import { accessErrorResponse, requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from "../services/access-scope";
 
@@ -255,6 +258,63 @@ settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), as
       success: true,
       message: result.simulated
         ? "Pesan uji coba disimulasikan (gateway belum diisi atau dinonaktifkan)."
+        : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
+      data: result,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET konfigurasi WA Meta Official (token disamarkan; hanya central admin)
+settingsRouter.get("/whatsapp-meta", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const config = await getMetaWhatsAppConfig(db);
+    return c.json({
+      success: true,
+      data: { ...config, accessToken: config.accessToken ? "********" : "", isConfigured: Boolean(config.phoneNumberId) },
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const updateMetaWhatsAppSchema = z.object({
+  phoneNumberId: z.string().min(1, "Phone Number ID wajib diisi"),
+  accessToken: z.string().optional().default(""),
+  isEnabled: z.boolean().default(true),
+});
+
+// POST simpan konfigurasi WA Meta Official (hanya central admin)
+settingsRouter.post("/whatsapp-meta", zValidator("json", updateMetaWhatsAppSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const body = c.req.valid("json");
+    const existing = await getMetaWhatsAppConfig(db);
+    await saveMetaWhatsAppConfig(db, {
+      ...body,
+      accessToken: body.accessToken === "********" ? existing.accessToken : body.accessToken,
+    });
+    return c.json({ success: true, message: "Pengaturan WhatsApp Meta berhasil disimpan" });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST uji kirim via Meta Official
+settingsRouter.post("/whatsapp-meta/test", zValidator("json", testWhatsAppSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const { phone, message } = c.req.valid("json");
+    const result = await new MetaWhatsAppSender(db).send({ to: phone, text: message });
+    if (!result.success) {
+      return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
+    }
+    return c.json({
+      success: true,
+      message: result.simulated
+        ? "Pesan uji coba disimulasikan (Meta belum diisi atau dinonaktifkan)."
         : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
       data: result,
     });

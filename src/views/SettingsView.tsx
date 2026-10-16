@@ -4,6 +4,7 @@ import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSetting
 import { UniformNumberingSettings } from "../components/settings/UniformNumberingSettings";
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { WhatsAppSettingsSection } from "../components/settings/WhatsAppSettingsSection";
+import { MetaWhatsAppSettingsSection } from "../components/settings/MetaWhatsAppSettingsSection";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
 import { UsersSettingsTab } from "../components/settings/UsersSettingsTab";
 import { useSettingsData } from "../components/settings/useSettingsData";
@@ -134,7 +135,10 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
       )}
 
       {activeTab === "whatsapp" && (
-        <WhatsAppSettingsSection />
+        <>
+          <WhatsAppSettingsSection />
+          <MetaWhatsAppSettingsSection />
+        </>
       )}
 
       {activeTab === "uniform" && (

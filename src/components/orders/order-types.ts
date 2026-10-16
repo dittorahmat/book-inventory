@@ -23,6 +23,9 @@ export interface StudentOrder {
   homeAddressSnapshot?: string | null;
   satuanShipmentStatus?: "belum_dikirim" | "sudah_dikirim";
   satuanShippedAt?: string | null;
+  shippingCost?: number;
+  shippingResi?: string | null;
+  invoiceSentAt?: string | null;
   scholarshipProofUrl?: string;
   notes?: string;
   createdAt: string;

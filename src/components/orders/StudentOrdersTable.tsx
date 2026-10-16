@@ -10,6 +10,8 @@ interface StudentOrdersTableProps {
   onOpenDiscretion: (order: StudentOrder) => void;
   onDeleteOrder: (order: StudentOrder) => void;
   onMarkSatuanShipped: (order: StudentOrder) => void;
+  onOpenShipping: (order: StudentOrder) => void;
+  onSendInvoice: (order: StudentOrder) => void;
 }
 
 export function StudentOrdersTable({
@@ -20,6 +22,8 @@ export function StudentOrdersTable({
   onOpenDiscretion,
   onDeleteOrder,
   onMarkSatuanShipped,
+  onOpenShipping,
+  onSendInvoice,
 }: StudentOrdersTableProps) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] overflow-hidden shadow-xs">
@@ -147,11 +151,40 @@ export function StudentOrdersTable({
                           <div className="text-[10px] text-[#65676B] mt-0.5 line-clamp-2">
                             Ke rumah: {o.homeAddressSnapshot}
                           </div>
+                          <div className="text-[10px] text-[#65676B] mt-0.5">
+                            Ongkir: {o.shippingCost ? formatRupiah(o.shippingCost) : "-"}
+                            {o.shippingResi ? ` · Resi ${o.shippingResi}` : ""}
+                          </div>
+                          {o.invoiceSentAt ? (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-800">
+                              INVOICE TERKIRIM
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {o.homeAddressSnapshot ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onOpenShipping(o)}
+                              className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            >
+                              <span>Input Ongkir</span>
+                            </button>
+                            {(o.shippingCost ?? 0) > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => onSendInvoice(o)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                              >
+                                <span>{o.invoiceSentAt ? "Kirim Ulang" : "Kirim Invoice"}</span>
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
                         {o.homeAddressSnapshot && o.satuanShipmentStatus !== "sudah_dikirim" ? (
                           <button
                             type="button"
