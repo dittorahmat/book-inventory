@@ -1,15 +1,8 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
-import { systemSettings } from "../../db/schema";
-import { readSettingsMap } from "../services/settings-map";
-import {
-  DEFAULT_UNIFORM_CLAIM_PREFIX,
-  DEFAULT_UNIFORM_ORDER_PREFIX,
-  UNIFORM_CLAIM_PREFIX_KEY,
-  UNIFORM_ORDER_PREFIX_KEY,
-} from "../services/uniform";
+import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
 import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "../services/email/factory";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import { currentAcademicYear } from "../../lib/wib-time";
@@ -19,7 +12,6 @@ import {
   setSatuanOverride,
   type SatuanOverride,
 } from "../services/order-intake";
-import { UNIFORM_SATUAN_KEY, isUniformSatuanEnabled } from "../services/uniform";
 import {
   RealWhatsAppSender,
   MetaWhatsAppSender,
@@ -28,7 +20,8 @@ import {
   getMetaWhatsAppConfig,
   saveMetaWhatsAppConfig,
 } from "../services/whatsapp";
-import { accessErrorResponse, requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from "../services/access-scope";
+import { accessErrorResponse } from "../services/access-scope";
+import { assertSettingsAdmin } from "../services/settings-access";
 
 export const settingsRouter = new Hono();
 
@@ -60,16 +53,6 @@ const overrideSchema = z.object({
   academicYear: academicYearSchema,
   override: z.enum(["open", "closed", "auto"]),
 });
-
-/**
- * Satu pintu otorisasi pengaturan (behavior identik per area):
- * cut-off → wajib login + peran logistik (pusat/gudang);
- * notifikasi → hanya central admin (anon → 401, non-pusat → 403).
- */
-async function assertSettingsAdmin(c: Context, area: "cutoff" | "notif"): Promise<void> {
-  if (area === "notif") requireCentralAdmin(await resolveRequestActor(c));
-  else await resolveLogisticsActor(c);
-}
 
 // GET status cut-off order satuan (hanya peran logistik)
 settingsRouter.get("/satuan-cutoff", async (c) => {
@@ -133,13 +116,8 @@ settingsRouter.get("/uniform-satuan", async (c) => {
 settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.boolean() })), async (c) => {
   try {
     await assertSettingsAdmin(c, "cutoff");
-    const now = new Date().toISOString();
-    const value = c.req.valid("json").enabled ? "true" : "false";
-    await db
-      .insert(systemSettings)
-      .values({ key: UNIFORM_SATUAN_KEY, value, updatedAt: now })
-      .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
-    return c.json({ success: true, message: `Pembelian satuan seragam ${value === "true" ? "dibuka" : "ditutup"}.`, data: { open: value === "true" } });
+    const { open } = await setUniformSatuanEnabled(db, c.req.valid("json").enabled);
+    return c.json({ success: true, message: `Pembelian satuan seragam ${open ? "dibuka" : "ditutup"}.`, data: { open } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -361,14 +339,7 @@ const uniformNumberingSchema = z.object({
 settingsRouter.get("/uniform-numbering", async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
-    const map = await readSettingsMap(db);
-    return c.json({
-      success: true,
-      data: {
-        orderPrefix: map[UNIFORM_ORDER_PREFIX_KEY] ?? DEFAULT_UNIFORM_ORDER_PREFIX,
-        claimPrefix: map[UNIFORM_CLAIM_PREFIX_KEY] ?? DEFAULT_UNIFORM_CLAIM_PREFIX,
-      },
-    });
+    return c.json({ success: true, data: await getUniformNumbering(db) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -378,18 +349,7 @@ settingsRouter.get("/uniform-numbering", async (c) => {
 settingsRouter.post("/uniform-numbering", zValidator("json", uniformNumberingSchema), async (c) => {
   try {
     await assertSettingsAdmin(c, "notif");
-    const { orderPrefix, claimPrefix } = c.req.valid("json");
-    const now = new Date().toISOString();
-    for (const [key, value] of [
-      [UNIFORM_ORDER_PREFIX_KEY, orderPrefix],
-      [UNIFORM_CLAIM_PREFIX_KEY, claimPrefix],
-    ] as const) {
-      await db
-        .insert(systemSettings)
-        .values({ key, value, description: "Prefix penomoran seragam (customizable)", updatedAt: now })
-        .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
-    }
-    return c.json({ success: true, data: { orderPrefix, claimPrefix } });
+    return c.json({ success: true, data: await saveUniformNumbering(db, c.req.valid("json")) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { desc, and, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { students, uniformOrders, uniformRejects, uniformVariants } from "../../db/schema";
+import { uniformRejects, uniformVariants } from "../../db/schema";
 import { idSchema } from "../lib/validators";
 import { fail } from "../lib/route-fail";
 import {
@@ -18,6 +18,7 @@ import {
   buildPackingCsv,
   fetchUniformExportRows,
   getUniformSalesReport,
+  importUniformShipping,
   uniformSalesToCsv,
 } from "../services/uniform/report";
 import { resolveUniformScholarship } from "../services/uniform";
@@ -173,42 +174,7 @@ uniformBatchRouter.post("/orders/import-shipping", zValidator("json", importSche
     if (actor.role !== "central_admin" && actor.role !== "warehouse_admin") {
       return c.json({ success: false, message: "Import ekspedisi hanya untuk gudang/pusat." }, 403);
     }
-    const updated: string[] = [];
-    const rejected: Array<{ nis: string; reason: string }> = [];
-    for (const row of rows) {
-      const nis = row.nis.trim();
-      const [student] = await db
-        .select({ id: students.id })
-        .from(students)
-        .where(and(eq(students.schoolId, schoolId), eq(students.nis, nis)))
-        .limit(1);
-      if (!student) {
-        rejected.push({ nis, reason: "NIS tidak ditemukan (baris ditolak)." });
-        continue;
-      }
-      const [order] = await db
-        .select()
-        .from(uniformOrders)
-        .where(eq(uniformOrders.studentId, student.id))
-        .orderBy(desc(uniformOrders.createdAt))
-        .limit(1);
-      if (!order || order.schoolId !== schoolId) {
-        rejected.push({ nis, reason: "Tidak ada order seragam murid ini di sekolah tersebut." });
-        continue;
-      }
-      const now = new Date().toISOString();
-      await db
-        .update(uniformOrders)
-        .set({
-          shippingCost: row.ongkir,
-          shippingResi: row.resi.trim() || order.shippingResi,
-          shipmentStatus: markShipped ? "sudah_dikirim" : order.shipmentStatus,
-          shippedAt: markShipped ? (order.shippedAt ?? now) : order.shippedAt,
-          updatedAt: now,
-        })
-        .where(eq(uniformOrders.id, order.id));
-      updated.push(nis);
-    }
+    const { updated, rejected } = await importUniformShipping(db, schoolId, rows, markShipped);
     return c.json({ success: true, message: `${updated.length} baris diperbarui, ${rejected.length} ditolak.`, data: { updated, rejected } });
   } catch (err) {
     return accessErrorResponse(c, err);

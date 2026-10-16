@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, or, like, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import {
   studentBookOrders,
@@ -12,8 +12,7 @@ import {
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
 import { markSatuanShipped } from "../services/order-intake";
-import { assertPaketActor, assertSatuanActor, assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
-import { sendBookInvoice } from "../services/order-invoice";
+import { assertInvoiceGate, sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -21,6 +20,8 @@ import {
   loadScopedOrder,
   requireScopedActor,
 } from "../services/access-scope";
+import { guardScopedOrderMutation } from "../services/order-operations";
+import { matchAnyLower } from "../lib/partitioned-search";
 
 export const studentOrdersRouter = new Hono();
 
@@ -64,14 +65,8 @@ studentOrdersRouter.get("/", async (c) => {
   if (fulfillmentStatus && fulfillmentStatus !== "all") conditions.push(eq(studentBookOrders.fulfillmentStatus, fulfillmentStatus as any));
   // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
   if (search?.trim()) {
-    const pattern = `%${search.trim().toLowerCase()}%`;
-    conditions.push(
-      or(
-        like(sql`lower(${students.name})`, pattern),
-        like(sql`lower(${students.nis})`, pattern),
-        like(sql`lower(${studentBookOrders.orderNumber})`, pattern)
-      )
-    );
+    const matched = matchAnyLower([students.name, students.nis, studentBookOrders.orderNumber], search);
+    if (matched) conditions.push(matched);
   }
 
   const filtered = await db
@@ -123,18 +118,12 @@ studentOrdersRouter.get("/", async (c) => {
 // 2. POST Handover Package / Generate Surat Jalan Penyerahan
 studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
 
-    const scoped = await loadScopedOrder(db, actor, locations, orderId);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
-    }
-    try {
-      assertPaketActor(actor);
-    } catch (err) {
-      return accessErrorResponse(c, err);
+    const guard = await guardScopedOrderMutation(db, c, orderId, "paket");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
 
     const result = await handoverPackage(db, orderId, body);
@@ -183,15 +172,8 @@ studentOrdersRouter.get("/returns", async (c) => {
     if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, scope));
     if (returnStatus && returnStatus !== "all") returnConditions.push(eq(bookReturns.status, returnStatus as any));
     if (returnSearch) {
-      const pattern = `%${returnSearch}%`;
-      returnConditions.push(
-        or(
-          like(sql`lower(${students.name})`, pattern),
-          like(sql`lower(${students.nis})`, pattern),
-          like(sql`lower(${studentBookOrders.orderNumber})`, pattern),
-          like(sql`lower(${books.title})`, pattern)
-        )
-      );
+      const matched = matchAnyLower([students.name, students.nis, studentBookOrders.orderNumber, books.title], returnSearch);
+      if (matched) returnConditions.push(matched);
     }
     const visible = await db
     .select({
@@ -229,16 +211,10 @@ studentOrdersRouter.get("/returns", async (c) => {
 // 5b. POST Tandai satuan terkirim (kirim-rumah, gudang/pusat saja, tanpa SJ-SERAH)
 studentOrdersRouter.post("/:id/mark-satuan-shipped", async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
-    const scoped = await loadScopedOrder(db, actor, locations, id);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
-    }
-    try {
-      assertSatuanActor(actor);
-    } catch (err) {
-      return accessErrorResponse(c, err);
+    const guard = await guardScopedOrderMutation(db, c, id, "satuan");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
     const result = await markSatuanShipped(db, id);
     if (!result.ok) {
@@ -262,18 +238,12 @@ const shippingSchema = z.object({
 
 studentOrdersRouter.post("/:id/shipping", zValidator("json", shippingSchema), async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
-    const scoped = await loadScopedOrder(db, actor, locations, id);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
+    const guard = await guardScopedOrderMutation(db, c, id, "satuan");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
-    try {
-      assertSatuanActor(actor);
-    } catch (err) {
-      return accessErrorResponse(c, err);
-    }
-    const result = await setBookShipping(db, id, c.req.valid("json"));
+    const result = await setBillingShipping(db, id, c.req.valid("json"), "buku");
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -286,17 +256,16 @@ studentOrdersRouter.post("/:id/shipping", zValidator("json", shippingSchema), as
 // 5d. POST Kirim invoice WA (gudang input ongkir dulu; tombol aktif setelah ongkir terisi)
 studentOrdersRouter.post("/:id/send-invoice", async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
-    const scoped = await loadScopedOrder(db, actor, locations, id);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
+    const guard = await guardScopedOrderMutation(db, c, id, "none");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
-    const gate = await assertSendInvoiceAllowed(db, actor, id);
+    const gate = await assertInvoiceGate(db, guard.actor, id, "buku");
     if (gate) {
       return c.json({ success: false, message: gate.message }, gate.status);
     }
-    const result = await sendBookInvoice(db, id, { baseUrl: new URL(c.req.url).origin });
+    const result = await sendBillingInvoice(db, id, { kind: "buku", baseUrl: new URL(c.req.url).origin });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -340,12 +309,11 @@ studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveRetur
 // DELETE student order (membatalkan/menghapus pesanan siswa)
 studentOrdersRouter.delete("/:id", async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
 
-    const scoped = await loadScopedOrder(db, actor, locations, id);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
+    const guard = await guardScopedOrderMutation(db, c, id, "none");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
 
     const cancelled = await cancelStudentOrder(db, id);
@@ -368,13 +336,12 @@ const discretionSchema = z.object({
 
 studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema), async (c) => {
   try {
-    const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
 
-    const scoped = await loadScopedOrder(db, actor, locations, id);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
+    const guard = await guardScopedOrderMutation(db, c, id, "none");
+    if (!guard.ok) {
+      return c.json({ success: false, message: guard.message }, guard.status);
     }
 
     const applied = await applyDiscretion(db, id, body);

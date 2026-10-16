@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { studentBookOrders, studentOrderItems, students } from "../../../db/schema";
-import { D1_INLIST_CHUNK_SIZE, chunkRows } from "../../lib/d1-write";
+import { escapeCsvCell, periodEndIso, selectInChunks, toCsvInt } from "./sales-kernel";
 import { buildCategoryBreakdown, buildProgramBreakdown } from "./sales-breakdown";
 import type { SalesCategoryRow, SalesProgramRow } from "./sales-breakdown";
 import { buildHandoverSection, countRejectedItems, loadSchoolNames } from "./sales-handover";
@@ -81,7 +81,7 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
   const base = and(
     ...orderFilters,
     gte(studentBookOrders.createdAt, input.from),
-    lte(studentBookOrders.createdAt, `${input.to}T23:59:59.999Z`)
+    lte(studentBookOrders.createdAt, periodEndIso(input.to))
   );
 
   let orders: Array<typeof studentBookOrders.$inferSelect> = await database
@@ -91,19 +91,12 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
 
   if (input.gradeLevel || input.gender) {
     const ids = [...new Set(orders.map((o) => o.studentId))];
-    const dimRows: Array<Pick<typeof students.$inferSelect, "id" | "gradeLevel" | "gender">> =
-      ids.length > 0
-        ? (
-            await Promise.all(
-              chunkRows(ids, D1_INLIST_CHUNK_SIZE).map((chunk) =>
-                database
-                  .select({ id: students.id, gradeLevel: students.gradeLevel, gender: students.gender })
-                  .from(students)
-                  .where(inArray(students.id, chunk))
-              )
-            )
-          ).flat()
-        : [];
+    const dimRows: Array<Pick<typeof students.$inferSelect, "id" | "gradeLevel" | "gender">> = await selectInChunks(ids, (chunk) =>
+      database
+        .select({ id: students.id, gradeLevel: students.gradeLevel, gender: students.gender })
+        .from(students)
+        .where(inArray(students.id, chunk))
+    );
     const dim = new Map(dimRows.map((s) => [s.id, s]));
     orders = orders.filter((o) => {
       const st = dim.get(o.studentId);
@@ -112,10 +105,9 @@ export async function getSalesReport(input: SalesReportInput): Promise<SalesRepo
   }
 
   const orderIds = orders.map((o) => o.id);
-  const lineRows: Array<typeof studentOrderItems.$inferSelect> =
-    orderIds.length > 0
-      ? await database.select().from(studentOrderItems).where(inArray(studentOrderItems.orderId, orderIds))
-      : [];
+  const lineRows: Array<typeof studentOrderItems.$inferSelect> = await selectInChunks(orderIds, (chunk) =>
+    database.select().from(studentOrderItems).where(inArray(studentOrderItems.orderId, chunk))
+  );
 
   const qtyByOrder = lineRows.reduce((m, line) => m.set(line.orderId, (m.get(line.orderId) ?? 0) + line.quantity), new Map<string, number>());
 
@@ -205,7 +197,6 @@ export function salesReportToCsv(report: SalesReport): string {
     "Terkumpul",
     "Piutang",
   ];
-  const toCsvInt = (n: number) => String(Math.round(n));
 
   const rows: string[][] = report.bySchool.map((r) => [
     r.schoolName,
@@ -229,41 +220,40 @@ export function salesReportToCsv(report: SalesReport): string {
     toCsvInt(report.totals.outstanding),
   ]);
 
-  const escape = (cell: string) => (/[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell);
-  const lines = [header, ...rows].map((r) => r.map(escape).join(","));
+  const lines = [header, ...rows].map((r) => r.map(escapeCsvCell).join(","));
   if (report.byCategory.length > 0) {
-    lines.push("", ["Kategori", "Order", "Qty", "Omzet", "Terkumpul", "Piutang"].map(escape).join(","));
+    lines.push("", ["Kategori", "Order", "Qty", "Omzet", "Terkumpul", "Piutang"].map(escapeCsvCell).join(","));
     for (const cat of report.byCategory) {
       lines.push(
         [cat.category, String(cat.orderCount), String(cat.quantity), toCsvInt(cat.revenue), toCsvInt(cat.collected), toCsvInt(cat.outstanding)]
-          .map(escape)
+          .map(escapeCsvCell)
           .join(",")
       );
     }
   }
   if (report.byProgram.length > 0) {
-    lines.push("", ["Program", "Order", "Omzet", "Terkumpul", "Piutang"].map(escape).join(","));
+    lines.push("", ["Program", "Order", "Omzet", "Terkumpul", "Piutang"].map(escapeCsvCell).join(","));
     for (const p of report.byProgram) {
       lines.push(
         [p.program, String(p.orderCount), toCsvInt(p.revenue), toCsvInt(p.collected), toCsvInt(p.outstanding)]
-          .map(escape)
+          .map(escapeCsvCell)
           .join(",")
       );
     }
   }
-  lines.push("", ["Serah-terima (finance)", "Order", "Omzet", "Terkumpul", "Ongkir"].map(escape).join(","));
+  lines.push("", ["Serah-terima (finance)", "Order", "Omzet", "Terkumpul", "Ongkir"].map(escapeCsvCell).join(","));
   lines.push(
     ["AGREGAT", String(report.handover.orderCount), toCsvInt(report.handover.revenue), toCsvInt(report.handover.collected), toCsvInt(report.handover.shippingTotal)]
-      .map(escape)
+      .map(escapeCsvCell)
       .join(",")
   );
   for (const h of report.handover.bySchool) {
     lines.push(
       [h.schoolName, String(h.orderCount), toCsvInt(h.revenue), toCsvInt(h.collected), toCsvInt(h.shippingTotal)]
-        .map(escape)
+        .map(escapeCsvCell)
         .join(",")
     );
   }
-  lines.push("", [`Total ongkir: ${toCsvInt(report.totals.shippingTotal)}`, `Invoice terkirim: ${report.totals.invoicedCount}`, `Eksemplar reject: ${report.totals.rejectedItems}`].map(escape).join(","));
+  lines.push("", [`Total ongkir: ${toCsvInt(report.totals.shippingTotal)}`, `Invoice terkirim: ${report.totals.invoicedCount}`, `Eksemplar reject: ${report.totals.rejectedItems}`].map(escapeCsvCell).join(","));
   return lines.join("\r\n");
 }

@@ -1,7 +1,6 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, type SQLWrapper } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
-  schools,
   students,
   uniformOrders,
   uniformOrderItems,
@@ -9,7 +8,8 @@ import {
   uniformVariants,
 } from "../../../db/schema";
 import { gradeToJenjang, type UniformJenjang } from "../../../lib/uniform-types";
-import { chunkRows, D1_INLIST_CHUNK_SIZE } from "../../lib/d1-write";
+import { loadSchoolNames } from "../reporting/sales-handover";
+import { periodEndIso, quoteCsvCell, selectInChunks, toCsvInt } from "../reporting/sales-kernel";
 
 export interface UniformSalesRow {
   schoolId: string;
@@ -44,11 +44,6 @@ export interface UniformSalesInput {
 type OrderRow = typeof uniformOrders.$inferSelect;
 type ItemRow = typeof uniformOrderItems.$inferSelect;
 
-const selectInChunks = async <T>(ids: string[], run: (chunk: string[]) => Promise<T[]>): Promise<T[]> =>
-  ids.length === 0
-    ? []
-    : (await Promise.all(chunkRows(ids, D1_INLIST_CHUNK_SIZE).map((chunk) => run(chunk)))).flat();
-
 /**
  * Rekap penjualan seragam terpisah dari buku: dimensi sekolah × jenjang
  * (turunan gradeLevel) × ukuran; metrik order + murid unik + qty + omzet.
@@ -64,19 +59,15 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
       : null;
   const shipFilter =
     input.shipmentStatus === "belum_dikirim" || input.shipmentStatus === "sudah_dikirim" ? input.shipmentStatus : null;
-  const orders: OrderRow[] = (
-    await Promise.all(
-      chunkRows(input.schoolIds, D1_INLIST_CHUNK_SIZE).map((chunk) => {
-        const conds = [inArray(uniformOrders.schoolId, chunk), gte(uniformOrders.createdAt, input.from), lte(uniformOrders.createdAt, `${input.to}T23:59:59.999Z`)];
-        if (payFilter) conds.push(eq(uniformOrders.paymentStatus, payFilter));
-        if (shipFilter) conds.push(eq(uniformOrders.shipmentStatus, shipFilter));
-        return database
-          .select()
-          .from(uniformOrders)
-          .where(and(...conds));
-      })
-    )
-  ).flat();
+  const orders: OrderRow[] = await selectInChunks(input.schoolIds, (chunk) => {
+    const conds = [inArray(uniformOrders.schoolId, chunk), gte(uniformOrders.createdAt, input.from), lte(uniformOrders.createdAt, periodEndIso(input.to))];
+    if (payFilter) conds.push(eq(uniformOrders.paymentStatus, payFilter));
+    if (shipFilter) conds.push(eq(uniformOrders.shipmentStatus, shipFilter));
+    return database
+      .select()
+      .from(uniformOrders)
+      .where(and(...conds));
+  });
   const orderIds = orders.map((o) => o.id);
   const items: ItemRow[] = await selectInChunks(orderIds, (chunk) =>
     database.select().from(uniformOrderItems).where(inArray(uniformOrderItems.orderId, chunk))
@@ -102,8 +93,7 @@ export async function getUniformSalesReport(input: UniformSalesInput): Promise<U
     (chunk) => database.select({ id: uniformVariants.id, kind: uniformVariants.kind }).from(uniformVariants).where(inArray(uniformVariants.id, chunk))
   );
   const kindByVariant = new Map(variantRows.map((v) => [v.id, v.kind]));
-  const schoolRows: Array<{ id: string; name: string }> = await database.select({ id: schools.id, name: schools.name }).from(schools);
-  const schoolName = new Map(schoolRows.map((s) => [s.id, s.name]));
+  const schoolName = await loadSchoolNames(database);
 
   const bomByPackage = new Map<string, typeof bom>();
   for (const b of bom) bomByPackage.set(b.packageId, [...(bomByPackage.get(b.packageId) ?? []), b]);
@@ -166,6 +156,19 @@ export type UniformOrderStage = "pemesanan" | "tagihan" | "konfirmasi" | "lunas"
 
 export const uniformOrderStage = (o: Pick<OrderRow, "invoiceSentAt" | "paymentStatus">): UniformOrderStage =>
   !o.invoiceSentAt ? "pemesanan" : o.paymentStatus === "paid" ? "lunas" : o.paymentStatus === "partial" ? "konfirmasi" : "tagihan";
+
+/**
+ * Pasangan SQL dari uniformOrderStage: tahap → kondisi WHERE tinggal
+ * di samping definisi tahap agar tak drift diam-diam bila tahap
+ * bertambah. Route menyebar hasilnya ke conditions, bukan menebak ulang.
+ */
+export const uniformStageFilter = (stage: string | null | undefined): SQLWrapper[] => {
+  if (stage === "pemesanan") return [isNull(uniformOrders.invoiceSentAt)];
+  if (stage === "tagihan") return [isNotNull(uniformOrders.invoiceSentAt), eq(uniformOrders.paymentStatus, "unpaid")];
+  if (stage === "konfirmasi") return [eq(uniformOrders.paymentStatus, "partial")];
+  if (stage === "lunas") return [eq(uniformOrders.paymentStatus, "paid")];
+  return [];
+};
 
 export interface UniformExportRow {
   orderId: string;
@@ -239,18 +242,17 @@ export async function fetchUniformExportRows(
   return rows;
 }
 
-const csvCell = (v: string | number): string => `"${String(v).replaceAll('"', '""')}"`;
 const toCsv = (header: string[], lines: Array<Array<string | number>>): string =>
-  [header, ...lines].map((r) => r.map(csvCell).join(";")).join("\r\n");
+  [header, ...lines].map((r) => r.map(quoteCsvCell).join(";")).join("\r\n");
 
 /** CSV rekap seragam: sekolah × jenjang × size. */
 export const uniformSalesToCsv = (report: UniformSalesReport): string =>
   [
     ["sekolah", "jenjang", "size", "order", "murid", "qty", "omzet"],
-    ...report.rows.map((r) => [r.schoolName, r.jenjang, r.size, String(r.orderCount), String(r.studentCount), String(r.quantity), String(Math.round(r.revenue))]),
-    ["TOTAL", "", "", String(report.totals.orderCount), String(report.totals.studentCount), String(report.totals.quantity), String(Math.round(report.totals.revenue))],
+    ...report.rows.map((r) => [r.schoolName, r.jenjang, r.size, String(r.orderCount), String(r.studentCount), String(r.quantity), toCsvInt(r.revenue)]),
+    ["TOTAL", "", "", String(report.totals.orderCount), String(report.totals.studentCount), String(report.totals.quantity), toCsvInt(report.totals.revenue)],
   ]
-    .map((r) => r.map(csvCell).join(";"))
+    .map((r) => r.map(quoteCsvCell).join(";"))
     .join("\r\n");
 
 /** Packing: nama, NIS, kelas, jenjang, size, gender per baris item. */
@@ -268,4 +270,65 @@ export const buildEkspedisiCsv = (rows: UniformExportRow[]): string => {
     ["nama", "nis", "kontak_ortu", "alamat", "ongkir", "resi", "no_order"],
     [...seen.values()].map((r) => [r.studentName, r.nis, r.parentPhone, r.address, r.shippingCost, r.shippingResi, r.orderNumber])
   );
+};
+
+export interface ImportShippingRow {
+  nis: string;
+  resi?: string;
+  ongkir?: number;
+}
+
+export interface ImportShippingResult {
+  updated: string[];
+  rejected: Array<{ nis: string; reason: string }>;
+}
+
+/**
+ * Satu-satunya pemilik import ekspedisi: cocokkan NIS → order terbaru
+ * dalam partisi sekolah, tulis ongkir/resi sekuensial (§10: tulis
+ * dilarang Promise.all). Route hanya menegakkan scope + peran.
+ */
+export const importUniformShipping = async (
+  database: AppDatabase,
+  schoolId: string,
+  rows: ImportShippingRow[],
+  markShipped: boolean
+): Promise<ImportShippingResult> => {
+  const updated: string[] = [];
+  const rejected: Array<{ nis: string; reason: string }> = [];
+  for (const row of rows) {
+    const nis = row.nis.trim();
+    const [student] = await database
+      .select({ id: students.id })
+      .from(students)
+      .where(and(eq(students.schoolId, schoolId), eq(students.nis, nis)))
+      .limit(1);
+    if (!student) {
+      rejected.push({ nis, reason: "NIS tidak ditemukan (baris ditolak)." });
+      continue;
+    }
+    const [order] = await database
+      .select()
+      .from(uniformOrders)
+      .where(eq(uniformOrders.studentId, student.id))
+      .orderBy(desc(uniformOrders.createdAt))
+      .limit(1);
+    if (!order || order.schoolId !== schoolId) {
+      rejected.push({ nis, reason: "Tidak ada order seragam murid ini di sekolah tersebut." });
+      continue;
+    }
+    const now = new Date().toISOString();
+    await database
+      .update(uniformOrders)
+      .set({
+        shippingCost: row.ongkir ?? 0,
+        shippingResi: row.resi?.trim() || order.shippingResi,
+        shipmentStatus: markShipped ? "sudah_dikirim" : order.shipmentStatus,
+        shippedAt: markShipped ? (order.shippedAt ?? now) : order.shippedAt,
+        updatedAt: now,
+      })
+      .where(eq(uniformOrders.id, order.id));
+    updated.push(nis);
+  }
+  return { updated, rejected };
 };
