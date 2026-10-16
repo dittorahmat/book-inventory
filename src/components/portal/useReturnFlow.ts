@@ -58,7 +58,6 @@ export function useReturnFlow(packages: BookPackageOption[]) {
           pkg.items.map((it: any) => ({
             bookId: it.bookId || it.id,
             title: it.title,
-            isbn: it.isbn || "-",
           }))
         );
         if (pkg.items[0]) {

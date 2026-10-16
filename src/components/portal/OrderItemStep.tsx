@@ -111,8 +111,8 @@ export function OrderItemStep({
                   <li key={book.id} className="px-4 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-[#050505] truncate">{book.title}</div>
-                      <div className="text-[11px] text-[#65676B]">
-                        {book.author} &bull; {formatRupiah(effectiveSellPrice(book))}
+                      <div className="text-[11px] text-[#1877F2] font-bold">
+                        {formatRupiah(effectiveSellPrice(book))}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

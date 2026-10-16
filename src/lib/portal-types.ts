@@ -30,7 +30,6 @@ export interface BookPackageItem {
   id?: string;
   bookId?: string;
   title: string;
-  isbn?: string;
   quantity: number;
 }
 
@@ -96,7 +95,6 @@ export interface NewStudentForm {  schoolId: string;
 export interface PackageBookChoice {
   bookId: string;
   title: string;
-  isbn: string;
 }
 
 export type FileUploadHandler = (

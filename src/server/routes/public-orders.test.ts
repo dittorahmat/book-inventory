@@ -1067,6 +1067,21 @@ describe("Public catalog tanpa login (#143)", () => {
       expect(found.price).toBe(60000);
       expect(found.items.length).toBeGreaterThan(0);
       expect(found.items[0].title).toBe(`Judul Ramah ${stamp}`);
+      // Anti window-shopping: tanpa ISBN/penulis/penerbit/cover di DTO publik.
+      for (const it of found.items) {
+        expect(it).not.toHaveProperty("isbn");
+        expect(it).not.toHaveProperty("author");
+        expect(it).not.toHaveProperty("publisher");
+        expect(it).not.toHaveProperty("coverUrl");
+        expect(it).not.toHaveProperty("publicTitle");
+      }
+
+      const choiceRes = await publicOrdersRouter.request("/book-choices", { method: "GET" });
+      expect(choiceRes.status).toBe(200);
+      const choiceJson = await choiceRes.json();
+      const choice = (choiceJson.data as any[]).find((b) => b.bookId === bookId);
+      expect(choice?.title).toBe(`Judul Ramah ${stamp}`);
+      expect(choice).not.toHaveProperty("isbn");
 
       const schRes = await publicOrdersRouter.request("/schools", { method: "GET" });
       expect(schRes.status).toBe(200);

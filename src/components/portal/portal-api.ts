@@ -61,12 +61,7 @@ export interface FinalOrderPayload {
 
 export interface SatuanBookOption {
   id: string;
-  isbn: string;
   title: string;
-  author: string;
-  publisher: string;
-  category: string | null;
-  coverUrl: string | null;
   sellPrice: number;
   price?: number | null;
 }
@@ -87,11 +82,11 @@ export const lookupOrders = (query: string, schoolId: string): Promise<MatchedOr
   );
 
 export const fetchBookChoices = async (): Promise<PackageBookChoice[]> => {
-  const list = await getJson<Array<{ id: string; title: string; isbn: string }>>(
-    "/api/books",
+  const list = await getJson<Array<{ bookId: string; title: string }>>(
+    "/api/public/orders/book-choices",
     "Gagal memuat daftar buku."
   );
-  return list.map((b) => ({ bookId: b.id, title: b.title, isbn: b.isbn }));
+  return list.map((b) => ({ bookId: b.bookId, title: b.title }));
 };
 
 export interface ReturnReportPayload {

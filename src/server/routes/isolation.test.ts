@@ -184,9 +184,11 @@ describe("Staff login gate (#44): anonymous callers get 401 on every staff route
     });
     expect(badSubmit.status).not.toBe(401);
 
-    // Public catalog reads stay open.
+    // Public catalog reads stay open (portal); staff book catalog is locked.
     expect((await anonGet(schoolsRouter, "/")).status).toBe(200);
-    expect((await anonGet(booksRouter, "/")).status).toBe(200);
+    expect((await anonGet(booksRouter, "/")).status).toBe(401);
+    expect((await publicOrdersRouter.request("/packages", { method: "GET" })).status).toBe(200);
+    expect((await publicOrdersRouter.request("/book-choices", { method: "GET" })).status).toBe(200);
   });
 
   it("locks demo reseed to central (anon 401, school 403, central 200)", async () => {

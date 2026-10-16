@@ -217,7 +217,7 @@ export function ReturnReportTab({
                 <div>
                   <SearchableSingleSelect
                     label="Pilih Judul Buku yang Cacat / Rusak"
-                    options={packageBookList.map((bk) => ({ value: bk.bookId, label: bk.title, hint: `ISBN: ${bk.isbn}` }))}
+                    options={packageBookList.map((bk) => ({ value: bk.bookId, label: bk.title }))}
                     value={selectedDefectiveBookId}
                     onChange={setSelectedDefectiveBookId}
                     placeholder="Pilih judul buku..."

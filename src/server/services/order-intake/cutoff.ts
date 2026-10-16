@@ -97,12 +97,7 @@ export function getCurrentSatuanStatus(database: AppDatabase, now: Date = new Da
 
 export interface SatuanCatalogBook {
   id: string;
-  isbn: string;
   title: string;
-  author: string;
-  publisher: string;
-  category: string | null;
-  coverUrl: string | null;
   sellPrice: number;
 }
 
@@ -126,17 +121,22 @@ export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear
   const rows = await database
     .select({
       id: books.id,
-      isbn: books.isbn,
       title: books.title,
       publicTitle: books.publicTitle,
-      author: books.author,
-      publisher: books.publisher,
-      category: books.category,
-      coverUrl: books.coverUrl,
       price: books.price,
       sellPrice: books.sellPrice,
     })
     .from(books)
     .orderBy(books.title);
-  return { open: true, status, books: rows.map((b: SatuanCatalogBook & { price: number; publicTitle: string | null }) => ({ ...b, title: b.publicTitle ?? b.title, sellPrice: effectiveSellPrice(b) })) };
+  // Anti window-shopping: alias samaran saja (fallback generik), tanpa
+  // ISBN/penulis/penerbit/cover.
+  return {
+    open: true,
+    status,
+    books: rows.map((b: { id: string; title: string; publicTitle: string | null; price: number; sellPrice: number }) => ({
+      id: b.id,
+      title: b.publicTitle ?? "Buku Paket",
+      sellPrice: effectiveSellPrice(b),
+    })),
+  };
 }
