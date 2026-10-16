@@ -5,4 +5,4 @@
 import { execSync } from "node:child_process";
 
 execSync("git config core.hooksPath scripts/githooks", { stdio: "inherit" });
-console.log("Git hooks terpasang dari scripts/githooks (pre-commit: type-check + gates file).");
+console.log("Git hooks terpasang dari scripts/githooks (pre-commit: eslint staged + type-check + gates).");
