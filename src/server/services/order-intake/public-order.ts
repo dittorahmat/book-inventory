@@ -14,9 +14,9 @@ import type { SatuanStatus } from "../../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./cutoff";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { validateHomeAddress } from "../../../lib/home-address";
-import { WPR_BOOK_ID, WPR_PRICE, WPR_TITLE } from "../../../lib/wpr";
+import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
-import { needsWprForStudent } from "../pricing";
+import { wprFeeForStudent } from "../pricing";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
@@ -161,8 +161,9 @@ export async function submitPublicOrder(
   let wprCharged = false;
   if (looseLines.length > 0) {
     await ensureWprBook(database);
-    if (await needsWprForStudent(database, student.id)) {
-      looseLines.push({ bookId: WPR_BOOK_ID, title: WPR_TITLE, quantity: 1, unitPrice: WPR_PRICE });
+    const wprFee = await wprFeeForStudent(database, student.id);
+    if (wprFee > 0) {
+      looseLines.push({ bookId: WPR_BOOK_ID, title: WPR_TITLE, quantity: 1, unitPrice: wprFee });
       wprCharged = true;
     }
   }

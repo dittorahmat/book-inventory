@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookPackageItems, bookPackages, books } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import { WPR_BOOK_ID, needsWprCharge } from "../../lib/wpr";
+import { WPR_BOOK_ID, needsWprCharge, wprFeeForPackageCount } from "../../lib/wpr";
 import { countPackageOrders } from "./wpr";
 import { writeNow, type WriteDeps } from "../lib/d1-write";
 
@@ -20,6 +20,10 @@ export function kitBomWithoutWpr<T extends { bookId: string }>(bom: T[]): T[] {
 /** True bila murid wajib menanggung WPR: belum ada order paket. */
 export const needsWprForStudent = async (database: AppDatabase, studentId: string): Promise<boolean> =>
   needsWprCharge(await countPackageOrders(database, studentId));
+
+/** Nominal WPR murid: 750rb bila wajib, 0 bila bebas — satu aturan, satu angka. */
+export const wprFeeForStudent = async (database: AppDatabase, studentId: string): Promise<number> =>
+  wprFeeForPackageCount(await countPackageOrders(database, studentId));
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
 export async function recalcPackagePrice(database: AppDatabase, packageId: string, deps?: WriteDeps): Promise<number> {

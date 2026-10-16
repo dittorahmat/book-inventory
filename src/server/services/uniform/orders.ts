@@ -229,15 +229,17 @@ export async function submitUniformOrder(
       )) {
         queries.push(database.insert(uniformOrderItems).values(rows));
       }
+      const needPaket = new Map<string, number>();
       for (const item of payload.items) {
-        const qty = item.quantity ?? 1;
-        if (item.packageId) {
-          const row = ready.find((r) => r.packageId === item.packageId);
-          if (row) queries.push(database.update(uniformPackageStock).set({ quantity: row.quantity - qty, updatedAt: now }).where(eq(uniformPackageStock.id, row.id)));
-        } else if (item.variantId) {
-          const row = stockByKey.get(`${item.variantId}::${item.size?.trim() || KAIN_SIZE}`);
-          if (row) queries.push(database.update(uniformStock).set({ quantity: row.quantity - (needSatuan.get(`${item.variantId}::${item.size?.trim() || KAIN_SIZE}`) ?? qty), updatedAt: now }).where(eq(uniformStock.id, row.id)));
-        }
+        if (item.packageId) needPaket.set(item.packageId, (needPaket.get(item.packageId) ?? 0) + (item.quantity ?? 1));
+      }
+      for (const [packageId, qty] of needPaket) {
+        const row = ready.find((r) => r.packageId === packageId);
+        if (row) queries.push(database.update(uniformPackageStock).set({ quantity: row.quantity - qty, updatedAt: now }).where(eq(uniformPackageStock.id, row.id)));
+      }
+      for (const [key, qty] of needSatuan) {
+        const row = stockByKey.get(key);
+        if (row) queries.push(database.update(uniformStock).set({ quantity: row.quantity - qty, updatedAt: now }).where(eq(uniformStock.id, row.id)));
       }
       // Batch di-chunk per 10 query agar aman di limit D1, urutan FK terjaga.
       for (const group of chunkRows(queries, 10)) await runWriteBatch(database, group);

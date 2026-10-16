@@ -1,8 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
-import { bookItems, schools } from "../../../db/schema";
+import { bookItems } from "../../../db/schema";
 import type { studentBookOrders } from "../../../db/schema";
 import { D1_INLIST_CHUNK_SIZE, chunkRows } from "../../lib/d1-write";
+import { loadSchoolNames as kernelLoadSchoolNames } from "./sales-kernel";
 
 export interface SalesHandoverRow {
   schoolId: string;
@@ -64,8 +65,5 @@ export async function countRejectedItems(database: AppDatabase, schoolIds: strin
 }
 
 export async function loadSchoolNames(database: AppDatabase): Promise<Map<string, string>> {
-  const rows: Array<{ id: string; name: string }> = await database
-    .select({ id: schools.id, name: schools.name })
-    .from(schools);
-  return new Map(rows.map((s) => [s.id, s.name]));
+  return kernelLoadSchoolNames(database);
 }

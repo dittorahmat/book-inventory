@@ -1,12 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { students, uniformOrders } from "../../../db/schema";
+import { normalizeCsvNis, type UniformShippingCsvRow } from "./csv-row";
 
-export interface ImportShippingRow {
-  nis: string;
-  resi: string;
-  ongkir: number;
-}
+/** Baris import ekspedisi = arah pulang round-trip CSV berkunci NIS. */
+export type ImportShippingRow = UniformShippingCsvRow;
 
 export interface ImportShippingResult {
   updated: string[];
@@ -29,7 +27,7 @@ export const importUniformShipping = async (
   const updated: string[] = [];
   const rejected: Array<{ nis: string; reason: string }> = [];
   for (const row of rows) {
-    const nis = row.nis.trim();
+    const nis = normalizeCsvNis(row.nis);
     const [student] = await database
       .select({ id: students.id })
       .from(students)

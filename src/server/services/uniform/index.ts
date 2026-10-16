@@ -21,7 +21,10 @@ export { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "./claims
 export { createUniformClaim, listUniformClaims, lockUniformClaim } from "./claims";
 export type { UniformSalesInput, UniformSalesReport, UniformSalesRow, UniformOrderStage } from "./report";
 export { buildEkspedisiCsv, buildPackingCsv, fetchUniformExportRows, getUniformSalesReport, uniformOrderStage, uniformSalesToCsv, uniformStageFilter } from "./report";
-export type { ImportShippingRow, ImportShippingResult } from "./shipping-import";
+export type { ImportShippingResult } from "./shipping-import";
+export type { ImportShippingRow } from "./shipping-import";
 export { importUniformShipping } from "./shipping-import";
+export type { UniformShippingCsvRow } from "./csv-row";
+export { EKSPEDISI_CSV_HEADER, PACKING_CSV_HEADER, normalizeCsvNis } from "./csv-row";
 export type { UniformNumbering } from "./numbering";
 export { getUniformNumbering, saveUniformNumbering, setUniformSatuanEnabled } from "./numbering";
