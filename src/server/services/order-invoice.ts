@@ -39,6 +39,9 @@ export interface SendInvoiceDeps extends WriteDeps {
   baseUrl?: string;
 }
 
+const hasShippingInput = (shippingCost: number | null | undefined, shippingResi: string | null | undefined): boolean =>
+  (shippingCost ?? 0) > 0 || !!shippingResi?.trim();
+
 const confirmUrlFor = (baseUrl: string | undefined, kind: "buku" | "seragam", token: string): string =>
   `${(baseUrl ?? "").replace(/\/$/, "")}/bayar/${kind}/${token}`;
 
@@ -64,7 +67,7 @@ export async function sendBookInvoice(
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
   if (!order) return { ok: false, status: 404, message: "Pesanan tidak ditemukan." };
   const loose = await database.select({ id: studentOrderItems.id }).from(studentOrderItems).where(eq(studentOrderItems.orderId, orderId)).limit(1);
-  if (loose.length > 0 && (order.shippingCost ?? 0) <= 0) return invalid("Input ongkir terlebih dahulu sebelum mengirim invoice.");
+  if (loose.length > 0 && !hasShippingInput(order.shippingCost, order.shippingResi)) return invalid("Input ongkir terlebih dahulu sebelum mengirim invoice.");
   const token = await ensureToken(database, studentBookOrders, orderId, order.paymentToken, deps);
   const confirmUrl = confirmUrlFor(deps?.baseUrl, "buku", token);
   try {
@@ -97,7 +100,7 @@ export async function sendUniformInvoice(
   const now = writeNow(deps);
   const [order] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
-  if ((order.shippingCost ?? 0) <= 0) return invalid("Input ongkir terlebih dahulu sebelum mengirim invoice.");
+  if (!hasShippingInput(order.shippingCost, order.shippingResi)) return invalid("Input ongkir terlebih dahulu sebelum mengirim invoice.");
   const token = await ensureToken(database, uniformOrders, orderId, order.paymentToken, deps);
   const confirmUrl = confirmUrlFor(deps?.baseUrl, "seragam", token);
   try {

@@ -265,6 +265,8 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 isSatuan={!order.packageMode}
                 homeAddress={order.homeAddress}
                 setHomeAddress={order.setHomeAddress}
+                paketKirim={order.paketKirim}
+                setPaketKirim={order.setPaketKirim}
                 hasTakenPackage={order.hasTakenPackage}
                 setHasTakenPackage={order.setHasTakenPackage}
                 wprFee={order.wprFee}

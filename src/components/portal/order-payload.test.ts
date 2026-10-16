@@ -71,6 +71,20 @@ describe("buildFinalOrderPayload", () => {
     expect(() => buildFinalOrderPayload({ ...base, packageId: undefined })).toThrow(/terkunci/);
   });
 
+  test("paket kirim-rumah wajib alamat; ambil boleh kosong", () => {
+    expect(() =>
+      buildFinalOrderPayload({ ...base, paketKirim: true })
+    ).toThrow(/kirim-rumah/);
+    const payload = buildFinalOrderPayload({
+      ...base,
+      paketKirim: true,
+      homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
+    });
+    expect(payload.homeAddress).toBe("Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111");
+    const ambil = buildFinalOrderPayload(base);
+    expect(ambil.homeAddress).toBeUndefined();
+  });
+
   test("looseTotal paritas effectiveSellPrice (fallback harga lama) — T1", () => {
     const catalog = [
       { id: "b-new", sellPrice: 50000, price: 0 },

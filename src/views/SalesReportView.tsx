@@ -89,15 +89,21 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const queryParams = { from, to, schoolId: schoolId || undefined, gradeLevel: gradeLevel.trim() || undefined, gender: gender || undefined, paymentStatus: paymentStatus || undefined, fulfillmentStatus: fulfillmentStatus || undefined };
-
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       setReport(
         await getJson<SalesReportPayload>(
-          buildQuery("/api/sales-report", queryParams),
+          buildQuery("/api/sales-report", {
+            from,
+            to,
+            schoolId: schoolId || undefined,
+            gradeLevel: gradeLevel.trim() || undefined,
+            gender: gender || undefined,
+            paymentStatus: paymentStatus || undefined,
+            fulfillmentStatus: fulfillmentStatus || undefined,
+          }),
           "Gagal memuat laporan penjualan."
         )
       );
@@ -106,7 +112,6 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to, schoolId, gradeLevel, gender, paymentStatus, fulfillmentStatus]);
 
   useEffect(() => {

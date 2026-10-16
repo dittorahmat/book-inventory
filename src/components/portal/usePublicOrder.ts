@@ -93,6 +93,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const [paymentProofBase64, setPaymentProofBase64] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
+  const [paketKirim, setPaketKirim] = useState(false);
 
   // WPR satuan buku: jawaban paket (default dari server) + biaya estimasi.
   const [hasTakenPackage, setHasTakenPackage] = useState<boolean | null>(null);
@@ -285,6 +286,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         packagePrice: selectedPackage?.price ?? 0,
         looseItems: looseSelections,
         looseTotal,
+        paketKirim,
         wprFee,
         orderType,
         scholarshipProofBase64,
@@ -319,6 +321,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     setPackageMode(true);
     resetLooseSelection();
     setHasTakenPackage(null);
+    setPaketKirim(false);
   };
 
   return {
@@ -339,6 +342,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     referenceNumber, setReferenceNumber, paymentProofBase64, setPaymentProofBase64,
     notes, setNotes,
     homeAddress, setHomeAddress,
+    paketKirim, setPaketKirim,
     hasTakenPackage, setHasTakenPackage, wprFee, wprPrice, wprLoading,
     isSubmitting, errorMessage, setErrorMessage, submittedOrder,
     handleSearch, handleSelectStudent, handleRegisterNewStudent,

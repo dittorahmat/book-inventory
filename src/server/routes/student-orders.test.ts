@@ -889,10 +889,84 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
         body: JSON.stringify({ transferAmount: 10000, allocationAmount: 10000 }),
       });
       expect(ghost.status).toBe(404);
+
+      // Ongkir 0 sah bila ada resi: invoice tetap bisa dikirim.
+      await db.update(studentBookOrders).set({ shippingCost: 0, shippingResi: "INTERNAL-0" }).where(eq(studentBookOrders.id, orderId));
+      const freeShip = await studentOrdersRouter.request(`/${orderId}/send-invoice`, { method: "POST" });
+      expect(freeShip.status).toBe(200);
     } finally {
       mockActor("central_admin", null);
       await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("paket kirim-rumah menyimpan alamat; handover wajib ongkir", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-pkr-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Paket Rumah", code: `ALW-PKR-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-pkr-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-PKR-${stamp}`, name: "Siswa Pkr",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const pkgId = `pkg-pkr-${stamp}`;
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-PKR-${stamp}`, name: "Paket Pkr",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      price: 500000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(packageItems).values({
+      id: `pi-pkr-${stamp}`, packageId: pkgId, currentSchoolId: schoolId,
+      barcode: `PKG-PKR-B-${stamp}`, status: "in_stock", createdAt: now, updatedAt: now,
+    });
+    const { submitPublicOrder } = await import("../services/order-intake");
+    const { MemoryStorageService } = await import("../../services/storage");
+    const created = await submitPublicOrder(
+      {
+        studentId, packageId: pkgId,
+        homeAddress: "Jl. Pkr RT 01 RW 01, Serpong 15310",
+        orderType: "regular",
+        payment: { transferAmount: 500000, bookAllocationAmount: 500000 },
+      },
+      { database: db, storage: new MemoryStorageService() }
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const orderId = created.data.order.id;
+    const [stored] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    expect(stored.homeAddressSnapshot).toContain("Serpong");
+    try {
+      mockActor("branch_admin", schoolId);
+      const blocked = await studentOrdersRouter.request(`/${orderId}/handover`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: "Ortu Pkr" }),
+      });
+      expect(blocked.status).toBe(400);
+      mockActor("central_admin", null);
+      const ship = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 0, shippingResi: "INTERNAL-1" }),
+      });
+      expect(ship.status).toBe(200);
+      mockActor("branch_admin", schoolId);
+      const ok = await studentOrdersRouter.request(`/${orderId}/handover`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: "Ortu Pkr" }),
+      });
+      expect(ok.status).toBe(200);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, `pi-pkr-${stamp}`));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }

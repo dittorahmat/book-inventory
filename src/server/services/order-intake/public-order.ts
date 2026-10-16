@@ -127,6 +127,10 @@ export async function submitPublicOrder(
     if (!cutoffCheck.ok) return cutoffCheck;
     const addressCheck = validateHomeAddress(input.homeAddress);
     if (!addressCheck.ok) return { ok: false, status: 400, message: addressCheck.message as string };
+  } else if (input.homeAddress?.trim()) {
+    // Paket kirim-rumah: alamat opsional tetapi bila diisi wajib lengkap.
+    const addressCheck = validateHomeAddress(input.homeAddress);
+    if (!addressCheck.ok) return { ok: false, status: 400, message: addressCheck.message as string };
   }
 
   // 3. Resolusi paket buku jika dipilih (aturan murni)
@@ -243,7 +247,7 @@ export async function submitPublicOrder(
         fulfillmentStatus: "waiting_preparation",
         totalAmount,
         paidAmount,
-        homeAddressSnapshot: looseItems.length > 0 ? input.homeAddress!.trim() : null,
+        homeAddressSnapshot: input.homeAddress?.trim() ? input.homeAddress.trim() : null,
         satuanShipmentStatus: "belum_dikirim",
         scholarshipProofUrl,
         notes: input.notes || null,

@@ -18,6 +18,7 @@ export interface OrderTotalsInput {
   paymentProofBase64: string;
   notes: string;
   homeAddress?: string;
+  paketKirim?: boolean;
   wprFee?: number;
 }
 
@@ -35,7 +36,10 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   if (!input.packageMode && looseItems.length === 0) {
     throw new Error("Pilih minimal 1 buku satuan sebelum melanjutkan pembayaran.");
   }
-  if (!input.packageMode) {
+  if (input.packageMode && input.paketKirim && !input.homeAddress?.trim()) {
+    throw new Error("Alamat rumah wajib diisi untuk paket kirim-rumah.");
+  }
+  if (!input.packageMode || input.homeAddress?.trim()) {
     const addressCheck = validateHomeAddress(input.homeAddress);
     if (!addressCheck.ok) throw new Error(addressCheck.message);
   }
@@ -53,7 +57,7 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   return {
     studentId: input.studentId,
     ...(input.packageMode ? { packageId: input.packageId } : { looseItems }),
-    ...(input.packageMode ? {} : { homeAddress: input.homeAddress!.trim() }),
+    ...(input.homeAddress?.trim() ? { homeAddress: input.homeAddress.trim() } : {}),
     orderType: input.orderType,
     notes: input.notes.trim() || undefined,
     ...(input.orderType === "scholarship" ? { scholarshipProofBase64: input.scholarshipProofBase64 } : {}),

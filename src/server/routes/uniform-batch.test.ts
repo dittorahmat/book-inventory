@@ -112,6 +112,53 @@ describe("Uniform batch: stok manual, export CSV, import ekspedisi", () => {
     }
   });
 
+  it("import 30 baris sekaligus lolos sekuensial (§10 volume produksi)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-bvol-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Bvol", code: `ALW-BVOL-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const nises: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const studentId = `st-bvol-${stamp}-${i}`;
+      const nis = `NIS-BVOL-${stamp}-${i}`;
+      nises.push(nis);
+      await db.insert(students).values({
+        id: studentId, schoolId, nis, name: `Siswa Bvol ${i}`,
+        gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+        status: "active", createdAt: now, updatedAt: now,
+      });
+      await db.insert(uniformOrders).values({
+        id: `uord-bvol-${stamp}-${i}`, orderNumber: `USO-BVOL-${stamp}-${i}`,
+        studentId, schoolId, academicYear: "2026/2027",
+        homeAddressSnapshot: "Jl. Bvol RT 01 RW 01, Depok 16411",
+        shipmentStatus: "belum_dikirim", totalAmount: 50000, paidAmount: 50000,
+        paymentStatus: "paid", createdAt: now, updatedAt: now,
+      });
+    }
+    try {
+      const imp = await postBatch("/orders/import-shipping", {
+        schoolId, markShipped: false,
+        rows: nises.map((nis, i) => ({ nis, resi: `RESI-BVOL-${i}`, ongkir: 10000 + i })),
+      });
+      expect(imp.status).toBe(200);
+      const impJson = await imp.json();
+      expect(impJson.data.updated).toHaveLength(30);
+      expect(impJson.data.rejected).toHaveLength(0);
+      const [sample] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, `uord-bvol-${stamp}-0`));
+      expect(sample.shippingResi).toBe("RESI-BVOL-0");
+      expect(sample.shipmentStatus).toBe("belum_dikirim");
+    } finally {
+      for (let i = 0; i < 30; i++) {
+        await db.delete(uniformOrders).where(eq(uniformOrders.id, `uord-bvol-${stamp}-${i}`));
+        await db.delete(students).where(eq(students.id, `st-bvol-${stamp}-${i}`));
+      }
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("catatan reject seragam: simpan + daftar (gudang)", async () => {
     const stamp = Date.now();
     const { variantId } = await seedVariant(`r${stamp}`);

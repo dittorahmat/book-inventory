@@ -75,6 +75,14 @@ export async function handoverPackage(
   const deliveryNumber = `SJ-SERAH-${now.replace(/\D/g, "").slice(-8)}`;
   const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
 
+  // Paket kirim-rumah wajib ongkir (nominal atau resi) sebelum serah-terima.
+  if (order.packageId && order.homeAddressSnapshot?.trim()) {
+    const hasShipping = (order.shippingCost ?? 0) > 0 || !!order.shippingResi?.trim();
+    if (!hasShipping) {
+      return { ok: false, status: 400, message: "Input ongkir terlebih dahulu untuk paket kirim-rumah." };
+    }
+  }
+
   if (input.packageItemId) {
     const [bundle] = await database
       .select()

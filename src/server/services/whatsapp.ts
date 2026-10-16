@@ -178,7 +178,6 @@ export class MetaWhatsAppSender implements WhatsAppSender {
   async send(request: WhatsAppRequest): Promise<SendWhatsAppResult> {
     const config = await getMetaWhatsAppConfig(this.database);
     if (!config.isEnabled || !config.phoneNumberId || !config.accessToken) {
-      console.info(`[WhatsApp Meta Simulation] To: ${request.to} | Message: ${request.text.slice(0, 60)}...`);
       return { success: true, simulated: true, error: "Meta WA belum dikonfigurasi atau dinonaktifkan. Pesan disimulasikan." };
     }
     const cleanPhone = normalizeIndonesianPhone(request.to);

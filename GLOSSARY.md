@@ -77,7 +77,7 @@ Nomor serah-terima paket/satuan-ambil ke siswa saat handover ambil-langsung di s
 _Avoid_: Resi kurir, SJ pengiriman rumah
 
 **Kirim-Rumah Satuan**:
-Distribusi buku satuan ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; ongkir + resi diinput manual gudang, invoice dikirim setelah ongkir terisi. Paket tetap Ambil Langsung.
+Distribusi buku satuan ke alamat rumah per order dengan flag `belum_dikirim` → `sudah_dikirim` oleh gudang; ongkir + resi diinput manual gudang, invoice dikirim setelah ongkir terisi (ongkir 0 sah bila ada resi). Paket-ambil tetap diambil di sekolah; paket-kirim ke rumah wajib ongkir sebelum serah-terima.
 _Avoid_: Ekspedisi, SJ-SERAH satuan
 
 **Kirim-Rumah**:
