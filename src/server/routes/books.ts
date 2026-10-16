@@ -87,7 +87,9 @@ function withEffectivePrices<T extends { price: number; buyPrice: number; sellPr
 }
 
 booksRouter.get("/", async (c) => {
-  const allBooks: Array<typeof books.$inferSelect> = await db.select().from(books);
+  try {
+    await resolveLogisticsActor(c);
+    const allBooks: Array<typeof books.$inferSelect> = await db.select().from(books);
   const links: Array<{ bookId: string; supplierId: string }> =
     allBooks.length === 0
       ? []
@@ -110,15 +112,23 @@ booksRouter.get("/", async (c) => {
     success: true,
     data: allBooks.map((b: typeof books.$inferSelect) => ({ ...withEffectivePrices(b), supplierIds: byBook.get(b.id) ?? [] })),
   });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 booksRouter.get("/:id", async (c) => {
-  const id = c.req.param("id");
-  const [book] = await db.select().from(books).where(eq(books.id, id));
-  if (!book) {
-    return c.json({ success: false, message: "Book not found" }, 404);
+  try {
+    await resolveLogisticsActor(c);
+    const id = c.req.param("id");
+    const [book] = await db.select().from(books).where(eq(books.id, id));
+    if (!book) {
+      return c.json({ success: false, message: "Book not found" }, 404);
+    }
+    return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, book)) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
-  return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, book)) });
 });
 
 booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {

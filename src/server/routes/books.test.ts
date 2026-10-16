@@ -219,10 +219,13 @@ describe("Books master RBAC (#43)", () => {
     }
   });
 
-  it("membiarkan daftar dan detail katalog terbaca publik", async () => {
+  it("menolak baca katalog tanpa sesi (401, anti window-shopping) dan mengizinkan staf", async () => {
     await seedBook();
     try {
       mockActor(null, null);
+      expect((await booksRouter.request("/", { method: "GET" })).status).toBe(401);
+      expect((await booksRouter.request(`/${seedId}`, { method: "GET" })).status).toBe(401);
+      mockActor("warehouse_admin", "school-warehouse");
       expect((await booksRouter.request("/", { method: "GET" })).status).toBe(200);
       expect((await booksRouter.request(`/${seedId}`, { method: "GET" })).status).toBe(200);
     } finally {

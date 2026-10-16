@@ -403,6 +403,11 @@ describe("Katalog satuan terpadu cut-off (spec: c4-single-capability)", () => {
       expect(row).toBeDefined();
       // sellPrice 0 → fallback ke price (aturan kanonik tunggal)
       expect(row.sellPrice).toBe(80000);
+      // Anti window-shopping: tanpa ISBN/penulis/penerbit/cover di katalog publik.
+      expect(row).not.toHaveProperty("isbn");
+      expect(row).not.toHaveProperty("author");
+      expect(row).not.toHaveProperty("publisher");
+      expect(row).not.toHaveProperty("coverUrl");
     } finally {
       await db.delete(books).where(eq(books.id, bookId));
       await clearSettings(FUTURE_YEAR);

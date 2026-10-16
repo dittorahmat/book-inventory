@@ -83,16 +83,38 @@ publicOrdersRouter.get("/satuan-catalog", async (c) => {
   return c.json({ success: true, data: catalog });
 });
 
-// 0b. Katalog publik paket + sekolah (tanpa login): harga + BOM wajib terlihat,
-// judul memakai alias publik bila ada. Endpoint staf /api/packages tetap terkunci.
+// 0b. Katalog publik paket + sekolah (tanpa login): harga + BOM wajib terlihat.
+// Anti window-shopping: judul memakai alias samaran (fallback generik, bukan
+// judul real), tanpa ISBN/penulis/penerbit/cover agar tak bisa dicari di
+// online shop. Endpoint staf /api/packages tetap terkunci.
 publicOrdersRouter.get("/packages", async (c) => {
   const pkgs = await listPackagesWithBom(db, PACKAGE_LIST_LIMIT);
   return c.json({
     success: true,
     data: pkgs.map((p) => ({
       ...p,
-      items: p.items.map((it) => ({ ...it, title: it.publicTitle ?? it.title })),
+      items: p.items.map((it) => ({
+        id: it.id,
+        bookId: it.bookId,
+        title: it.publicTitle ?? "Buku Paket",
+        quantity: it.quantity,
+      })),
     })),
+  });
+});
+
+// 0c. Pilihan judul untuk retur publik: alias samaran saja, tanpa ISBN.
+publicOrdersRouter.get("/book-choices", async (c) => {
+  const pkgs = await listPackagesWithBom(db, PACKAGE_LIST_LIMIT);
+  const seen = new Map<string, string>();
+  for (const p of pkgs) {
+    for (const it of p.items) {
+      if (!seen.has(it.bookId)) seen.set(it.bookId, it.publicTitle ?? "Buku Paket");
+    }
+  }
+  return c.json({
+    success: true,
+    data: [...seen].map(([bookId, title]) => ({ bookId, title })),
   });
 });
 
