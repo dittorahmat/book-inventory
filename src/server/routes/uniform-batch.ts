@@ -20,7 +20,7 @@ import {
   getUniformSalesReport,
   importUniformShipping,
   uniformSalesToCsv,
-} from "../services/uniform/report";
+} from "../services/uniform";
 import { resolveUniformScholarship } from "../services/uniform";
 
 export const uniformBatchRouter = new Hono();

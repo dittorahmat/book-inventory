@@ -24,4 +24,21 @@ describe("partitioned-search adapter (§11)", () => {
     expect(uniformOrderStage({ invoiceSentAt: null, paymentStatus: "unpaid" })).toBe("pemesanan");
     expect(uniformOrderStage({ invoiceSentAt: "2026-01-01", paymentStatus: "paid" })).toBe("lunas");
   });
+
+  it("agrees with stage derivation on every representative row (parity guard)", () => {
+    const samples = [
+      { invoiceSentAt: null, paymentStatus: "unpaid" },
+      { invoiceSentAt: "2026-10-01", paymentStatus: "unpaid" },
+      { invoiceSentAt: "2026-10-01", paymentStatus: "partial" },
+      { invoiceSentAt: "2026-10-01", paymentStatus: "paid" },
+    ] as const;
+    for (const s of samples) {
+      const stage = uniformOrderStage({ invoiceSentAt: s.invoiceSentAt, paymentStatus: s.paymentStatus });
+      expect(uniformStageFilter(stage).length).toBeGreaterThan(0);
+      expect(uniformStageFilter("unknown")).toEqual([]);
+    }
+    expect(new Set(samples.map((s) => uniformOrderStage({ invoiceSentAt: s.invoiceSentAt, paymentStatus: s.paymentStatus })))).toEqual(
+      new Set(["pemesanan", "tagihan", "konfirmasi", "lunas"])
+    );
+  });
 });

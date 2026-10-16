@@ -6,27 +6,21 @@ afterEach(() => restoreActor());
 
 import { studentOrdersRouter } from "../routes/student-orders";
 import { db } from "../../db";
-import { schools, studentBookOrders, students } from "../../db/schema";
+import { studentBookOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { guardScopedOrderMutation } from "./order-operations";
+import { dropSeed, seedSchool, seedStudent } from "../lib/test-seed";
 
 const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 
 describe("order-operations seam (scope + paket-vs-satuan gate)", () => {
   it("blocks cross-gate actors and preserves 404", async () => {
     const now = new Date().toISOString();
-    const schoolId = `school-ops-${suffix}`;
-    const otherId = `school-ops2-${suffix}`;
-    const studentId = `st-ops-${suffix}`;
+    const schoolId = await seedSchool(`ops-${suffix}`, "Ops Test");
+    const otherId = await seedSchool(`ops2-${suffix}`, "Ops Other");
+    const studentId = await seedStudent(`ops-${suffix}`, schoolId, "Ops Murid");
     const orderId = `ord-ops-${suffix}`;
     try {
-      await db.insert(schools).values({ id: schoolId, name: "Ops Test", code: `OPS-${suffix}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
-      await db.insert(schools).values({ id: otherId, name: "Ops Other", code: `OPO-${suffix}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
-      await db.insert(students).values({
-        id: studentId, schoolId, nis: `NISOPS${suffix}`, name: "Ops Murid", gradeLevel: "1",
-        curriculumType: "international", academicYear: "2026/2027", status: "active",
-        parentName: "Ortu", parentEmail: "o@example.com", parentPhone: "+6281", createdAt: now, updatedAt: now,
-      }).onConflictDoNothing();
       await db.insert(studentBookOrders).values({
         id: orderId, orderNumber: `ORD-OPS-${suffix}`, studentId, schoolId,
         orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
@@ -60,9 +54,7 @@ describe("order-operations seam (scope + paket-vs-satuan gate)", () => {
     } finally {
       restoreActor();
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
-      await db.delete(students).where(eq(students.id, studentId));
-      await db.delete(schools).where(eq(schools.id, schoolId));
-      await db.delete(schools).where(eq(schools.id, otherId));
+      await dropSeed({ schoolIds: [schoolId, otherId], studentIds: [studentId] });
     }
   });
 });

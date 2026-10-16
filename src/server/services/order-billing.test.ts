@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { db } from "../../db";
-import { books, schools, studentBookOrders, studentOrderItems, students, uniformOrders } from "../../db/schema";
+import { studentBookOrders, studentOrderItems, uniformOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { assertInvoiceGate, confirmPayment, lookupByToken, sendInvoice, setShipping } from "./order-billing";
+import { dropSeed, seedBook, seedSchool, seedStudent } from "../lib/test-seed";
 
 const stubSender = { name: "stub", send: async () => ({ success: true as const }) };
 const ts = Date.now();
@@ -11,21 +12,14 @@ const suffix = `${ts.toString(36)}${Math.floor(Math.random() * 1e4)}`;
 describe("order-billing deep seam (buku|seragam)", () => {
   it("dispatches by kind, preserves 404 texts, gate difference, and volume-safe shipping", async () => {
     const now = new Date().toISOString();
-    const schoolId = `school-bil-${suffix}`;
-    const studentId = `st-bil-${suffix}`;
-    const bookId = `b-bil-${suffix}`;
+    const tag = `bil-${suffix}`;
+    const schoolId = await seedSchool(tag, "Billing Seam Test");
+    const studentId = await seedStudent(tag, schoolId, "Billing Seam");
+    const bookId = await seedBook(tag, "Billing Book");
     const bookOrderId = `ord-bil-${suffix}`;
     const uniformOrderId = `uord-bil-${suffix}`;
     const uuidOrderId = crypto.randomUUID();
     try {
-      await db.insert(schools).values({ id: schoolId, name: "Billing Seam Test", code: `BIL-${suffix}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
-      await db.insert(students).values({
-        id: studentId, schoolId, nis: `NISBIL${suffix}`, name: "Billing Seam", gradeLevel: "1",
-        curriculumType: "international", academicYear: "2026/2027", status: "active",
-        parentName: "Ortu", parentEmail: "ortu@example.com", parentPhone: "+628100000001",
-        createdAt: now, updatedAt: now,
-      }).onConflictDoNothing();
-      await db.insert(books).values({ id: bookId, isbn: `ISBN-BIL-${suffix}`, title: "Billing Book", author: "Anon", publisher: "Test", createdAt: now, updatedAt: now }).onConflictDoNothing();
       await db.insert(studentBookOrders).values({
         id: bookOrderId, orderNumber: `ORD-BIL-${suffix}`, studentId, schoolId,
         orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
@@ -90,9 +84,7 @@ describe("order-billing deep seam (buku|seragam)", () => {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, bookOrderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, uuidOrderId));
       await db.delete(uniformOrders).where(eq(uniformOrders.id, uniformOrderId));
-      await db.delete(students).where(eq(students.id, studentId));
-      await db.delete(schools).where(eq(schools.id, schoolId));
-      await db.delete(books).where(eq(books.id, bookId));
+      await dropSeed({ schoolIds: [schoolId], studentIds: [studentId], bookIds: [bookId] });
     }
   });
 });

@@ -1,19 +1,18 @@
 import { describe, expect, it } from "bun:test";
 import { db } from "../../../db";
-import { schools, students, uniformOrders } from "../../../db/schema";
+import { uniformOrders } from "../../../db/schema";
 import { eq } from "drizzle-orm";
-import { getUniformNumbering, saveUniformNumbering, setUniformSatuanEnabled } from "./numbering";
-import { isUniformSatuanEnabled } from "./orders";
-import { importUniformShipping } from "./report";
+import { getUniformNumbering, importUniformShipping, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "./index";
+import { dropSeed, seedSchool, seedStudent } from "../../lib/test-seed";
 
 const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 
 describe("uniform numbering + satuan toggle + import-shipping seam", () => {
   it("round-trips numbering/satuan and reports updated vs rejected rows", async () => {
     const now = new Date().toISOString();
-    const schoolId = `school-c4-${suffix}`;
-    const withOrderId = `st-c4a-${suffix}`;
-    const noOrderId = `st-c4b-${suffix}`;
+    const schoolId = await seedSchool(`c4-${suffix}`, "C4 Test");
+    const withOrderId = await seedStudent(`c4a-${suffix}`, schoolId, "C4", `NISC4A${suffix}`);
+    const noOrderId = await seedStudent(`c4b-${suffix}`, schoolId, "C4", `NISC4B${suffix}`);
     const orderId = `uord-c4-${suffix}`;
     const before = await getUniformNumbering(db);
     try {
@@ -25,14 +24,6 @@ describe("uniform numbering + satuan toggle + import-shipping seam", () => {
       expect(await isUniformSatuanEnabled(db)).toBe(false);
       expect((await setUniformSatuanEnabled(db, true)).open).toBe(true);
 
-      await db.insert(schools).values({ id: schoolId, name: "C4 Test", code: `C4-${suffix}`, type: "branch", createdAt: now, updatedAt: now }).onConflictDoNothing();
-      for (const [id, nis] of [[withOrderId, `NISC4A${suffix}`], [noOrderId, `NISC4B${suffix}`]] as const) {
-        await db.insert(students).values({
-          id, schoolId, nis, name: `C4 ${nis}`, gradeLevel: "7",
-          curriculumType: "national", academicYear: "2026/2027", status: "active",
-          parentName: "Ortu", parentEmail: "o@example.com", parentPhone: "+6281", createdAt: now, updatedAt: now,
-        }).onConflictDoNothing();
-      }
       await db.insert(uniformOrders).values({
         id: orderId, orderNumber: `USO-C4-${suffix}`, studentId: withOrderId, schoolId,
         academicYear: "2026/2027", homeAddressSnapshot: "Jl. C4 No. 1 RT 01 RW 02, 12345",
@@ -54,9 +45,7 @@ describe("uniform numbering + satuan toggle + import-shipping seam", () => {
     } finally {
       await saveUniformNumbering(db, before);
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
-      await db.delete(students).where(eq(students.id, withOrderId));
-      await db.delete(students).where(eq(students.id, noOrderId));
-      await db.delete(schools).where(eq(schools.id, schoolId));
+      await dropSeed({ schoolIds: [schoolId], studentIds: [withOrderId, noOrderId] });
     }
   });
 });
