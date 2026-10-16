@@ -13,6 +13,7 @@ import { decodeBase64ToBytes } from "../../base64";
 import type { SatuanStatus } from "../../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./cutoff";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { validateHomeAddress } from "../../../lib/home-address";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
@@ -121,8 +122,8 @@ export async function submitPublicOrder(
   if (looseItems.length > 0) {
     const cutoffCheck = validateSatuanCutoff(true, await (deps.getSatuanStatus ?? (() => getCurrentSatuanStatus(database)))());
     if (!cutoffCheck.ok) return cutoffCheck;
-    if (!input.homeAddress?.trim())
-      return { ok: false, status: 400, message: "Alamat rumah wajib diisi untuk buku satuan (dikirim ke rumah)." };
+    const addressCheck = validateHomeAddress(input.homeAddress);
+    if (!addressCheck.ok) return { ok: false, status: 400, message: addressCheck.message as string };
   }
 
   // 3. Resolusi paket buku jika dipilih (aturan murni)

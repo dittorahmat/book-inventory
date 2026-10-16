@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "../../db";
@@ -41,10 +42,11 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
+import { setUniformShipping } from "../services/order-shipping";
 
 export const uniformsRouter = new Hono();
 
-const fail = (c: { json: (body: unknown, status?: 400 | 404) => Response }, result: { status: 400 | 404; message: string }) =>
+const fail = (c: { json: (body: unknown, status?: 400 | 403 | 404) => Response }, result: { status: 400 | 403 | 404; message: string }) =>
   c.json({ success: false, message: result.message }, result.status);
 
 uniformsRouter.get("/variants", async (c) => {
@@ -167,6 +169,9 @@ uniformsRouter.get("/orders", async (c) => {
         schoolName: schools.name,
         shipmentStatus: uniformOrders.shipmentStatus,
         shippedAt: uniformOrders.shippedAt,
+        shippingCost: uniformOrders.shippingCost,
+        shippingResi: uniformOrders.shippingResi,
+        invoiceSentAt: uniformOrders.invoiceSentAt,
         totalAmount: uniformOrders.totalAmount,
         homeAddressSnapshot: uniformOrders.homeAddressSnapshot,
         createdAt: uniformOrders.createdAt,
@@ -190,6 +195,21 @@ uniformsRouter.post("/orders/:id/ship", async (c) => {
     const result = await markUniformShipped(db, c.req.param("id"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Input ongkir manual gudang (syarat tombol kirim invoice).
+uniformsRouter.post("/orders/:id/shipping", zValidator("json", z.object({
+  shippingCost: z.number().int().min(0, "Ongkir wajib angka bulat >= 0"),
+  shippingResi: z.string().optional(),
+})), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await setUniformShipping(db, c.req.param("id"), c.req.valid("json"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

@@ -1,4 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { validateHomeAddress } from "../../lib/home-address";
 import type { FinalOrderPayload } from "./portal-api";
 
 export interface OrderTotalsInput {
@@ -33,8 +34,9 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
   if (!input.packageMode && looseItems.length === 0) {
     throw new Error("Pilih minimal 1 buku satuan sebelum melanjutkan pembayaran.");
   }
-  if (!input.packageMode && !input.homeAddress?.trim()) {
-    throw new Error("Alamat rumah wajib diisi untuk buku satuan (dikirim ke rumah).");
+  if (!input.packageMode) {
+    const addressCheck = validateHomeAddress(input.homeAddress);
+    if (!addressCheck.ok) throw new Error(addressCheck.message);
   }
   if (input.orderType === "scholarship" && !input.scholarshipProofBase64) {
     throw new Error("Dokumen bukti surat tanda beasiswa wajib dilampirkan.");

@@ -222,7 +222,7 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
             { bookId: bookA, quantity: 1 },
             { bookId: bookB, quantity: 1 },
           ],
-          homeAddress: "Jl. Mawar No. 10",
+          homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
         }),
       });
       expect(res.status).toBe(201);

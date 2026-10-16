@@ -729,4 +729,87 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("ongkir manual + routing: gudang input ongkir, cabang ditolak untuk satuan, gudang ditolak handover paket", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-ship-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Shipping Test", code: `ALW-SHIP-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-ship-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-SHIP-${stamp}`, name: "Siswa Ship",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const orderId = `ord-ship-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-SHIP-${String(stamp).slice(-6)}`,
+      studentId, schoolId, orderType: "regular",
+      paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+      homeAddressSnapshot: "Jl. Anggrek RT 03 RW 05, Serpong, 15310",
+      totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+    });
+    try {
+      const badCost = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: -500 }),
+      });
+      expect(badCost.status).toBe(400);
+
+      const okShip = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 25000, shippingResi: "RESI-001" }),
+      });
+      expect(okShip.status).toBe(200);
+      expect((await okShip.json()).data.shippingCost).toBe(25000);
+
+      mockActor("branch_admin", schoolId);
+      const branchShip = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 10000 }),
+      });
+      expect(branchShip.status).toBe(403);
+      const branchMark = await studentOrdersRouter.request(`/${orderId}/mark-satuan-shipped`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      expect(branchMark.status).toBe(403);
+
+      mockActor("warehouse_admin", "warehouse-1");
+      const pkgId = `pkg-ship-${stamp}`;
+      await db.insert(bookPackages).values({
+        id: pkgId, code: `PKG-SHIP-${stamp}`, name: "Paket Ship",
+        gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+        price: 500000, createdAt: now, updatedAt: now,
+      });
+      const pkgOrderId = `ord-ship-pkg-${stamp}`;
+      await db.insert(studentBookOrders).values({
+        id: pkgOrderId, orderNumber: `ORD-SHPP-${String(stamp).slice(-6)}`,
+        studentId, schoolId, packageId: pkgId, orderType: "regular",
+        paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 500000, paidAmount: 500000, createdAt: now, updatedAt: now,
+      });
+      const whHandover = await studentOrdersRouter.request(`/${pkgOrderId}/handover`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: "Ortu" }),
+      });
+      expect(whHandover.status).toBe(403);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, pkgOrderId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("validasi alamat kirim-rumah menolak tanpa RT/RW/kode pos", async () => {
+    const { validateHomeAddress } = await import("../../lib/home-address");
+    expect(validateHomeAddress("Jl. Mawar No. 10, Bogor").ok).toBe(false);
+    expect(validateHomeAddress("Jl. Mawar RT 03, Bogor 15310").ok).toBe(false);
+    expect(validateHomeAddress("Jl. Anggrek RT 03 RW 05, Serpong Utara, 15310").ok).toBe(true);
+  });
 });

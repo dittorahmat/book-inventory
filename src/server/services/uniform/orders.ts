@@ -20,6 +20,7 @@ import {
   type WriteDeps,
 } from "../../lib/d1-write";
 import { readSettingsMap } from "../settings-map";
+import { validateHomeAddress } from "../../../lib/home-address";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 
@@ -53,8 +54,8 @@ export async function submitUniformOrder(
   deps?: SubmitUniformOrderDeps
 ): Promise<{ ok: true; data: { order: typeof uniformOrders.$inferSelect; totalAmount: number } } | UniformError> {
   const now = writeNow(deps);
-  const homeAddress = payload.homeAddress.trim();
-  if (!homeAddress) return invalid("Alamat rumah wajib diisi.");
+  const addressCheck = validateHomeAddress(payload.homeAddress);
+  if (!addressCheck.ok) return invalid(addressCheck.message as string);
   if (!payload.items || payload.items.length === 0) return invalid("Pilih minimal satu paket atau satuan.");
   if (!/^\d{4}\/\d{4}$/.test(payload.academicYear)) return invalid("Format tahun ajaran wajib YYYY/YYYY.");
 
@@ -182,7 +183,7 @@ export async function submitUniformOrder(
           studentId: payload.studentId,
           schoolId,
           academicYear: payload.academicYear,
-          homeAddressSnapshot: homeAddress,
+          homeAddressSnapshot: payload.homeAddress.trim(),
           shipmentStatus: "belum_dikirim",
           totalAmount: total,
           paidAmount: total,

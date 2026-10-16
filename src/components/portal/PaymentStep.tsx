@@ -275,7 +275,7 @@ export function PaymentStep({
             required
             value={homeAddress ?? ""}
             onChange={(e) => setHomeAddress?.(e.target.value)}
-            placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor"
+            placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor 16111"
             className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
           />
           <span className="text-[10px] text-[#65676B] block mt-0.5">

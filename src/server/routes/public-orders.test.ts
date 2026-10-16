@@ -517,7 +517,7 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
         {
           studentId,
           looseItems: [{ bookId, quantity: 2 }],
-          homeAddress: "Jl. Mawar No. 10",
+          homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
           orderType: "regular",
           payment: {
             transferAmount: 200000,
@@ -632,7 +632,7 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
         {
           studentId,
           looseItems: [{ bookId, quantity: 5 }],
-          homeAddress: "Jl. Mawar No. 10",
+          homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
           orderType: "regular",
           payment: {
             transferAmount: 500000,
@@ -839,7 +839,7 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
         {
           studentId,
           looseItems: bookIds.map((bookId) => ({ bookId, quantity: 1 })),
-          homeAddress: "Jl. Mawar No. 10",
+          homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
           orderType: "regular",
         },
         {
