@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, isNotNull, isNull, like, or, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, students, uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import {
@@ -42,9 +42,9 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
-import { uniformOrderStage } from "../services/uniform/report";
-import { setUniformShipping } from "../services/order-shipping";
-import { sendUniformInvoice } from "../services/order-invoice";
+import { uniformOrderStage, uniformStageFilter } from "../services/uniform/report";
+import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
+import { matchAnyLower } from "../lib/partitioned-search";
 import { fail } from "../lib/route-fail";
 
 export const uniformsRouter = new Hono();
@@ -152,23 +152,11 @@ uniformsRouter.get("/orders", async (c) => {
       conditions.push(eq(uniformOrders.paymentStatus, paymentStatus));
     }
     // Tahap dipetakan ke kondisi SQL (bukan filter JS): pemesanan/tagihan/konfirmasi/lunas.
-    if (stage === "pemesanan") conditions.push(isNull(uniformOrders.invoiceSentAt));
-    if (stage === "tagihan") {
-      conditions.push(isNotNull(uniformOrders.invoiceSentAt));
-      conditions.push(eq(uniformOrders.paymentStatus, "unpaid"));
-    }
-    if (stage === "konfirmasi") conditions.push(eq(uniformOrders.paymentStatus, "partial"));
-    if (stage === "lunas") conditions.push(eq(uniformOrders.paymentStatus, "paid"));
+    conditions.push(...uniformStageFilter(stage));
     if (search) {
       if (!schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
-      const pattern = `%${search.toLowerCase()}%`;
-      conditions.push(
-        or(
-          like(sql`lower(${students.name})`, pattern),
-          like(sql`lower(${students.nis})`, pattern),
-          like(sql`lower(${uniformOrders.orderNumber})`, pattern)
-        )
-      );
+      const matched = matchAnyLower([students.name, students.nis, uniformOrders.orderNumber], search);
+      if (matched) conditions.push(matched);
     }
     const rows = await db
       .select({
@@ -208,7 +196,7 @@ uniformsRouter.get("/orders", async (c) => {
 uniformsRouter.post("/orders/:id/send-invoice", async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await sendUniformInvoice(db, c.req.param("id"), { baseUrl: new URL(c.req.url).origin });
+    const result = await sendBillingInvoice(db, c.req.param("id"), { kind: "seragam", baseUrl: new URL(c.req.url).origin });
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
   } catch (err) {
@@ -235,7 +223,7 @@ uniformsRouter.post("/orders/:id/shipping", zValidator("json", z.object({
 })), async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await setUniformShipping(db, c.req.param("id"), c.req.valid("json"));
+    const result = await setBillingShipping(db, c.req.param("id"), c.req.valid("json"), "seragam");
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
   } catch (err) {

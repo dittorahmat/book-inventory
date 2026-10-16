@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, inArray, like, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, like, notInArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { schools, students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { idSchema, academicYearSchema } from "../lib/validators";
@@ -13,7 +13,8 @@ import {
   submitUniformOrder,
   isUniformSatuanEnabled,
 } from "../services/uniform";
-import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
+import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
+import { matchAnyLower } from "../lib/partitioned-search";
 
 export const publicUniformOrdersRouter = new Hono();
 
@@ -59,7 +60,7 @@ const lookupQuerySchema = z
 // Cari murid terverifikasi dalam satu sekolah (Pencarian Partisi §11).
 publicUniformOrdersRouter.get("/search-students", zValidator("query", searchStudentSchema), async (c) => {
   const { query, schoolId } = c.req.valid("query");
-  const pattern = `%${query.trim().toLowerCase()}%`;
+  const matchFilter = matchAnyLower([students.name, students.nis], query);
   const found = await db
     .select({
       id: students.id,
@@ -79,7 +80,7 @@ publicUniformOrdersRouter.get("/search-students", zValidator("query", searchStud
     .where(
       and(
         eq(students.schoolId, schoolId),
-        or(like(sql`lower(${students.name})`, pattern), like(sql`lower(${students.nis})`, pattern)),
+        matchFilter,
         notInArray(students.status, ["new_pending", "rejected"])
       )
     )
@@ -117,7 +118,7 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
 
 // Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas).
 publicUniformOrdersRouter.get("/confirm/:token", async (c) => {
-  const found = await lookupUniformByToken(db, c.req.param("token"));
+  const found = await lookupBillingByToken(db, c.req.param("token"), "seragam");
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
   return c.json({
     success: true,
@@ -143,7 +144,7 @@ const uniformConfirmSchema = z.object({
 });
 
 publicUniformOrdersRouter.post("/confirm/:token", zValidator("json", uniformConfirmSchema), async (c) => {
-  const result = await confirmUniformPayment(db, c.req.param("token"), c.req.valid("json"));
+  const result = await confirmBillingPayment(db, c.req.param("token"), c.req.valid("json"), "seragam");
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });

@@ -7,6 +7,7 @@ import type {
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
 import { WprQuestion } from "./WprQuestion";
+import { allocationForChoice, draftRemainder } from "./order-draft";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
@@ -176,7 +177,7 @@ export function PaymentStep({
                 type="button"
                 onClick={() => {
                   setPaymentChoice("full");
-                  setBookAllocationAmount(pkg.price);
+                  setBookAllocationAmount(allocationForChoice("full", pkg.price));
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                   paymentChoice === "full" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
@@ -188,7 +189,7 @@ export function PaymentStep({
                 type="button"
                 onClick={() => {
                   setPaymentChoice("partial");
-                  setBookAllocationAmount(Math.round(pkg.price / 2));
+                  setBookAllocationAmount(allocationForChoice("partial", pkg.price));
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                   paymentChoice === "partial" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
@@ -259,7 +260,7 @@ export function PaymentStep({
               />
               <div className="flex justify-between text-[10px] text-[#65676B] mt-0.5">
                 <span>Tagihan: {formatRupiah(pkg.price)}</span>
-                <span>Sisa: {formatRupiah(Math.max(0, pkg.price - bookAllocationAmount))}</span>
+                <span>Sisa: {formatRupiah(draftRemainder(pkg.price, bookAllocationAmount))}</span>
               </div>
             </div>
 

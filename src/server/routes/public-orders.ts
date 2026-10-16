@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, notInArray, sql, ne } from "drizzle-orm";
+import { eq, or, like, and, notInArray, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
@@ -14,10 +14,11 @@ import {
 } from "../services/order-intake";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { countPackageOrders } from "../services/wpr";
-import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice";
+import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
 import { WPR_PRICE, needsWprCharge } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
+import { matchAnyLower } from "../lib/partitioned-search";
 
 export const publicOrdersRouter = new Hono();
 
@@ -142,15 +143,11 @@ publicOrdersRouter.get("/wpr-eligibility", async (c) => {
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
 publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSchema), async (c) => {
   const { query, schoolId } = c.req.valid("query");
-  const cleanQ = `%${query.trim().toLowerCase()}%`;
 
   // Portal hanya boleh menemukan siswa terverifikasi: sembunyikan
   // new_pending (menunggu admin) dan rejected (ditolak admin).
   const verifiedOnly = notInArray(students.status, ["new_pending", "rejected"]);
-  const matchFilter = or(
-    like(sql`lower(${students.name})`, cleanQ),
-    like(sql`lower(${students.nis})`, cleanQ)
-  );
+  const matchFilter = matchAnyLower([students.name, students.nis], query);
 
   const whereCondition = and(eq(students.schoolId, schoolId), matchFilter, verifiedOnly);
 
@@ -259,7 +256,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
 
 // 6. Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas)
 publicOrdersRouter.get("/confirm/:token", async (c) => {
-  const found = await lookupBookByToken(db, c.req.param("token"));
+  const found = await lookupBillingByToken(db, c.req.param("token"), "buku");
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
   return c.json({
     success: true,
@@ -285,7 +282,7 @@ const confirmPaymentSchema = z.object({
 });
 
 publicOrdersRouter.post("/confirm/:token", zValidator("json", confirmPaymentSchema), async (c) => {
-  const result = await confirmBookPayment(db, c.req.param("token"), c.req.valid("json"));
+  const result = await confirmBillingPayment(db, c.req.param("token"), c.req.valid("json"), "buku");
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });

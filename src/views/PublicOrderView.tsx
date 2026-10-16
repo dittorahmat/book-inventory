@@ -7,6 +7,7 @@ import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal"
 import { OrderItemStep } from "../components/portal/OrderItemStep";
 import { PaymentStep } from "../components/portal/PaymentStep";
 import { OrderSuccessStep } from "../components/portal/OrderSuccessStep";
+import { buildSatuanPkg } from "../components/portal/order-draft";
 
 interface PublicOrderViewProps {
   onNavigateToStaffLogin?: () => void;
@@ -231,19 +232,12 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 pkg={
                   order.packageMode && order.selectedPackage
                     ? order.selectedPackage
-                    : {
-                        id: "satuan",
-                        code: "SATUAN",
-                        name: `Buku satuan (${order.looseSelections.length} judul)`,
-                        gradeLevel: order.selectedStudent.gradeLevel,
-                        curriculumType: order.selectedStudent.curriculumType as
-                          | "international"
-                          | "national",
-                        academicYear: order.selectedStudent.academicYear,
-                        price: order.looseTotal + order.wprFee,
-                        totalItemsCount: order.looseSelections.length,
-                        items: [],
-                      }
+                    : buildSatuanPkg({
+                        student: order.selectedStudent,
+                        looseSelections: order.looseSelections,
+                        looseTotal: order.looseTotal,
+                        wprFee: order.wprFee,
+                      })
                 }
                 orderType={order.orderType}
                 setOrderType={order.setOrderType}

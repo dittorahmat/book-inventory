@@ -151,7 +151,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
-4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel.
+4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
 5. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
 
 ---

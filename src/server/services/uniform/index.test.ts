@@ -11,7 +11,8 @@ describe("uniform seam", () => {
       "listUniformExchanges", "listUniformRefunds",
       "createUniformPo", "receiveUniformPo", "assembleUniformPackages",
       "createUniformClaim", "lockUniformClaim", "listUniformClaims",
-      "getUniformSalesReport",
+      "getUniformSalesReport", "importUniformShipping",
+      "getUniformNumbering", "saveUniformNumbering", "setUniformSatuanEnabled",
     ]) {
       expect(typeof (seam as Record<string, unknown>)[fn], fn).toBe("function");
     }
