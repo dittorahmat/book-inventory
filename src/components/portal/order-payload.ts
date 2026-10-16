@@ -1,5 +1,6 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { validateHomeAddress } from "../../lib/home-address";
+import { calcDraftTotal } from "./order-draft";
 import type { FinalOrderPayload } from "./portal-api";
 
 export interface OrderTotalsInput {
@@ -47,7 +48,12 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
     throw new Error("Dokumen bukti surat tanda beasiswa wajib dilampirkan.");
   }
 
-  const bookTotal = input.packageMode ? input.packagePrice : input.looseTotal + (input.wprFee ?? 0);
+  const bookTotal = calcDraftTotal({
+    packageMode: input.packageMode,
+    packagePrice: input.packagePrice,
+    looseTotal: input.looseTotal,
+    wprFee: input.wprFee ?? 0,
+  });
   if (input.orderType === "regular" && input.bookAllocationAmount > bookTotal) {
     throw new Error(
       `Alokasi buku ${formatRupiah(input.bookAllocationAmount)} melebihi total tagihan ${formatRupiah(bookTotal)}. Sesuaikan nominal lalu kirim ulang.`

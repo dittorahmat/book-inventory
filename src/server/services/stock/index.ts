@@ -11,7 +11,9 @@ export {
   RETURNABLE_CONDITIONS,
 } from "./buckets";
 export type { AllocatableCondition } from "./buckets";
+export type { HandoverBundleRow, HandoverOrderRef } from "./buckets";
 export {
+  checkHandoverBundle,
   emptyConditionBuckets,
   emptyLooseStatusBuckets,
   emptyPackageStatusBuckets,

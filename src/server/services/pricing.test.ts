@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookPackages, schools, studentBookOrders, students } from "../../db/schema";
-import { WPR_BOOK_ID } from "../../lib/wpr";
-import { kitBomWithoutWpr, needsWprForStudent } from "./pricing";
+import { WPR_BOOK_ID, WPR_PRICE } from "../../lib/wpr";
+import { kitBomWithoutWpr, needsWprForStudent, wprFeeForStudent } from "./pricing";
 
 describe("Pricing seam", () => {
   it("kitBomWithoutWpr strips WPR and keeps priced components", () => {
@@ -37,11 +37,13 @@ describe("Pricing seam", () => {
         curriculumType: "national", academicYear: "2026/2027", price: 100000, createdAt: now, updatedAt: now,
       });
       expect(await needsWprForStudent(db, studentId)).toBe(true);
+      expect(await wprFeeForStudent(db, studentId)).toBe(WPR_PRICE);
       await db.insert(studentBookOrders).values({
         id: `ord-pricing-${stamp}`, orderNumber: `ORD-PRC-${stamp}`, studentId, schoolId,
         packageId: pkgId, createdAt: now, updatedAt: now,
       });
       expect(await needsWprForStudent(db, studentId)).toBe(false);
+      expect(await wprFeeForStudent(db, studentId)).toBe(0);
     } finally {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.schoolId, schoolId));
       await db.delete(students).where(eq(students.id, studentId));

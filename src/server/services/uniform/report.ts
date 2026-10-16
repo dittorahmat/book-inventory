@@ -8,7 +8,8 @@ import {
   uniformVariants,
 } from "../../../db/schema";
 import { gradeToJenjang, type UniformJenjang } from "../../../lib/uniform-types";
-import { loadSchoolNames } from "../reporting/sales-handover";
+import { loadSchoolNames } from "../reporting/sales-kernel";
+import { normalizeCsvNis, EKSPEDISI_CSV_HEADER, PACKING_CSV_HEADER } from "./csv-row";
 import { periodEndIso, quoteCsvCell, selectInChunks, toCsvInt } from "../reporting/sales-kernel";
 
 export interface UniformSalesRow {
@@ -258,8 +259,8 @@ export const uniformSalesToCsv = (report: UniformSalesReport): string =>
 /** Packing: nama, NIS, kelas, jenjang, size, gender per baris item. */
 export const buildPackingCsv = (rows: UniformExportRow[]): string =>
   toCsv(
-    ["nama", "nis", "kelas", "jenjang", "size", "gender", "qty", "no_order"],
-    rows.map((r) => [r.studentName, r.nis, r.gradeLevel, r.jenjang, r.size, r.gender, r.quantity, r.orderNumber])
+    [...PACKING_CSV_HEADER],
+    rows.map((r) => [r.studentName, normalizeCsvNis(r.nis), r.gradeLevel, r.jenjang, r.size, r.gender, r.quantity, r.orderNumber])
   );
 
 /** Ekspedisi: nama, NIS, kontak ortu, alamat per order (satu baris per order). */
@@ -267,7 +268,7 @@ export const buildEkspedisiCsv = (rows: UniformExportRow[]): string => {
   const seen = new Map<string, UniformExportRow>();
   for (const r of rows) if (!seen.has(r.orderId)) seen.set(r.orderId, r);
   return toCsv(
-    ["nama", "nis", "kontak_ortu", "alamat", "ongkir", "resi", "no_order"],
-    [...seen.values()].map((r) => [r.studentName, r.nis, r.parentPhone, r.address, r.shippingCost, r.shippingResi, r.orderNumber])
+    [...EKSPEDISI_CSV_HEADER],
+    [...seen.values()].map((r) => [r.studentName, normalizeCsvNis(r.nis), r.parentPhone, r.address, r.shippingCost, r.shippingResi, r.orderNumber])
   );
 };

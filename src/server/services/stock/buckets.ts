@@ -64,3 +64,49 @@ export const emptyConditionBuckets = () => ({ new: 0, good: 0, fair: 0, damaged:
 export const emptyLooseStatusBuckets = () => ({ in_stock: 0, in_transit: 0, disposed: 0, lost: 0 });
 
 export const emptyPackageStatusBuckets = () => ({ in_stock: 0, reserved: 0, dispatched: 0, delivered: 0 });
+
+export interface HandoverBundleRow {
+  id: string;
+  packageId: string;
+  currentSchoolId: string | null;
+  barcode: string | null;
+  status: string;
+}
+
+export interface HandoverOrderRef {
+  schoolId: string;
+  packageId: string | null;
+}
+
+/**
+ * Satu-satunya guard ketersediaan bundel serah terima: satu paket
+ * pesanan, satu cabang, status ready via bucket stok. Murni (tanpa DB)
+ * agar handover + retur meleverage satu seam stok, bukan saling impor.
+ */
+export const checkHandoverBundle = (
+  bundle: HandoverBundleRow,
+  order: HandoverOrderRef
+): { ok: false; status: 400; message: string } | null => {
+  if (order.packageId && bundle.packageId !== order.packageId) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Bundel ${bundle.barcode || bundle.id} tidak termasuk paket pesanan ini.`,
+    };
+  }
+  if (bundle.currentSchoolId !== order.schoolId) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Bundel ${bundle.barcode || bundle.id} tidak tersedia di cabang ini untuk diserahkan.`,
+    };
+  }
+  if (!isReadyBundle(bundle.status)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Bundel ${bundle.barcode || bundle.id} berstatus ${bundle.status}, tidak dapat diserahkan.`,
+    };
+  }
+  return null;
+};

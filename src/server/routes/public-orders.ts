@@ -15,7 +15,7 @@ import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsap
 import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
-import { WPR_PRICE } from "../../lib/wpr";
+import { wprFeeForEligibility } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 import {
@@ -139,7 +139,7 @@ publicOrdersRouter.get("/wpr-eligibility", async (c) => {
   const [student] = await db.select({ id: students.id }).from(students).where(eq(students.id, studentId));
   if (!student) return c.json({ success: false, message: "Murid tidak ditemukan" }, 404);
   const needsWpr = await needsWprForStudent(db, studentId);
-  return c.json({ success: true, data: { needsWpr, wprPrice: needsWpr ? WPR_PRICE : 0 } });
+  return c.json({ success: true, data: { needsWpr, wprPrice: wprFeeForEligibility(needsWpr) } });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)

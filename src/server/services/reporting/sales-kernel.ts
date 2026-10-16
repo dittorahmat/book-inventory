@@ -1,4 +1,6 @@
 import { D1_INLIST_CHUNK_SIZE, chunkRows } from "../../lib/d1-write";
+import type { AppDatabase } from "../../../db";
+import { schools } from "../../../db/schema";
 
 /**
  * Kernel bersama rekap penjualan (§10/§11): ambil ter-chunk + nama
@@ -21,3 +23,11 @@ export const periodEndIso = (to: string): string => `${to}T23:59:59.999Z`;
 
 export const selectInChunks = async <T>(ids: string[], run: (chunk: string[]) => Promise<T[]>): Promise<T[]> =>
   ids.length === 0 ? [] : (await Promise.all(chunkRows(ids, D1_INLIST_CHUNK_SIZE).map((chunk) => run(chunk)))).flat();
+
+/** Satu-satunya pemilik peta id → nama sekolah (lookup rekap, bukan atribusi). */
+export const loadSchoolNames = async (database: AppDatabase): Promise<Map<string, string>> => {
+  const rows: Array<{ id: string; name: string }> = await database
+    .select({ id: schools.id, name: schools.name })
+    .from(schools);
+  return new Map(rows.map((s) => [s.id, s.name]));
+};

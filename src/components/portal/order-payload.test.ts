@@ -110,4 +110,35 @@ describe("buildFinalOrderPayload", () => {
     });
     expect(payload.looseItems).toEqual(selections);
   });
+
+  test("total payload identik dengan calcDraftTotal (paket + satuan + WPR)", async () => {
+    const { calcDraftTotal } = await import("./order-draft");
+    const satuan = { packageMode: false, packagePrice: 0, looseTotal: 100000, wprFee: 750000 };
+    expect(calcDraftTotal(satuan)).toBe(850000);
+    const ok = buildFinalOrderPayload({
+      ...base,
+      packageMode: false,
+      looseItems: [{ bookId: "b-1", quantity: 2 }],
+      looseTotal: 100000,
+      wprFee: 750000,
+      transferAmount: 850000,
+      bookAllocationAmount: 850000,
+      homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
+    });
+    expect(ok.looseItems).toEqual([{ bookId: "b-1", quantity: 2 }]);
+    expect(() =>
+      buildFinalOrderPayload({
+        ...base,
+        packageMode: false,
+        looseItems: [{ bookId: "b-1", quantity: 2 }],
+        looseTotal: 100000,
+        wprFee: 750000,
+        transferAmount: 850001,
+        bookAllocationAmount: 850001,
+        homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
+      })
+    ).toThrow(/melebihi total tagihan/);
+    const paket = { packageMode: true, packagePrice: 900000, looseTotal: 100000, wprFee: 750000 };
+    expect(calcDraftTotal(paket)).toBe(900000);
+  });
 });

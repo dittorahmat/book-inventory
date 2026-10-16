@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { bookItems } from "../../../db/schema";
 import { writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
-import { isAvailableLoose, isReadyBundle, isReturnable } from "../stock";
+import { checkHandoverBundle as stockCheckHandoverBundle, isAvailableLoose, isReturnable } from "../stock";
 
 export type FlowError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -66,34 +66,11 @@ export interface OrderRef {
 }
 
 /**
- * Guard ketersediaan bundel serah terima: satu paket pesanan, satu cabang,
- * status ready via seam stock-buckets. Menutup jalur ID eksplisit yang
- * mencuri bundel cabang lain / berstatus reserved/dispatched/delivered.
+ * Guard ketersediaan bundel serah terima — alias tipis ke seam stok agar
+ * interface retur tetap kompatibel; pemiliknya satu: `stock/buckets`.
  */
-export const checkHandoverBundle = (bundle: BundleRow, order: OrderRef): FlowError | null => {
-  if (order.packageId && bundle.packageId !== order.packageId) {
-    return {
-      ok: false,
-      status: 400,
-      message: `Bundel ${bundle.barcode || bundle.id} tidak termasuk paket pesanan ini.`,
-    };
-  }
-  if (bundle.currentSchoolId !== order.schoolId) {
-    return {
-      ok: false,
-      status: 400,
-      message: `Bundel ${bundle.barcode || bundle.id} tidak tersedia di cabang ini untuk diserahkan.`,
-    };
-  }
-  if (!isReadyBundle(bundle.status)) {
-    return {
-      ok: false,
-      status: 400,
-      message: `Bundel ${bundle.barcode || bundle.id} berstatus ${bundle.status}, tidak dapat diserahkan.`,
-    };
-  }
-  return null;
-};
+export const checkHandoverBundle = (bundle: BundleRow, order: OrderRef): FlowError | null =>
+  stockCheckHandoverBundle(bundle, order);
 
 export interface LooseRow {
   id: string;
