@@ -48,6 +48,9 @@ jobs:
       - name: Dead-export gate
         run: bun run check:dead
 
+      - name: No-any gate
+        run: bun run check:no-any
+
       - name: Query plan gate
         run: bun run check:plans
 

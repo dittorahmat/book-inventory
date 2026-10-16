@@ -1,11 +1,25 @@
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { books, bookPackageItems, bookPackages } from "../../db/schema";
-
+import { bookPackageItems, bookPackages, books } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
+import { WPR_BOOK_ID, needsWprCharge } from "../../lib/wpr";
+import { countPackageOrders } from "./wpr";
 import { writeNow, type WriteDeps } from "../lib/d1-write";
 
-/** Helper DB harga paket — bukan shim presentasi. Fungsi murni diimpor dari lib/book-pricing langsung. */
+/**
+ * Satu-satunya seam harga + WPR di server: harga efektif murni tetap
+ * tinggal di `lib/book-pricing` (aman untuk bundle klien), komposisi
+ * ber-DB dan pengecualian rakitan tinggal di balik seam ini.
+ */
+
+/** BOM siap rakit: WPR bukan stok fisik rakitan (tetap di BOM untuk harga). */
+export function kitBomWithoutWpr<T extends { bookId: string }>(bom: T[]): T[] {
+  return bom.filter((b) => b.bookId !== WPR_BOOK_ID);
+}
+
+/** True bila murid wajib menanggung WPR: belum ada order paket. */
+export const needsWprForStudent = async (database: AppDatabase, studentId: string): Promise<boolean> =>
+  needsWprCharge(await countPackageOrders(database, studentId));
 
 /** Hitung ulang total harga paket = SUM(harga jual efektif * kuantitas komponen). */
 export async function recalcPackagePrice(database: AppDatabase, packageId: string, deps?: WriteDeps): Promise<number> {

@@ -123,6 +123,92 @@ export type RemoveStudentResult =
   | { ok: true; data: { studentId: string } }
   | LifecycleError;
 
+export interface RegisterPublicStudentInput {
+  schoolId: string;
+  name: string;
+  gender: "male" | "female";
+  gradeLevel: string;
+  curriculumType: "international" | "national";
+  academicYear: string;
+  parentName: string;
+  parentEmail: string;
+  parentPhone: string;
+}
+
+export type RegisterPublicStudentResult =
+  | { ok: true; data: typeof students.$inferSelect }
+  | LifecycleError;
+
+/**
+ * Satu-satunya pemilik registrasi publik: NIS sementara REG-*, status
+ * new_pending, dan error D1 yang dipetakan ke 4xx tinggal di balik satu
+ * seam ini agar tak ada insert mentah yang melewatinya.
+ */
+export async function registerPublicStudent(
+  database: AppDatabase,
+  input: RegisterPublicStudentInput,
+  deps?: LifecycleDeps
+): Promise<RegisterPublicStudentResult> {
+  const now = writeNow(deps);
+  const id = newWriteId(deps);
+  const tempNis = `REG-${Date.now().toString().slice(-6)}`;
+  try {
+    await database.insert(students).values({
+      id,
+      schoolId: input.schoolId,
+      nis: tempNis,
+      name: input.name,
+      gender: input.gender,
+      gradeLevel: input.gradeLevel,
+      curriculumType: input.curriculumType,
+      academicYear: input.academicYear,
+      parentName: input.parentName,
+      parentEmail: input.parentEmail,
+      parentPhone: input.parentPhone,
+      status: "new_pending",
+      isScholarship: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pendaftaran siswa");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+  const [created] = await database.select().from(students).where(eq(students.id, id));
+  if (!created) return { ok: false, status: 500, message: "Pendaftaran siswa gagal disimpan" };
+  return { ok: true, data: created };
+}
+
+/** Target kelas: promosi naik satu tingkat bila numerik, selain itu tetap. */
+export const resolveTargetGradeLevel = (gradeLevel: string, status: string): string => {
+  const current = parseInt(gradeLevel, 10);
+  return status === "promoted" && !Number.isNaN(current) ? (current + 1).toString() : gradeLevel;
+};
+
+export interface EligibilityView {
+  detectedStatus: "naik_kelas" | "aktif" | "baru";
+  currentGradeLevel: string;
+  targetGradeLevel: string;
+  canOrder: boolean;
+  orderBlockedReason: string | null;
+}
+
+/**
+ * Satu-satunya pemeta tampilan kelayakan portal: status samaran +
+ * target kelas + gerbang order dalam satu tempat agar route tipis.
+ */
+export const toEligibilityView = <T extends { gradeLevel: string; status: string }>(
+  student: T,
+  eligibility: { ok: boolean; message?: string }
+): EligibilityView => ({
+  detectedStatus: student.status === "promoted" ? "naik_kelas" : student.status === "active" ? "aktif" : "baru",
+  currentGradeLevel: student.gradeLevel,
+  targetGradeLevel: resolveTargetGradeLevel(student.gradeLevel, student.status),
+  canOrder: eligibility.ok,
+  orderBlockedReason: eligibility.ok ? null : (eligibility.message ?? "Tidak dapat memesan"),
+});
+
 /**
  * Satu-satunya pemilik hapus siswa: guard riwayat pesanan (dengan nomor
  * pesanan di pesan) tinggal serumah dengan delete agar tak ada jalur

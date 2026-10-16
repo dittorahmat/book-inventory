@@ -26,17 +26,34 @@ function clearEnv() {
 }
 
 async function cleanupEmailKeys() {
-  await db
-    .delete(systemSettings)
-    .where(inArray(systemSettings.key, ["email_provider", "brevo_api_key", "brevo_api_url"]));
+  await db.delete(systemSettings).where(
+    inArray(systemSettings.key, [
+      "email_provider",
+      "brevo_api_key",
+      "brevo_api_url",
+      "smtp_host",
+      "smtp_port",
+      "smtp_secure",
+      "smtp_username",
+      "smtp_password",
+      "smtp_from_name",
+      "smtp_from_email",
+    ])
+  );
 }
 
 async function cleanupWhatsAppKeys() {
-  await db
-    .delete(systemSettings)
-    .where(
-      inArray(systemSettings.key, ["wa_gateway_url", "wa_api_key", "wa_sender_number", "wa_enabled"])
-    );
+  await db.delete(systemSettings).where(
+    inArray(systemSettings.key, [
+      "wa_gateway_url",
+      "wa_api_key",
+      "wa_sender_number",
+      "wa_enabled",
+      "wa_meta_phone_id",
+      "wa_meta_token",
+      "wa_meta_enabled",
+    ])
+  );
 }
 
 afterEach(async () => {
@@ -187,6 +204,44 @@ describe("Settings SMTP jujur (masking + provider)", () => {
     expect(getJson.data.isConfigured).toBe(true);
 
     await cleanupWhatsAppKeys();
+  });
+
+  it("POST /smtp dengan ******** mempertahankan secret asli (tidak menimpa)", async () => {
+    mockActor("central_admin");
+    clearEnv();
+    await cleanupEmailKeys();
+
+    const payload = {
+      host: "smtp.test.internal",
+      port: 587,
+      secure: false,
+      username: "notif-test",
+      password: "real-secret-1",
+      fromName: "Tes Notifikasi",
+      fromEmail: "notif@test.internal",
+      emailProvider: "smtp",
+      brevoApiKey: "brevo-real-1",
+    };
+    const first = await settingsRouter.request("/smtp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    expect(first.status).toBe(200);
+
+    const resubmit = await settingsRouter.request("/smtp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, password: "********", brevoApiKey: "********" }),
+    });
+    expect(resubmit.status).toBe(200);
+
+    const rows: Array<{ key: string; value: string }> = await db.select().from(systemSettings);
+    const byKey = new Map(rows.map((r) => [r.key, r.value]));
+    expect(byKey.get("smtp_password")).toBe("real-secret-1");
+    expect(byKey.get("brevo_api_key")).toBe("brevo-real-1");
+
+    await cleanupEmailKeys();
   });
 });
 

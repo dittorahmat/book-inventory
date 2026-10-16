@@ -1,6 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { WPR_BOOK_ID } from "../../lib/wpr";
 import { bookItems, bookPackageItems, bookPackages, books, packageItems } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
 import {
@@ -10,6 +9,7 @@ import {
   tallyLooseByKey,
   tallyPackagesByKey,
 } from "./stock";
+import { kitBomWithoutWpr } from "./pricing";
 
 export type { StockPotential, StockPotentialBreakdown } from "../../types/stock-summary";
 
@@ -126,8 +126,7 @@ export async function getStockPotentials(
   const looseTallies = tallyLooseByKey(looseRows, (r) => r.bookId);
 
   const bomByPkg = new Map<string, typeof bom>();
-  for (const row of bom) {
-    if (row.bookId === WPR_BOOK_ID) continue;
+  for (const row of kitBomWithoutWpr(bom)) {
     const list = bomByPkg.get(row.packageId) ?? [];
     list.push(row);
     bomByPkg.set(row.packageId, list);

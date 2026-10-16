@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, notInArray, ne } from "drizzle-orm";
+import { eq, or, like, and, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
@@ -10,16 +10,19 @@ import {
   getSatuanCatalogIfOpen,
   getSatuanStatus,
   submitPublicOrder,
-  validateStudentForOrder,
 } from "../services/order-intake";
 import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
-import { countPackageOrders } from "../services/wpr";
+import { needsWprForStudent } from "../services/pricing";
+import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
-import { WPR_PRICE, needsWprCharge } from "../../lib/wpr";
+import { WPR_PRICE } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
-import { matchAnyLower } from "../lib/partitioned-search";
-
+import {
+  searchVerifiedStudents,
+  toBookSearchView,
+  toConfirmOrderView,
+} from "../services/public-order";
 export const publicOrdersRouter = new Hono();
 
 // Schema for student search
@@ -135,62 +138,19 @@ publicOrdersRouter.get("/wpr-eligibility", async (c) => {
   if (!studentId) return c.json({ success: false, message: "studentId wajib diisi" }, 400);
   const [student] = await db.select({ id: students.id }).from(students).where(eq(students.id, studentId));
   if (!student) return c.json({ success: false, message: "Murid tidak ditemukan" }, 404);
-  const packageCount = await countPackageOrders(db, studentId);
-  const needsWpr = needsWprCharge(packageCount);
+  const needsWpr = await needsWprForStudent(db, studentId);
   return c.json({ success: true, data: { needsWpr, wprPrice: needsWpr ? WPR_PRICE : 0 } });
 });
 
 // 1. Search student by partial NIS or Name (Auto-detection of promotion)
 publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSchema), async (c) => {
   const { query, schoolId } = c.req.valid("query");
+  const foundStudents = await searchVerifiedStudents(db, query, schoolId);
 
-  // Portal hanya boleh menemukan siswa terverifikasi: sembunyikan
-  // new_pending (menunggu admin) dan rejected (ditolak admin).
-  const verifiedOnly = notInArray(students.status, ["new_pending", "rejected"]);
-  const matchFilter = matchAnyLower([students.name, students.nis], query);
-
-  const whereCondition = and(eq(students.schoolId, schoolId), matchFilter, verifiedOnly);
-
-  const foundStudents = await db
-    .select({
-      id: students.id,
-      nis: students.nis,
-      name: students.name,
-      gradeLevel: students.gradeLevel,
-      curriculumType: students.curriculumType,
-      academicYear: students.academicYear,
-      status: students.status,
-      isScholarship: students.isScholarship,
-      schoolId: students.schoolId,
-      schoolName: schools.name,
-      parentName: students.parentName,
-      parentEmail: students.parentEmail,
-      parentPhone: students.parentPhone,
-    })
-    .from(students)
-    .innerJoin(schools, eq(students.schoolId, schools.id))
-    .where(whereCondition)
-    .limit(10);
-
-  // Analyze potential promotion (naik kelas)
   // Kelayakan order diiklankan server dari seam validasi yang sama dengan
   // submit (satu sumber aturan): hook portal me-render verbatim, bukan
   // menebak status mana yang boleh memesan.
-  const results = foundStudents.map((st: any) => {
-    const currentGrade = parseInt(st.gradeLevel, 10);
-    const nextGrade = !isNaN(currentGrade) ? (currentGrade + 1).toString() : st.gradeLevel;
-    const isPromoted = st.status === "promoted";
-    const eligibility = validateStudentForOrder(st);
-
-    return {
-      ...st,
-      detectedStatus: isPromoted ? "naik_kelas" : st.status === "active" ? "aktif" : "baru",
-      currentGradeLevel: st.gradeLevel,
-      targetGradeLevel: isPromoted ? nextGrade : st.gradeLevel,
-      canOrder: eligibility.ok,
-      orderBlockedReason: eligibility.ok ? null : eligibility.message,
-    };
-  });
+  const results = foundStudents.map(toBookSearchView);
 
   return c.json({ success: true, data: results });
 });
@@ -198,30 +158,13 @@ publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSche
 // 2. Register New Student via Public Form (Status: new_pending)
 publicOrdersRouter.post("/register-student", zValidator("json", createNewStudentSchema), async (c) => {
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
-  const id = crypto.randomUUID();
-  const tempNis = `REG-${Date.now().toString().slice(-6)}`;
-
-  await db.insert(students).values({
-    id,
-    schoolId: body.schoolId,
-    nis: tempNis,
-    name: body.name,
-    gender: body.gender,
-    gradeLevel: body.gradeLevel,
-    curriculumType: body.curriculumType,
-    academicYear: body.academicYear,
-    parentName: body.parentName,
-    parentEmail: body.parentEmail,
-    parentPhone: body.parentPhone,
-    status: "new_pending",
-    isScholarship: false,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  const [created] = await db.select().from(students).where(eq(students.id, id));
-  return c.json({ success: true, message: "Pendaftaran siswa baru berhasil disimpan", data: created }, 201);
+  try {
+    const result = await registerPublicStudent(db, body);
+    if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+    return c.json({ success: true, message: "Pendaftaran siswa baru berhasil disimpan", data: result.data }, 201);
+  } catch {
+    return c.json({ success: false, message: "Pendaftaran siswa gagal disimpan" }, 500);
+  }
 });
 
 // 3. Submit Order (Regular or Scholarship 100%)
@@ -260,16 +203,7 @@ publicOrdersRouter.get("/confirm/:token", async (c) => {
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
   return c.json({
     success: true,
-    data: {
-      studentName: found.student?.name ?? null,
-      orderNumber: found.order.orderNumber,
-      totalAmount: found.order.totalAmount,
-      shippingCost: found.order.shippingCost ?? 0,
-      due: found.due,
-      paidAmount: found.order.paidAmount,
-      paymentStatus: found.order.paymentStatus,
-      invoiceSentAt: found.order.invoiceSentAt,
-    },
+    data: toConfirmOrderView(found),
   });
 });
 
