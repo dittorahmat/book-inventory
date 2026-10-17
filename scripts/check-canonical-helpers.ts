@@ -22,6 +22,9 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "formatRupiah", owner: "src/lib/transfer-pricing.ts", module: "lib/transfer-pricing" },
   { name: "toIntRupiah", owner: "src/lib/transfer-pricing.ts", module: "lib/transfer-pricing" },
   { name: "readJson", owner: "src/lib/api.ts", module: "lib/api" },
+  { name: "isoTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "epochTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "documentNumber", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
 ];
 
 const definitionOf = (name: string): RegExp =>

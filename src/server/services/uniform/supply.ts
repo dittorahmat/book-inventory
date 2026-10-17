@@ -19,6 +19,7 @@ import {
   writeNow,
   type WriteDeps,
 } from "../../lib/d1-write";
+import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 
 export interface UniformSupplyDeps extends WriteDeps {
@@ -42,7 +43,8 @@ export interface CreateUniformPoInput {
 
 const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
 
-const defaultPoNumber = (nowIso: string): string => `UPO-${nowIso.slice(0, 10).replaceAll("-", "")}-${Date.now().toString().slice(-4)}`;
+const defaultPoNumber = (nowIso: string): string =>
+  documentNumber("UPO", nowIso.slice(0, 10).replaceAll("-", ""), epochTimeFragment(Date.now(), 4));
 
 async function assertLinesAllowed(
   database: AppDatabase,

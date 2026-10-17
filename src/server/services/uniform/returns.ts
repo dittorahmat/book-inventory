@@ -18,6 +18,7 @@ import {
   writeNow,
   type WriteDeps,
 } from "../../lib/d1-write";
+import { documentNumber } from "../../lib/document-number";
 import type { UniformError } from "./catalog";
 
 /** Batas tukar ukuran (hari sejak order dibuat). */
@@ -182,7 +183,7 @@ export async function requestUniformRefund(
   const amount = input.amount ?? order.totalAmount;
   if (amount < 1 || amount > order.totalAmount) return invalid("Nominal refund melebihi total order.");
   const id = newWriteId(deps);
-  const refundNumber = `RFD-U-${now.slice(0, 10).replaceAll("-", "")}-${Math.floor(Math.random() * 900 + 100)}`;
+  const refundNumber = documentNumber("RFD-U", now.slice(0, 10).replaceAll("-", ""), Math.floor(Math.random() * 900 + 100));
   try {
     await database.insert(uniformRefunds).values({
       id, refundNumber, orderId: input.orderId, studentId: order.studentId,

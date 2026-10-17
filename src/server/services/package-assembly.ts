@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
+import { isoTimeFragment } from "../lib/document-number";
 import { kitBomWithoutWpr } from "./pricing";
 import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock";
 
@@ -120,7 +121,7 @@ export async function assemblePackageBundles(
   // Buat eksemplar fisik paket baru
   const createdPackageItems: Array<{ id: string; barcode: string }> = [];
   const itemsToInsert: Array<typeof packageItems.$inferInsert> = [];
-  const timeFrag = now.replace(/\D/g, "").slice(-6);
+  const timeFrag = isoTimeFragment(now, 6);
 
   for (let i = 0; i < quantity; i++) {
     const pItemId = newWriteId(deps);
@@ -219,7 +220,7 @@ export async function disassemblePackageBundles(
   // Pulihkan eksemplar satuan komponen BOM (WPR non-fisik dikecualikan).
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
   let totalRestoredLoose = 0;
-  const timeFrag = now.replace(/\D/g, "").slice(-6);
+  const timeFrag = isoTimeFragment(now, 6);
 
   for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
     const returnCount = item.quantity * quantity;

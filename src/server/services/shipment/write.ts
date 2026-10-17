@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
 import { transferShipments, transferShipmentItems, bookItems, packageItems } from "../../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { planCreateLines, type ShipmentLineInput } from "./plan";
 
 export interface CreateShipmentInput {
@@ -37,7 +38,7 @@ export async function createShipment(
 ): Promise<{ ok: true; shipment: any } | ServiceError> {
   const now = new Date().toISOString();
   const shipmentId = crypto.randomUUID();
-  const shipmentNumber = `TRF-${Date.now().toString().slice(-6)}`;
+  const shipmentNumber = documentNumber("TRF", epochTimeFragment(Date.now(), 6));
 
   // Pick FIFO + validasi shippable + snapshot harga: satu rencana dari
   // modul shipment-plan (predikat validasi = predikat pick, tak bisa drift).

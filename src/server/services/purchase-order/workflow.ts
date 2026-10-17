@@ -3,6 +3,7 @@ import type { AppDatabase } from "../../../db";
 import { books, purchaseOrders, purchaseOrderItems, suppliers, schools, bookSuppliers } from "../../../db/schema";
 import { calcPoHeader, effectiveBuyPrice } from "../../../lib/book-pricing";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 
 /**
  * Status PO yang berasal dari sebelum alur cetak–TTD–upload. PO pada status ini
@@ -235,7 +236,7 @@ export async function createPurchaseOrder(
   const { subtotalGross, discountTotal, totalAmount } = calcPoHeader(resolved);
   const nowIso = (deps.now ?? (() => new Date().toISOString()))();
   const poId = (deps.generateId ?? (() => crypto.randomUUID()))();
-  const poNumber = (deps.generatePoNumber ?? (() => `PO-${Date.now().toString().slice(-8)}`))(nowIso);
+  const poNumber = (deps.generatePoNumber ?? (() => documentNumber("PO", epochTimeFragment(Date.now(), 8))))(nowIso);
   const genItemId = deps.generateItemId ?? (() => crypto.randomUUID());
   const items: CreatedPoItem[] = resolved.map((r) => ({ ...r, id: genItemId() }));
 

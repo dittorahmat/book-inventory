@@ -20,6 +20,7 @@ import {
   writeNow,
   type WriteDeps,
 } from "../../lib/d1-write";
+import { documentNumber } from "../../lib/document-number";
 import { AccessHttpError } from "../access-scope";
 import { readSettingsMap } from "../settings-map";
 import { validateHomeAddress } from "../../../lib/home-address";
@@ -51,7 +52,7 @@ type PackageRow = typeof uniformPackages.$inferSelect;
 const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
 
 const defaultOrderNumber = (prefix: string, nowIso: string): string =>
-  `${prefix}-${nowIso.slice(0, 10).replaceAll("-", "")}-${Math.floor(Math.random() * 900 + 100)}`;
+  documentNumber(prefix, nowIso.slice(0, 10).replaceAll("-", ""), Math.floor(Math.random() * 900 + 100));
 
 export interface UniformOrderLine {
   packageId: string | null;
