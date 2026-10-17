@@ -10,7 +10,7 @@ import {
   students,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
-import { documentNumber, epochTimeFragment } from "../../lib/document-number";
+import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
 import { validateOrderLines } from "./validation";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
@@ -98,7 +98,7 @@ export async function sellDirect(
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const orderId = (deps.generateId ?? (() => crypto.randomUUID()))();
   const orderNumber =
-    deps.generateOrderNumber?.(now) ?? documentNumber("DIR", epochTimeFragment(Date.now(), 6), Math.floor(Math.random() * 900 + 100));
+    deps.generateOrderNumber?.(now) ?? documentNumber("DIR", epochTimeFragment(Date.now(), 8), randomSerial(6));
   const genItemId = deps.generateId ?? (() => crypto.randomUUID());
   const paymentMethod = input.paymentMethod ?? "cash";
 
@@ -176,7 +176,7 @@ export async function sellDirect(
         transferAmount: totalAmount,
         bookAllocationAmount: totalAmount,
         bankName: paymentMethod === "cash" ? "KAS TUNAI" : "TRANSFER DIRECT",
-        referenceNumber: input.referenceNumber || documentNumber("RECEIPT", epochTimeFragment(Date.now(), 6)),
+        referenceNumber: input.referenceNumber || documentNumber("RECEIPT", epochTimeFragment(Date.now(), 8)),
         verifiedAt: now,
         createdAt: now,
       }),

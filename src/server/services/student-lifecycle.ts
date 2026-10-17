@@ -152,7 +152,7 @@ export async function registerPublicStudent(
 ): Promise<RegisterPublicStudentResult> {
   const now = writeNow(deps);
   const id = newWriteId(deps);
-  const tempNis = documentNumber("REG", epochTimeFragment(Date.now(), 6));
+  const tempNis = documentNumber("REG", epochTimeFragment(Date.now(), 8));
   try {
     await database.insert(students).values({
       id,

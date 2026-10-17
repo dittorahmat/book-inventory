@@ -38,7 +38,7 @@ export async function createShipment(
 ): Promise<{ ok: true; shipment: any } | ServiceError> {
   const now = new Date().toISOString();
   const shipmentId = crypto.randomUUID();
-  const shipmentNumber = documentNumber("TRF", epochTimeFragment(Date.now(), 6));
+  const shipmentNumber = documentNumber("TRF", epochTimeFragment(Date.now(), 8));
 
   // Pick FIFO + validasi shippable + snapshot harga: satu rencana dari
   // modul shipment-plan (predikat validasi = predikat pick, tak bisa drift).

@@ -15,7 +15,7 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
-import { documentNumber, epochTimeFragment } from "../lib/document-number";
+import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { planVendorReturnDispose } from "../services/stock";
 
 export const vendorReturnsRouter = new Hono();
@@ -100,7 +100,7 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
 
     const now = new Date().toISOString();
     const returnId = crypto.randomUUID();
-    const returnNumber = documentNumber("RTV", epochTimeFragment(Date.now(), 6), Math.floor(Math.random() * 900 + 100));
+    const returnNumber = documentNumber("RTV", epochTimeFragment(Date.now(), 6), randomSerial(6));
 
     const itemRows = body.items.map((item) => ({
       id: crypto.randomUUID(),

@@ -7,7 +7,7 @@ import {
   writeNow,
   type WriteDeps,
 } from "../../lib/d1-write";
-import { documentNumber } from "../../lib/document-number";
+import { documentNumber, randomSerial } from "../../lib/document-number";
 import { readSettingsMap } from "../settings-map";
 import type { UniformError } from "./catalog";
 
@@ -62,7 +62,7 @@ export async function createUniformClaim(
   try {
     await database.insert(uniformClaims).values({
       id,
-      claimNumber: documentNumber(prefix, input.period.replace("-", ""), Math.floor(Math.random() * 900 + 100)),
+      claimNumber: documentNumber(prefix, input.period.replace("-", ""), randomSerial(6)),
       schoolId: input.schoolId,
       period: input.period,
       status: "draft",

@@ -25,6 +25,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "isoTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
   { name: "epochTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
   { name: "documentNumber", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "randomSerial", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
 ];
 
 const definitionOf = (name: string): RegExp =>

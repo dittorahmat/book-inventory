@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { documentNumber, epochTimeFragment, isoTimeFragment } from "./document-number";
+import { documentNumber, epochTimeFragment, isoTimeFragment, randomSerial } from "./document-number";
 
 describe("isoTimeFragment", () => {
   it("equals the legacy inline expression for the same input", () => {
@@ -38,5 +38,27 @@ describe("documentNumber", () => {
 
   it("appends a string serial without dropping leading zeros", () => {
     expect(documentNumber("ORD", "123456", "0345")).toBe("ORD-123456-0345");
+  });
+});
+
+describe("randomSerial", () => {
+  it("is zero-padded to the requested width (ruang 10^digits)", () => {
+    for (let i = 0; i < 200; i++) expect(randomSerial(6)).toMatch(/^\d{6}$/);
+  });
+
+  it("defaults to 6 digits and honours a custom width", () => {
+    expect(randomSerial()).toMatch(/^\d{6}$/);
+    expect(randomSerial(3)).toMatch(/^\d{3}$/);
+  });
+});
+
+describe("ruang fragmen waktu (regresi audit tabrakan Okt 2026)", () => {
+  // Regresi: 6 digit epoch berulang tiap 10^6 ms, sehingga `TRF-<6 digit>` yang
+  // sama terbit lagi 16 menit 40 detik kemudian dan menabrak UNIQUE
+  // shipment_number. 8 digit memperbesar ruang ke 10^8 (berulang tiap ~27,8 jam).
+  it("6 digit bertabrakan pada 10^6 ms; 8 digit tidak", () => {
+    const t0 = Date.UTC(2026, 9, 17, 10, 0, 0, 0);
+    expect(epochTimeFragment(t0, 6)).toBe(epochTimeFragment(t0 + 1_000_000, 6));
+    expect(epochTimeFragment(t0, 8)).not.toBe(epochTimeFragment(t0 + 1_000_000, 8));
   });
 });
