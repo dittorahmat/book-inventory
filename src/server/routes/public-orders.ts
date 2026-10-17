@@ -11,7 +11,7 @@ import {
   getSatuanStatus,
   submitPublicOrder,
 } from "../services/order-intake";
-import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
+import { MetaWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
@@ -184,7 +184,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   if (st?.parentPhone) {
     const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
     try {
-      notification = await new RealWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
+      notification = await new MetaWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
     } catch (e: unknown) {
       notification = { success: false, error: e instanceof Error ? e.message : "Gagal mengirim notifikasi WhatsApp" };
     }

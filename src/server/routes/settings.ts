@@ -7,13 +7,10 @@ import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   getMetaView,
   getSmtpView,
-  getWhatsappView,
   saveMeta,
   saveSmtp,
-  saveWhatsapp,
   testMeta,
   testSmtp,
-  testWhatsapp,
 } from "../services/settings-notifications";
 import { currentAcademicYear } from "../../lib/wib-time";
 import {
@@ -179,59 +176,10 @@ settingsRouter.post("/smtp/test", zValidator("json", testEmailSchema), async (c)
   }
 });
 
-// GET current WhatsApp gateway config (API Key masked; hanya central admin)
-settingsRouter.get("/whatsapp", async (c) => {
-  try {
-    await assertSettingsAdmin(c, "notif");
-    return c.json({ success: true, data: await getWhatsappView(db) });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-const updateWhatsAppSchema = z.object({
-  gatewayUrl: z.string().url("URL Gateway WhatsApp harus berformat valid (https://...)"),
-  apiKey: z.string().optional().default(""),
-  senderNumber: z.string().optional(),
-  isEnabled: z.boolean().default(true),
-});
-
-// POST save WhatsApp config (hanya central admin)
-settingsRouter.post("/whatsapp", zValidator("json", updateWhatsAppSchema), async (c) => {
-  try {
-    await assertSettingsAdmin(c, "notif");
-    const body = c.req.valid("json");
-    await saveWhatsapp(db, body);
-    return c.json({ success: true, message: "Pengaturan WhatsApp gateway berhasil disimpan" });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
 // POST send test WhatsApp message
 const testWhatsAppSchema = z.object({
   phone: z.string().min(6, "Nomor tujuan WhatsApp minimal 6 karakter"),
   message: z.string().default("Ini adalah pesan uji coba dari sistem Inventaris Buku Al Wildan."),
-});
-
-settingsRouter.post("/whatsapp/test", zValidator("json", testWhatsAppSchema), async (c) => {
-  try {
-    await assertSettingsAdmin(c, "notif");
-    const { phone, message } = c.req.valid("json");
-    const result = await testWhatsapp(db, phone, message);
-    if (!result.success) {
-      return c.json({ success: false, message: result.error || "Gagal mengirim WhatsApp uji coba" }, 502);
-    }
-    return c.json({
-      success: true,
-      message: result.simulated
-        ? "Pesan uji coba disimulasikan (gateway belum diisi atau dinonaktifkan)."
-        : `Pesan uji coba WhatsApp berhasil dikirim ke ${phone}`,
-      data: result,
-    });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
 });
 
 // GET konfigurasi WA Meta Official (token disamarkan; hanya central admin)

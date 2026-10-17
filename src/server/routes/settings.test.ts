@@ -45,10 +45,6 @@ async function cleanupEmailKeys() {
 async function cleanupWhatsAppKeys() {
   await db.delete(systemSettings).where(
     inArray(systemSettings.key, [
-      "wa_gateway_url",
-      "wa_api_key",
-      "wa_sender_number",
-      "wa_enabled",
       "wa_meta_phone_id",
       "wa_meta_token",
       "wa_meta_enabled",
@@ -181,31 +177,6 @@ describe("Settings SMTP jujur (masking + provider)", () => {
     expect(json.message).toMatch(/disimulasikan/);
   });
 
-  it("GET and POST /whatsapp saves configuration and masks apiKey", async () => {
-    mockActor("central_admin");
-    const postRes = await settingsRouter.request("/whatsapp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gatewayUrl: "https://wa.test.internal/send",
-        apiKey: "secret-token-123",
-        senderNumber: "628123456789",
-        isEnabled: true,
-      }),
-    });
-    expect(postRes.status).toBe(200);
-
-    const getRes = await settingsRouter.request("/whatsapp", { method: "GET" });
-    expect(getRes.status).toBe(200);
-    const getJson = await getRes.json();
-    expect(getJson.success).toBe(true);
-    expect(getJson.data.gatewayUrl).toBe("https://wa.test.internal/send");
-    expect(getJson.data.apiKey).toBe("********");
-    expect(getJson.data.isConfigured).toBe(true);
-
-    await cleanupWhatsAppKeys();
-  });
-
   it("POST /smtp dengan ******** mempertahankan secret asli (tidak menimpa)", async () => {
     mockActor("central_admin");
     clearEnv();
@@ -258,9 +229,6 @@ const NOTIF_ENDPOINTS: Array<{ method: string; path: string; body?: unknown }> =
     },
   },
   { method: "POST", path: "/smtp/test", body: { recipientEmail: "uji@example.com" } },
-  { method: "GET", path: "/whatsapp" },
-  { method: "POST", path: "/whatsapp", body: { gatewayUrl: "https://wa.test.internal/send" } },
-  { method: "POST", path: "/whatsapp/test", body: { phone: "08123456789" } },
   { method: "GET", path: "/whatsapp-meta" },
   { method: "POST", path: "/whatsapp-meta", body: { phoneNumberId: "123", accessToken: "tok" } },
   { method: "POST", path: "/whatsapp-meta/test", body: { phone: "08123456789" } },
@@ -324,18 +292,18 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     });
     expect(smtpSave.status).toBe(200);
 
-    const waSave = await settingsRouter.request("/whatsapp", {
+    const waSave = await settingsRouter.request("/whatsapp-meta", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gatewayUrl: "https://wa.test.internal/send", isEnabled: false }),
+      body: JSON.stringify({ phoneNumberId: "123", accessToken: "secret-token-123", isEnabled: false }),
     });
     expect(waSave.status).toBe(200);
 
-    const waGet = await settingsRouter.request("/whatsapp", { method: "GET" });
+    const waGet = await settingsRouter.request("/whatsapp-meta", { method: "GET" });
     expect(waGet.status).toBe(200);
     const waJson = await waGet.json();
     expect(waJson.success).toBe(true);
-    expect(["", "********"]).toContain(waJson.data.apiKey);
+    expect(["", "********"]).toContain(waJson.data.accessToken);
 
     await cleanupEmailKeys();
     await cleanupWhatsAppKeys();
@@ -356,16 +324,6 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     const emailJson = await emailRes.json();
     expect(emailJson.success).toBe(true);
     expect(emailJson.data.simulated).toBe(true);
-
-    const waRes = await settingsRouter.request("/whatsapp/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: "08123456789" }),
-    });
-    expect(waRes.status).toBe(200);
-    const waJson = await waRes.json();
-    expect(waJson.success).toBe(true);
-    expect(waJson.data.simulated).toBe(true);
   });
 });
 
