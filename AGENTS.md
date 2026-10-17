@@ -151,8 +151,16 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
-4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
-5. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
+4. **Default tetap sekuensial (satu tiket per commit)**: di repo ini eksekusi spec default berjalan sekuensial langsung di satu integration branch. Subagent implementer paralel diizinkan bila user eksplisit meminta paralel.
+5. **Pola paralel yang TERBUKTI aman (Okt 2026, fitur verifikasi bukti bayar)**: fan-out boleh dilakukan sebagai **lane file-disjoint di SATU working tree yang sama** — bukan worktree terpisah. Worktree terpisah tetap **DILARANG**: biaya `bun install` per worktree + merge antar-branch adalah penyebab kegagalan terdokumentasi (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Syarat wajib pola ini:
+   - **Bekukan kontrak lebih dulu** (payload endpoint, nama field, tipe baris) sebelum lane jalan; lane UI boleh dibangun terhadap endpoint yang belum ada di backend.
+   - **Setiap file milik tepat satu lane** — tulis allowlist file per lane; file bersama (mis. `schema.ts`, `public-orders.ts`, `settings*.ts`, `drizzle/**`) dialokasikan ke satu lane saja dan lane lain dilarang menyentuhnya. Skema + migrasi D1 dikerjakan agent utama secara serial sebelum lane berjalan.
+   - **Lane dilarang `git add`/`commit`/`checkout`** dan dilarang menjalankan gate repo-wide (`type-check`, `lint`, `build`, `bun test` penuh) — hanya `bun test <file-target>`. Commit dan seluruh gate repo-wide dijalankan **serial oleh agent utama** setelah semua lane berhenti.
+   - **Lane wajib melaporkan kontrak yang kurang/penyimpangan** ke agent utama, bukan menebak.
+   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: `select()` pada union `AppDatabase` menghasilkan baris `any` sehingga callback `.map/.filter` gagal `tsc` (§2) — lane tidak menangkapnya karena tidak menjalankan `tsc`.
+   - Bukti pola ini berhasil: 3 lane (backend inti / kanal WhatsApp / UI) menyentuh ~30 file tanpa satu pun konflik tulis, tanpa merge, dan tanpa instalasi dependensi ulang; 15 error type-check tersisa ditutup di fase integrasi.
+6. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
+7. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
 
 ---
 
