@@ -36,7 +36,33 @@ const QUERIES: PlannedQuery[] = [
   { name: "uniform_claims by school", sql: "SELECT * FROM uniform_claims WHERE school_id = 'x'", allowScan: false },
 ];
 
-// Bangun skema dari file migrasi ke DB memori agar gate deterministik di
+// Sumber kebenaran daftar QUERIES di atas tidak bisa ditebak dari SQL-nya, jadi
+// gate ini juga mengaudit SUMBER: file yang membangun pencarian substring
+// terpartisi wajib terdaftar di sini. Tanpa ini, endpoint pencarian baru di
+// file baru lolos gate dengan status hijau — "bukti plan" yang tidak pernah
+// diminta (§11.5).
+const REGISTERED_SEARCH_SOURCES = new Set([
+  "src/server/lib/partitioned-search.ts", // pemilik pola `%q%` + lower()
+  "src/server/services/public-order.ts",
+  "src/server/services/uniform/orders.ts",
+  "src/server/routes/students.ts",
+  "src/server/routes/student-orders.ts",
+  "src/server/routes/public-orders.ts",
+  "src/server/routes/public-uniform-orders.ts",
+]);
+
+const SEARCH_MARKER = /matchLower\(|matchAnyLower\(|%\$\{/;
+
+const walkSources = (dir: string, out: string[] = []): string[] => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walkSources(full, out);
+    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.(ts|tsx)$/.test(entry.name)) out.push(full.replace(/\\/g, "/"));
+  }
+  return out;
+};
+
+// Mem-bangun skema dari file migrasi ke DB memori agar gate deterministik di
 // mana pun (CI fresh checkout belum punya ./data/inventory.db). EXPLAIN
 // QUERY PLAN hanya butuh indeks, bukan data.
 const sqlite = new Database(":memory:");
@@ -71,6 +97,18 @@ for (const q of QUERIES) {
   }
 }
 sqlite.close();
+
+const unregistered = walkSources("src").filter(
+  (file) => SEARCH_MARKER.test(readFileSync(file, "utf8")) && !REGISTERED_SEARCH_SOURCES.has(file)
+);
+if (unregistered.length > 0) {
+  console.error("Sumber pencarian substring belum terdaftar di QUERIES (§11.5):");
+  for (const file of unregistered) console.error(`  ${file}`);
+  console.error("Tambahkan query-nya ke QUERIES (dengan EXPLAIN QUERY PLAN yang terbukti SEARCH USING INDEX)");
+  console.error("lalu daftarkan file-nya di REGISTERED_SEARCH_SOURCES.");
+  process.exit(1);
+}
+
 if (failed > 0) {
   console.error(`${failed} query memakai SCAN tanpa indeks (§11).`);
   process.exit(1);
