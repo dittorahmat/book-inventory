@@ -151,7 +151,10 @@ export const students = sqliteTable("students", {
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
   index("students_school_status_name_idx").on(t.schoolId, t.status, t.name),
-  index("students_school_nis_idx").on(t.schoolId, t.nis),
+  // NIS unik per sekolah: mencegah duplikat senyap (REG-<6 digit> dulu bisa
+  // bertabrakan ~50 kali per 10rb pendaftaran portal). Nama index dipertahankan
+  // agar bukti check:plans tidak berubah.
+  unique("students_school_nis_idx").on(t.schoolId, t.nis),
 ]);
 
 // ==========================================
