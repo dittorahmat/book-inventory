@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { transferShipments } from "../../db/schema";
 import {
   createShipment,
   dispatchShipment,
@@ -17,6 +15,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   assertShipmentVisible,
+  loadScopedShipment,
   requireScopedActor,
 } from "../services/access-scope";
 import { idSchema } from "../lib/validators";
@@ -134,12 +133,10 @@ shipmentsRouter.post("/:id/dispatch", async (c) => {
   try {
     const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
-    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
-
-    if (!shipment) {
-      return c.json({ success: false, message: "Shipment not found" }, 404);
+    const scoped = await loadScopedShipment(db, actor, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertShipmentVisible(actor, shipment.fromSchoolId, shipment.toSchoolId);
     const result = await dispatchShipment(db, id);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
@@ -156,12 +153,10 @@ shipmentsRouter.post("/:id/receive", zValidator("json", receiveShipmentSchema), 
     const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
-    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
-
-    if (!shipment) {
-      return c.json({ success: false, message: "Shipment not found" }, 404);
+    const scoped = await loadScopedShipment(db, actor, id);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertShipmentVisible(actor, shipment.fromSchoolId, shipment.toSchoolId);
     const result = await receiveShipment(db, id, body.itemReceipts || [], (body as any).packageReceipts || []);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
@@ -177,12 +172,10 @@ shipmentsRouter.delete("/:id", async (c) => {
   try {
     const { actor } = await requireScopedActor(db, c);
     const id = c.req.param("id");
-    const [shipment] = await db.select().from(transferShipments).where(eq(transferShipments.id, id));
-
-    if (!shipment) {
-      return c.json({ success: false, message: "Shipment not found" }, 404);
+    const scoped = await loadScopedShipment(db, actor, id, "Akses hapus transfer lokasi lain dilarang");
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertShipmentVisible(actor, shipment.fromSchoolId, undefined, "Akses hapus transfer lokasi lain dilarang");
 
     const result = await rollbackShipment(db, id);
     if (!result.ok) {

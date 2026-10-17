@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { bookPackages, bookPackageItems, packageItems } from "../../db/schema";
+import { bookPackages, bookPackageItems, packageItems, schools } from "../../db/schema";
 import { recalcPackagePrice } from "../services/pricing";
 import {
   accessErrorResponse,
@@ -17,6 +17,7 @@ import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
 import { isCentralRole } from "../../lib/staff-roles";
+import { runIdempotentSeed } from "../seed";
 
 export const packagesRouter = new Hono();
 
@@ -46,8 +47,6 @@ const unbundleActionSchema = z.object({
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
   reason: z.string().min(1, "Reason is required"),
 });
-
-import { runIdempotentSeed } from "../seed";
 
 // GET all packages with BOM components
 packagesRouter.get("/", async (c) => {
@@ -203,7 +202,6 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
     const { schoolId, quantity } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
 
-    const { schools } = await import("../../db/schema");
     const [targetLoc] = await db.select({ type: schools.type }).from(schools).where(eq(schools.id, schoolId));
     if (targetLoc?.type !== "warehouse") {
       return c.json({ success: false, message: "Perakitan paket hanya dapat dilakukan di Gudang Pusat." }, 403);

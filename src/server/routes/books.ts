@@ -3,7 +3,16 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { books, bookSuppliers, suppliers } from "../../db/schema";
+import {
+  bookItems,
+  bookPackageItems,
+  bookPackages,
+  books,
+  bookSuppliers,
+  purchaseOrderItems,
+  purchaseOrders,
+  suppliers,
+} from "../../db/schema";
 import { idSchema } from "../lib/validators";
 import { defaultStorage } from "../../services/storage";
 import {
@@ -262,7 +271,6 @@ booksRouter.delete("/:id", async (c) => {
   }
 
   // Cek apakah dipakai di BOM paket
-  const { bookPackageItems, bookPackages, bookItems, purchaseOrderItems, purchaseOrders } = await import("../../db/schema");
   const inPackages = await db
     .select({
       packageId: bookPackageItems.packageId,
