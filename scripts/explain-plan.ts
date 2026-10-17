@@ -57,6 +57,19 @@ const REGISTERED_SEARCH_SOURCES = new Set([
 
 const SEARCH_MARKER = /matchLower\(|matchAnyLower\(|%\$\{/;
 
+// §11 kelengkapan (kelas cacat #109): setiap kolom ber-partisi (`…schoolId`)
+// WAJIB jadi kolom PERTAMA sebuah indeks, karena read list `WHERE <kolom> = ?`
+// tanpa indeks pendahulu akan SCAN begitu volume cabang naik. Gate ini
+// melengkapi audit substring di atas: pembacaan partisi biasa (eq/inArray, tanpa
+// pola `%q%`) dulu tak pernah dipaksa mendaftar, sehingga #109 lolos hijau dan
+// hanya ketahuan lewat probe manual.
+//
+// Kolom yang SENGAJA tanpa indeks didaftarkan di sini beserta alasan + buktinya.
+const REGISTERED_UNPARTITIONED: Record<string, string> = {
+  "users.school_id":
+    "users dibaca lewat email (unik) dan id (sesi); school_id hanya muncul sebagai proyeksi (`GET /api/users`) + join ke schools.id yang memakai PK schools — tak pernah jadi predikat WHERE, dan tabelnya kecil (akun staf).",
+};
+
 const walkSources = (dir: string, out: string[] = []): string[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -101,6 +114,52 @@ for (const q of QUERIES) {
     console.log(`OK: ${q.name} -> ${details.join(" | ")}`);
   }
 }
+// Diperiksa lewat PRAGMA dari DB migrasi — kebenaran DB, bukan teks schema —
+// sehingga drift schema-vs-migrasi (indeks dideklarasikan tapi migrasinya tak
+// pernah dibuat) ikut tertangkap.
+const partitionColumns = (): Array<{ table: string; column: string }> => {
+  const out: Array<{ table: string; column: string }> = [];
+  for (const part of readFileSync("src/db/schema.ts", "utf8").split(/^export const /m).slice(1)) {
+    const table = /sqliteTable\(\s*"([^"]+)"/.exec(part)?.[1];
+    if (!table) continue;
+    for (const m of part.matchAll(/^\s*\w*[sS]choolId:\s*text\("([^"]+)"/gm)) out.push({ table, column: m[1] });
+  }
+  return out;
+};
+
+/** Nama indeks pertama yang kolom pertamanya `column`, atau null. */
+const leadingIndex = (table: string, column: string): string | null => {
+  const indexes = sqlite.query(`PRAGMA index_list('${table}')`).all() as Array<{ name: string }>;
+  for (const index of indexes) {
+    const info = sqlite.query(`PRAGMA index_info('${index.name}')`).all() as Array<{ name: string | null }>;
+    if (info[0]?.name === column) return index.name;
+  }
+  return null;
+};
+
+const columns = partitionColumns();
+const partitionProblems: string[] = [];
+for (const { table, column } of columns) {
+  const key = `${table}.${column}`;
+  const index = leadingIndex(table, column);
+  const reason = REGISTERED_UNPARTITIONED[key];
+  if (reason !== undefined && !reason.trim()) {
+    partitionProblems.push(`${key}: entri REGISTERED_UNPARTITIONED tanpa alasan — pengecualian wajib beralasan.`);
+  } else if (!index && reason === undefined) {
+    partitionProblems.push(
+      `${key}: kolom partisi tanpa indeks yang dimulai kolom itu — read list \`WHERE ${column} = ?\` akan SCAN saat volume naik. Tambah index() di schema.ts + migrasi, atau daftarkan di REGISTERED_UNPARTITIONED dengan alasan + bukti.`
+    );
+  } else if (index && reason !== undefined) {
+    partitionProblems.push(`${key}: terdaftar di REGISTERED_UNPARTITIONED tapi sudah berindeks (${index}) — hapus entrinya.`);
+  }
+}
+const knownColumns = columns.map((c) => `${c.table}.${c.column}`);
+for (const key of Object.keys(REGISTERED_UNPARTITIONED)) {
+  if (!knownColumns.includes(key)) {
+    partitionProblems.push(`${key}: terdaftar di REGISTERED_UNPARTITIONED tapi kolom partisinya tak ada lagi di schema.ts — hapus entrinya.`);
+  }
+}
+
 sqlite.close();
 
 const unregistered = walkSources("src").filter(
@@ -118,4 +177,11 @@ if (failed > 0) {
   console.error(`${failed} query memakai SCAN tanpa indeks (§11).`);
   process.exit(1);
 }
-console.log(`Plan gate OK: ${QUERIES.length} query partisi SEARCH USING INDEX (pakai --verbose untuk detail per query).`);
+if (partitionProblems.length > 0) {
+  console.error("Kolom partisi tanpa indeks pendahulu (§11 kelengkapan — kelas cacat #109):");
+  for (const p of partitionProblems) console.error(`  ${p}`);
+  process.exit(1);
+}
+console.log(
+  `Plan gate OK: ${QUERIES.length} query partisi SEARCH USING INDEX (pakai --verbose untuk detail per query); ${columns.length} kolom partisi berindeks pendahulu, ${Object.keys(REGISTERED_UNPARTITIONED).length} pengecualian beralasan.`
+);
