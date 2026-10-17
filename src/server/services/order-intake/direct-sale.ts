@@ -10,7 +10,7 @@ import {
   students,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
-import { derivePaymentStatus, validateOrderLines } from "./validation";
+import { validateOrderLines } from "./validation";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
 
@@ -92,12 +92,8 @@ export async function sellDirect(
   }
   const allocatedIds = reserved.allocatedIds;
 
-  const { totalAmount: derivedTotal, paidAmount, paymentStatus } = derivePaymentStatus({
-    isScholarship: false,
-    grossAmount: totalAmount,
-    bookAllocationAmount: totalAmount,
-  });
-
+  // Penjualan langsung = uang diterima di kasir: order lunas & baris pembayaran
+  // auto-verified (kasir sendiri yang mengonfirmasi, bukan klaim orang tua).
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const orderId = (deps.generateId ?? (() => crypto.randomUUID()))();
   const orderNumber =
@@ -153,9 +149,9 @@ export async function sellDirect(
         schoolId: input.schoolId,
         studentId: orderStudentId,
         packageId: null,
-        totalAmount: derivedTotal,
-        paidAmount,
-        paymentStatus,
+        totalAmount,
+        paidAmount: totalAmount,
+        paymentStatus: "paid",
         fulfillmentStatus: "picked_up",
         handoverDate: now,
         handoverRecipient: input.buyerName,
@@ -180,8 +176,7 @@ export async function sellDirect(
         bookAllocationAmount: totalAmount,
         bankName: paymentMethod === "cash" ? "KAS TUNAI" : "TRANSFER DIRECT",
         referenceNumber: input.referenceNumber || `RECEIPT-${Date.now().toString().slice(-6)}`,
-        paymentDate: now,
-        verificationStatus: "verified",
+        verifiedAt: now,
         createdAt: now,
       }),
     ]);

@@ -3,6 +3,7 @@ import type { AppDatabase } from "../../db";
 import { schools, students } from "../../db/schema";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { validateStudentForOrder } from "./order-intake/validation";
+import { paymentRowStatus } from "./order-payment-review";
 import { toEligibilityView } from "./student-lifecycle";
 
 /**
@@ -109,6 +110,13 @@ export const toUniformSearchView = (row: VerifiedStudentRow): UniformSearchView 
   parentPhone: row.parentPhone,
 });
 
+/** Ringkasan klaim transfer ortu untuk banner portal (terbaru lebih dulu). */
+export interface ConfirmPaymentSummary {
+  verifiedAt: string | null;
+  rejectedAt: string | null;
+  rejectReason?: string | null;
+}
+
 export interface ConfirmOrderSource {
   student?: { name?: string | null } | null;
   order: {
@@ -120,16 +128,22 @@ export interface ConfirmOrderSource {
     invoiceSentAt?: string | null;
   };
   due: number;
+  payments?: ConfirmPaymentSummary[];
 }
 
-/** Bentuk confirm-order portal: 8 kolom yang sama untuk Buku dan Seragam. */
-export const toConfirmOrderView = (found: ConfirmOrderSource) => ({
-  studentName: found.student?.name ?? null,
-  orderNumber: found.order.orderNumber,
-  totalAmount: found.order.totalAmount,
-  shippingCost: found.order.shippingCost ?? 0,
-  due: found.due,
-  paidAmount: found.order.paidAmount,
-  paymentStatus: found.order.paymentStatus,
-  invoiceSentAt: found.order.invoiceSentAt,
-});
+/** Bentuk confirm-order portal: kolom yang sama untuk Buku dan Seragam + status klaim terakhir. */
+export const toConfirmOrderView = (found: ConfirmOrderSource) => {
+  const latest = found.payments?.[0];
+  return {
+    studentName: found.student?.name ?? null,
+    orderNumber: found.order.orderNumber,
+    totalAmount: found.order.totalAmount,
+    shippingCost: found.order.shippingCost ?? 0,
+    due: found.due,
+    paidAmount: found.order.paidAmount,
+    paymentStatus: found.order.paymentStatus,
+    invoiceSentAt: found.order.invoiceSentAt,
+    latestPaymentStatus: latest ? paymentRowStatus(latest) : null,
+    latestRejectReason: latest?.rejectReason ?? null,
+  };
+};

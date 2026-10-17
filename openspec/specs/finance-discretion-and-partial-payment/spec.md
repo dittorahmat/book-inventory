@@ -6,11 +6,15 @@ Mengakomodasi pembayaran parsial (uang muka/angsuran) pada pemesanan siswa serta
 ## Requirements
 
 ### Requirement: Dukungan Pembayaran Parsial pada Formulir Pemesanan
-Sistem SHALL mengizinkan input nominal pembayaran yang lebih kecil daripada total harga pesanan, menandai status pembayaran sebagai `PARTIAL`, dan mencatat sisa piutang tanpa memblokir navigasi penyelesaian form.
+Sistem SHALL mengizinkan input nominal pembayaran yang lebih kecil daripada total harga pesanan dan mencatatnya sebagai klaim pembayaran berstatus menunggu verifikasi (*pending*) tanpa memblokir navigasi penyelesaian form. Status pembayaran pesanan baru berubah menjadi `PARTIAL`/`PAID` setelah gudang memverifikasi klaim tersebut.
 
-#### Scenario: Orang tua membayar uang muka sebagian
+#### Scenario: Orang tua mengajukan uang muka sebagian
 - **WHEN** orang tua memasukkan nominal bayar Rp 200.000 untuk paket buku seharga Rp 500.000 dan menekan tombol konfirmasi
-- **THEN** pesanan berhasil dibuat dengan status bayar `PARTIAL`, nominal terbayar Rp 200.000, dan sisa piutang tercatat Rp 300.000
+- **THEN** pesanan berhasil dibuat dengan status bayar `UNPAID`, klaim pembayaran Rp 200.000 berstatus menunggu verifikasi, dan sisa piutang tetap Rp 500.000 sampai gudang memverifikasi klaim
+
+#### Scenario: Gudang memverifikasi klaim uang muka
+- **WHEN** gudang memverifikasi klaim Rp 200.000 pada pesanan Rp 500.000
+- **THEN** status bayar menjadi `PARTIAL`, nominal terbayar Rp 200.000, dan sisa piutang Rp 300.000
 
 ### Requirement: Diskresi Finance Potong Harga
 Sistem SHALL menyediakan aksi bagi peran Finance untuk memberikan potongan harga khusus (diskon/subsidi) pada pesanan siswa dengan kewajiban mengisi alasan dan nama penanggung jawab.

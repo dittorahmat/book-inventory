@@ -231,7 +231,8 @@ describe("Portal seragam publik", () => {
     const [created] = await db.select().from(uniformOrders).where(
       eq(uniformOrders.id, (await res.json()).data.order.id)
     );
-    expect(created.paidAmount).toBe(created.totalAmount);
+    expect(created.paidAmount).toBe(0);
+    expect(created.paymentStatus).toBe("unpaid");
   });
 });
 

@@ -37,21 +37,16 @@ export interface PaymentDerivation {
   paymentStatus: string;
 }
 
-/** Status pembayaran dari nominal kotor + alokasi. Murni: tanpa DB. */
+/** Status pembayaran awal dari nominal kotor. Murni: tanpa DB.
+ * Klaim bukti orang tua TIDAK menambah terbayar — uang baru sah setelah
+ * verifikasi gudang, jadi intake selalu `unpaid`/`scholarship_pending`. */
 export function derivePaymentStatus(input: {
   isScholarship: boolean;
   grossAmount: number;
-  bookAllocationAmount: number;
 }): PaymentDerivation {
-  const totalAmount = input.isScholarship ? 0 : input.grossAmount;
-  if (input.isScholarship) {
-    return { totalAmount, paidAmount: 0, paymentStatus: "scholarship_pending" };
-  }
-  if (input.bookAllocationAmount > 0) {
-    const paidAmount = input.bookAllocationAmount;
-    return { totalAmount, paidAmount, paymentStatus: paidAmount >= totalAmount ? "paid" : "partial" };
-  }
-  return { totalAmount, paidAmount: 0, paymentStatus: "unpaid" };
+  return input.isScholarship
+    ? { totalAmount: 0, paidAmount: 0, paymentStatus: "scholarship_pending" }
+    : { totalAmount: input.grossAmount, paidAmount: 0, paymentStatus: "unpaid" };
 }
 
 /** Order harus memuat paket atau minimal satu judul satuan dengan jumlah valid. Murni: tanpa DB. */

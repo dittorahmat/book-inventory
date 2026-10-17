@@ -524,6 +524,7 @@ export async function runIdempotentSeed(customDb?: any) {
       bookAllocationAmount: 1850000,
       bankName: "BCA",
       referenceNumber: "BCA-TRX-881920",
+      verifiedAt: now,
       notes: "Pembayaran lunas buku",
       createdAt: now,
     }).onConflictDoNothing();
@@ -552,6 +553,7 @@ export async function runIdempotentSeed(customDb?: any) {
       bookAllocationAmount: 500000,
       bankName: "Mandiri",
       referenceNumber: "MND-TRX-551299",
+      verifiedAt: now,
       notes: "Transfer gabungan SPP bulan Juli dan cicilan ke-1 buku paket",
       createdAt: now,
     }).onConflictDoNothing();

@@ -168,12 +168,13 @@ export async function submitPublicOrder(
     }
   }
 
-  // 7. Hitung nominal order dan status pembayaran (aturan murni)
+  // 7. Hitung nominal order dan status pembayaran (aturan murni).
+  // Klaim bukti orang tua tidak menambah terbayar: `unpaid`/`scholarship_pending`
+  // sampai staf gudang memverifikasi baris pembayaran.
   const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);
   const { totalAmount, paidAmount, paymentStatus } = derivePaymentStatus({
     isScholarship,
     grossAmount,
-    bookAllocationAmount: !isScholarship && input.payment ? input.payment.bookAllocationAmount : 0,
   });
 
   // 8. Upload bukti setelah reservasi + tulis batch atomik; kompensasi orphan

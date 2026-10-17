@@ -21,15 +21,11 @@ describe("order-validation murni", () => {
     expect(validateSatuanCutoff(true, { open: true, reason: "" })).toEqual({ ok: true });
   });
 
-  test("derivasi pembayaran: beasiswa, lunas, cicilan, belum bayar", () => {
-    expect(derivePaymentStatus({ isScholarship: true, grossAmount: 900000, bookAllocationAmount: 0 }))
+  test("derivasi pembayaran: beasiswa & reguler selalu belum terbayar (uang sah hanya setelah verifikasi)", () => {
+    expect(derivePaymentStatus({ isScholarship: true, grossAmount: 900000 }))
       .toEqual({ totalAmount: 0, paidAmount: 0, paymentStatus: "scholarship_pending" });
-    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, bookAllocationAmount: 900000 }))
-      .toMatchObject({ paymentStatus: "paid", paidAmount: 900000 });
-    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, bookAllocationAmount: 300000 }))
-      .toMatchObject({ paymentStatus: "partial", paidAmount: 300000 });
-    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, bookAllocationAmount: 0 }))
-      .toMatchObject({ paymentStatus: "unpaid", paidAmount: 0 });
+    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000 }))
+      .toEqual({ totalAmount: 900000, paidAmount: 0, paymentStatus: "unpaid" });
   });
 
   test("kotor = paket + snapshot satuan", () => {
