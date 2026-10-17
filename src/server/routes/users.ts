@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { users, schools } from "../../db/schema";
 import { auth } from "../auth";
+import { idSchema } from "../lib/validators";
 import {
   accessErrorResponse,
   requireCentralAdmin,
@@ -29,10 +30,18 @@ const updateUserSchema = z.object({
   schoolId: z.string().optional().nullable(),
 });
 
+const listUsersQuerySchema = z.object({
+  schoolId: idSchema.optional(),
+});
+
+/** Batas baris daftar staf (§11.2: endpoint admin global wajib WHERE + LIMIT 50). */
+const LIST_USERS_LIMIT = 50;
+
 // GET /api/users
-usersRouter.get("/", async (c) => {
+usersRouter.get("/", zValidator("query", listUsersQuerySchema), async (c) => {
   try {
     requireCentralAdmin(await resolveRequestActor(c));
+    const { schoolId } = c.req.valid("query");
     const allUsers = await db
     .select({
       id: users.id,
@@ -50,7 +59,9 @@ usersRouter.get("/", async (c) => {
       },
     })
     .from(users)
-    .leftJoin(schools, eq(users.schoolId, schools.id));
+    .leftJoin(schools, eq(users.schoolId, schools.id))
+    .where(schoolId ? eq(users.schoolId, schoolId) : undefined)
+    .limit(LIST_USERS_LIMIT);
 
   return c.json({ success: true, data: allUsers });
   } catch (err) {
