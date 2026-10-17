@@ -4,7 +4,7 @@
 // `bun run check:d1-junk` karena butuh kredensial D1 (bukan job CI) —
 // pola sama dengan check-d1-drift.ts.
 import { $ } from "bun";
-import { isTestSeedValue } from "../src/server/lib/validators";
+import { findJunkSchools } from "../src/server/services/d1-junk-scan";
 
 const D1_DATABASE = process.env.D1_DATABASE || "book-inventory-db";
 
@@ -26,7 +26,8 @@ const PREFILTER =
   `OR id LIKE 'school-sh-%' OR id LIKE 'school-wh-%' OR name LIKE '%test%' OR name LIKE 'Sekolah school-%'`;
 
 const schools = await fetchRows(`SELECT id, name FROM schools WHERE ${PREFILTER}`);
-const junk = schools.filter((r) => isTestSeedValue(r.id) || isTestSeedValue(r.name));
+// Keputusan presisi via modul kanonik yang sama dipakai alarm cron production.
+const junk = findJunkSchools(schools);
 
 if (junk.length > 0) {
   console.error(`D1 JUNK TERDETEKSI: ${junk.length} sekolah pola-uji di production:`);

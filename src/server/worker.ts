@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { app } from "./index";
-import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
+import type { D1Database, ExecutionContext, R2Bucket, ScheduledController } from "@cloudflare/workers-types";
 
 import { getDatabase } from "../db";
 import { setStorageService, CloudflareR2StorageService } from "../services/storage";
+import { alertJunkSchools } from "./services/d1-junk-alert";
+import type { EmailRuntimeEnv } from "./services/email/types";
 
 type Bindings = {
   DB: D1Database;
@@ -46,4 +48,22 @@ worker.all("*", async (c) => {
   return c.text("Book Inventory API running on Cloudflare Workers", 200);
 });
 
-export default worker;
+export default {
+  fetch: worker.fetch,
+  /**
+   * Cron harian (17:00 UTC = 00:00 WIB, lihat `[triggers]` wrangler.toml):
+   * alarm sampah data-uji production tanpa kredensial — query lewat binding D1.
+   * `console.log` di sini disengaja: cron tidak punya respons HTTP, jadi Workers
+   * Logs adalah satu-satunya kanal untuk melihat hasil/kegagalan non-email.
+   */
+  async scheduled(
+    _controller: ScheduledController,
+    env: Bindings,
+    _ctx: ExecutionContext
+  ): Promise<void> {
+    if (!env.DB) return;
+    const database = await getDatabase(env);
+    const result = await alertJunkSchools(database, { env: env as unknown as EmailRuntimeEnv });
+    console.log(`[cron d1-junk] ${JSON.stringify(result)}`);
+  },
+};
