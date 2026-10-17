@@ -5,6 +5,29 @@
 # Suite berat (build/test penuh) tetap ditanggung CI agar commit ringan.
 # Terpasang via `bun scripts/setup-hooks.ts` (tanpa dependensi baru).
 set -e
+
+# Branch guard (AGENTS.md §4.8): tolak commit langsung ke main/master. Gate lain
+# memeriksa ISI commit; tak satu pun memeriksa TUJUANNYA — insiden Okt 2026: dua
+# commit nyasar ke main dan baru ketahuan saat akan didorong.
+# Rebase/merge/cherry-pick yang sedang berjalan dilewati (git memakai hook ini
+# juga untuk commit lanjutan), dan penyelesaian konflik di main tak terhalang.
+# Paksa bila memang disengaja: ALLOW_MAIN_COMMIT=1 git commit ...
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+HOOK_GITDIR=$(git rev-parse --git-dir)
+IN_PROGRESS=""
+for op in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
+  if [ -e "$HOOK_GITDIR/$op" ]; then IN_PROGRESS="$op"; fi
+done
+if [ -z "$IN_PROGRESS" ] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
+  case "$BRANCH" in
+    main|master)
+      echo "Pre-commit: commit langsung ke '$BRANCH' ditolak (AGENTS.md §4.8)."
+      echo "  Buat branch dulu:      git switch -c feat/<slug>"
+      echo "  Paksa bila disengaja:  ALLOW_MAIN_COMMIT=1 git commit ..."
+      exit 1
+      ;;
+  esac
+fi
 STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx')
 if [ -n "$STAGED_TS" ]; then
   echo "$STAGED_TS" | xargs npx eslint

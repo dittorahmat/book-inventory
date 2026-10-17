@@ -135,6 +135,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - Bukti pola ini berhasil: 3 lane (backend inti / kanal WhatsApp / UI) menyentuh ~30 file tanpa satu pun konflik tulis, tanpa merge, dan tanpa instalasi dependensi ulang; 15 error type-check tersisa ditutup di fase integrasi.
 6. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
 7. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
+8. **Dilarang commit langsung ke `main`/`master`**: pekerjaan mendarat lewat branch + PR. Ditegakkan **branch guard** di `scripts/githooks/pre-commit` (aktif via `core.hooksPath = scripts/githooks`): commit di `main` ditolak dengan pesan yang menyebut cara membuat branch; paksa bila memang disengaja lewat `ALLOW_MAIN_COMMIT=1 git commit ...`. Rebase/merge/cherry-pick yang sedang berjalan dilewati agar penyelesaian konflik tidak terhalang. Alasan: seluruh gate memeriksa **isi** commit, tak satu pun memeriksa **tujuannya** — insiden Okt 2026: dua commit nyasar ke `main` dan baru ketahuan saat akan didorong.
 
 ---
 
