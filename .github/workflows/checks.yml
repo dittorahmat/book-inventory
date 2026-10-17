@@ -1,5 +1,5 @@
 # Quality gates: type-check, lint, ukuran file, kedalaman import, pairing route-test, validator,
-# dead-export, canonical-helper, d1-write, test-isolation, doc-number, lane-ownership, query plan, build, dan test.
+# dead-export, canonical-helper, d1-write, d1-error-mapping, test-isolation, doc-number, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -68,6 +68,10 @@ jobs:
       - name: D1 write-discipline gate
         # Static §10 gate: INSERT >10 baris per statement atau Promise.all untuk tulis.
         run: bun run check:d1-writes
+
+      - name: D1 error-mapping gate
+        # Statis §10.4: berkas pemakai runWriteBatch() wajib memetakan error constraint D1 ke 4xx.
+        run: bun run check:d1-error-mapping
 
       - name: Test-isolation gate
         # Static §6 gate: tidak ada binding D1 di test + preload test/setup.ts utuh.

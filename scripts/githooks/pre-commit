@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-commit: gates cepat (type-check + file-size + imports + route-tests + validators + dead-exports + no-any + canonical-helpers + d1-writes + test-isolation + doc-numbers + lanes + plans)
+# Pre-commit: gates cepat (type-check + file-size + imports + route-tests + validators + dead-exports + no-any + canonical-helpers + d1-writes + d1-error-mapping + test-isolation + doc-numbers + lanes + plans)
 # + eslint pada file staged (*.ts/*.tsx) agar pelanggaran lint tertangkap lokal,
 # bukan menunggu CI (insiden: toLocaleString("id-ID") lolos ke HEAD).
 # Suite berat (build/test penuh) tetap ditanggung CI agar commit ringan.
@@ -18,6 +18,7 @@ bun run check:dead
 bun run check:no-any
 bun run check:canonical-helpers
 bun run check:d1-writes
+bun run check:d1-error-mapping
 bun run check:test-isolation
 bun run check:doc-numbers
 bun run check:lanes
