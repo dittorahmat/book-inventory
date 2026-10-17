@@ -14,7 +14,7 @@ import {
 } from "../services/access-scope";
 import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
 import { ensurePackageHasWpr } from "../services/wpr";
-import { chunkRows, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
 import { isCentralRole } from "../../lib/staff-roles";
 import { runIdempotentSeed } from "../seed";
@@ -190,6 +190,8 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   const [created] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
   return c.json({ success: true, data: created ? { ...created, price: computedTotal } : created }, 201);
   } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "membuat paket");
+    if (mapped) return c.json({ success: false, message: mapped.message }, mapped.status);
     return accessErrorResponse(c, err);
   }
 });
