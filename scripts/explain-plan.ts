@@ -117,12 +117,29 @@ for (const q of QUERIES) {
 // Diperiksa lewat PRAGMA dari DB migrasi — kebenaran DB, bukan teks schema —
 // sehingga drift schema-vs-migrasi (indeks dideklarasikan tapi migrasinya tak
 // pernah dibuat) ikut tertangkap.
+const schemaBlocks = new Map<string, string>();
+for (const part of readFileSync("src/db/schema.ts", "utf8").split(/^export const /m).slice(1)) {
+  const name = part.slice(0, part.indexOf("=")).trim();
+  if (name) schemaBlocks.set(name, part);
+}
+
 const partitionColumns = (): Array<{ table: string; column: string }> => {
   const out: Array<{ table: string; column: string }> = [];
-  for (const part of readFileSync("src/db/schema.ts", "utf8").split(/^export const /m).slice(1)) {
+  for (const part of schemaBlocks.values()) {
     const table = /sqliteTable\(\s*"([^"]+)"/.exec(part)?.[1];
     if (!table) continue;
     for (const m of part.matchAll(/^\s*\w*[sS]choolId:\s*text\("([^"]+)"/gm)) out.push({ table, column: m[1] });
+  }
+  return out;
+};
+
+/** Kolom UNIK satu tabel: `.unique()` tunggal, atau unique(...) satu kolom saja. */
+const uniqueFieldsOf = (block: string): string[] => {
+  const out: string[] = [];
+  for (const m of block.matchAll(/^\s*(\w+):\s*[^,\n]*\.unique\(\)/gm)) out.push(m[1]);
+  for (const m of block.matchAll(/unique\(\s*"[^"]*"\s*\)\s*\.on\(([^)]*)\)/g)) {
+    const cols = m[1].split(",").map((c) => c.trim().replace(/^t\./, ""));
+    if (cols.length === 1) out.push(cols[0]);
   }
   return out;
 };
@@ -160,6 +177,65 @@ for (const key of Object.keys(REGISTERED_UNPARTITIONED)) {
   }
 }
 
+// §11.2 batas baca: endpoint route yang membaca tabel ber-partisi wajib dibatasi
+// `.limit()` — kecuali membaca baris tunggal lewat kunci primer atau kolom UNIK.
+// Tanpa ini daftar admin (`GET /api/users`, tanpa WHERE/LIMIT) tumbuh mengikuti
+// jumlah staf, dan tak ada gate yang melihatnya: §11.5 hanya mengaudit query yang
+// sudah terdaftar, sedangkan aturan indeks di atas hanya menjaga kolom partisi.
+//
+// Sengaja HANYA route. Pemanggil service sudah membatasi masukannya (inArray dari
+// kueri yang telah dibatasi, baca per kunci unik, agregasi laporan) — terukur,
+// memeriksa service melahirkan 40 temuan dengan ~30 positif palsu, dan gate
+// berisik akan dimatikan. Batasan yang disadari: baca tak-terbatas di dalam
+// service tidak tertangkap di sini.
+const REGISTERED_UNBOUNDED_READS: Record<string, string> = {
+  "src/server/routes/bookItems.ts::bookItems":
+    "GET /api/book-items sengaja mendaftar SELURUH eksemplar satu sekolah agar operator memilih manual di picker transfer (alokasi FIFO sendiri dikerjakan server-side oleh `shipment/plan`). Membatasinya butuh paginasi — keputusan produk, bukan refactor diam-diam.",
+};
+
+// Nama VARIABEL tabel (dipakai kode: `.from(bookItems)`), bukan nama SQL
+// (`book_items`) — kecocokannya beda, dan salah satu membuat gate ini vakum.
+const partitionTables = [...schemaBlocks.entries()]
+  .filter(([, block]) => /^\s*\w*[sS]choolId\s*:/m.test(block))
+  .map(([name]) => name);
+const routeFiles = readdirSync("src/server/routes")
+  .filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f))
+  .map((f) => `src/server/routes/${f}`)
+  .sort();
+
+const boundedProblems: string[] = [];
+const seenUnbounded: string[] = [];
+for (const path of routeFiles) {
+  const text = readFileSync(path, "utf8");
+  for (const table of partitionTables) {
+    for (const m of text.matchAll(new RegExp(`\\.from\\(\\s*${table}\\s*\\)`, "g"))) {
+      // Potong rantai sampai `;` berikutnya (aproksimasi; cukup untuk gaya rantai Drizzle di repo ini).
+      const semi = text.indexOf(";", m.index);
+      const chain = text.slice(m.index, semi < 0 ? text.length : semi);
+      const unique = uniqueFieldsOf(schemaBlocks.get(table) ?? "");
+      const bounded =
+        /\.limit\(/.test(chain) ||
+        new RegExp(`eq\\(\\s*${table}\\.id\\s*,`).test(chain) ||
+        unique.some((f) => new RegExp(`eq\\(\\s*${table}\\.${f}\\s*,`).test(chain));
+      if (bounded) continue;
+      const key = `${path}::${table}`;
+      seenUnbounded.push(key);
+      if (REGISTERED_UNBOUNDED_READS[key] === undefined) {
+        boundedProblems.push(
+          `${path}: baca dari ${table} tanpa .limit() — endpoint daftar tumbuh tanpa batas (§11.2). Tambah .limit(50) (+ filter), atau daftarkan di REGISTERED_UNBOUNDED_READS dengan alasan.`
+        );
+      }
+    }
+  }
+}
+for (const [key, reason] of Object.entries(REGISTERED_UNBOUNDED_READS)) {
+  if (!seenUnbounded.includes(key)) {
+    boundedProblems.push(`${key}: terdaftar di REGISTERED_UNBOUNDED_READS tapi tak ada lagi baca tak-terbatas di sana — hapus entrinya.`);
+  } else if (!reason.trim()) {
+    boundedProblems.push(`${key}: entri REGISTERED_UNBOUNDED_READS tanpa alasan — pengecualian wajib beralasan.`);
+  }
+}
+
 sqlite.close();
 
 const unregistered = walkSources("src").filter(
@@ -182,6 +258,11 @@ if (partitionProblems.length > 0) {
   for (const p of partitionProblems) console.error(`  ${p}`);
   process.exit(1);
 }
+if (boundedProblems.length > 0) {
+  console.error("Baca tak-terbatas pada route (§11.2 — endpoint daftar wajib dibatasi LIMIT):");
+  for (const p of boundedProblems) console.error(`  ${p}`);
+  process.exit(1);
+}
 console.log(
-  `Plan gate OK: ${QUERIES.length} query partisi SEARCH USING INDEX (pakai --verbose untuk detail per query); ${columns.length} kolom partisi berindeks pendahulu, ${Object.keys(REGISTERED_UNPARTITIONED).length} pengecualian beralasan.`
+  `Plan gate OK: ${QUERIES.length} query partisi SEARCH USING INDEX (pakai --verbose untuk detail per query); ${columns.length} kolom partisi berindeks pendahulu, ${Object.keys(REGISTERED_UNPARTITIONED).length} pengecualian; ${routeFiles.length} berkas route diperiksa batas baca, ${Object.keys(REGISTERED_UNBOUNDED_READS).length} pengecualian beralasan.`
 );
