@@ -1,10 +1,12 @@
 import * as schema from "./schema";
 import type { D1Database } from "@cloudflare/workers-types";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 
-// Dual-runtime escape hatch: BunSQLite (lokal) vs D1 (Workers) tidak punya
-// tipe union yang kompatibel di semua call-site, jadi satu `any` terpusat
-// di sini (bukan tersebar di service/route).
-export type AppDatabase = any;
+// Dual-runtime DB seam: satu tipe schema-aware untuk BunSQLite (lokal) dan D1
+// (Workers). Union dua driver tidak bisa dipanggil di call-site mana pun, jadi
+// pakai base type bersama; result-kind sengaja di-union karena semua call-site
+// `await` (bun-sqlite sinkron, D1 async) dan baris hasil tetap terketik penuh.
+export type AppDatabase = BaseSQLiteDatabase<"sync" | "async", unknown, typeof schema>;
 
 export interface D1Env {
   DB?: D1Database;
@@ -17,7 +19,7 @@ export async function getDatabase(env?: D1Env): Promise<AppDatabase> {
   // 1. Check if running inside Cloudflare Workers with D1 binding
   if (env && env.DB) {
     const { drizzle } = await import("drizzle-orm/d1");
-    const d1Db = drizzle(env.DB as any, { schema });
+    const d1Db = drizzle(env.DB, { schema });
     activeDb = d1Db;
     return d1Db;
   }

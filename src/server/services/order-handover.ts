@@ -3,6 +3,7 @@ import type { AppDatabase } from "../../db";
 import { packageItems, studentBookOrders, students } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
+import { documentNumber, isoTimeFragment } from "../lib/document-number";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { checkHandoverBundle } from "./stock";
 
@@ -72,7 +73,7 @@ export async function handoverPackage(
     };
   }
 
-  const deliveryNumber = `SJ-SERAH-${now.replace(/\D/g, "").slice(-8)}`;
+  const deliveryNumber = documentNumber("SJ-SERAH", isoTimeFragment(now, 8));
   const orderNotes = input.notes ? `${order.notes || ""} [Handover: ${input.notes}]`.trim() : order.notes;
 
   // Paket kirim-rumah wajib ongkir (nominal atau resi) sebelum serah-terima.

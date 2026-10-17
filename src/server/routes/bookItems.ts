@@ -12,6 +12,7 @@ import {
   resolveLocationScope,
   resolveRequestActor,
 } from "../services/access-scope";
+import { epochTimeFragment } from "../lib/document-number";
 
 export const bookItemsRouter = new Hono();
 
@@ -70,7 +71,7 @@ bookItemsRouter.get("/", async (c) => {
     conditions.push(eq(bookItems.currentSchoolId, schoolId));
   }
   if (bookId) conditions.push(eq(bookItems.bookId, bookId));
-  if (status) conditions.push(eq(bookItems.status, status as "in_stock" | "in_transit" | "disposed" | "lost"));
+  if (status) conditions.push(eq(bookItems.status, status as typeof bookItems.$inferSelect["status"]));
 
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as typeof query;
@@ -126,7 +127,7 @@ bookItemsRouter.post("/batch-generate", zValidator("json", batchGenerateCopiesSc
     const body = c.req.valid("json");
     assertLocationAllowed(actor, body.schoolId, locations);
     const now = new Date().toISOString();
-    const timestampPart = Date.now().toString().slice(-4);
+    const timestampPart = epochTimeFragment(Date.now(), 4);
 
   const inserted = [];
   for (let i = 1; i <= body.count; i++) {

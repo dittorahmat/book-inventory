@@ -4,7 +4,9 @@
 // `check:no-any`. Vektor nyata: salinan lokal `escapeHtml` di
 // order-paid-notify.ts yang meng-escape 3 karakter sementara yang kanonik
 // meng-escape 5 — duplikat yang berperilaku beda dan tak tertangkap gate mana pun.
-import { changedLines } from "./lib/changed-lines";
+// `--base=<ref>` (atau env GATE_BASE_REF) membuat gate juga memeriksa baris
+// yang ditambahkan pada diff PR — di CI checkout bersih diff lokal selalu kosong.
+import { baseRefFromArgv, changedLines } from "./lib/changed-lines";
 
 interface CanonicalHelper {
   /** Nama helper; definisi lokal baru dengan nama ini ditolak. */
@@ -20,6 +22,10 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "formatRupiah", owner: "src/lib/transfer-pricing.ts", module: "lib/transfer-pricing" },
   { name: "toIntRupiah", owner: "src/lib/transfer-pricing.ts", module: "lib/transfer-pricing" },
   { name: "readJson", owner: "src/lib/api.ts", module: "lib/api" },
+  { name: "isoTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "epochTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "documentNumber", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "randomSerial", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
 ];
 
 const definitionOf = (name: string): RegExp =>
@@ -30,7 +36,7 @@ const HTML_ESCAPE_REIMPL = /\.replace\(\s*\/&\s*\/g\s*,\s*["'`]&amp;/;
 
 const isScanned = (file: string): boolean => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file);
 
-const lines = changedLines("src", isScanned);
+const lines = changedLines("src", isScanned, { base: baseRefFromArgv(process.argv) });
 if (lines === null) {
   console.log("Canonical-helper gate SKIP: bukan repo git — lewati.");
   process.exit(0);

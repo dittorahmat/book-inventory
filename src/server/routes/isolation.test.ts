@@ -233,7 +233,7 @@ describe("Staff login gate (#44): anonymous callers get 401 on every staff route
 describe("Account roles per organization (#46)", () => {
   it("seeds gudang as central admin and ALW-1 as scoped school admin", async () => {
     const rows = await db.select().from(users);
-    const byEmail = Object.fromEntries(rows.map((u: { email: string }) => [u.email, u]));
+    const byEmail = Object.fromEntries(rows.map((u) => [u.email, u]));
     expect(byEmail["admin.gudang@alwildan.sch.id"]?.role).toBe("central_admin");
     expect(byEmail["admin.gudang@alwildan.sch.id"]?.schoolId).toBe("school-warehouse");
     expect(byEmail["admin.pusat@alwildan.sch.id"]?.role).toBe("school_admin");

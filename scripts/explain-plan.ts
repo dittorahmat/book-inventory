@@ -84,6 +84,7 @@ try {
   sqlite.close();
   throw err;
 }
+const VERBOSE = process.argv.includes("--verbose");
 let failed = 0;
 for (const q of QUERIES) {
   const rows = sqlite.query(`EXPLAIN QUERY PLAN ${q.sql}`).all() as Array<{ detail: string }>;
@@ -92,7 +93,7 @@ for (const q of QUERIES) {
   if (scans.length > 0 && !q.allowScan) {
     failed += 1;
     console.error(`SCAN tanpa indeks: ${q.name}\n  ${scans.join("\n  ")}`);
-  } else {
+  } else if (VERBOSE) {
     console.log(`OK: ${q.name} -> ${details.join(" | ")}`);
   }
 }
@@ -113,4 +114,4 @@ if (failed > 0) {
   console.error(`${failed} query memakai SCAN tanpa indeks (§11).`);
   process.exit(1);
 }
-console.log("Plan gate OK: seluruh query partisi SEARCH USING INDEX.");
+console.log(`Plan gate OK: ${QUERIES.length} query partisi SEARCH USING INDEX (pakai --verbose untuk detail per query).`);

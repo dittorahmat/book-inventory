@@ -1,12 +1,12 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { purchaseOrders, suppliers } from "../../db/schema";
+import { suppliers } from "../../db/schema";
 import {
   accessErrorResponse,
-  assertLocationAllowed,
+  loadScopedPo,
   requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
@@ -15,22 +15,15 @@ import { markPrinted, PRINTED_STATUS, uploadSignedDoc } from "../services/purcha
 /** Endpoint alur PO cetak → tanda tangan → upload, plus ubah master supplier. */
 export const poWorkflowRouter = new Hono();
 
-async function loadPoOr404(poId: string) {
-  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
-  return po ?? null;
-}
-
-function notFound(c: Context) {
-  return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
-}
-
 // 1. Tandai PO sudah dicetak (draft -> printed)
 poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
   try {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
-    const po = await loadPoOr404(c.req.param("id"));
-    if (!po) return notFound(c);
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
+    const scoped = await loadScopedPo(db, actor, locations, c.req.param("id"));
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    const po = scoped.po;
 
     const result = await markPrinted(db, po.id);
     if (!result.ok) {
@@ -54,9 +47,11 @@ poWorkflowRouter.post("/purchase-orders/:id/print", async (c) => {
 poWorkflowRouter.post("/purchase-orders/:id/signed-doc", async (c) => {
   try {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
-    const po = await loadPoOr404(c.req.param("id"));
-    if (!po) return notFound(c);
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
+    const scoped = await loadScopedPo(db, actor, locations, c.req.param("id"));
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+    const po = scoped.po;
 
     const body = await c.req.parseBody();
     const file = body["signedDoc"] as File | undefined;

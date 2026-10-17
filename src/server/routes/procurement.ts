@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { suppliers, purchaseOrders } from "../../db/schema";
+import { suppliers } from "../../db/schema";
 import {
   createPurchaseOrder,
   deletePurchaseOrder,
@@ -17,6 +17,7 @@ import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
   assertLocationAllowed,
+  loadScopedPo,
   requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
@@ -145,11 +146,10 @@ procurementRouter.post("/purchase-orders/:id/receive", zValidator("json", receiv
     const poId = c.req.param("id");
     const body = c.req.valid("json");
 
-    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
-    if (!po) {
-      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    const scoped = await loadScopedPo(db, actor, locations, poId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
 
     const { deliveryNoteNumber } = body;
     const result = await recordPoReceipt(db, poId, body);
@@ -173,11 +173,10 @@ procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const poId = c.req.param("id");
 
-    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
-    if (!po) {
-      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    const scoped = await loadScopedPo(db, actor, locations, poId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
 
     const history = await getPoReceiptHistory(db, poId);
     return c.json({ success: true, data: history });
@@ -190,11 +189,11 @@ procurementRouter.get("/purchase-orders/:id/receipts", async (c) => {
 procurementRouter.post("/purchase-orders/:id/send", async (c) => {
   try {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
-    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, c.req.param("id")));
-    if (!po) {
-      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    const scoped = await loadScopedPo(db, actor, locations, c.req.param("id"));
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
+    const po = scoped.po;
 
     const result = await sendPo(
       db,
@@ -233,11 +232,10 @@ procurementRouter.delete("/purchase-orders/:id", async (c) => {
     const { actor, locations } = await requireScopedLogisticsActor(db, c);
     const poId = c.req.param("id");
 
-    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
-    if (!po) {
-      return c.json({ success: false, message: "Purchase Order tidak ditemukan" }, 404);
+    const scoped = await loadScopedPo(db, actor, locations, poId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
     }
-    assertLocationAllowed(actor, po.targetSchoolId, locations);
 
     const result = await deletePurchaseOrder(db, poId);
     if (!result.ok) {

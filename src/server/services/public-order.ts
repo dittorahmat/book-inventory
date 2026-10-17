@@ -16,7 +16,7 @@ export interface VerifiedStudentRow {
   id: string;
   nis: string;
   name: string;
-  gender: string;
+  gender: "male" | "female" | null;
   gradeLevel: string;
   curriculumType: string;
   academicYear: string;
@@ -85,7 +85,7 @@ export interface UniformSearchView {
   id: string;
   nis: string;
   name: string;
-  gender: string;
+  gender: "male" | "female" | null;
   gradeLevel: string;
   academicYear: string;
   status: string;

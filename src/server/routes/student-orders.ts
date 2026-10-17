@@ -110,8 +110,8 @@ studentOrdersRouter.get("/", async (c) => {
     .orderBy(desc(studentBookOrders.createdAt))
     .limit(50);
 
-  const pending = await pendingPaymentCounts(db, "buku", filtered.map((r: typeof studentBookOrders.$inferSelect) => r.id));
-  return c.json({ success: true, data: filtered.map((r: typeof studentBookOrders.$inferSelect) => ({ ...r, pendingCount: pending.get(r.id) ?? 0 })) });
+  const pending = await pendingPaymentCounts(db, "buku", filtered.map((r) => r.id));
+  return c.json({ success: true, data: filtered.map((r) => ({ ...r, pendingCount: pending.get(r.id) ?? 0 })) });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

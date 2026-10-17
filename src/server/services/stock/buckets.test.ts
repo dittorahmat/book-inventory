@@ -6,8 +6,10 @@ import {
   isDisposed,
   isKittable,
   isReturnable,
+  isSold,
   KITTABLE_CONDITIONS,
   RETURNABLE_CONDITIONS,
+  SOLD_STATUSES,
 } from "./buckets";
 
 describe("stock-buckets condition seam (T2)", () => {
@@ -46,5 +48,12 @@ describe("stock-buckets condition seam (T2)", () => {
     expect(isDisposed("disposed")).toBe(true);
     expect(isDisposed("in_stock")).toBe(false);
     expect(isDisposed("lost")).toBe(false);
+  });
+
+  it("sold is its own out-of-inventory status, distinct from disposed", () => {
+    expect(isSold("sold")).toBe(true);
+    expect(isSold("disposed")).toBe(false);
+    expect(isSold("in_stock")).toBe(false);
+    expect([...SOLD_STATUSES]).toEqual(["sold"]);
   });
 });

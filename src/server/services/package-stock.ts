@@ -20,7 +20,7 @@ export interface PackageBomItem {
   publicTitle: string | null;
   isbn: string;
   author: string;
-  category: string;
+  category: string | null;
   quantity: number;
 }
 

@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { studentBookOrders, students } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
+import { documentNumber, epochTimeFragment } from "../lib/document-number";
 
 export type LifecycleError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -151,7 +152,7 @@ export async function registerPublicStudent(
 ): Promise<RegisterPublicStudentResult> {
   const now = writeNow(deps);
   const id = newWriteId(deps);
-  const tempNis = `REG-${Date.now().toString().slice(-6)}`;
+  const tempNis = documentNumber("REG", epochTimeFragment(Date.now(), 8));
   try {
     await database.insert(students).values({
       id,

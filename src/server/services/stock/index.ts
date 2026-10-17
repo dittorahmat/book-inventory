@@ -9,6 +9,7 @@ export {
   OPEN_ORDER_PAYMENT_STATUSES,
   READY_BUNDLE_STATUSES,
   RETURNABLE_CONDITIONS,
+  SOLD_STATUSES,
 } from "./buckets";
 export type { AllocatableCondition } from "./buckets";
 export type { HandoverBundleRow, HandoverOrderRef } from "./buckets";
@@ -27,6 +28,7 @@ export {
   isOpenOrder,
   isReadyBundle,
   isReturnable,
+  isSold,
   outstandingOf,
 } from "./buckets";
 export type { LooseCountRow, LooseTally, PackageCountRow, PackageTally } from "./kernel";

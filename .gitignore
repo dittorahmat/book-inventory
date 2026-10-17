@@ -28,6 +28,11 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# Lane manifest (AGENTS.md §4.5): transient per-sesi, ditulis agent utama saat
+# menjalankan subagent implementer paralel. Contoh format tetap dilacak:
+# docs/agents/lanes.example.json.
+docs/agents/lanes.json
+
 # IDE & Editor files
 .vscode/*
 !.vscode/mcp.json

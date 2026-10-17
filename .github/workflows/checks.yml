@@ -1,5 +1,5 @@
 # Quality gates: type-check, lint, ukuran file, kedalaman import, pairing route-test, validator,
-# dead-export, query plan, build, dan test.
+# dead-export, canonical-helper, d1-write, test-isolation, doc-number, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -16,6 +16,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # fetch-depth 0 (riwayat penuh) wajib agar gate diff-scoped
+          # (no-any, canonical-helpers) bisa `git diff <base>...HEAD`.
+          fetch-depth: 0
 
       # WAJIB sama dengan field packageManager (AGENTS.md aturan 5):
       # bun lebih baru menulis lockfile v2 yang gagal dibaca bun 1.2.15.
@@ -34,7 +38,9 @@ jobs:
         run: bun run lint
 
       - name: File-size gate
-        run: bun run check:file-size
+        # --all = full-tree: pada checkout CI `git status` kosong sehingga mode
+        # file-yang-diubah (pre-commit) akan selalu lolos tanpa memeriksa apa pun.
+        run: bun run check:file-size --all
 
       - name: Import-depth gate
         run: bun run check:imports
@@ -49,10 +55,31 @@ jobs:
         run: bun run check:dead
 
       - name: No-any gate
+        # Base ref PR: gate memeriksa baris `+` dari diff merge-base, bukan diff lokal kosong.
+        env:
+          GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:no-any
 
       - name: Canonical-helper gate
+        env:
+          GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:canonical-helpers
+
+      - name: D1 write-discipline gate
+        # Static §10 gate: INSERT >10 baris per statement atau Promise.all untuk tulis.
+        run: bun run check:d1-writes
+
+      - name: Test-isolation gate
+        # Static §6 gate: tidak ada binding D1 di test + preload test/setup.ts utuh.
+        run: bun run check:test-isolation
+
+      - name: Doc-number gate
+        # Statis: setiap prefix documentNumber() wajib terdaftar + kolomnya UNIQUE (§8/§10).
+        run: bun run check:doc-numbers
+
+      - name: Lane-ownership gate
+        # Self-skip tanpa manifest lane (docs/agents/lanes.json gitignored) → CI tetap hijau.
+        run: bun run check:lanes
 
       - name: Query plan gate
         run: bun run check:plans

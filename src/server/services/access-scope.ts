@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { auth } from "../auth";
 import type { AppDatabase } from "../../db";
-import { schools, studentBookOrders } from "../../db/schema";
+import { purchaseOrders, schools, studentBookOrders, transferShipments } from "../../db/schema";
 
 export type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
 
@@ -136,9 +136,8 @@ export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 40
 }
 
 /** Load all location ids for scoping. Keeps route handlers to one-liners. */
-export const loadLocationIds = (database: {
-  select: (fields?: unknown) => { from: (table: unknown) => Promise<Array<{ id: string }>> };
-}): Promise<Array<{ id: string }>> => database.select({ id: schools.id }).from(schools);
+export const loadLocationIds = (database: AppDatabase): Promise<Array<{ id: string }>> =>
+  database.select({ id: schools.id }).from(schools);
 
 /**
  * Gabungan resolve + authenticate + scope dalam satu panggilan: menggantikan
@@ -213,4 +212,61 @@ export const loadScopedOrder = async (
     throw err;
   }
   return { ok: true, order };
+};
+
+export type ScopedPoRow = typeof purchaseOrders.$inferSelect;
+
+export type LoadScopedPoResult =
+  | { ok: true; po: ScopedPoRow }
+  | { ok: false; status: 403 | 404; message: string };
+
+/**
+ * Ambil satu Purchase Order sekaligus gerbang lokasi targetnya dalam satu seam:
+ * menggantikan tarian `select PO → 404 → assertLocationAllowed` yang diulang
+ * tiap handler pengadaan. Null actor = legacy allow seperti assertLocationAllowed.
+ */
+export const loadScopedPo = async (
+  database: AppDatabase,
+  actor: AccessActor | null,
+  locations: Array<{ id: string }>,
+  poId: string
+): Promise<LoadScopedPoResult> => {
+  const [po] = await database.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+  if (!po) return { ok: false, status: 404, message: "Purchase Order tidak ditemukan" };
+  try {
+    assertLocationAllowed(actor, po.targetSchoolId, locations);
+  } catch (err) {
+    if (err instanceof AccessHttpError) return { ok: false, status: err.status as 403 | 404, message: err.message };
+    throw err;
+  }
+  return { ok: true, po };
+};
+
+export type ScopedShipmentRow = typeof transferShipments.$inferSelect;
+
+export type LoadScopedShipmentResult =
+  | { ok: true; shipment: ScopedShipmentRow }
+  | { ok: false; status: 403 | 404; message: string };
+
+/**
+ * Ambil satu Transfer Shipment sekaligus gerbang visibilitasnya dalam satu seam:
+ * menggantikan tarian `select shipment → 404 → assertShipmentVisible`. `action`
+ * opsional mewarisi pesan kustom DELETE (lihat assertShipmentVisible).
+ */
+export const loadScopedShipment = async (
+  database: AppDatabase,
+  actor: AccessActor,
+  shipmentId: string,
+  action?: string
+): Promise<LoadScopedShipmentResult> => {
+  const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, shipmentId));
+  if (!shipment) return { ok: false, status: 404, message: "Shipment not found" };
+  try {
+    if (action) assertShipmentVisible(actor, shipment.fromSchoolId, undefined, action);
+    else assertShipmentVisible(actor, shipment.fromSchoolId, shipment.toSchoolId);
+  } catch (err) {
+    if (err instanceof AccessHttpError) return { ok: false, status: err.status as 403 | 404, message: err.message };
+    throw err;
+  }
+  return { ok: true, shipment };
 };

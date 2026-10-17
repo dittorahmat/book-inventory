@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { AppDatabase } from "../../db";
 import type { EmailSendOptions, EmailSendResult } from "./email/types";
 import {
   buildPaidOffNotice,
@@ -9,8 +10,9 @@ import {
 import type { SendWhatsAppResult, WhatsAppRequest, WhatsAppSender } from "./whatsapp";
 
 // Kedua kanal selalu diinjeksi di test ini, jadi `database` sengaja dummy
-// (objek kosong) — sekali pun tersentuh, test akan gagal bunyi, bukan diam.
-const fakeDb = {};
+// (objek kosong) — `dispatch` hanya menyentuhnya di jalur fallback (deploy
+// WA/email default) yang tidak pernah aktif di sini.
+const fakeDb = {} as unknown as AppDatabase;
 
 const recordingMail = (
   captured: EmailSendOptions[],

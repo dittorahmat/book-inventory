@@ -1,12 +1,14 @@
-// File-size gate: gagalkan (exit 1) jika ada file SUMBER YANG DIUBAH
-// (git staged / unstaged / untracked di bawah src/) melebihi batas,
+// File-size gate: gagalkan (exit 1) jika ada file SUMBER melebihi batas,
 // kecuali yang terdaftar di GRANDFATHERED (utang lama, dilunasi terpisah).
-// File BARU wajib selalu memenuhi batas. Dijalankan via
-// `bun run check:file-size` (lihat AGENTS.md aturan 7).
+// Default: hanya file YANG DIUBAH (git staged / unstaged / untracked di bawah
+// src/) — perilaku pre-commit. `--all` memindai seluruh pohon `src/` (dipakai
+// CI agar gate tidak vakum pada checkout bersih). Dijalankan via
+// `bun run check:file-size [--all]` (lihat AGENTS.md aturan 7).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
+const ALL = process.argv.includes("--all");
 const MAX_LINES = 400;
 const EXCLUDE = [
   /\.test\.(ts|tsx)$/, // test dibatasi oleh bundel logikanya sendiri
@@ -47,7 +49,8 @@ function changedSourceFiles(): string[] | null {
 }
 
 const changed = changedSourceFiles();
-const candidates = changed ?? walk("src").map(norm);
+const candidates = ALL ? walk("src").map(norm) : changed ?? walk("src").map(norm);
+const mode = ALL ? "full-tree (--all)" : "file yang diubah";
 
 const offenders: Array<{ file: string; lines: number }> = [];
 for (const file of candidates) {
@@ -64,7 +67,7 @@ for (const file of candidates) {
 
 if (offenders.length > 0) {
   console.error(
-    `File-size gate FAILED (maks ${MAX_LINES} baris per file yang diubah):`
+    `File-size gate FAILED (maks ${MAX_LINES} baris, mode: ${mode}):`
   );
   for (const o of offenders.sort((a, b) => b.lines - a.lines)) {
     console.error(`  ${o.lines}  ${o.file}`);
@@ -76,5 +79,5 @@ if (offenders.length > 0) {
 }
 
 console.log(
-  `File-size gate OK: ${candidates.length} file diubah diperiksa, semua <= ${MAX_LINES} baris.`
+  `File-size gate OK (mode: ${mode}): ${candidates.length} file diperiksa, semua <= ${MAX_LINES} baris.`
 );

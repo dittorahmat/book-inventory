@@ -16,7 +16,7 @@ export interface LooseStockSummaryRow {
   availableQty: number;
   inTransitQty: number;
   byCondition: { new: number; good: number; fair: number; damaged: number };
-  byStatus: { in_stock: number; in_transit: number; disposed: number; lost: number };
+  byStatus: { in_stock: number; in_transit: number; disposed: number; lost: number; sold: number };
 }
 
 export interface PackageStockSummaryRow {

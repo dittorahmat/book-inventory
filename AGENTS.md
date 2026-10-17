@@ -11,13 +11,12 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Database Schema Synchronization & Remote Cloudflare D1 Migration (WAJIB)**
     - **Sinkronisasi Database Lokal**:
       ```bash
-      bun run db:push
-      # or drizzle-kit push
-      # Bila drizzle-kit gagal dimuat (better-sqlite3 ERR_DLOPEN_FAILED),
-      # pakai fallback bun:sqlite yang menerapkan file migrasi terbaru:
-      bun run db:push:bun [./drizzle/<file-migrasi>.sql]
+      bun run db:push          # bun:sqlite — jalur utama, idempoten, menerapkan migrasi tertunda
+      bun run db:push --all    # terapkan semua migrasi tertunda (mis. DB lokal baru)
+      bun run db:push:drizzle  # drizzle-kit push (better-sqlite3; gagal ERR_DLOPEN_FAILED di sebagian mesin)
+      bun run db:query "SELECT COUNT(*) AS c FROM students"   # baca-saja, verifikasi data
       ```
-      Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke database SQLite lokal (`data/inventory.db`).
+      Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke `data/inventory.db`. Untuk memeriksa data nyata (duplikat, volume, sampel baris) pakai `db:query` yang baca-saja alih-alih menulis skrip sekali-pakai.
    - **Migrasi Database Remote Cloudflare D1**:
      Setiap kali ada penambahan atau perubahan skema tabel/fitur baru, Anda **WAJIB** membuat dan menerapkan migrasi ke database remote Cloudflare D1 agar deployment Cloudflare Workers tidak mengalami error tabel hilang:
      ```bash
@@ -29,48 +28,22 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      # atau jika menggunakan migrations folder:
      # bun run db:d1:migrate
      ```
-     Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push.
+     Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push. Pembacaan remote juga boleh baca-saja lewat CLI: `bun x wrangler d1 execute book-inventory-db --remote --command "PRAGMA index_list('students')"`.
      Buktikan tanpa tebak: `bun run check:d1-drift` (membandingkan `drizzle/` vs remote, gagal bila ada tabel/kolom hilang) wajib hijau sebelum merge yang menyentuh skema. Karena gate itu butuh kredensial Cloudflare, sejak Okt 2026 ada **alarm otomatis harian yang setara** lewat Cron Trigger (`src/server/services/d1-drift-alert.ts` membandingkan `schema.ts` vs D1 live via binding, nol kredensial, sidik `d1_drift_alert_signature`) — gate manual tetap wajib, alarm hanya menutup celah "tidak ada yang menjalankannya".
 
-2. **Type Safety Verification**
-   ```bash
-   npm run type-check
-   # or bun run type-check
-   ```
-   Zero TypeScript errors (`tsc --noEmit`) are allowed.
-   Modul service baru menerima `AppDatabase` (union bun-sqlite|D1) sehingga `select()` tak bertipe: anotasi callback dengan tipe baris `$inferSelect` + `Map<K, V>` eksplisit, contoh `src/server/services/internal-po.ts`.
+2. **Type Safety Verification** — `bun run type-check` (satu langkah di `check:all`, §9.5): nol error `tsc --noEmit`.
+   Yang tak bisa ditebak mesin: `AppDatabase` schema-aware (`BaseSQLiteDatabase<"sync" | "async", unknown, typeof schema>` di `src/db/index.ts`) membuat `select()`/`insert()` mengembalikan baris terketik, sehingga anotasi callback `$inferSelect` manual **tidak lagi perlu** dan justru keliru pada hasil JOIN — biarkan inferensi. Dilarang menutup celah tipe DB dengan `any`/cast baru; perbaiki tipe sumbernya (mis. `PaymentDerivation` di `src/server/services/order-intake/validation.ts`), ditegakkan `check:no-any`.
 
-3. **Code Linting & Formatting**
-   ```bash
-   npm run lint
-   ```
-   Fix any lint issues before committing or reporting completion.
+3. **Code Linting & Formatting** — `bun run lint` (langkah di `check:all`).
 
-4. **Production Build Check**
-   ```bash
-   npm run build
-   ```
-   Ensure both frontend assets (Vite) and backend server/worker bundles compile cleanly without bundling or unresolved module errors.
+4. **Production Build Check** — `bun run build` (langkah di `check:all`): aset Vite + bundel server/worker wajib kompilasi bersih tanpa modul tak terselesaikan.
 
-5. **Test Suite & Cloudflare Worker API Enforcement (WAJIB)**
-   ```bash
-   npm run test
-   # or bun test
-   ```
-   **Requirement**: Setiap kali ada penambahan fitur atau modifikasi backend & API endpoints, Anda **WAJIB** mematuhi aturan pengujian dan kompatibilitas berikut:
-   - **Kompatibilitas Validasi ID (Flexible Identifier Validation)**:
-      - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `idSchema` dari `src/server/lib/validators.ts` (kanonik `z.string().min(1)`) agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4 — ditegakkan oleh `bun run check:validators` dan CI; varian bermessage (pesan UX) dan field non-`*Id` dikecualikan.
-     - Setiap endpoint mutasi (POST, PATCH, PUT) **wajib memiliki unit/integration test** yang memverifikasi payload dengan custom seeded string IDs maupun UUID.
-   - **Sinkronisasi Skema Remote D1 vs Lokal**:
-     - Setiap ada kolom atau tabel baru di `src/db/schema.ts`, migrasi remote D1 **wajib dieksekusi** dan diverifikasi (`PRAGMA table_info`) agar endpoint API di Cloudflare Worker tidak gagal dengan error SQLite `no such column` atau `no such table`.
-   - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
-     - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
-     - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
-     - Komponen input custom berlabel (`SearchableSingleSelect`/`SearchableMultiSelect`) mematikan validasi native `required`: setiap `required` di komponen ini **wajib** didampingi guard JS (cek kosong di submit/disabled tombol + pesan inline), dan `<label>` lama wajib dihapus saat migrasi (dilarang label ganda).
-    - **Regression Test Updates**:
-      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
-      - Setiap route di `src/server/routes/*.ts` **wajib punya pasangan** `*.test.ts` - ditegakkan oleh `bun run check:route-tests` dan CI (`.github/workflows/checks.yml`).
-      - Test komponen UI meniru pola `src/components/portal/StudentSearchStep.test.tsx`: shim DOM `test-dom` terdekat + dynamic import `@testing-library/react` + `fireEvent` — paket `@testing-library/user-event` tidak terinstal, jangan diimpor.
+5. **Test Suite & Cloudflare Worker API Enforcement (WAJIB)** — `bun test` (langkah di `check:all`).
+   - **Validasi ID**: jangan `z.string().uuid()` pada identifier entity (`schoolId`, `bookId`, …); pakai `idSchema` dari `src/server/lib/validators.ts` (kanonik `z.string().min(1)`) agar kompatibel dengan slug demo (`school-alw-1`) maupun UUID v4 — ditegakkan `check:validators`. Setiap endpoint mutasi wajib punya test dengan ID string seeded maupun UUID.
+   - **Sinkronisasi skema remote D1**: setiap kolom/tabel baru wajib dimigrasikan ke D1 remote (§1.1) dan diverifikasi, agar Worker tidak gagal `no such column`/`no such table`.
+   - **Anti silent failure (frontend — tidak digerbang)**: dilarang `fetch` tanpa `try/catch` atau tanpa cabang `else` saat `response.ok`/`data.success` bernilai `false`; UI wajib menampilkan alert/toast/pesan eksplisit yang mengekstrak `data.message`/`data.error`, agar tombol tidak "diam saja" pada 400/500.
+   - **Select custom** (`SearchableSingleSelect`/`SearchableMultiSelect`) mematikan validasi native `required`: setiap `required` wajib didampingi guard JS (cek kosong saat submit/disabled + pesan inline), dan `<label>` lama wajib dihapus saat migrasi (dilarang label ganda).
+   - **Test**: setiap bug API yang diperbaiki wajib menambah skenario di `src/server/routes/*.test.ts`; setiap route wajib berpasangan `*.test.ts` (ditegakkan `check:route-tests`). Test komponen UI meniru `src/components/portal/StudentSearchStep.test.tsx` (shim DOM `test-dom` + dynamic import `@testing-library/react` + `fireEvent`); `@testing-library/user-event` tidak terinstal.
 
 6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend` Enforcement)**
    Setiap developer dan AI agent yang membuat atau memodifikasi UI/UX di codebase ini **WAJIB** mematuhi pedoman anti-slop dari skill `design-taste-frontend`:
@@ -95,14 +68,10 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      - Route Hono besar → pindahkan logika bisnis ke `src/server/services/`, sisakan validasi + routing.
    - Pengecualian (tidak dihitung): `*.test.ts(x)`, `src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`.
    - Utang lama: file yang sudah >400 baris sebelum gate ini ada terdaftar di `GRANDFATHERED` dalam `scripts/check-file-size.ts` (daftar ini hanya boleh menyusut). File tersebut boleh disentuh untuk wiring kecil, tetapi kode fitur **BARU** wajib tinggal di file baru yang patuh batas — contoh: tombol/badge baru di view lama wajib jadi sub-komponen di `src/components/<fitur>/`, bukan JSX inline tambahan.
-   - Verifikasi otomatis (gagal = belum boleh selesai):
-     ```bash
-     bun run check:file-size
-     ```
-     Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`).
+   - Verifikasi: `check:file-size` (langkah di `check:all`) — mode default hanya memeriksa file yang diubah dan vakum pada checkout bersih (`git status` kosong); `--all` memindai seluruh pohon `src/` dan itulah mode CI.
 
 8. **YAGNI & One-Liner Discipline (WAJIB)**
-   - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` untuk harga efektif, `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari — ditegakkan oleh `bun run check:dead` (export tanpa perujuk di file lain maupun signature modulnya sendiri), pre-commit, dan CI.
+   - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` (harga efektif, client-safe) + `src/server/services/pricing.ts` (harga sisi server), `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari — ditegakkan oleh `bun run check:dead` (export tanpa perujuk di file lain maupun signature modulnya sendiri), pre-commit, dan CI.
    - **Prefer one-liner solutions**: guard/loop verbose yang setara **wajib** jadi `map`/`filter`/`reduce`/`??`/`||`/ternary satu baris bila tidak mengubah perilaku (contoh: `pick` → `.find(...) ?? fallback`, `readSettingsMap` → `Object.fromEntries`, toggle → `toggleIn(setter)`, 5x `return` status → hitung `open`+`reason` + single return).
   - **Pengecualian D1 (lihat §10)**: panduan "N+1 `await insert` di loop → `Promise.all`" di atas **hanya berlaku untuk query BACA independen**. Untuk query TULIS (`insert`/`update`/`delete`) ke Cloudflare D1, `Promise.all` **dilarang** — wajib sekuensial atau satu `db.batch()` atomik.
    - **Aman**: refactor penyederhanaan dilarang mengubah perilaku — public API yang dipakai route/test (`selectProviderName`, `getSmtpConfig`, `sendEmailNotification`, `resolveScope`, `DashboardHttpError`) dipertahankan sebagai alias tipis bila perlu kompatibilitas.
@@ -114,14 +83,15 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Pindai dulu, perbaiki dalam scope**: setiap sesi yang menyentuh `src/` **WAJIB** diawali pemindaian code smell read-only (`Grep` / `rg` / `Select-String`, tanpa edit) dan diakhiri eliminasi temuan sesuai scope yang disepakati user (quick wins / monolit / hardening).
 2. **Katalog smell yang wajib dicek**:
    - File sumber >400 baris (§7, kecuali `*.test.ts`, `schema.ts`, `seed.ts`).
-   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `transfer-pricing.ts`, `book-pricing.ts` + `services/book-price.ts`, `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper yang sudah punya pemilik kanonik tunggal.
+   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `lib/transfer-pricing.ts`, `lib/book-pricing.ts` (harga efektif, client-safe) + `server/services/pricing.ts` (harga sisi server), `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper yang sudah punya pemilik kanonik tunggal.
    - `any` baru, `@ts-ignore` / `eslint-disable` baru, `console.log` produksi.
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
    - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
+   - Nomor dokumen dibangkitkan `documentNumber()` tetapi kolom targetnya tanpa UNIQUE (duplikat senyap) — ditegakkan `check:doc-numbers`.
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
-4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
-5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:canonical-helpers` → `bun run check:plans` → `npm run build` → `bun test`.
+4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`, `isoTimeFragment`, `epochTimeFragment`, `documentNumber`, `randomSerial`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
+5. **Verifikasi penutup**: `bun run check:all` menjalankan seluruh gate berurutan — daftar dan urutannya adalah field `check:all` di `package.json` (CI memakai urutan yang sama di `.github/workflows/checks.yml`), jadi jangan disalin ke sini. Yang perlu diketahui: tiga gate diff-scoped (`check:file-size`, `check:no-any`, `check:canonical-helpers`) tidak vakum di CI karena mendiff base ref PR (`GATE_BASE_REF`; `--all` untuk file-size), sedangkan sisanya memindai seluruh pohon.
 
 ---
 
@@ -151,13 +121,14 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
-4. **Default tetap sekuensial (satu tiket per commit)**: di repo ini eksekusi spec default berjalan sekuensial langsung di satu integration branch. Subagent implementer paralel diizinkan bila user eksplisit meminta paralel.
+4. **Default tetap sekuensial (satu tiket per commit)**: di repo ini eksekusi spec default berjalan sekuensial langsung di satu integration branch. Subagent implementer paralel kini **diizinkan tanpa izin user per-sesi** bila seluruh syarat §4.5 terpenuhi **dan** lane manifest (§4.5) dideklarasikan; tanpa manifest, default tetap sekuensial.
 5. **Pola paralel yang TERBUKTI aman (Okt 2026, fitur verifikasi bukti bayar)**: fan-out boleh dilakukan sebagai **lane file-disjoint di SATU working tree yang sama** — bukan worktree terpisah. Worktree terpisah tetap **DILARANG**: biaya `bun install` per worktree + merge antar-branch adalah penyebab kegagalan terdokumentasi (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Syarat wajib pola ini:
    - **Bekukan kontrak lebih dulu** (payload endpoint, nama field, tipe baris) sebelum lane jalan; lane UI boleh dibangun terhadap endpoint yang belum ada di backend.
+   - **Deklarasikan lane manifest** `docs/agents/lanes.json` (gitignored, transient, per-sesi) dengan skema `{ base?: string, lanes: [{ id: string, files: string[] }] }`; format contoh dilacak di `docs/agents/lanes.example.json`. `base` (opsional) menambahkan diff `<base>...HEAD` ke himpunan file yang diperiksa. Union seluruh allowlist lane **wajib mencakup SETIAP file yang berubah**, ditegakkan oleh `bun run check:lanes` (berjalan di dalam `check:all`, CI, dan pre-commit; self-skip saat manifest tidak ada).
    - **Setiap file milik tepat satu lane** — tulis allowlist file per lane; file bersama (mis. `schema.ts`, `public-orders.ts`, `settings*.ts`, `drizzle/**`) dialokasikan ke satu lane saja dan lane lain dilarang menyentuhnya. Skema + migrasi D1 dikerjakan agent utama secara serial sebelum lane berjalan.
    - **Lane dilarang `git add`/`commit`/`checkout`** dan dilarang menjalankan `lint`/`build`/`bun test` penuh — hanya `bun test <file-target>`. `bun run type-check` **boleh** dijalankan (read-only) dengan aturan ketat: perbaiki HANYA error di file milik lane itu, error di file lane lain **laporkan** ke agent utama dan jangan disentuh. Commit dan seluruh gate repo-wide dijalankan **serial oleh agent utama** setelah semua lane berhenti.
    - **Lane wajib melaporkan kontrak yang kurang/penyimpangan** ke agent utama, bukan menebak.
-   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: `select()` pada union `AppDatabase` menghasilkan baris `any` sehingga callback `.map/.filter` gagal `tsc` (§2) — inilah alasan lane kini **diizinkan** menjalankan `type-check` read-only.
+   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: perubahan tipe bersama (mis. seam `AppDatabase` di `src/db/index.ts`) memunculkan error `tsc` di banyak file lintas-lane sekaligus, sehingga lane **diizinkan** menjalankan `type-check` read-only — perbaiki hanya file milik lane itu, laporkan sisanya ke agent utama.
    - Bukti pola ini berhasil: 3 lane (backend inti / kanal WhatsApp / UI) menyentuh ~30 file tanpa satu pun konflik tulis, tanpa merge, dan tanpa instalasi dependensi ulang; 15 error type-check tersisa ditutup di fase integrasi.
 6. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
 7. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
@@ -181,7 +152,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 
 1. `bun test` **WAJIB** berjalan di database sementara terisolasi, bukan `data/inventory.db`:
    - Mekanisme: `test/setup.ts` (dimuat via `[test] preload` di `bunfig.toml`) membuat `data/.tmp-test-<pid>.db`, menerapkan seluruh migrasi `drizzle/00*.sql`, mengarahkan `DB_PATH` ke sana, lalu menjalankan baseline seed — semua sebelum file test mana pun diimpor.
-   - **DILARANG** menonaktifkan/mengubah preload ini tanpa pengganti yang setara. **DILARANG** mengarahkan test ke D1 (remote maupun lokal): tidak ada file `*.test.ts` yang boleh menerima binding D1/`env.DB`; akses DB test hanya via proxy `src/db`.
+   - **DILARANG** menonaktifkan/mengubah preload ini tanpa pengganti yang setara. **DILARANG** mengarahkan test ke D1 (remote maupun lokal): tidak ada file `*.test.ts` yang boleh menerima binding D1/`env.DB`; akses DB test hanya via proxy `src/db`. Ditegakkan oleh `bun run check:test-isolation` (statis, bukan disiplin): gate menolak setiap referensi binding D1 (`env.DB`, `D1Database`, `@cloudflare/workers-types`, `Miniflare`, `getPlatformProxy`, `wrangler`) di file test, serta gagal bila preload `test/setup.ts` hilang dari `bunfig.toml` atau `test/setup.ts` tak lagi menyetel `process.env.DB_PATH`.
    - Test baru **wajib mandiri**: seed data yang dibutuhkan sendiri dengan ID unik (stempel waktu) dan bersihkan setelah selesai (`finally`/`cleanup`), agar run berulang tidak menumpuk baris.
    - Verifikasi isolasi: setelah `bun test`, `data/inventory.db` tidak boleh berubah (cek jumlah baris tabel utama sebelum vs sesudah).
 2. **Disiplin tulis ke D1 production** (mencegah insiden 180 sekolah sampah berisi data test):
@@ -200,6 +171,7 @@ Latar insiden (Okt 2026): terima inbound 30 eks dan buat transfer 7 unit mengemb
 3. **Atomisitas multi-tulis (WAJIB)**: setiap alur yang menulis induk + anak (PO → `book_items`, shipment → item lines) wajib atomik — gunakan `db.batch()` saat runtime D1 dengan fallback sekuensial di bun-sqlite — atau idempoten dengan validasi pra-tulis yang mengembalikan 400, bukan 500.
 4. **Pemetaan error D1 (WAJIB)**: error mentah D1 (`D1_ERROR`, `UNIQUE constraint`, `FOREIGN KEY constraint`) **wajib dipetakan** ke respons 4xx berpesan jelas. Dilarang membiarkan jatuh ke `onError` 500 generik.
 5. **Uji volume produksi (WAJIB)**: setiap endpoint tulis bervolume wajib diuji pada volume produksi (minimal 30 baris sekaligus) di `src/server/routes/*.test.ts`. Chunking membuat test yang sama lolos di kedua runtime.
+6. **Gate statis**: `check:d1-writes` menegakkan §10.1 dan §10.2 di seluruh `src/**` kecuali `*.test.ts` (bagian dari `check:all`, pre-commit, dan CI). False-negative yang disadari: `.values(chunk)` variabel, tulis di balik helper opaque, dan isi `db.batch([...])` — pengecualian resmi lewat `REGISTERED_EXCEPTIONS` di skrip gate (pola `REGISTERED_SEARCH_SOURCES`). §10.3–§10.5 tetap tanggung jawab reviewer.
 
 ---
 
@@ -211,7 +183,7 @@ Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` 
 2. **Substring `%q%` wajib terpartisi untuk endpoint publik**: portal (`search-students`, `lookup-order`) **wajib** didahului `school_id = ?` (API menolak pencarian tanpa sekolah). Endpoint admin/staf sentral boleh global tanpa `schoolId`, tetapi wajib `WHERE` di SQL + `LIMIT` 50 — tetap dilarang `SELECT`-all + filter JS dan dilarang tanpa `LIMIT`.
 3. **Setiap endpoint `search` wajib berpasangan**: (a) satu filter partisi (`schoolId`), (b) `LIMIT` 10–50, (c) indeks komposit di `schema.ts` via `index()` Drizzle + migrasi remote terverifikasi (`PRAGMA index_list`). Pasangan per form: portal murid → sekolah+status verified; lookup-order → sekolah opsional+min 3 char; admin siswa → sekolah+status; pesanan → sekolah+payment+fulfillment; retur → sekolah+status retur; katalog → kategori (bila >2rb).
 4. **FTS5 Tahap 2 saja**: FTS (virtual table + trigger) hanya atas bukti `EXPLAIN QUERY PLAN` masih `SCAN` dan p95 >500ms setelah Tahap 1, untuk pencarian global lintas-sekolah. Query FTS wajib token-prefix (`salsa*` menjangkau "Annisa Salsabila"), bukan `%...%`.
-5. **Bukti wajib**: setiap endpoint search baru/ubah wajib lampirkan `EXPLAIN QUERY PLAN` (`SEARCH USING INDEX`, bukan `SCAN`) + test volume di `src/server/routes/*.test.ts` — ditegakkan oleh `bun run check:plans`, pre-commit, dan CI. Gate itu juga **mengaudit sumbernya**: file yang memakai `matchLower`/`matchAnyLower` atau membangun pola `%${...}%` wajib terdaftar di `REGISTERED_SEARCH_SOURCES` — endpoint pencarian baru di file baru langsung **merah** sampai bukti plan-nya ditambahkan, sehingga daftar query tidak bisa lagi tertinggal dari kode.
+5. **Bukti wajib**: endpoint search baru/ubah wajib mendaftarkan query-nya di `QUERIES` dan file sumbernya di `REGISTERED_SEARCH_SOURCES` (`scripts/explain-plan.ts`) + test volume di `src/server/routes/*.test.ts`. Gate `check:plans` menolak file yang memakai `matchLower`/`matchAnyLower` atau pola `%${...}%` yang belum terdaftar (langsung **merah**), sehingga daftar bukti tidak bisa tertinggal dari kode.
 
 ---
 
@@ -240,7 +212,11 @@ Canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-hum
 
 Single-context (`GLOSSARY.md` and `docs/adr/`). See `docs/agents/domain.md`.
 
+### Skill lokal
+
+Satu pohon skill kanonik: **`.agents/skills/`** — itu sumber kebenaran lokal, dan isinya bisa lebih banyak daripada daftar skill yang diiklankan tool, jadi cari daftar tambahan di sana. `skills/` dan `.claude/skills/` adalah **junction** ke pohon itu, bukan duplikat; jangan disalin atau diseragamkan. Folder tool lain (`.opencode/`, `.gemini/`, …) juga mirror dan diabaikan dari pencarian oleh `.ignore` di root.
+
 ### Location & auth pointer
 
-Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.claude/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
+Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu. Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
 

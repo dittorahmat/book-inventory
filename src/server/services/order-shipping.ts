@@ -60,7 +60,7 @@ const setShippingCore = async (
   input: { shippingCost: number; shippingResi?: string },
   kind: { notFound: string; errorContext: string },
   deps?: WriteDeps
-): Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect } | ShippingError> => {
+): Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect | typeof uniformOrders.$inferSelect } | ShippingError> => {
   if (!Number.isInteger(input.shippingCost) || input.shippingCost < 0) return invalid("Ongkir wajib angka bulat >= 0.");
   const [order] = await database.select().from(table).where(eq(table.id, orderId));
   if (!order) return { ok: false, status: 404, message: kind.notFound };

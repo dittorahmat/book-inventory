@@ -8,6 +8,7 @@ import {
   isLooseInTransit,
   isLost,
   isReadyBundle,
+  isSold,
 } from "./buckets";
 
 /**
@@ -33,7 +34,7 @@ export interface LooseTally {
   byConditionAvailable: { new: number; good: number; fair: number; damaged: number };
   /** Per kondisi, semua baris (aturan inventory). */
   byConditionAll: { new: number; good: number; fair: number; damaged: number };
-  byStatus: { in_stock: number; in_transit: number; disposed: number; lost: number };
+  byStatus: { in_stock: number; in_transit: number; disposed: number; lost: number; sold: number };
 }
 
 export interface PackageCountRow {
@@ -71,7 +72,8 @@ const bump = (buckets: Record<string, number>, key: string): void => {
 export function addLoose(tally: LooseTally, row: LooseCountRow): void {
   bump(tally.byStatus, row.status);
   bump(tally.byConditionAll, row.condition);
-  if (!isDisposed(row.status)) {
+  // totalQty = eksemplar yang masih di inventaris cabang (disposed & sold keluar).
+  if (!isDisposed(row.status) && !isSold(row.status)) {
     tally.totalQty += 1;
   }
   if (isAvailableLoose(row.status)) {

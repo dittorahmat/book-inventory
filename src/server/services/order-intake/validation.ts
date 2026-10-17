@@ -34,7 +34,7 @@ export function validateSatuanCutoff(
 export interface PaymentDerivation {
   totalAmount: number;
   paidAmount: number;
-  paymentStatus: string;
+  paymentStatus: "unpaid" | "scholarship_pending";
 }
 
 /** Status pembayaran awal dari nominal kotor. Murni: tanpa DB.

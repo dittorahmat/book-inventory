@@ -115,7 +115,6 @@ async function makeOrder(input: {
         quantity: input.looseQty,
         unitPriceSnapshot: Math.round(input.totalAmount / input.looseQty),
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       });
     }
   }

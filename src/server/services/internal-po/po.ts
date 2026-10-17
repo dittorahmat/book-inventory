@@ -10,6 +10,7 @@ import {
   schools,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
 
 export interface InternalPoItemInput {
   packageId: string;
@@ -261,7 +262,7 @@ export async function createInternalPo(
   const id = (deps.generateId ?? (() => crypto.randomUUID()))();
   const poNumber =
     deps.generatePoNumber?.(now) ??
-    `IPO-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+    documentNumber("IPO", epochTimeFragment(Date.now(), 6), randomSerial(6));
   const genItemId = deps.generateItemId ?? (() => crypto.randomUUID());
   const itemRows = input.items.map((item) => ({
     id: genItemId(),

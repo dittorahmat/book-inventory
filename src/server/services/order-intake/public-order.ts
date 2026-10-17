@@ -13,6 +13,7 @@ import { decodeBase64ToBytes } from "../../base64";
 import type { SatuanStatus } from "../../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./cutoff";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { validateHomeAddress } from "../../../lib/home-address";
 import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
@@ -107,7 +108,7 @@ export async function submitPublicOrder(
   const storage: StorageService = deps.storage ?? defaultStorage;
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const orderId = (deps.generateId ?? (() => crypto.randomUUID()))();
-  const orderNumber = (deps.generateOrderNumber ?? (() => `ORD-${Date.now().toString().slice(-8)}`))(now);
+  const orderNumber = (deps.generateOrderNumber ?? (() => documentNumber("ORD", epochTimeFragment(Date.now(), 8))))(now);
   const genItemId = deps.generateItemId ?? (() => crypto.randomUUID());
   const genPaymentId = deps.generatePaymentId ?? (() => crypto.randomUUID());
 
