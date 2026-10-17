@@ -242,5 +242,5 @@ Single-context (`GLOSSARY.md` and `docs/adr/`). See `docs/agents/domain.md`.
 
 ### Location & auth pointer
 
-Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
+Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.claude/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
 
