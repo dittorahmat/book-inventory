@@ -93,8 +93,8 @@ describe("Public Orders & Student Search API", () => {
     expect(orderRes.status).toBe(201);
     const orderJson = await orderRes.json();
     expect(orderJson.data.totalAmount).toBe(1500000);
-    expect(orderJson.data.paidAmount).toBe(800000);
-    expect(orderJson.data.paymentStatus).toBe("partial");
+    expect(orderJson.data.paidAmount).toBe(0);
+    expect(orderJson.data.paymentStatus).toBe("unpaid");
     // Notifikasi dilaporkan ke pemanggil, tidak fire-and-forget (simulasi di test).
     expect(orderJson.data.notification).toBeDefined();
     expect(orderJson.data.notification.success).toBe(true);
@@ -587,8 +587,8 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
       expect(result.data.order.id).toBe(orderId);
       expect(result.data.order.orderNumber).toBe(orderNo);
       expect(result.data.totalAmount).toBe(120000 + 750000);
-      expect(result.data.paidAmount).toBe(120000);
-      expect(result.data.paymentStatus).toBe("partial");
+      expect(result.data.paidAmount).toBe(0);
+      expect(result.data.paymentStatus).toBe("unpaid");
       expect(result.data.wprCharged).toBe(true);
 
       const items = await db
@@ -1010,6 +1010,15 @@ describe("Portal search partition (§11 anti full-scan)", () => {
       expect(found.status).toBe(200);
       expect(foundJson.data.some((o: any) => o.orderNumber === orderNumber)).toBe(true);
 
+      // Mengunci sifat case-insensitive `LIKE` SQLite (bukan bukti bug baru):
+      // nomor pesanan berhuruf kecil harus tetap menemukan barisnya.
+      const flippedCase = await publicOrdersRouter.request(
+        `/lookup-order?query=${encodeURIComponent(orderNumber.toLowerCase())}&schoolId=${schoolA}`
+      );
+      expect(flippedCase.status).toBe(200);
+      const flippedJson = await flippedCase.json();
+      expect(flippedJson.data.some((o: { orderNumber: string }) => o.orderNumber === orderNumber)).toBe(true);
+
       const wrongSchool = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}&schoolId=${schoolB}`);
       expect(wrongSchool.status).toBe(404);
 
@@ -1228,6 +1237,69 @@ describe("WPR wajib satuan buku (750rb, bebas bila sudah paket)", () => {
       await db.delete(bookItems).where(eq(bookItems.bookId, bookId));
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
       await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});
+
+describe("Klaim bukti transfer = pending sampai verifikasi gudang", () => {
+  it("klaim baru tidak mengubah order; order lunas menolak klaim", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-claim-${stamp}`;
+    const studentId = `st-claim-${stamp}`;
+    const paidOrderId = `ord-claim-paid-${stamp}`;
+    const pendingOrderId = `ord-claim-pending-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Klaim", code: `ALW-CLAIM-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-CLAIM-${stamp}`, name: "Siswa Klaim",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", parentName: "Ortu", parentPhone: "081200000000",
+      createdAt: now, updatedAt: now,
+    });
+    try {
+      await db.insert(studentBookOrders).values([
+        {
+          id: paidOrderId, orderNumber: `ORD-CLAIMP-${String(stamp).slice(-6)}`, studentId, schoolId,
+          orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+          totalAmount: 100000, paidAmount: 100000, paymentToken: `tok-paid-${stamp}`,
+          createdAt: now, updatedAt: now,
+        },
+        {
+          id: pendingOrderId, orderNumber: `ORD-CLAIMU-${String(stamp).slice(-6)}`, studentId, schoolId,
+          orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+          totalAmount: 100000, paidAmount: 0, paymentToken: `tok-pending-${stamp}`,
+          createdAt: now, updatedAt: now,
+        },
+      ]);
+
+      const blocked = await publicOrdersRouter.request(`/confirm/tok-paid-${stamp}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000 }),
+      });
+      expect(blocked.status).toBe(400);
+      expect((await blocked.json()).message).toMatch(/lunas/i);
+
+      const claim = await publicOrdersRouter.request(`/confirm/tok-pending-${stamp}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, bankName: "BCA" }),
+      });
+      expect(claim.status).toBe(201);
+      const claimJson = await claim.json();
+      expect(claimJson.data.paymentStatus).toBe("unpaid");
+      expect(claimJson.data.paidAmount).toBe(0);
+
+      const rows = await db.select().from(orderPayments).where(eq(orderPayments.orderId, pendingOrderId));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].verifiedAt).toBeNull();
+      expect(rows[0].rejectedAt).toBeNull();
+    } finally {
+      await db.delete(orderPayments).where(inArray(orderPayments.orderId, [paidOrderId, pendingOrderId]));
+      await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [paidOrderId, pendingOrderId]));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }

@@ -185,6 +185,13 @@ describe("Portal seragam publik", () => {
     const orders = (await lookup.json()).data.orders as Array<{ studentId: string }>;
     expect(orders.length).toBe(2);
     expect(new Set(orders.map((o) => o.studentId)).size).toBe(1);
+
+    // Kembaran lookup buku kini berbentuk sama; keduanya case-insensitive.
+    const lowerLookup = await publicUniformOrdersRouter.request(
+      `/lookup-order?orderNumber=${encodeURIComponent(firstNo.slice(0, 12).toLowerCase())}&schoolId=${schoolId}`, { method: "GET" }
+    );
+    expect(lowerLookup.status).toBe(200);
+    expect(((await lowerLookup.json()).data.orders as Array<{ studentId: string }>).length).toBe(2);
   });
 
   it("payload ID format UUID juga lolos", async () => {
@@ -231,7 +238,8 @@ describe("Portal seragam publik", () => {
     const [created] = await db.select().from(uniformOrders).where(
       eq(uniformOrders.id, (await res.json()).data.order.id)
     );
-    expect(created.paidAmount).toBe(created.totalAmount);
+    expect(created.paidAmount).toBe(0);
+    expect(created.paymentStatus).toBe("unpaid");
   });
 });
 

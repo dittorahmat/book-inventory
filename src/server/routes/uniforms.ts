@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools, students, uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
+import { uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import {
   assembleSchema,
   claimSchema,
@@ -17,7 +17,6 @@ import {
   variantSchema,
 } from "../lib/uniform-schemas";
 import {
-  AccessHttpError,
   accessErrorResponse,
   requireScopedActor,
   resolveLogisticsActor,
@@ -42,9 +41,16 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
-import { uniformOrderStage, uniformStageFilter } from "../services/uniform/report";
 import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
-import { matchAnyLower } from "../lib/partitioned-search";
+import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/orders";
+import {
+  cashierPaymentSchema,
+  listPaymentsWithStatus,
+  recordCashierPayment,
+  rejectPayment,
+  rejectReasonSchema,
+  verifyPayment,
+} from "../services/order-payment-review";
 import { fail } from "../lib/route-fail";
 
 export const uniformsRouter = new Hono();
@@ -138,55 +144,16 @@ uniformsRouter.get("/orders", async (c) => {
   try {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
-    const shipmentStatus = c.req.query("shipmentStatus");
-    const paymentStatus = c.req.query("paymentStatus");
-    const stage = c.req.query("stage");
     const search = c.req.query("search")?.trim();
-
-    const conditions = [];
-    if (schoolId) conditions.push(eq(uniformOrders.schoolId, schoolId));
-    if (shipmentStatus === "belum_dikirim" || shipmentStatus === "sudah_dikirim") {
-      conditions.push(eq(uniformOrders.shipmentStatus, shipmentStatus));
-    }
-    if (paymentStatus === "unpaid" || paymentStatus === "partial" || paymentStatus === "paid" || paymentStatus === "scholarship_pending") {
-      conditions.push(eq(uniformOrders.paymentStatus, paymentStatus));
-    }
-    // Tahap dipetakan ke kondisi SQL (bukan filter JS): pemesanan/tagihan/konfirmasi/lunas.
-    conditions.push(...uniformStageFilter(stage));
-    if (search) {
-      if (!schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
-      const matched = matchAnyLower([students.name, students.nis, uniformOrders.orderNumber], search);
-      if (matched) conditions.push(matched);
-    }
-    const rows = await db
-      .select({
-        id: uniformOrders.id,
-        orderNumber: uniformOrders.orderNumber,
-        studentId: uniformOrders.studentId,
-        studentName: students.name,
-        nis: students.nis,
-        gradeLevel: students.gradeLevel,
-        schoolId: uniformOrders.schoolId,
-        schoolName: schools.name,
-        shipmentStatus: uniformOrders.shipmentStatus,
-        shippedAt: uniformOrders.shippedAt,
-        shippingCost: uniformOrders.shippingCost,
-        shippingResi: uniformOrders.shippingResi,
-        invoiceSentAt: uniformOrders.invoiceSentAt,
-        paymentStatus: uniformOrders.paymentStatus,
-        orderType: uniformOrders.orderType,
-        totalAmount: uniformOrders.totalAmount,
-        paidAmount: uniformOrders.paidAmount,
-        homeAddressSnapshot: uniformOrders.homeAddressSnapshot,
-        createdAt: uniformOrders.createdAt,
-      })
-      .from(uniformOrders)
-      .innerJoin(students, eq(uniformOrders.studentId, students.id))
-      .innerJoin(schools, eq(uniformOrders.schoolId, schools.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(uniformOrders.createdAt))
-      .limit(50);
-    return c.json({ success: true, data: rows.map((r: (typeof rows)[number]) => ({ ...r, stage: uniformOrderStage(r) })) });
+    if (search && !schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
+    const data = await listUniformOrders(db, {
+      schoolId,
+      shipmentStatus: c.req.query("shipmentStatus"),
+      paymentStatus: c.req.query("paymentStatus"),
+      stage: c.req.query("stage"),
+      search,
+    });
+    return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -231,28 +198,70 @@ uniformsRouter.post("/orders/:id/shipping", zValidator("json", z.object({
   }
 });
 
-const assertOrderInScope = async (scope: string[], orderId: string): Promise<void> => {
-  const [o] = await db
-    .select({ schoolId: uniformOrders.schoolId })
-    .from(uniformOrders)
-    .where(eq(uniformOrders.id, orderId));
-  if (!o) return;
-  if (!scope.includes(o.schoolId)) throw new AccessHttpError(403, "Akses order di luar sekolah penugasan dilarang");
-};
+// Kasir manual seragam (uang diterima langsung): baris auto-verified.
+uniformsRouter.post("/orders/:id/pay", zValidator("json", cashierPaymentSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await recordCashierPayment(db, "seragam", c.req.param("id"), c.req.valid("json"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Pembayaran kasir tercatat & terverifikasi.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Verifikasi klaim bukti transfer seragam (gudang).
+uniformsRouter.post("/orders/:id/payments/:paymentId/verify", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await verifyPayment(db, {
+      kind: "seragam",
+      orderId: c.req.param("id"),
+      paymentId: c.req.param("paymentId"),
+      baseUrl: new URL(c.req.url).origin,
+    });
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Pembayaran terverifikasi.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Tolak klaim bukti transfer seragam (gudang) + kirim tautan unggah ulang.
+uniformsRouter.post("/orders/:id/payments/:paymentId/reject", zValidator("json", rejectReasonSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await rejectPayment(db, {
+      kind: "seragam",
+      orderId: c.req.param("id"),
+      paymentId: c.req.param("paymentId"),
+      reason: c.req.valid("json").reason,
+      baseUrl: new URL(c.req.url).origin,
+    });
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, message: "Bukti pembayaran ditolak.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
 
 // Detail order + baris (staf sesuai scope).
 uniformsRouter.get("/orders/:id", async (c) => {
   try {
     const { scope } = await requireScopedActor(db, c);
     const orderId = c.req.param("id");
-    await assertOrderInScope(scope, orderId);
+    await assertUniformOrderInScope(db, scope, orderId);
     const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
     if (!order) return c.json({ success: false, message: "Order seragam tidak ditemukan." }, 404);
     const items = await db
       .select()
       .from(uniformOrderItems)
       .where(eq(uniformOrderItems.orderId, orderId));
-    return c.json({ success: true, data: { order, items } });
+    const payments = await listPaymentsWithStatus(db, "seragam", orderId);
+    return c.json({
+      success: true,
+      data: { order, items, payments, pendingCount: payments.filter((p) => p.status === "pending").length },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -273,7 +282,7 @@ uniformsRouter.post("/exchanges", zValidator("json", exchangeSchema), async (c) 
   try {
     const { scope } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
-    await assertOrderInScope(scope, body.orderId);
+    await assertUniformOrderInScope(db, scope, body.orderId);
     const result = await requestUniformExchange(db, body);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data }, 201);
@@ -308,7 +317,7 @@ uniformsRouter.post("/refunds", zValidator("json", refundSchema), async (c) => {
   try {
     const { scope } = await requireScopedActor(db, c);
     const body = c.req.valid("json");
-    await assertOrderInScope(scope, body.orderId);
+    await assertUniformOrderInScope(db, scope, body.orderId);
     const result = await requestUniformRefund(db, body);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data }, 201);

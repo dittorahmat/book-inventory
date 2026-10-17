@@ -30,7 +30,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      # bun run db:d1:migrate
      ```
      Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push.
-     Buktikan tanpa tebak: `bun run check:d1-drift` (membandingkan `drizzle/` vs remote, gagal bila ada tabel/kolom hilang) wajib hijau sebelum merge yang menyentuh skema.
+     Buktikan tanpa tebak: `bun run check:d1-drift` (membandingkan `drizzle/` vs remote, gagal bila ada tabel/kolom hilang) wajib hijau sebelum merge yang menyentuh skema. Karena gate itu butuh kredensial Cloudflare, sejak Okt 2026 ada **alarm otomatis harian yang setara** lewat Cron Trigger (`src/server/services/d1-drift-alert.ts` membandingkan `schema.ts` vs D1 live via binding, nol kredensial, sidik `d1_drift_alert_signature`) — gate manual tetap wajib, alarm hanya menutup celah "tidak ada yang menjalankannya".
 
 2. **Type Safety Verification**
    ```bash
@@ -114,14 +114,14 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Pindai dulu, perbaiki dalam scope**: setiap sesi yang menyentuh `src/` **WAJIB** diawali pemindaian code smell read-only (`Grep` / `rg` / `Select-String`, tanpa edit) dan diakhiri eliminasi temuan sesuai scope yang disepakati user (quick wins / monolit / hardening).
 2. **Katalog smell yang wajib dicek**:
    - File sumber >400 baris (§7, kecuali `*.test.ts`, `schema.ts`, `seed.ts`).
-   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `transfer-pricing.ts`, `book-pricing.ts` + `services/book-price.ts`, `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru.
+   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `transfer-pricing.ts`, `book-pricing.ts` + `services/book-price.ts`, `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper yang sudah punya pemilik kanonik tunggal.
    - `any` baru, `@ts-ignore` / `eslint-disable` baru, `console.log` produksi.
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
    - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
-4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any` (baris baru, bukan pemindaian manual).
-5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:plans` → `npm run build` → `bun test`.
+4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
+5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:canonical-helpers` → `bun run check:plans` → `npm run build` → `bun test`.
 
 ---
 
@@ -151,8 +151,16 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Satu kali retry, lalu kerjakan sendiri**: Jika delegasi ke subagent gagal (model tidak tersedia, error infrastruktur, timeout berulang), AI agent hanya boleh mencoba ulang **maksimal 1x**. Setelah itu **WAJIB** langsung mengimplementasikan sendiri (direct implementation) tanpa menunggu delegasi pulih.
 2. **Dilarang membiarkan user menunggu**: Kegagalan infrastruktur delegasi bukan alasan untuk menunda pekerjaan. Jelaskan penyebabnya dalam 1 kalimat, lalu mulai kerja.
 3. Aturan ini berlaku untuk semua sesi dan semua fitur di codebase ini.
-4. **Default implementasi langsung untuk implement-spec**: di repo ini eksekusi spec berjalan sekuensial langsung di satu integration branch (satu tiket per commit) — fan-out subagent paralel dengan worktree terbukti rapuh dan lambat di mesin ini (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Subagent implementer hanya bila user eksplisit meminta paralel. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
-5. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
+4. **Default tetap sekuensial (satu tiket per commit)**: di repo ini eksekusi spec default berjalan sekuensial langsung di satu integration branch. Subagent implementer paralel diizinkan bila user eksplisit meminta paralel.
+5. **Pola paralel yang TERBUKTI aman (Okt 2026, fitur verifikasi bukti bayar)**: fan-out boleh dilakukan sebagai **lane file-disjoint di SATU working tree yang sama** — bukan worktree terpisah. Worktree terpisah tetap **DILARANG**: biaya `bun install` per worktree + merge antar-branch adalah penyebab kegagalan terdokumentasi (Okt 2026: 5 delegasi interrupted + cleanup worktree timeout). Syarat wajib pola ini:
+   - **Bekukan kontrak lebih dulu** (payload endpoint, nama field, tipe baris) sebelum lane jalan; lane UI boleh dibangun terhadap endpoint yang belum ada di backend.
+   - **Setiap file milik tepat satu lane** — tulis allowlist file per lane; file bersama (mis. `schema.ts`, `public-orders.ts`, `settings*.ts`, `drizzle/**`) dialokasikan ke satu lane saja dan lane lain dilarang menyentuhnya. Skema + migrasi D1 dikerjakan agent utama secara serial sebelum lane berjalan.
+   - **Lane dilarang `git add`/`commit`/`checkout`** dan dilarang menjalankan `lint`/`build`/`bun test` penuh — hanya `bun test <file-target>`. `bun run type-check` **boleh** dijalankan (read-only) dengan aturan ketat: perbaiki HANYA error di file milik lane itu, error di file lane lain **laporkan** ke agent utama dan jangan disentuh. Commit dan seluruh gate repo-wide dijalankan **serial oleh agent utama** setelah semua lane berhenti.
+   - **Lane wajib melaporkan kontrak yang kurang/penyimpangan** ke agent utama, bukan menebak.
+   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: `select()` pada union `AppDatabase` menghasilkan baris `any` sehingga callback `.map/.filter` gagal `tsc` (§2) — inilah alasan lane kini **diizinkan** menjalankan `type-check` read-only.
+   - Bukti pola ini berhasil: 3 lane (backend inti / kanal WhatsApp / UI) menyentuh ~30 file tanpa satu pun konflik tulis, tanpa merge, dan tanpa instalasi dependensi ulang; 15 error type-check tersisa ditutup di fase integrasi.
+6. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
+7. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.
 
 ---
 
@@ -178,7 +186,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - Verifikasi isolasi: setelah `bun test`, `data/inventory.db` tidak boleh berubah (cek jumlah baris tabel utama sebelum vs sesudah).
 2. **Disiplin tulis ke D1 production** (mencegah insiden 180 sekolah sampah berisi data test):
    - **DILARANG** QA manual / skrip / test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dan pola sampah sejenis. QA destruktif hanya di dev lokal.
-   - Sidik pola-uji kanonik: `isTestSeedValue` di `src/server/lib/validators.ts` (satu-satunya sumber kebenaran pola). `scripts/export-d1-seed.ts` **fail-closed** (exit 1 bila DB lokal mengandung baris pola-uji — vektor insiden Okt 2026: `WHERE id LIKE 'school-%'` ikut mengekspor sampah); alarm remote read-only `bun run check:d1-junk` dijalankan manual pre-merge seperti `check:d1-drift`.
+   - Sidik pola-uji kanonik: `isTestSeedValue` di `src/server/lib/validators.ts` (satu-satunya sumber kebenaran pola). `scripts/export-d1-seed.ts` **fail-closed** (exit 1 bila DB lokal mengandung baris pola-uji — vektor insiden Okt 2026: `WHERE id LIKE 'school-%'` ikut mengekspor sampah); alarm remote read-only `bun run check:d1-junk` dijalankan manual pre-merge seperti `check:d1-drift`. Sejak Okt 2026 ada pula **alarm otomatis harian** (Cron Trigger `[triggers]` → handler `scheduled` di `src/server/worker.ts` → `src/server/services/d1-junk-alert.ts`, 17:00 UTC / 00:00 WIB) yang memindai lewat binding D1 tanpa kredensial tambahan dan mengirim email ke seluruh `central_admin` **hanya saat himpunan sampah berubah** (sidik di `system_settings` kunci `d1_junk_alert_signature`), sehingga kebocoran tidak lagi menunggu pre-merge berikutnya. Cron yang sama juga menjalankan alarm drift skema (`d1-drift-alert.ts`, kunci `d1_drift_alert_signature`); keduanya memakai inti bersama `d1-alarm.ts` (sidik + anti-spam + pengiriman email) agar tidak ada dua implementasi paralel (§8).
    - Setiap `wrangler d1 execute ... --remote` yang bersifat tulis (terutama `DELETE` massal) **WAJIB** didahului: (a) verifikasi target (`database_name`/`database_id`), (b) `SELECT COUNT(*)` + contoh baris dengan predikat yang sama, (c) cek nol relasi anak di semua tabel yang mereferensikan (`students`, `student_book_orders`, `book_items`, `package_items`, `transfer_shipments`, `purchase_orders`, `users` untuk tabel `schools`).
 
 ---
@@ -203,7 +211,7 @@ Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` 
 2. **Substring `%q%` wajib terpartisi untuk endpoint publik**: portal (`search-students`, `lookup-order`) **wajib** didahului `school_id = ?` (API menolak pencarian tanpa sekolah). Endpoint admin/staf sentral boleh global tanpa `schoolId`, tetapi wajib `WHERE` di SQL + `LIMIT` 50 — tetap dilarang `SELECT`-all + filter JS dan dilarang tanpa `LIMIT`.
 3. **Setiap endpoint `search` wajib berpasangan**: (a) satu filter partisi (`schoolId`), (b) `LIMIT` 10–50, (c) indeks komposit di `schema.ts` via `index()` Drizzle + migrasi remote terverifikasi (`PRAGMA index_list`). Pasangan per form: portal murid → sekolah+status verified; lookup-order → sekolah opsional+min 3 char; admin siswa → sekolah+status; pesanan → sekolah+payment+fulfillment; retur → sekolah+status retur; katalog → kategori (bila >2rb).
 4. **FTS5 Tahap 2 saja**: FTS (virtual table + trigger) hanya atas bukti `EXPLAIN QUERY PLAN` masih `SCAN` dan p95 >500ms setelah Tahap 1, untuk pencarian global lintas-sekolah. Query FTS wajib token-prefix (`salsa*` menjangkau "Annisa Salsabila"), bukan `%...%`.
-5. **Bukti wajib**: setiap endpoint search baru/ubah wajib lampirkan `EXPLAIN QUERY PLAN` (`SEARCH USING INDEX`, bukan `SCAN`) + test volume di `src/server/routes/*.test.ts` — ditegakkan oleh `bun run check:plans`, pre-commit, dan CI.
+5. **Bukti wajib**: setiap endpoint search baru/ubah wajib lampirkan `EXPLAIN QUERY PLAN` (`SEARCH USING INDEX`, bukan `SCAN`) + test volume di `src/server/routes/*.test.ts` — ditegakkan oleh `bun run check:plans`, pre-commit, dan CI. Gate itu juga **mengaudit sumbernya**: file yang memakai `matchLower`/`matchAnyLower` atau membangun pola `%${...}%` wajib terdaftar di `REGISTERED_SEARCH_SOURCES` — endpoint pencarian baru di file baru langsung **merah** sampai bukti plan-nya ditambahkan, sehingga daftar query tidak bisa lagi tertinggal dari kode.
 
 ---
 
@@ -234,5 +242,5 @@ Single-context (`GLOSSARY.md` and `docs/adr/`). See `docs/agents/domain.md`.
 
 ### Location & auth pointer
 
-Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
+Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.claude/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
 

@@ -1,5 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { Award, Truck, Printer, Trash2, ShieldAlert } from "lucide-react";
+import { Award, Truck, Printer, Trash2, ShieldAlert, ShieldCheck } from "lucide-react";
 import type { StudentOrder } from "./order-types";
 
 interface StudentOrdersTableProps {
@@ -12,6 +12,7 @@ interface StudentOrdersTableProps {
   onMarkSatuanShipped: (order: StudentOrder) => void;
   onOpenShipping: (order: StudentOrder) => void;
   onSendInvoice: (order: StudentOrder) => void;
+  onReviewPayments: (order: StudentOrder) => void;
 }
 
 export function StudentOrdersTable({
@@ -24,6 +25,7 @@ export function StudentOrdersTable({
   onMarkSatuanShipped,
   onOpenShipping,
   onSendInvoice,
+  onReviewPayments,
 }: StudentOrdersTableProps) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] overflow-hidden shadow-xs">
@@ -97,8 +99,23 @@ export function StudentOrdersTable({
                             MENUNGGU VERIFIKASI
                           </span>
                         )}
+                        {(o.pendingCount ?? 0) > 0 && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800">
+                            BUKTI BAYAR MENUNGGU ({o.pendingCount})
+                          </span>
+                        )}
                       </div>
                       <div className="mt-1">
+                        {(o.pendingCount ?? 0) > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => onReviewPayments(o)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[11px] font-bold hover:bg-amber-100 transition-colors active:scale-[0.98]"
+                          >
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>Verifikasi Bukti ({o.pendingCount})</span>
+                          </button>
+                        ) : null}
                         {o.orderType === "scholarship" && o.paymentStatus === "scholarship_pending" ? (
                           <button
                             type="button"

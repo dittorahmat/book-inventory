@@ -312,6 +312,8 @@ export const orderPayments = sqliteTable("order_payments", {
   referenceNumber: text("reference_number"),
   verifiedByUserId: text("verified_by_user_id").references(() => users.id),
   verifiedAt: text("verified_at"),
+  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
+  rejectReason: text("reject_reason"),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
 });
@@ -623,6 +625,8 @@ export const uniformPayments = sqliteTable("uniform_payments", {
   referenceNumber: text("reference_number"),
   verifiedByUserId: text("verified_by_user_id").references(() => users.id),
   verifiedAt: text("verified_at"),
+  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
+  rejectReason: text("reject_reason"),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
 }, (t) => [

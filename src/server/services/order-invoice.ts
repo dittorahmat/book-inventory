@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
   orderPayments,
@@ -42,10 +42,12 @@ export interface SendInvoiceDeps extends WriteDeps {
 const hasShippingInput = (shippingCost: number | null | undefined, shippingResi: string | null | undefined): boolean =>
   (shippingCost ?? 0) > 0 || !!shippingResi?.trim();
 
-const confirmUrlFor = (baseUrl: string | undefined, kind: "buku" | "seragam", token: string): string =>
+/** URL konfirmasi orang tua: `/bayar/<buku|seragam>/<token>` (tanpa slash ganda). */
+export const confirmUrlFor = (baseUrl: string | undefined, kind: "buku" | "seragam", token: string): string =>
   `${(baseUrl ?? "").replace(/\/$/, "")}/bayar/${kind}/${token}`;
 
-const ensureToken = async (
+/** Pastikan order punya paymentToken; dipakai kirim invoice + penolakan bukti (unggah ulang lewat tautan sama). */
+export const ensurePaymentToken = async (
   database: AppDatabase,
   table: typeof studentBookOrders | typeof uniformOrders,
   orderId: string,
@@ -100,7 +102,7 @@ const sendInvoiceCore = async (
     ? (await database.select({ id: studentOrderItems.id }).from(studentOrderItems).where(eq(studentOrderItems.orderId, orderId)).limit(1)).length > 0
     : true;
   if (needsGate && !hasShippingInput(order.shippingCost, order.shippingResi)) return invalid("Input ongkir terlebih dahulu sebelum mengirim invoice.");
-  const token = await ensureToken(database, table, orderId, order.paymentToken, deps);
+  const token = await ensurePaymentToken(database, table, orderId, order.paymentToken, deps);
   const confirmUrl = confirmUrlFor(deps?.baseUrl, kind.confirmKind, token);
   try {
     await database.update(table).set({ invoiceSentAt: now, updatedAt: now }).where(eq(table.id, orderId));
@@ -171,25 +173,17 @@ const uploadProof = async (storage: StorageService, prefix: string, orderId: str
 interface ConfirmKind {
   errorContext: string;
   proofPrefix: string;
-  statusFor: (order: { orderType: string; paymentStatus: string }, paidAmount: number, due: number) => string;
 }
 
-const BOOK_CONFIRM: ConfirmKind = {
-  errorContext: "konfirmasi pembayaran buku",
-  proofPrefix: "payments",
-  statusFor: (order, paidAmount, due) => order.orderType === "scholarship" ? order.paymentStatus : paidAmount >= due ? "paid" : "partial",
-};
-
-const UNIFORM_CONFIRM: ConfirmKind = {
-  errorContext: "konfirmasi pembayaran seragam",
-  proofPrefix: "uniform-payments",
-  statusFor: (_order, paidAmount, due) => paidAmount >= due ? "paid" : "partial",
-};
+const BOOK_CONFIRM: ConfirmKind = { errorContext: "konfirmasi pembayaran buku", proofPrefix: "payments" };
+const UNIFORM_CONFIRM: ConfirmKind = { errorContext: "konfirmasi pembayaran seragam", proofPrefix: "uniform-payments" };
 
 /**
- * Satu-satunya inti konfirmasi pembayaran: validasi → bukti → batch
- * atomik (catat transfer + tambah terbayar) → kompensasi hapus file bila
- * tulis gagal. Kind hanya menyumbang prefix bukti + aturan status.
+ * Satu-satunya inti klaim pembayaran orang tua: validasi → bukti → catat
+ * baris pembayaran PENDING saja. Klaim TIDAK menyentuh paidAmount/paymentStatus
+ * order — uang baru sah setelah staf gudang memverifikasi (lihat
+ * `order-payment-review`). Status order yang dikembalikan = status saat ini
+ * (tak berubah). Kind hanya menyumbang prefix bukti.
  */
 const confirmPaymentCore = async (
   database: AppDatabase,
@@ -198,7 +192,6 @@ const confirmPaymentCore = async (
   input: ConfirmPaymentInput,
   kind: ConfirmKind,
   recordPayment: (orderId: string, url: string | null, now: string) => unknown,
-  applyPaid: (orderId: string, paidAmount: number, paymentStatus: string, now: string) => unknown,
   deps?: ConfirmDeps
 ): Promise<{ ok: true; data: { paymentStatus: string; paidAmount: number } } | InvoiceError> => {
   const bad = checkConfirmInput(input);
@@ -207,13 +200,13 @@ const confirmPaymentCore = async (
   const storage = deps?.storage ?? defaultStorage;
   const [order] = await database.select().from(table).where(eq(table.paymentToken, token));
   if (!order) return { ok: false, status: 404, message: "Link konfirmasi tidak valid." };
+  if (order.paymentStatus === "paid") {
+    return invalid("Pesanan ini sudah lunas diverifikasi gudang. Pengajuan bukti baru tidak diperlukan.");
+  }
   const { url, key } = await uploadProof(storage, kind.proofPrefix, order.id, input.paymentProofBase64);
   try {
-    const paidAmount = order.paidAmount + input.allocationAmount;
-    const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
-    const paymentStatus = kind.statusFor(order, paidAmount, due);
-    await runWriteBatch(database, [recordPayment(order.id, url, now), applyPaid(order.id, paidAmount, paymentStatus, now)]);
-    return { ok: true, data: { paymentStatus, paidAmount } };
+    await runWriteBatch(database, [recordPayment(order.id, url, now)]);
+    return { ok: true, data: { paymentStatus: order.paymentStatus, paidAmount: order.paidAmount } };
   } catch (err) {
     if (key) { try { await storage.delete(key); } catch { /* best-effort */ } }
     const mapped = d1WriteErrorStatus(err, kind.errorContext);
@@ -238,12 +231,8 @@ export async function confirmBookPayment(
       id: crypto.randomUUID(), orderId,
       transferAmount: input.transferAmount, bookAllocationAmount: input.allocationAmount,
       paymentProofUrl: url, bankName: input.bankName || null, referenceNumber: input.referenceNumber || null,
-      notes: "Konfirmasi via link pembayaran", createdAt: now,
+      notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)", createdAt: now,
     }),
-    (orderId, paidAmount, paymentStatus, now) => database
-      .update(studentBookOrders)
-      .set({ paidAmount, paymentStatus: paymentStatus as "paid" | "partial", updatedAt: now })
-      .where(eq(studentBookOrders.id, orderId)),
     deps
   );
 }
@@ -264,12 +253,8 @@ export async function confirmUniformPayment(
       id: crypto.randomUUID(), orderId,
       transferAmount: input.transferAmount, uniformAllocationAmount: input.allocationAmount,
       paymentProofUrl: url, bankName: input.bankName || null, referenceNumber: input.referenceNumber || null,
-      notes: "Konfirmasi via link pembayaran", createdAt: now,
+      notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)", createdAt: now,
     }),
-    (orderId, paidAmount, paymentStatus, now) => database
-      .update(uniformOrders)
-      .set({ paidAmount, paymentStatus, updatedAt: now })
-      .where(eq(uniformOrders.id, orderId)),
     deps
   );
 }
@@ -279,7 +264,8 @@ export async function lookupBookByToken(database: AppDatabase, token: string) {
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(studentOrderItems).where(eq(studentOrderItems.orderId, order.id));
-  return { order, student, lines, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
+  const payments = await database.select().from(orderPayments).where(eq(orderPayments.orderId, order.id)).orderBy(desc(orderPayments.createdAt));
+  return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }
 
 export async function lookupUniformByToken(database: AppDatabase, token: string) {
@@ -287,5 +273,6 @@ export async function lookupUniformByToken(database: AppDatabase, token: string)
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(uniformOrderItems).where(eq(uniformOrderItems.orderId, order.id));
-  return { order, student, lines, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
+  const payments = await database.select().from(uniformPayments).where(eq(uniformPayments.orderId, order.id)).orderBy(desc(uniformPayments.createdAt));
+  return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }

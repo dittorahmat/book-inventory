@@ -6,8 +6,9 @@ afterEach(() => {
   restoreActor();
 });
 import { studentOrdersRouter } from "./student-orders";
+import { paymentsRouter } from "./payments";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books } from "../../db/schema";
+import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, orderPayments, books } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
@@ -875,14 +876,28 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
         body: JSON.stringify({ transferAmount: 50000, allocationAmount: 50000, bankName: "BCA" }),
       });
       expect(partial.status).toBe(201);
-      expect((await partial.json()).data.paymentStatus).toBe("partial");
+      expect((await partial.json()).data.paymentStatus).toBe("unpaid");
 
-      const paid = await publicOrdersRouter.request(`/confirm/${token}`, {
+      const second = await publicOrdersRouter.request(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transferAmount: 70000, allocationAmount: 70000, bankName: "BCA" }),
       });
-      expect(paid.status).toBe(201);
-      expect((await paid.json()).data.paymentStatus).toBe("paid");
+      expect(second.status).toBe(201);
+      expect((await second.json()).data.paymentStatus).toBe("unpaid");
+
+      // Verifikasi gudang yang mengubah status order (50000 -> partial, +70000 -> paid).
+      const claims = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
+      const claimOne = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 50000);
+      const claimTwo = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 70000);
+      if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
+      const verifyOne = await paymentsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
+      expect(verifyOne.status).toBe(200);
+      expect((await verifyOne.json()).data.paymentStatus).toBe("partial");
+      const verifyTwo = await paymentsRouter.request(`/orders/${orderId}/payments/${claimTwo.id}/verify`, { method: "POST" });
+      expect(verifyTwo.status).toBe(200);
+      const verifyTwoJson = await verifyTwo.json();
+      expect(verifyTwoJson.data.paymentStatus).toBe("paid");
+      expect(verifyTwoJson.data.notification.wa.success).toBe(true);
 
       const ghost = await publicOrdersRouter.request("/confirm/token-hantu", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -956,6 +971,12 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
         body: JSON.stringify({ shippingCost: 0, shippingResi: "INTERNAL-1" }),
       });
       expect(ship.status).toBe(200);
+      // Klaim bukti transfer belum melunasi: gudang harus verifikasi dulu.
+      const [claim] = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
+      mockActor("central_admin", null);
+      const verifyClaim = await paymentsRouter.request(`/orders/${orderId}/payments/${claim.id}/verify`, { method: "POST" });
+      expect(verifyClaim.status).toBe(200);
+      expect((await verifyClaim.json()).data.paymentStatus).toBe("paid");
       mockActor("branch_admin", schoolId);
       const ok = await studentOrdersRouter.request(`/${orderId}/handover`, {
         method: "POST", headers: { "Content-Type": "application/json" },

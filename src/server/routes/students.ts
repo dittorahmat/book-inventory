@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, or, like, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../db";
 import { students, schools } from "../../db/schema";
+import { matchAnyLower } from "../lib/partitioned-search";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -49,16 +50,9 @@ studentsRouter.get("/", async (c) => {
   if (schoolId) conditions.push(eq(students.schoolId, schoolId));
   if (status && status !== "all") conditions.push(eq(students.status, status as any));
   // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
-  const q = search?.trim().toLowerCase();
-  if (q) {
-    const pattern = `%${q}%`;
-    conditions.push(
-      or(
-        like(sql`lower(${students.name})`, pattern),
-        like(sql`lower(${students.nis})`, pattern),
-        like(sql`lower(${students.parentName})`, pattern)
-      )
-    );
+  if (search?.trim()) {
+    const matched = matchAnyLower([students.name, students.nis, students.parentName], search);
+    if (matched) conditions.push(matched);
   }
 
   const data = await db

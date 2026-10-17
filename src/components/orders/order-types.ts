@@ -28,5 +28,7 @@ export interface StudentOrder {
   invoiceSentAt?: string | null;
   scholarshipProofUrl?: string;
   notes?: string;
+  /** Jumlah klaim bukti bayar ortu yang masih menunggu verifikasi staf. */
+  pendingCount?: number;
   createdAt: string;
 }

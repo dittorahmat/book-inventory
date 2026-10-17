@@ -16,4 +16,5 @@ bun run check:route-tests
 bun run check:validators
 bun run check:dead
 bun run check:no-any
+bun run check:canonical-helpers
 bun run check:plans

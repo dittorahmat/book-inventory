@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { getJson, postJson } from "../lib/api";
+import type { RawPaymentRow } from "../lib/payment-review-types";
 
 interface ConfirmData {
   studentName: string | null;
@@ -11,7 +12,20 @@ interface ConfirmData {
   due: number;
   paidAmount: number;
   paymentStatus: string;
+  /** Klaim bukti bayar terakhir (bila endpoint publik menyertakannya). */
+  latestPaymentStatus?: string | null;
+  latestRejectReason?: string | null;
+  payments?: RawPaymentRow[];
 }
+
+/** Alasan penolakan klaim terakhir; null berarti tidak ada penolakan terbaru. */
+const latestRejectReason = (data: ConfirmData): string | null => {
+  if (data.latestPaymentStatus === "rejected") return data.latestRejectReason || "";
+  const newest = [...(data.payments ?? [])].sort((a, b) =>
+    String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+  )[0];
+  return newest && newest.status === "rejected" ? newest.rejectReason || "" : null;
+};
 
 interface Props {
   kind: "buku" | "seragam";
@@ -69,6 +83,8 @@ export function PaymentConfirmView({ kind, token }: Props) {
     }
   };
 
+  const rejectedReason = data ? latestRejectReason(data) : null;
+
   return (
     <div className="min-h-screen bg-[#F0F2F5] flex items-start justify-center p-4">
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-6 w-full max-w-md space-y-4 mt-8">
@@ -90,6 +106,15 @@ export function PaymentConfirmView({ kind, token }: Props) {
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
             <span>Konfirmasi tercatat. Status akan diverifikasi admin.</span>
+          </div>
+        )}
+        {rejectedReason !== null && !done && (
+          <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Bukti terakhir ditolak: {rejectedReason || "tanpa alasan tercatat"}. Silakan unggah
+              ulang lewat tautan ini.
+            </span>
           </div>
         )}
         {data && (

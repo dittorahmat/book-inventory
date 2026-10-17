@@ -22,3 +22,8 @@ database_id = "32900db3-750f-46c5-9eb8-f368d298481d"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "book-inventory-covers"
+
+# Cron Trigger: alarm harian sampah data-uji di production D1.
+# 17:00 UTC = 00:00 WIB. Handler: `scheduled` di src/server/worker.ts.
+[triggers]
+crons = ["0 17 * * *"]

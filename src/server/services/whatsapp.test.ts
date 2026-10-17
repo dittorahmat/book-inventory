@@ -1,12 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  InMemoryWhatsAppSender,
-  RealWhatsAppSender,
-  getWhatsAppConfig,
-  normalizeIndonesianPhone,
-  saveWhatsAppConfig,
-} from "./whatsapp";
-import { db } from "../../db";
+import { InMemoryWhatsAppSender, normalizeIndonesianPhone } from "./whatsapp";
 
 describe("WhatsApp sender seam", () => {
   it("normalizes Indonesian phone numbers", () => {
@@ -30,20 +23,5 @@ describe("WhatsApp sender seam", () => {
     const recovered = await sender.send({ to: "0812", text: "pulih" });
     expect(recovered.success).toBe(true);
     expect(sender.sent.length).toBe(2);
-  });
-
-  it("real adapter simulates when gateway is unconfigured (no network)", async () => {
-    await saveWhatsAppConfig(db, {
-      gatewayUrl: "",
-      apiKey: "",
-      senderNumber: "",
-      isEnabled: false,
-    });
-    const config = await getWhatsAppConfig(db);
-    expect(config.isEnabled).toBe(false);
-
-    const result = await new RealWhatsAppSender(db).send({ to: "08123456789", text: "uji coba" });
-    expect(result.success).toBe(true);
-    expect(result.simulated).toBe(true);
   });
 });

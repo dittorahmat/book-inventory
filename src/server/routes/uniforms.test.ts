@@ -8,7 +8,7 @@ afterEach(() => {
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { schools, students, suppliers, systemSettings, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { schools, students, suppliers, systemSettings, uniformOrders, uniformPayments, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
 import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
 const postJson = (path: string, body: unknown) =>
@@ -569,17 +569,33 @@ describe("Uniform sales report & claims", () => {
 
       const first = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 5000, allocationAmount: 5000 }),
+        body: JSON.stringify({ transferAmount: 30000, allocationAmount: 30000 }),
       });
       expect(first.status).toBe(201);
-      expect((await first.json()).data.paymentStatus).toBe("partial");
+      expect((await first.json()).data.paymentStatus).toBe("unpaid");
 
       const second = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 10000, allocationAmount: 10000 }),
+        body: JSON.stringify({ transferAmount: 35000, allocationAmount: 35000 }),
       });
       expect(second.status).toBe(201);
-      expect((await second.json()).data.paymentStatus).toBe("paid");
+      expect((await second.json()).data.paymentStatus).toBe("unpaid");
+
+      // Uang baru sah setelah gudang memverifikasi tiap klaim.
+      const claims = await db.select().from(uniformPayments).where(eq(uniformPayments.orderId, orderId));
+      const claimOne = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 30000);
+      const claimTwo = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 35000);
+      if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
+      const verifyOne = await uniformsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
+      expect(verifyOne.status).toBe(200);
+      const verifyOneJson = await verifyOne.json();
+      expect(verifyOneJson.data.paymentStatus).toBe("partial");
+      expect(verifyOneJson.data.notification).toBeNull();
+      const verifyTwo = await uniformsRouter.request(`/orders/${orderId}/payments/${claimTwo.id}/verify`, { method: "POST" });
+      expect(verifyTwo.status).toBe(200);
+      const verifyTwoJson = await verifyTwo.json();
+      expect(verifyTwoJson.data.paymentStatus).toBe("paid");
+      expect(verifyTwoJson.data.notification.wa.success).toBe(true);
     } finally {
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));

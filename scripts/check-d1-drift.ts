@@ -7,6 +7,7 @@ import { Database } from "bun:sqlite";
 import { $ } from "bun";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { columnNames } from "../src/server/lib/d1-drift-scan";
 
 const D1_DATABASE = process.env.D1_DATABASE || "book-inventory-db";
 const DRIZZLE_DIR = process.env.DRIZZLE_DIR || "./drizzle";
@@ -49,32 +50,6 @@ const fetchRemote = async (): Promise<Map<string, string>> => {
   return new Map(
     rows.filter((r) => !r.name.startsWith("sqlite_") && !r.name.startsWith("_cf_")).map((r) => [r.name, r.sql])
   );
-};
-
-// Ambil daftar kolom dari teks CREATE TABLE: belah koma level-atas,
-// buang constraint/table-level (PRIMARY KEY/FOREIGN KEY/UNIQUE/CHECK),
-// ambil token identifier pertama.
-const columnNames = (createSql: string): string[] => {
-  const body = createSql.slice(createSql.indexOf("(") + 1, createSql.lastIndexOf(")"));
-  const segments: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const ch of body) {
-    if (ch === "(") depth++;
-    if (ch === ")") depth--;
-    if (ch === "," && depth === 0) {
-      segments.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) segments.push(current);
-  return segments
-    .map((s) => s.trim())
-    .filter((s) => !/^(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)\b/i.test(s))
-    .map((s) => s.replace(/^[["'`]/, "").split(/[\]'"`\s]/)[0].toLowerCase())
-    .filter(Boolean);
 };
 
 const expected = buildExpected();

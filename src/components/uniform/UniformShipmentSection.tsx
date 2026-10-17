@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { PaymentReviewModal } from "../orders/PaymentReviewModal";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { fetchUniformOrders, markUniformShipped, saveUniformShipping, sendUniformInvoice, resolveUniformScholarship, downloadUniformCsv, importUniformShipping, type UniformOrderRow } from "./uniform-admin-api";
+import { formatNotification } from "../../lib/payment-review-types";
+import { fetchUniformOrders, markUniformShipped, saveUniformShipping, sendUniformInvoice, resolveUniformScholarship, downloadUniformCsv, importUniformShipping, fetchUniformOrderPayments, verifyUniformPayment, rejectUniformPayment, payUniformOrder, type UniformOrderRow } from "./uniform-admin-api";
 
 interface Props {
   schools: Array<{ id: string; name: string }>;
@@ -24,6 +26,13 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [importShipped, setImportShipped] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [reviewRow, setReviewRow] = useState<UniformOrderRow | null>(null);
+  const [payFor, setPayFor] = useState<string | null>(null);
+  const [payTransfer, setPayTransfer] = useState("");
+  const [payAllocation, setPayAllocation] = useState("");
+  const [payBank, setPayBank] = useState("TUNAI");
+  const [payBusyId, setPayBusyId] = useState<string | null>(null);
+  const [payResult, setPayResult] = useState<string | null>(null);
 
 const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongkir?: number }> => {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -95,6 +104,28 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memproses beasiswa.");
+    }
+  };
+
+  const handlePay = async (id: string) => {
+    setPayBusyId(id);
+    setError(null);
+    setPayResult(null);
+    try {
+      const res = await payUniformOrder(id, {
+        transferAmount: parseInt(payTransfer) || 0,
+        allocationAmount: parseInt(payAllocation) || 0,
+        bankName: payBank.trim() || "TUNAI",
+      });
+      setPayResult(formatNotification("verifikasi", res.notification));
+      setPayFor(null);
+      setPayTransfer("");
+      setPayAllocation("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mencatat pembayaran seragam.");
+    } finally {
+      setPayBusyId(null);
     }
   };
 
@@ -212,6 +243,12 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
         </div>
       )}
 
+      {payResult && (
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">
+          {payResult}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
         {loading && <div className="px-4 py-6 text-center text-xs text-[#65676B]">Memuat…</div>}
         {!loading && rows.length === 0 && (
@@ -239,6 +276,11 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
                 )}
                 {r.orderType === "scholarship" && (
                   <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">Beasiswa</span>
+                )}
+                {(r.pendingCount ?? 0) > 0 && (
+                  <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full">
+                    Bukti bayar menunggu ({r.pendingCount})
+                  </span>
                 )}
               </div>
             </div>
@@ -268,6 +310,29 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
                   <button type="button" onClick={() => handleScholarship(r.id, "reject")} className="px-3 py-2 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-semibold active:scale-[0.98]">Tolak</button>
                 </div>
               )}
+              {(r.pendingCount ?? 0) > 0 && (
+                <button type="button" onClick={() => setReviewRow(r)} className="px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold hover:bg-amber-100 active:scale-[0.98]">
+                  Verifikasi Bukti ({r.pendingCount})
+                </button>
+              )}
+              {payFor === r.id ? (
+                <div className="flex w-44 flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-[#050505]">Nominal transfer (Rp)</label>
+                  <input type="number" min={1} value={payTransfer} onChange={(e) => setPayTransfer(e.target.value)} className="rounded-xl border border-[#CED0D4] px-2 py-1 text-xs" />
+                  <label className="text-[11px] font-semibold text-[#050505]">Alokasi tagihan (Rp)</label>
+                  <input type="number" min={1} value={payAllocation} onChange={(e) => setPayAllocation(e.target.value)} className="rounded-xl border border-[#CED0D4] px-2 py-1 text-xs" />
+                  <label className="text-[11px] font-semibold text-[#050505]">Bank / metode</label>
+                  <input value={payBank} onChange={(e) => setPayBank(e.target.value)} className="rounded-xl border border-[#CED0D4] px-2 py-1 text-xs" />
+                  <div className="flex gap-1">
+                    <button type="button" disabled={payBusyId === r.id} onClick={() => handlePay(r.id)} className="px-3 py-1 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98]">Simpan</button>
+                    <button type="button" onClick={() => setPayFor(null)} className="px-3 py-1 bg-[#F0F2F5] rounded-xl text-xs font-semibold active:scale-[0.98]">Batal</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => { setPayFor(r.id); setPayTransfer(""); setPayAllocation(""); setPayBank("TUNAI"); setPayResult(null); }} className="px-4 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]">
+                  Input Bayar
+                </button>
+              )}
               {r.shipmentStatus === "belum_dikirim" && (
                 <button
                   type="button"
@@ -282,6 +347,18 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
           </div>
         ))}
       </div>
+
+      {reviewRow && (
+        <PaymentReviewModal
+          heading={`Order ${reviewRow.orderNumber}`}
+          subheading={`${reviewRow.studentName} · ${reviewRow.schoolName}`}
+          load={() => fetchUniformOrderPayments(reviewRow.id)}
+          verify={(paymentId) => verifyUniformPayment(reviewRow.id, paymentId)}
+          reject={(paymentId, reason) => rejectUniformPayment(reviewRow.id, paymentId, reason)}
+          onClose={() => setReviewRow(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }

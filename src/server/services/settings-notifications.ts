@@ -3,11 +3,8 @@ import { getSmtpConfig, saveSmtpConfig, sendEmailNotification } from "./email/fa
 import type { EmailRuntimeEnv } from "./email/types";
 import {
   MetaWhatsAppSender,
-  RealWhatsAppSender,
   getMetaWhatsAppConfig,
-  getWhatsAppConfig,
   saveMetaWhatsAppConfig,
-  saveWhatsAppConfig,
 } from "./whatsapp";
 
 /** Masker kanonik rahasia: tak satu pun secret mentah keluar via GET. */
@@ -24,13 +21,6 @@ export interface SmtpSaveInput {
   emailProvider: "auto" | "brevo" | "smtp";
   brevoApiKey?: string;
   brevoApiUrl?: string;
-}
-
-export interface WhatsAppSaveInput {
-  gatewayUrl: string;
-  apiKey?: string;
-  senderNumber?: string;
-  isEnabled: boolean;
 }
 
 export interface MetaSaveInput {
@@ -85,22 +75,6 @@ export const testSmtp = async (database: AppDatabase, recipientEmail: string, en
     env
   );
 };
-
-export const getWhatsappView = async (database: AppDatabase) => {
-  const config = await getWhatsAppConfig(database);
-  return { ...config, apiKey: config.apiKey ? MASKED_SECRET : "", isConfigured: Boolean(config.gatewayUrl) };
-};
-
-export const saveWhatsapp = async (database: AppDatabase, input: WhatsAppSaveInput) => {
-  const existing = await getWhatsAppConfig(database);
-  await saveWhatsAppConfig(database, {
-    ...input,
-    apiKey: input.apiKey === MASKED_SECRET ? existing.apiKey : (input.apiKey ?? ""),
-  });
-};
-
-export const testWhatsapp = (database: AppDatabase, phone: string, message: string) =>
-  new RealWhatsAppSender(database).send({ to: phone, text: message });
 
 export const getMetaView = async (database: AppDatabase) => {
   const config = await getMetaWhatsAppConfig(database);

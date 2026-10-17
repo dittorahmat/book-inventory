@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, ne } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
+import { matchAnyLower } from "../lib/partitioned-search";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
 import {
   getCurrentSatuanStatus,
@@ -11,7 +12,7 @@ import {
   getSatuanStatus,
   submitPublicOrder,
 } from "../services/order-intake";
-import { RealWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
+import { MetaWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
@@ -184,7 +185,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   if (st?.parentPhone) {
     const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
     try {
-      notification = await new RealWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
+      notification = await new MetaWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
     } catch (e: unknown) {
       notification = { success: false, error: e instanceof Error ? e.message : "Gagal mengirim notifikasi WhatsApp" };
     }
@@ -237,11 +238,11 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   // Find order by orderNumber or student NIS within the school partition
-  const lookupMatch = or(
-    like(studentBookOrders.orderNumber, `%${query}%`),
-    like(students.nis, `%${query}%`),
-    like(students.name, `%${query}%`)
-  );
+  // Pencarian substring terpartisi lewat helper kanonik (kolom `lower()` +
+  // pola lowercase). Perilaku tidak berubah: `LIKE` SQLite sudah
+  // ASCII-case-insensitive, jadi `lower()` di sini adalah sabuk-pengaman yang
+  // membuat keenam situs pencarian berbentuk sama — bukan perbaikan bug.
+  const lookupMatch = matchAnyLower([studentBookOrders.orderNumber, students.nis, students.name], query);
   const matchedOrders = await db
     .select({
       id: studentBookOrders.id,

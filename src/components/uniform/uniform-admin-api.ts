@@ -3,6 +3,13 @@
  * Tanpa state — hanya pemetaan endpoint dengan pesan Indonesia.
  */
 import { buildQuery, getJson, postJson } from "../../lib/api";
+import {
+  isPendingPayment,
+  normalizePaymentRow,
+  type PaymentReviewResult,
+  type PaymentReviewSnapshot,
+  type RawPaymentRow,
+} from "../../lib/payment-review-types";
 
 export interface UniformOrderRow {
   id: string;
@@ -24,6 +31,8 @@ export interface UniformOrderRow {
   shippingResi?: string | null;
   invoiceSentAt?: string | null;
   homeAddressSnapshot: string;
+  /** Jumlah klaim bukti bayar ortu yang masih menunggu verifikasi staf. */
+  pendingCount?: number;
   createdAt: string;
 }
 
@@ -79,12 +88,52 @@ export const receiveUniformPo = (id: string, lines: Array<{ variantId: string; s
   postJson(`/api/uniforms/pos/${id}/receive`, { lines }, "Gagal mencatat penerimaan PO.");
 
 export interface UniformOrderDetail {
-  order: UniformOrderRow & { academicYear: string; notes: string | null };
+  order: UniformOrderRow & { academicYear: string; notes: string | null; payments?: RawPaymentRow[] };
   items: Array<{ id: string; packageId: string | null; variantId: string | null; size: string; quantity: number; unitPriceSnapshot: number }>;
 }
 
 export const fetchUniformOrderDetail = (id: string): Promise<UniformOrderDetail> =>
   getJson<UniformOrderDetail>(`/api/uniforms/orders/${id}`, "Gagal memuat detail order.");
+
+/** Detail order → baris review bukti bayar (alokasi seragam dinormalisasi bersama kanal buku). */
+export const fetchUniformOrderPayments = async (id: string): Promise<PaymentReviewSnapshot> => {
+  const detail = await fetchUniformOrderDetail(id);
+  const raw = detail.order.payments ?? [];
+  return {
+    payments: raw.map(normalizePaymentRow),
+    pendingCount: detail.order.pendingCount ?? raw.filter(isPendingPayment).length,
+    remainingAmount: null,
+  };
+};
+
+export const verifyUniformPayment = (orderId: string, paymentId: string): Promise<PaymentReviewResult> =>
+  postJson<PaymentReviewResult>(
+    `/api/uniforms/orders/${orderId}/payments/${paymentId}/verify`,
+    {},
+    "Gagal memverifikasi pembayaran seragam."
+  );
+
+export const rejectUniformPayment = (
+  orderId: string,
+  paymentId: string,
+  reason: string
+): Promise<PaymentReviewResult> =>
+  postJson<PaymentReviewResult>(
+    `/api/uniforms/orders/${orderId}/payments/${paymentId}/reject`,
+    { reason },
+    "Gagal menolak pembayaran seragam."
+  );
+
+/** Input bayar kasir manual untuk order seragam (tunai/transfer). */
+export const payUniformOrder = (
+  orderId: string,
+  payload: { transferAmount: number; allocationAmount: number; bankName: string; referenceNumber?: string }
+): Promise<PaymentReviewResult> =>
+  postJson<PaymentReviewResult>(
+    `/api/uniforms/orders/${orderId}/pay`,
+    payload,
+    "Gagal mencatat pembayaran seragam."
+  );
 
 export interface UniformExchangeRow {
   id: string; orderId: string; oldVariantId: string; oldSize: string;
