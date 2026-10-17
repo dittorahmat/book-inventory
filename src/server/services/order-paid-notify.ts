@@ -2,6 +2,7 @@ import type { AppDatabase } from "../../db";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import type { EmailSendOptions, EmailSendResult } from "./email/types";
 import { sendEmailNotification } from "./email/factory";
+import { escapeHtml } from "./email/po-template";
 import { MetaWhatsAppSender, type WhatsAppSender } from "./whatsapp";
 
 /**
@@ -76,9 +77,6 @@ const attempt = async (run: () => Promise<ChannelResult>): Promise<ChannelResult
     return { success: false, error: err instanceof Error ? err.message : "Notifikasi gagal dikirim." };
   }
 };
-
-const escapeHtml = (value: string): string =>
-  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const dispatch = async (
   database: AppDatabase,
