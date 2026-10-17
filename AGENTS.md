@@ -11,13 +11,12 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Database Schema Synchronization & Remote Cloudflare D1 Migration (WAJIB)**
     - **Sinkronisasi Database Lokal**:
       ```bash
-      bun run db:push
-      # or drizzle-kit push
-      # Bila drizzle-kit gagal dimuat (better-sqlite3 ERR_DLOPEN_FAILED),
-      # pakai fallback bun:sqlite yang menerapkan file migrasi terbaru:
-      bun run db:push:bun [./drizzle/<file-migrasi>.sql]
+      bun run db:push          # bun:sqlite — jalur utama, idempoten, menerapkan migrasi tertunda
+      bun run db:push --all    # terapkan semua migrasi tertunda (mis. DB lokal baru)
+      bun run db:push:drizzle  # drizzle-kit push (better-sqlite3; gagal ERR_DLOPEN_FAILED di sebagian mesin)
+      bun run db:query "SELECT COUNT(*) AS c FROM students"   # baca-saja, verifikasi data
       ```
-      Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke database SQLite lokal (`data/inventory.db`).
+      Pastikan perubahan skema Drizzle (`src/db/schema.ts`) teraplikasikan ke `data/inventory.db`. Untuk memeriksa data nyata (duplikat, volume, sampel baris) pakai `db:query` yang baca-saja alih-alih menulis skrip sekali-pakai.
    - **Migrasi Database Remote Cloudflare D1**:
      Setiap kali ada penambahan atau perubahan skema tabel/fitur baru, Anda **WAJIB** membuat dan menerapkan migrasi ke database remote Cloudflare D1 agar deployment Cloudflare Workers tidak mengalami error tabel hilang:
      ```bash
@@ -29,48 +28,22 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      # atau jika menggunakan migrations folder:
      # bun run db:d1:migrate
      ```
-     Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push.
+     Verifikasi tabel dan kolom di database remote D1 telah sinkron sebelum commit dan push. Pembacaan remote juga boleh baca-saja lewat CLI: `bun x wrangler d1 execute book-inventory-db --remote --command "PRAGMA index_list('students')"`.
      Buktikan tanpa tebak: `bun run check:d1-drift` (membandingkan `drizzle/` vs remote, gagal bila ada tabel/kolom hilang) wajib hijau sebelum merge yang menyentuh skema. Karena gate itu butuh kredensial Cloudflare, sejak Okt 2026 ada **alarm otomatis harian yang setara** lewat Cron Trigger (`src/server/services/d1-drift-alert.ts` membandingkan `schema.ts` vs D1 live via binding, nol kredensial, sidik `d1_drift_alert_signature`) — gate manual tetap wajib, alarm hanya menutup celah "tidak ada yang menjalankannya".
 
-2. **Type Safety Verification**
-   ```bash
-   npm run type-check
-   # or bun run type-check
-   ```
-   Zero TypeScript errors (`tsc --noEmit`) are allowed.
-   `AppDatabase` kini schema-aware (`BaseSQLiteDatabase<"sync" | "async", unknown, typeof schema>` di `src/db/index.ts`) sehingga `select()`/`insert()` mengembalikan baris terketik: anotasi callback `$inferSelect` manual **tidak lagi diperlukan** dan justru keliru pada hasil JOIN (biarkan inferensi; hapus anotasi yang salah), contoh `src/server/services/internal-po.ts`. Dilarang menutup celah tipe DB dengan `any`/cast baru — perbaiki tipe sumbernya (mis. `PaymentDerivation` di `src/server/services/order-intake/validation.ts`), ditegakkan `check:no-any`.
+2. **Type Safety Verification** — `bun run type-check` (satu langkah di `check:all`, §9.5): nol error `tsc --noEmit`.
+   Yang tak bisa ditebak mesin: `AppDatabase` schema-aware (`BaseSQLiteDatabase<"sync" | "async", unknown, typeof schema>` di `src/db/index.ts`) membuat `select()`/`insert()` mengembalikan baris terketik, sehingga anotasi callback `$inferSelect` manual **tidak lagi perlu** dan justru keliru pada hasil JOIN — biarkan inferensi. Dilarang menutup celah tipe DB dengan `any`/cast baru; perbaiki tipe sumbernya (mis. `PaymentDerivation` di `src/server/services/order-intake/validation.ts`), ditegakkan `check:no-any`.
 
-3. **Code Linting & Formatting**
-   ```bash
-   npm run lint
-   ```
-   Fix any lint issues before committing or reporting completion.
+3. **Code Linting & Formatting** — `bun run lint` (langkah di `check:all`).
 
-4. **Production Build Check**
-   ```bash
-   npm run build
-   ```
-   Ensure both frontend assets (Vite) and backend server/worker bundles compile cleanly without bundling or unresolved module errors.
+4. **Production Build Check** — `bun run build` (langkah di `check:all`): aset Vite + bundel server/worker wajib kompilasi bersih tanpa modul tak terselesaikan.
 
-5. **Test Suite & Cloudflare Worker API Enforcement (WAJIB)**
-   ```bash
-   npm run test
-   # or bun test
-   ```
-   **Requirement**: Setiap kali ada penambahan fitur atau modifikasi backend & API endpoints, Anda **WAJIB** mematuhi aturan pengujian dan kompatibilitas berikut:
-   - **Kompatibilitas Validasi ID (Flexible Identifier Validation)**:
-      - Jangan memaksakan `z.string().uuid()` pada identifier entity (seperti `schoolId`, `bookId`, `bookItemId`). Selalu gunakan `idSchema` dari `src/server/lib/validators.ts` (kanonik `z.string().min(1)`) agar kompatibel dengan data demo, slug kampus (contoh: `school-alw-1`), maupun format UUID v4 — ditegakkan oleh `bun run check:validators` dan CI; varian bermessage (pesan UX) dan field non-`*Id` dikecualikan.
-     - Setiap endpoint mutasi (POST, PATCH, PUT) **wajib memiliki unit/integration test** yang memverifikasi payload dengan custom seeded string IDs maupun UUID.
-   - **Sinkronisasi Skema Remote D1 vs Lokal**:
-     - Setiap ada kolom atau tabel baru di `src/db/schema.ts`, migrasi remote D1 **wajib dieksekusi** dan diverifikasi (`PRAGMA table_info`) agar endpoint API di Cloudflare Worker tidak gagal dengan error SQLite `no such column` atau `no such table`.
-   - **Error Handling & User Feedback Frontend (Anti Silent Failure)**:
-     - Dilarang membuat fungsi frontend (`fetch`) tanpa blok `try/catch` atau tanpa penanganan blok `else` saat `response.ok` / `data.success` bernilai `false`.
-     - User interface **wajib** menampilkan alert, toast, atau pesan error eksplisit yang mengekstrak `data.message` atau `data.error` dari server, sehingga tombol tidak "diam saja" saat API mengembalikan status 400/500.
-     - Komponen input custom berlabel (`SearchableSingleSelect`/`SearchableMultiSelect`) mematikan validasi native `required`: setiap `required` di komponen ini **wajib** didampingi guard JS (cek kosong di submit/disabled tombol + pesan inline), dan `<label>` lama wajib dihapus saat migrasi (dilarang label ganda).
-    - **Regression Test Updates**:
-      - Setiap bug atau error API yang diperbaiki **wajib ditambahkan skenario test-nya** di berkas `src/server/routes/*.test.ts` untuk mencegah regresi di kemudian hari.
-      - Setiap route di `src/server/routes/*.ts` **wajib punya pasangan** `*.test.ts` - ditegakkan oleh `bun run check:route-tests` dan CI (`.github/workflows/checks.yml`).
-      - Test komponen UI meniru pola `src/components/portal/StudentSearchStep.test.tsx`: shim DOM `test-dom` terdekat + dynamic import `@testing-library/react` + `fireEvent` — paket `@testing-library/user-event` tidak terinstal, jangan diimpor.
+5. **Test Suite & Cloudflare Worker API Enforcement (WAJIB)** — `bun test` (langkah di `check:all`).
+   - **Validasi ID**: jangan `z.string().uuid()` pada identifier entity (`schoolId`, `bookId`, …); pakai `idSchema` dari `src/server/lib/validators.ts` (kanonik `z.string().min(1)`) agar kompatibel dengan slug demo (`school-alw-1`) maupun UUID v4 — ditegakkan `check:validators`. Setiap endpoint mutasi wajib punya test dengan ID string seeded maupun UUID.
+   - **Sinkronisasi skema remote D1**: setiap kolom/tabel baru wajib dimigrasikan ke D1 remote (§1.1) dan diverifikasi, agar Worker tidak gagal `no such column`/`no such table`.
+   - **Anti silent failure (frontend — tidak digerbang)**: dilarang `fetch` tanpa `try/catch` atau tanpa cabang `else` saat `response.ok`/`data.success` bernilai `false`; UI wajib menampilkan alert/toast/pesan eksplisit yang mengekstrak `data.message`/`data.error`, agar tombol tidak "diam saja" pada 400/500.
+   - **Select custom** (`SearchableSingleSelect`/`SearchableMultiSelect`) mematikan validasi native `required`: setiap `required` wajib didampingi guard JS (cek kosong saat submit/disabled + pesan inline), dan `<label>` lama wajib dihapus saat migrasi (dilarang label ganda).
+   - **Test**: setiap bug API yang diperbaiki wajib menambah skenario di `src/server/routes/*.test.ts`; setiap route wajib berpasangan `*.test.ts` (ditegakkan `check:route-tests`). Test komponen UI meniru `src/components/portal/StudentSearchStep.test.tsx` (shim DOM `test-dom` + dynamic import `@testing-library/react` + `fireEvent`); `@testing-library/user-event` tidak terinstal.
 
 6. **Frontend Aesthetics & Anti-Slop Check (`design-taste-frontend` Enforcement)**
    Setiap developer dan AI agent yang membuat atau memodifikasi UI/UX di codebase ini **WAJIB** mematuhi pedoman anti-slop dari skill `design-taste-frontend`:
@@ -95,11 +68,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
      - Route Hono besar → pindahkan logika bisnis ke `src/server/services/`, sisakan validasi + routing.
    - Pengecualian (tidak dihitung): `*.test.ts(x)`, `src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`.
    - Utang lama: file yang sudah >400 baris sebelum gate ini ada terdaftar di `GRANDFATHERED` dalam `scripts/check-file-size.ts` (daftar ini hanya boleh menyusut). File tersebut boleh disentuh untuk wiring kecil, tetapi kode fitur **BARU** wajib tinggal di file baru yang patuh batas — contoh: tombol/badge baru di view lama wajib jadi sub-komponen di `src/components/<fitur>/`, bukan JSX inline tambahan.
-   - Verifikasi otomatis (gagal = belum boleh selesai):
-     ```bash
-     bun run check:file-size
-     ```
-     Gate ini memeriksa file yang diubah (git staged/unstaged/untracked di `src/`); `bun run check:file-size --all` memindai seluruh pohon `src/` dan itulah mode yang dipakai CI, karena pada checkout bersih (`git status` kosong) mode default akan lolos tanpa memeriksa satu file pun.
+   - Verifikasi: `check:file-size` (langkah di `check:all`) — mode default hanya memeriksa file yang diubah dan vakum pada checkout bersih (`git status` kosong); `--all` memindai seluruh pohon `src/` dan itulah mode CI.
 
 8. **YAGNI & One-Liner Discipline (WAJIB)**
    - **You Aren't Gonna Need It**: dilarang speculative generality. Factory/provider/class wrapper yang hanya dipakai sekali **wajib** jadi fungsi polos atau inline. Helper duplikat **wajib** dikanonikalisasi ke satu modul (`src/lib/transfer-pricing.ts` untuk rupiah/total, `src/lib/book-pricing.ts` (harga efektif, client-safe) + `src/server/services/pricing.ts` (harga sisi server), `src/lib/api.ts` untuk fetch, `DEFAULT_BREVO_API_URL` dari `email/types.ts`). Kode mati (nol pemanggil produksi) **wajib dihapus** beserta test-nya, bukan dikomentari — ditegakkan oleh `bun run check:dead` (export tanpa perujuk di file lain maupun signature modulnya sendiri), pre-commit, dan CI.
@@ -119,9 +88,10 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
    - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
+   - Nomor dokumen dibangkitkan `documentNumber()` tetapi kolom targetnya tanpa UNIQUE (duplikat senyap) — ditegakkan `check:doc-numbers`.
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
 4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`, `isoTimeFragment`, `epochTimeFragment`, `documentNumber`, `randomSerial`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
-5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:canonical-helpers` → `bun run check:d1-writes` → `bun run check:test-isolation` → `bun run check:lanes` → `bun run check:plans` → `npm run build` → `bun test`. Seluruh urutan itu dijalankan satu perintah lokal: `bun run check:all`. Tiga gate diff-scoped (`check:file-size`, `check:no-any`, `check:canonical-helpers`) kini tidak lagi vakum di CI: ia mendiff terhadap base ref PR (`GATE_BASE_REF`, dan `--all` untuk file-size), bukan terhadap working tree yang bersih saat `actions/checkout`.
+5. **Verifikasi penutup**: `bun run check:all` menjalankan seluruh gate berurutan — daftar dan urutannya adalah field `check:all` di `package.json` (CI memakai urutan yang sama di `.github/workflows/checks.yml`), jadi jangan disalin ke sini. Yang perlu diketahui: tiga gate diff-scoped (`check:file-size`, `check:no-any`, `check:canonical-helpers`) tidak vakum di CI karena mendiff base ref PR (`GATE_BASE_REF`; `--all` untuk file-size), sedangkan sisanya memindai seluruh pohon.
 
 ---
 
@@ -201,7 +171,7 @@ Latar insiden (Okt 2026): terima inbound 30 eks dan buat transfer 7 unit mengemb
 3. **Atomisitas multi-tulis (WAJIB)**: setiap alur yang menulis induk + anak (PO → `book_items`, shipment → item lines) wajib atomik — gunakan `db.batch()` saat runtime D1 dengan fallback sekuensial di bun-sqlite — atau idempoten dengan validasi pra-tulis yang mengembalikan 400, bukan 500.
 4. **Pemetaan error D1 (WAJIB)**: error mentah D1 (`D1_ERROR`, `UNIQUE constraint`, `FOREIGN KEY constraint`) **wajib dipetakan** ke respons 4xx berpesan jelas. Dilarang membiarkan jatuh ke `onError` 500 generik.
 5. **Uji volume produksi (WAJIB)**: setiap endpoint tulis bervolume wajib diuji pada volume produksi (minimal 30 baris sekaligus) di `src/server/routes/*.test.ts`. Chunking membuat test yang sama lolos di kedua runtime.
-6. **Gate statis (WAJIB hijau)**: `bun run check:d1-writes` menolak `.values([...])` literal > 10 baris (§10.1) dan `Promise.all`/`Promise.allSettled` yang memuat tulis Drizzle (`.insert(`/`.update(`/`.delete(`) di seluruh `src/**` kecuali `*.test.ts` (§10.2) — ditegakkan di `check:all`, pre-commit, dan CI. False-negative yang disadari (tak terukur statis): `.values(chunk)` variabel, tulis di balik helper opaque, dan isi `db.batch([...])`; pengecualian resmi didaftarkan di `REGISTERED_EXCEPTIONS` di dalam skrip gate (pola sama `REGISTERED_SEARCH_SOURCES`). §10.3–§10.5 (atomisitas, pemetaan error, uji volume) tetap tanggung jawab reviewer.
+6. **Gate statis**: `check:d1-writes` menegakkan §10.1 dan §10.2 di seluruh `src/**` kecuali `*.test.ts` (bagian dari `check:all`, pre-commit, dan CI). False-negative yang disadari: `.values(chunk)` variabel, tulis di balik helper opaque, dan isi `db.batch([...])` — pengecualian resmi lewat `REGISTERED_EXCEPTIONS` di skrip gate (pola `REGISTERED_SEARCH_SOURCES`). §10.3–§10.5 tetap tanggung jawab reviewer.
 
 ---
 
@@ -213,7 +183,7 @@ Latar (2026): `search-students` portal global tanpa `schoolId`, `GET /students` 
 2. **Substring `%q%` wajib terpartisi untuk endpoint publik**: portal (`search-students`, `lookup-order`) **wajib** didahului `school_id = ?` (API menolak pencarian tanpa sekolah). Endpoint admin/staf sentral boleh global tanpa `schoolId`, tetapi wajib `WHERE` di SQL + `LIMIT` 50 — tetap dilarang `SELECT`-all + filter JS dan dilarang tanpa `LIMIT`.
 3. **Setiap endpoint `search` wajib berpasangan**: (a) satu filter partisi (`schoolId`), (b) `LIMIT` 10–50, (c) indeks komposit di `schema.ts` via `index()` Drizzle + migrasi remote terverifikasi (`PRAGMA index_list`). Pasangan per form: portal murid → sekolah+status verified; lookup-order → sekolah opsional+min 3 char; admin siswa → sekolah+status; pesanan → sekolah+payment+fulfillment; retur → sekolah+status retur; katalog → kategori (bila >2rb).
 4. **FTS5 Tahap 2 saja**: FTS (virtual table + trigger) hanya atas bukti `EXPLAIN QUERY PLAN` masih `SCAN` dan p95 >500ms setelah Tahap 1, untuk pencarian global lintas-sekolah. Query FTS wajib token-prefix (`salsa*` menjangkau "Annisa Salsabila"), bukan `%...%`.
-5. **Bukti wajib**: setiap endpoint search baru/ubah wajib lampirkan `EXPLAIN QUERY PLAN` (`SEARCH USING INDEX`, bukan `SCAN`) + test volume di `src/server/routes/*.test.ts` — ditegakkan oleh `bun run check:plans`, pre-commit, dan CI. Gate itu juga **mengaudit sumbernya**: file yang memakai `matchLower`/`matchAnyLower` atau membangun pola `%${...}%` wajib terdaftar di `REGISTERED_SEARCH_SOURCES` — endpoint pencarian baru di file baru langsung **merah** sampai bukti plan-nya ditambahkan, sehingga daftar query tidak bisa lagi tertinggal dari kode.
+5. **Bukti wajib**: endpoint search baru/ubah wajib mendaftarkan query-nya di `QUERIES` dan file sumbernya di `REGISTERED_SEARCH_SOURCES` (`scripts/explain-plan.ts`) + test volume di `src/server/routes/*.test.ts`. Gate `check:plans` menolak file yang memakai `matchLower`/`matchAnyLower` atau pola `%${...}%` yang belum terdaftar (langsung **merah**), sehingga daftar bukti tidak bisa tertinggal dari kode.
 
 ---
 
@@ -242,7 +212,11 @@ Canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-hum
 
 Single-context (`GLOSSARY.md` and `docs/adr/`). See `docs/agents/domain.md`.
 
+### Skill lokal
+
+Satu pohon skill kanonik: **`.agents/skills/`** — itu sumber kebenaran lokal, dan isinya bisa lebih banyak daripada daftar skill yang diiklankan tool, jadi cari daftar tambahan di sana. `skills/` dan `.claude/skills/` adalah **junction** ke pohon itu, bukan duplikat; jangan disalin atau diseragamkan. Folder tool lain (`.opencode/`, `.gemini/`, …) juga mirror dan diabaikan dari pencarian oleh `.ignore` di root.
+
 ### Location & auth pointer
 
-Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu — grep luas tenggelam di mirror skill (`.agents/`, `.claude/`, `.gemini/`, `.opencode/`). Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
+Lokasi transaksi aktif dikunci ke penugasan akun di `src/App.tsx`; header hanya badge tampilan (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Mulai dari tiga titik ini dulu. Modul layanan ber-seam tinggal di direktori (`services/return/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba `<nama>/index.ts` dulu sebelum grep luas.
 

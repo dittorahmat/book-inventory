@@ -1,0 +1,20 @@
+# Bukan kode produk: mirror skill antar-tool + instalasi terbundel. Diabaikan
+# dari pencarian agen — ripgrep menghormati `.ignore` — supaya `grep` luas tidak
+# tenggelam di ratusan file skill (lihat AGENTS.md "Agent skills"). Satu pohon
+# kanonik skill ada di `.agents/skills/`; `skills/` dan `.claude/skills/` adalah
+# junction ke sana, jadi jangan "perbaiki" seolah duplikat.
+.agents/
+skills/
+.claude/
+.gemini/
+.cursor/
+.pi/
+.zcode/
+.omp/
+.omo/
+.hermes/
+.trae/
+.qwen/
+.openhands/
+.commandcode/
+.opencode/
