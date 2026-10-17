@@ -39,7 +39,7 @@ export interface BookItem {
   id: string;
   barcode: string;
   condition: "new" | "good" | "fair" | "damaged";
-  status: "in_stock" | "in_transit" | "disposed" | "lost";
+  status: "in_stock" | "in_transit" | "disposed" | "lost" | "sold";
   notes?: string;
   createdAt: string;
   book?: Book;

@@ -9,6 +9,7 @@ export const AVAILABLE_LOOSE_STATUSES = ["in_stock"] as const;
 export const LOOSE_IN_TRANSIT_STATUSES = ["in_transit"] as const;
 export const LOST_STATUSES = ["lost"] as const;
 export const DISPOSED_STATUSES = ["disposed"] as const;
+export const SOLD_STATUSES = ["sold"] as const;
 export const READY_BUNDLE_STATUSES = ["in_stock"] as const;
 export const OPEN_ORDER_PAYMENT_STATUSES = ["unpaid", "partial"] as const;
 
@@ -40,6 +41,9 @@ export const isDamaged = (condition: string): boolean =>
 export const isDisposed = (status: string): boolean =>
   (DISPOSED_STATUSES as readonly string[]).includes(status);
 
+export const isSold = (status: string): boolean =>
+  (SOLD_STATUSES as readonly string[]).includes(status);
+
 export const isAvailableLoose = (status: string): boolean =>
   (AVAILABLE_LOOSE_STATUSES as readonly string[]).includes(status);
 
@@ -61,7 +65,7 @@ export const outstandingOf = (order: { totalAmount: number; paidAmount: number }
 
 export const emptyConditionBuckets = () => ({ new: 0, good: 0, fair: 0, damaged: 0 });
 
-export const emptyLooseStatusBuckets = () => ({ in_stock: 0, in_transit: 0, disposed: 0, lost: 0 });
+export const emptyLooseStatusBuckets = () => ({ in_stock: 0, in_transit: 0, disposed: 0, lost: 0, sold: 0 });
 
 export const emptyPackageStatusBuckets = () => ({ in_stock: 0, reserved: 0, dispatched: 0, delivered: 0 });
 

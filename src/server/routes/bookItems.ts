@@ -70,7 +70,7 @@ bookItemsRouter.get("/", async (c) => {
     conditions.push(eq(bookItems.currentSchoolId, schoolId));
   }
   if (bookId) conditions.push(eq(bookItems.bookId, bookId));
-  if (status) conditions.push(eq(bookItems.status, status as "in_stock" | "in_transit" | "disposed" | "lost"));
+  if (status) conditions.push(eq(bookItems.status, status as typeof bookItems.$inferSelect["status"]));
 
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as typeof query;

@@ -42,7 +42,17 @@ describe("stock-kernel tallies", () => {
     expect(tally.damagedQty).toBe(0);
     expect(tally.byConditionAll).toEqual({ new: 2, good: 2, fair: 0, damaged: 1 });
     expect(tally.byConditionAvailable).toEqual({ new: 1, good: 1, fair: 0, damaged: 0 });
-    expect(tally.byStatus).toEqual({ in_stock: 2, in_transit: 1, disposed: 1, lost: 1 });
+    expect(tally.byStatus).toEqual({ in_stock: 2, in_transit: 1, disposed: 1, lost: 1, sold: 0 });
+  });
+
+  it("buckets sold but keeps it out of totalQty", () => {
+    const tally = tallyLoose([
+      { status: "in_stock", condition: "new" },
+      { status: "sold", condition: "new" },
+    ]);
+    expect(tally.byStatus.sold).toBe(1);
+    expect(tally.totalQty).toBe(1);
+    expect(tally.availableQty).toBe(1);
   });
 
   it("counts available damaged for attention and ignores unknown keys", () => {
@@ -52,7 +62,7 @@ describe("stock-kernel tallies", () => {
     expect(tally.damagedQty).toBe(1);
     expect(tally.totalQty).toBe(2);
     expect(tally.availableQty).toBe(1);
-    expect(tally.byStatus).toEqual({ in_stock: 1, in_transit: 0, disposed: 0, lost: 0 });
+    expect(tally.byStatus).toEqual({ in_stock: 1, in_transit: 0, disposed: 0, lost: 0, sold: 0 });
   });
 
   it("returns zeroed empty states for empty input", () => {
