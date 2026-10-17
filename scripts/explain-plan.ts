@@ -34,6 +34,10 @@ const QUERIES: PlannedQuery[] = [
   { name: "uniform_order_items by order", sql: "SELECT * FROM uniform_order_items WHERE order_id IN ('a','b')", allowScan: false },
   { name: "uniform_exchanges via scoped orders", sql: "SELECT uniform_exchanges.* FROM uniform_exchanges INNER JOIN uniform_orders ON uniform_exchanges.order_id = uniform_orders.id WHERE uniform_orders.school_id = 'x'", allowScan: false },
   { name: "uniform_claims by school", sql: "SELECT * FROM uniform_claims WHERE school_id = 'x'", allowScan: false },
+  { name: "internal POs by school", sql: "SELECT * FROM internal_purchase_orders WHERE school_id = 'x'", allowScan: false },
+  { name: "internal PO items by PO", sql: "SELECT * FROM internal_purchase_order_items WHERE internal_po_id IN ('a','b')", allowScan: false },
+  { name: "internal shipments by PO", sql: "SELECT * FROM internal_shipments WHERE internal_po_id = 'x'", allowScan: false },
+  { name: "internal shipment items by shipment", sql: "SELECT * FROM internal_shipment_items WHERE shipment_id IN ('a','b')", allowScan: false },
 ];
 
 // Sumber kebenaran daftar QUERIES di atas tidak bisa ditebak dari SQL-nya, jadi
