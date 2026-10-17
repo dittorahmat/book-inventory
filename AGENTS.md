@@ -38,7 +38,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    # or bun run type-check
    ```
    Zero TypeScript errors (`tsc --noEmit`) are allowed.
-   Modul service baru menerima `AppDatabase` (union bun-sqlite|D1) sehingga `select()` tak bertipe: anotasi callback dengan tipe baris `$inferSelect` + `Map<K, V>` eksplisit, contoh `src/server/services/internal-po.ts`.
+   `AppDatabase` kini schema-aware (`BaseSQLiteDatabase<"sync" | "async", unknown, typeof schema>` di `src/db/index.ts`) sehingga `select()`/`insert()` mengembalikan baris terketik: anotasi callback `$inferSelect` manual **tidak lagi diperlukan** dan justru keliru pada hasil JOIN (biarkan inferensi; hapus anotasi yang salah), contoh `src/server/services/internal-po.ts`. Dilarang menutup celah tipe DB dengan `any`/cast baru — perbaiki tipe sumbernya (mis. `PaymentDerivation` di `src/server/services/order-intake/validation.ts`), ditegakkan `check:no-any`.
 
 3. **Code Linting & Formatting**
    ```bash
@@ -158,7 +158,7 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
    - **Setiap file milik tepat satu lane** — tulis allowlist file per lane; file bersama (mis. `schema.ts`, `public-orders.ts`, `settings*.ts`, `drizzle/**`) dialokasikan ke satu lane saja dan lane lain dilarang menyentuhnya. Skema + migrasi D1 dikerjakan agent utama secara serial sebelum lane berjalan.
    - **Lane dilarang `git add`/`commit`/`checkout`** dan dilarang menjalankan `lint`/`build`/`bun test` penuh — hanya `bun test <file-target>`. `bun run type-check` **boleh** dijalankan (read-only) dengan aturan ketat: perbaiki HANYA error di file milik lane itu, error di file lane lain **laporkan** ke agent utama dan jangan disentuh. Commit dan seluruh gate repo-wide dijalankan **serial oleh agent utama** setelah semua lane berhenti.
    - **Lane wajib melaporkan kontrak yang kurang/penyimpangan** ke agent utama, bukan menebak.
-   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: `select()` pada union `AppDatabase` menghasilkan baris `any` sehingga callback `.map/.filter` gagal `tsc` (§2) — inilah alasan lane kini **diizinkan** menjalankan `type-check` read-only.
+   - Setelah integrasi, agent utama **WAJIB** menjalankan urutan gate §9.5 penuh. Celah verifikasi yang berulang: perubahan tipe bersama (mis. seam `AppDatabase` di `src/db/index.ts`) memunculkan error `tsc` di banyak file lintas-lane sekaligus, sehingga lane **diizinkan** menjalankan `type-check` read-only — perbaiki hanya file milik lane itu, laporkan sisanya ke agent utama.
    - Bukti pola ini berhasil: 3 lane (backend inti / kanal WhatsApp / UI) menyentuh ~30 file tanpa satu pun konflik tulis, tanpa merge, dan tanpa instalasi dependensi ulang; 15 error type-check tersisa ditutup di fase integrasi.
 6. Pengecualian: refactor cross-cutting yang menyentuh file bersama (hunk overlap antar kandidat) boleh satu commit mencakup semua kandidat agar tiap commit tetap buildable.
 7. **Pantau CI/PR dengan cek singkat berinterval**: jangan satu polling panjang yang memblokir (Okt 2026: loop 10×30 dtk diabort user 2×) — satu `gh pr checks` cepat per beberapa menit sampai hijau.

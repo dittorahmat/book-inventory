@@ -94,7 +94,7 @@ const sendInvoiceCore = async (
   orderId: string,
   kind: InvoiceKind,
   deps?: SendInvoiceDeps
-): Promise<{ ok: true; data: { order: typeof studentBookOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError> => {
+): Promise<{ ok: true; data: { order: typeof studentBookOrders.$inferSelect | typeof uniformOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError> => {
   const now = writeNow(deps);
   const [order] = await database.select().from(table).where(eq(table.id, orderId));
   if (!order) return { ok: false, status: 404, message: kind.notFound };

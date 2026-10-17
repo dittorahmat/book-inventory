@@ -129,12 +129,12 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
       updatedAt: now,
     });
 
-    const packageSeeds = Array.from({ length: 30 }, (_, i) => ({
+    const packageSeeds: (typeof bookPackages.$inferInsert)[] = Array.from({ length: 30 }, (_, i) => ({
       id: `pkg-vol-${stamp}-${i}`,
       code: `PKG-VOL-${stamp}-${i}`,
       name: `Paket Volume ${i}`,
       gradeLevel: "1",
-      curriculumType: "nasional",
+      curriculumType: "national",
       academicYear: "2026/2027",
       createdAt: now,
       updatedAt: now,

@@ -389,6 +389,6 @@ export async function listUniformOrders(database: AppDatabase, filters: UniformO
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(uniformOrders.createdAt))
     .limit(50);
-  const pending = await pendingPaymentCounts(database, "seragam", rows.map((r: typeof uniformOrders.$inferSelect) => r.id));
-  return rows.map((r: typeof uniformOrders.$inferSelect) => ({ ...r, stage: uniformOrderStage(r), pendingCount: pending.get(r.id) ?? 0 }));
+  const pending = await pendingPaymentCounts(database, "seragam", rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, stage: uniformOrderStage(r), pendingCount: pending.get(r.id) ?? 0 }));
 }

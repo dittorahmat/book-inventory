@@ -429,12 +429,11 @@ describe("Inter-School Transfer Shipments API", () => {
         id: bookId, isbn: `ISBN-QTY-${stamp}`, title: "Buku FIFO Test", author: "QA", publisher: "QA",
         price: 100000, createdAt: now, updatedAt: now,
       });
-      await db.insert(bookItems).values(
-        copyIds.map((id, i) => ({
-          id, bookId, currentSchoolId: fromId, barcode: `QTY-${stamp}-${i}`,
-          condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
-        }))
-      );
+      const rows: (typeof bookItems.$inferInsert)[] = copyIds.map((id, i) => ({
+        id, bookId, currentSchoolId: fromId, barcode: `QTY-${stamp}-${i}`,
+        condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+      }));
+      await db.insert(bookItems).values(rows);
 
       const res = await shipmentsRouter.request("/", {
         method: "POST",
@@ -601,12 +600,11 @@ describe("Inter-School Transfer Shipments API", () => {
         id: bookId, isbn: `ISBN-T1-${stamp}`, title: "Buku T1 Volume", author: "QA", publisher: "QA",
         price: 10000, createdAt: now, updatedAt: now,
       });
-      await db.insert(bookItems).values(
-        Array.from({ length: 30 }, (_, i) => ({
-          id: `bi-t1-${stamp}-${i}`, bookId, currentSchoolId: fromId, barcode: `T1-${stamp}-${i}`,
-          condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
-        }))
-      );
+      const t1Rows: (typeof bookItems.$inferInsert)[] = Array.from({ length: 30 }, (_, i) => ({
+        id: `bi-t1-${stamp}-${i}`, bookId, currentSchoolId: fromId, barcode: `T1-${stamp}-${i}`,
+        condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+      }));
+      await db.insert(bookItems).values(t1Rows);
 
       const createRes = await shipmentsRouter.request("/", {
         method: "POST",
@@ -665,12 +663,11 @@ describe("Inter-School Transfer Shipments API", () => {
         id: bookId, isbn: `ISBN-T1RB-${stamp}`, title: "Buku T1 Rollback", author: "QA", publisher: "QA",
         price: 10000, createdAt: now, updatedAt: now,
       });
-      await db.insert(bookItems).values(
-        Array.from({ length: 30 }, (_, i) => ({
-          id: `bi-t1rb-${stamp}-${i}`, bookId, currentSchoolId: fromId, barcode: `T1RB-${stamp}-${i}`,
-          condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
-        }))
-      );
+      const t1rbRows: (typeof bookItems.$inferInsert)[] = Array.from({ length: 30 }, (_, i) => ({
+        id: `bi-t1rb-${stamp}-${i}`, bookId, currentSchoolId: fromId, barcode: `T1RB-${stamp}-${i}`,
+        condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
+      }));
+      await db.insert(bookItems).values(t1rbRows);
 
       const createRes = await shipmentsRouter.request("/", {
         method: "POST",

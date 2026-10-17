@@ -187,13 +187,12 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
     const bomId = `bom-ful-${stamp()}`;
     try {
       await db.insert(bookPackageItems).values({ id: bomId, packageId, bookId, quantity: 1, createdAt: now });
-      await db.insert(bookItems).values(
-        Array.from({ length: 25 }, (_, i) => ({
-          id: `bi-kitbulk-${stamp()}-${i}`, bookId, currentSchoolId: schoolId,
-          barcode: `KITBULK-${stamp()}-${i}`, condition: "new", status: "in_stock",
-          createdAt: now, updatedAt: now,
-        }))
-      );
+      const rows: (typeof bookItems.$inferInsert)[] = Array.from({ length: 25 }, (_, i) => ({
+        id: `bi-kitbulk-${stamp()}-${i}`, bookId, currentSchoolId: schoolId,
+        barcode: `KITBULK-${stamp()}-${i}`, condition: "new", status: "in_stock",
+        createdAt: now, updatedAt: now,
+      }));
+      await db.insert(bookItems).values(rows);
 
       const assembled = await assemblePackageBundles(db, packageId, schoolId, 25);
       if (!assembled.ok) {

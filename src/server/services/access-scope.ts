@@ -136,9 +136,8 @@ export function accessErrorResponse(c: { json: (body: unknown, status?: 400 | 40
 }
 
 /** Load all location ids for scoping. Keeps route handlers to one-liners. */
-export const loadLocationIds = (database: {
-  select: (fields?: unknown) => { from: (table: unknown) => Promise<Array<{ id: string }>> };
-}): Promise<Array<{ id: string }>> => database.select({ id: schools.id }).from(schools);
+export const loadLocationIds = (database: AppDatabase): Promise<Array<{ id: string }>> =>
+  database.select({ id: schools.id }).from(schools);
 
 /**
  * Gabungan resolve + authenticate + scope dalam satu panggilan: menggantikan

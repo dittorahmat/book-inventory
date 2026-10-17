@@ -83,7 +83,7 @@ export const bookItems = sqliteTable("book_items", {
   currentSchoolId: text("current_school_id").notNull().references(() => schools.id),
   barcode: text("barcode").notNull().unique(),
   condition: text("condition", { enum: ["new", "good", "fair", "damaged"] }).notNull().default("new"),
-  status: text("status", { enum: ["in_stock", "in_transit", "disposed", "lost"] }).notNull().default("in_stock"),
+  status: text("status", { enum: ["in_stock", "in_transit", "disposed", "lost", "sold"] }).notNull().default("in_stock"),
   isRejected: integer("is_rejected", { mode: "boolean" }).notNull().default(false),
   notes: text("notes"),
   createdAt: text("created_at").notNull(),

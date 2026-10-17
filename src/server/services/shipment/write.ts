@@ -77,7 +77,7 @@ export async function createShipment(
         ]
       : [];
 
-    const looseRows = looseLines.map((l) => ({
+    const looseRows: (typeof transferShipmentItems.$inferInsert)[] = looseLines.map((l) => ({
       id: crypto.randomUUID(),
       shipmentId,
       itemType: "loose",
@@ -89,7 +89,7 @@ export async function createShipment(
       receivedCondition: input.instant ? "good" : null,
       createdAt: now,
     }));
-    const bundleRows = bundleLines.map((l) => ({
+    const bundleRows: (typeof transferShipmentItems.$inferInsert)[] = bundleLines.map((l) => ({
       id: crypto.randomUUID(),
       shipmentId,
       itemType: "package",

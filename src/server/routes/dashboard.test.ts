@@ -200,7 +200,7 @@ describe("Dashboard summary API", () => {
       id: bookId, isbn: `ISBN-T4-${stamp}`, title: `Buku T4 ${stamp}`,
       author: "Test", publisher: "Test", createdAt: nowT4, updatedAt: nowT4,
     });
-    const item = (id: string, schoolId: string, status: string) => ({
+    const item = (id: string, schoolId: string, status: (typeof bookItems.$inferInsert)["status"]): typeof bookItems.$inferInsert => ({
       id, bookId, currentSchoolId: schoolId, barcode: `T4-BC-${id}`, condition: "new", status,
       createdAt: nowT4, updatedAt: nowT4,
     });
