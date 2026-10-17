@@ -1010,6 +1010,15 @@ describe("Portal search partition (§11 anti full-scan)", () => {
       expect(found.status).toBe(200);
       expect(foundJson.data.some((o: any) => o.orderNumber === orderNumber)).toBe(true);
 
+      // Mengunci sifat case-insensitive `LIKE` SQLite (bukan bukti bug baru):
+      // nomor pesanan berhuruf kecil harus tetap menemukan barisnya.
+      const flippedCase = await publicOrdersRouter.request(
+        `/lookup-order?query=${encodeURIComponent(orderNumber.toLowerCase())}&schoolId=${schoolA}`
+      );
+      expect(flippedCase.status).toBe(200);
+      const flippedJson = await flippedCase.json();
+      expect(flippedJson.data.some((o: { orderNumber: string }) => o.orderNumber === orderNumber)).toBe(true);
+
       const wrongSchool = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent(orderNumber)}&schoolId=${schoolB}`);
       expect(wrongSchool.status).toBe(404);
 

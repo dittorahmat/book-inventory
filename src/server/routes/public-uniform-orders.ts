@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, inArray, like, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
+import { matchLower } from "../lib/partitioned-search";
 import { idSchema, academicYearSchema } from "../lib/validators";
 import {
   listUniformPackages,
@@ -120,7 +121,7 @@ publicUniformOrdersRouter.get("/lookup-order", zValidator("query", lookupQuerySc
   if (studentId) {
     conditions.push(eq(uniformOrders.studentId, studentId));
   } else {
-    conditions.push(like(sql`lower(${uniformOrders.orderNumber})`, `%${(orderNumber as string).trim().toLowerCase()}%`));
+    conditions.push(matchLower(uniformOrders.orderNumber, orderNumber as string));
   }
   if (schoolId) conditions.push(eq(uniformOrders.schoolId, schoolId));
   const matched: Array<{ id: string }> = await db

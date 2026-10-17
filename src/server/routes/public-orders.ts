@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, or, like, and, ne } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, bookPackages, schools } from "../../db/schema";
+import { matchAnyLower } from "../lib/partitioned-search";
 import { listPackagesWithBom, PACKAGE_LIST_LIMIT } from "../services/package-stock";
 import {
   getCurrentSatuanStatus,
@@ -237,11 +238,11 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   // Find order by orderNumber or student NIS within the school partition
-  const lookupMatch = or(
-    like(studentBookOrders.orderNumber, `%${query}%`),
-    like(students.nis, `%${query}%`),
-    like(students.name, `%${query}%`)
-  );
+  // Pencarian substring terpartisi lewat helper kanonik (kolom `lower()` +
+  // pola lowercase). Perilaku tidak berubah: `LIKE` SQLite sudah
+  // ASCII-case-insensitive, jadi `lower()` di sini adalah sabuk-pengaman yang
+  // membuat keenam situs pencarian berbentuk sama — bukan perbaikan bug.
+  const lookupMatch = matchAnyLower([studentBookOrders.orderNumber, students.nis, students.name], query);
   const matchedOrders = await db
     .select({
       id: studentBookOrders.id,
