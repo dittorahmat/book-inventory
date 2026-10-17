@@ -1,5 +1,5 @@
 # Quality gates: type-check, lint, ukuran file, kedalaman import, pairing route-test, validator,
-# dead-export, canonical-helper, lane-ownership, query plan, build, dan test.
+# dead-export, canonical-helper, d1-write, test-isolation, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -64,6 +64,14 @@ jobs:
         env:
           GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:canonical-helpers
+
+      - name: D1 write-discipline gate
+        # Static §10 gate: INSERT >10 baris per statement atau Promise.all untuk tulis.
+        run: bun run check:d1-writes
+
+      - name: Test-isolation gate
+        # Static §6 gate: tidak ada binding D1 di test + preload test/setup.ts utuh.
+        run: bun run check:test-isolation
 
       - name: Lane-ownership gate
         # Self-skip tanpa manifest lane (docs/agents/lanes.json gitignored) → CI tetap hijau.
