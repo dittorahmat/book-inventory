@@ -367,7 +367,9 @@ export const internalPurchaseOrders = sqliteTable("internal_purchase_orders", {
   createdByUserId: text("created_by_user_id").references(() => users.id),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-});
+}, (t) => [
+  index("internal_po_school_idx").on(t.schoolId),
+]);
 
 export const internalPurchaseOrderItems = sqliteTable("internal_purchase_order_items", {
   id: text("id").primaryKey(),
@@ -376,7 +378,9 @@ export const internalPurchaseOrderItems = sqliteTable("internal_purchase_order_i
   quantityOrdered: integer("quantity_ordered").notNull(),
   quantityFulfilled: integer("quantity_fulfilled").notNull().default(0),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => [
+  index("internal_po_items_po_idx").on(t.internalPoId),
+]);
 
 export const internalShipments = sqliteTable("internal_shipments", {
   id: text("id").primaryKey(),
@@ -393,6 +397,7 @@ export const internalShipments = sqliteTable("internal_shipments", {
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
   index("internal_shipments_transfer_idx").on(t.transferShipmentId),
+  index("internal_shipments_po_idx").on(t.internalPoId),
 ]);
 
 export const internalShipmentItems = sqliteTable("internal_shipment_items", {
