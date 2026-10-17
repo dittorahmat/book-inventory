@@ -1,5 +1,5 @@
 # Quality gates: type-check, lint, ukuran file, kedalaman import, pairing route-test, validator,
-# dead-export, query plan, build, dan test.
+# dead-export, canonical-helper, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -64,6 +64,10 @@ jobs:
         env:
           GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:canonical-helpers
+
+      - name: Lane-ownership gate
+        # Self-skip tanpa manifest lane (docs/agents/lanes.json gitignored) → CI tetap hijau.
+        run: bun run check:lanes
 
       - name: Query plan gate
         run: bun run check:plans

@@ -1,0 +1,34 @@
+{
+  "base": "main",
+  "lanes": [
+    {
+      "id": "main",
+      "files": [
+        "AGENTS.md",
+        "package.json",
+        "scripts/**",
+        ".github/**",
+        "docs/**",
+        "drizzle/**",
+        "src/db/schema.ts",
+        "src/server/routes/public-orders.ts",
+        "src/server/routes/settings*.ts"
+      ]
+    },
+    {
+      "id": "intake-ui",
+      "files": [
+        "src/components/intake/**",
+        "src/lib/intake-types.ts",
+        "src/hooks/useIntake.ts"
+      ]
+    },
+    {
+      "id": "intake-api",
+      "files": [
+        "src/server/routes/intake*.ts",
+        "src/server/services/intake/**"
+      ]
+    }
+  ]
+}
