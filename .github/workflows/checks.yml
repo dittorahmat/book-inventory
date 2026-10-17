@@ -51,6 +51,9 @@ jobs:
       - name: No-any gate
         run: bun run check:no-any
 
+      - name: Canonical-helper gate
+        run: bun run check:canonical-helpers
+
       - name: Query plan gate
         run: bun run check:plans
 

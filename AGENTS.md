@@ -114,14 +114,14 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Pindai dulu, perbaiki dalam scope**: setiap sesi yang menyentuh `src/` **WAJIB** diawali pemindaian code smell read-only (`Grep` / `rg` / `Select-String`, tanpa edit) dan diakhiri eliminasi temuan sesuai scope yang disepakati user (quick wins / monolit / hardening).
 2. **Katalog smell yang wajib dicek**:
    - File sumber >400 baris (§7, kecuali `*.test.ts`, `schema.ts`, `seed.ts`).
-   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `transfer-pricing.ts`, `book-pricing.ts` + `services/book-price.ts`, `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru.
+   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `transfer-pricing.ts`, `book-pricing.ts` + `services/book-price.ts`, `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper yang sudah punya pemilik kanonik tunggal.
    - `any` baru, `@ts-ignore` / `eslint-disable` baru, `console.log` produksi.
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
    - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
-4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any` (baris baru, bukan pemindaian manual).
-5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:plans` → `npm run build` → `bun test`.
+4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
+5. **Verifikasi penutup** (setelah §1–§8, urutan sama dengan `.github/workflows/checks.yml`): `bun run type-check` (nol error) → `npm run lint` → `bun run check:file-size` → `bun run check:imports` → `bun run check:route-tests` → `bun run check:validators` → `bun run check:dead` → `bun run check:no-any` → `bun run check:canonical-helpers` → `bun run check:plans` → `npm run build` → `bun test`.
 
 ---
 
