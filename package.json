@@ -18,6 +18,7 @@
     "check:no-any": "bun scripts/check-no-any.ts",
     "check:canonical-helpers": "bun scripts/check-canonical-helpers.ts",
     "check:plans": "bun scripts/explain-plan.ts",
+    "check:all": "bun run type-check && bun run lint && bun run check:file-size && bun run check:imports && bun run check:route-tests && bun run check:validators && bun run check:dead && bun run check:no-any && bun run check:canonical-helpers && bun run check:plans && bun run build && bun test",
     "check:d1-drift": "bun scripts/check-d1-drift.ts",
     "check:d1-junk": "bun scripts/check-d1-junk.ts",
     "type-check": "tsc --noEmit",

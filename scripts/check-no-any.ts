@@ -3,7 +3,9 @@
 // eksplisit. Utang lama tidak disentuh — baris lama boleh tetap, baris
 // baru wajib `unknown` + narrowing atau tipe struktural minimal.
 // Dijalankan via `bun run check:no-any` (lihat AGENTS.md aturan 9).
-import { changedLines } from "./lib/changed-lines";
+// `--base=<ref>` (atau env GATE_BASE_REF) membuat gate juga memeriksa baris
+// yang ditambahkan pada diff PR — di CI checkout bersih diff lokal selalu kosong.
+import { baseRefFromArgv, changedLines } from "./lib/changed-lines";
 
 const PATTERNS = [
   /:\s*any\b/, // anotasi `: any` (termasuk `catch (err: any)`)
@@ -17,7 +19,7 @@ const isTsFile = (file: string): boolean => /\.(ts|tsx)$/.test(file);
 const isComment = (trimmed: string): boolean =>
   trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*");
 
-const lines = changedLines("src", isTsFile);
+const lines = changedLines("src", isTsFile, { base: baseRefFromArgv(process.argv) });
 if (lines === null) {
   console.log("No-any gate SKIP: bukan repo git — lewati.");
   process.exit(0);

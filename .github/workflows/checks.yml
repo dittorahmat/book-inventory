@@ -16,6 +16,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # fetch-depth 0 (riwayat penuh) wajib agar gate diff-scoped
+          # (no-any, canonical-helpers) bisa `git diff <base>...HEAD`.
+          fetch-depth: 0
 
       # WAJIB sama dengan field packageManager (AGENTS.md aturan 5):
       # bun lebih baru menulis lockfile v2 yang gagal dibaca bun 1.2.15.
@@ -34,7 +38,9 @@ jobs:
         run: bun run lint
 
       - name: File-size gate
-        run: bun run check:file-size
+        # --all = full-tree: pada checkout CI `git status` kosong sehingga mode
+        # file-yang-diubah (pre-commit) akan selalu lolos tanpa memeriksa apa pun.
+        run: bun run check:file-size --all
 
       - name: Import-depth gate
         run: bun run check:imports
@@ -49,9 +55,14 @@ jobs:
         run: bun run check:dead
 
       - name: No-any gate
+        # Base ref PR: gate memeriksa baris `+` dari diff merge-base, bukan diff lokal kosong.
+        env:
+          GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:no-any
 
       - name: Canonical-helper gate
+        env:
+          GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:canonical-helpers
 
       - name: Query plan gate
