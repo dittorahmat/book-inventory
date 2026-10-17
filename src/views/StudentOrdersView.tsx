@@ -9,6 +9,8 @@ import { CashierPaymentModal } from "../components/orders/CashierPaymentModal";
 import { ScholarshipApprovalModal } from "../components/orders/ScholarshipApprovalModal";
 import { OrderHandoverModal } from "../components/orders/OrderHandoverModal";
 import { FinanceDiscretionModal } from "../components/orders/FinanceDiscretionModal";
+import { PaymentReviewModal } from "../components/orders/PaymentReviewModal";
+import { fetchOrderPayments, verifyOrderPayment, rejectOrderPayment } from "../components/orders/payment-review-api";
 import type { StudentOrder } from "../components/orders/order-types";
 
 interface StudentOrdersViewProps {
@@ -38,6 +40,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
   const [activeScholarshipOrder, setActiveScholarshipOrder] = useState<StudentOrder | null>(null);
   const [activeHandoverOrder, setActiveHandoverOrder] = useState<StudentOrder | null>(null);
   const [activeDiscretionOrder, setActiveDiscretionOrder] = useState<StudentOrder | null>(null);
+  const [activeReviewOrder, setActiveReviewOrder] = useState<StudentOrder | null>(null);
 
   return (
     <div className="space-y-4">
@@ -119,6 +122,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
           onMarkSatuanShipped={markSatuanShipped}
           onOpenShipping={setActiveShippingOrder}
           onSendInvoice={sendInvoice}
+          onReviewPayments={setActiveReviewOrder}
         />
       )}
 
@@ -159,6 +163,18 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
           order={activeDiscretionOrder}
           onClose={() => setActiveDiscretionOrder(null)}
           onSuccess={loadOrders}
+        />
+      )}
+
+      {activeReviewOrder && (
+        <PaymentReviewModal
+          heading={`Order ${activeReviewOrder.orderNumber}`}
+          subheading={`${activeReviewOrder.studentName} · ${activeReviewOrder.packageName || "-"}`}
+          load={() => fetchOrderPayments(activeReviewOrder.id)}
+          verify={(paymentId) => verifyOrderPayment(activeReviewOrder.id, paymentId)}
+          reject={(paymentId, reason) => rejectOrderPayment(activeReviewOrder.id, paymentId, reason)}
+          onClose={() => setActiveReviewOrder(null)}
+          onChanged={loadOrders}
         />
       )}
     </div>
