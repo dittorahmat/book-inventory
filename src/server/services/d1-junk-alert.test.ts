@@ -66,16 +66,17 @@ describe("alertJunkSchools (alarm cron production)", () => {
 
       sentMail.length = 0;
       const first = await alertJunkSchools(db, { mail: okMail });
-      expect(first.junkCount).toBeGreaterThanOrEqual(2);
+      expect(first.outcome).toBe("notified");
+      expect(first.count).toBeGreaterThanOrEqual(2);
       expect(first.sent).toBeGreaterThan(0);
       expect(sentMail).toHaveLength(first.sent);
       expect(sentMail.some((mail) => mail.to === adminEmail)).toBe(true);
-      expect(sentMail[0]?.subject ?? "").toContain(`${first.junkCount} sekolah pola-uji`);
+      expect(sentMail[0]?.subject ?? "").toContain(`${first.count} sekolah pola-uji`);
 
       // Sampah belum dibersihkan -> sidik sama -> tidak ada email kedua (anti alarm-fatigue).
       sentMail.length = 0;
       const second = await alertJunkSchools(db, { mail: okMail });
-      expect(second.skipped).toBe("sampah sama dengan alarm terakhir");
+      expect(second.outcome).toBe("unchanged");
       expect(sentMail).toHaveLength(0);
 
       // Dibersihkan -> sidik dihapus, sehingga sampah baru kelak tetap dialarmkan.
@@ -83,8 +84,8 @@ describe("alertJunkSchools (alarm cron production)", () => {
       await db.delete(schools).where(inArray(schools.id, remaining));
       sentMail.length = 0;
       const clean = await alertJunkSchools(db, { mail: okMail });
-      expect(clean.skipped).toBe("production bersih");
-      expect(clean.junkCount).toBe(0);
+      expect(clean.outcome).toBe("clean");
+      expect(clean.count).toBe(0);
       expect(sentMail).toHaveLength(0);
       const [signatureRow] = await db
         .select()

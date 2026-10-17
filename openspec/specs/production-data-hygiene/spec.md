@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Menjaga database production (Cloudflare D1) bebas dari baris pola-uji/QA yang bocor ke
-production — vektor insiden "175 sekolah sampah" (Okt 2026) — dengan alarm otomatis yang
-terlihat manusia dan pembersihan yang terverifikasi (§6 AGENTS.md).
+Menjaga database production (Cloudflare D1) sehat lewat alarm otomatis yang terlihat manusia:
+bebas dari baris pola-uji/QA yang bocor ("175 sekolah sampah", Okt 2026) **dan** bebas dari drift
+skema yang membuat endpoint 500 padahal test lokal hijau (§1, §6 AGENTS.md).
 
 ## Requirements
 
@@ -26,14 +26,14 @@ sehingga tidak memerlukan kredensial Cloudflare tambahan.
 
 - **Given** himpunan sampah identik dengan alarm terakhir yang sudah terkirim
 - **When** Cron Trigger dijalankan
-- **Then** sistem tidak mengirim email lagi dan melaporkan `skipped: "sampah sama dengan alarm terakhir"`.
+- **Then** sistem tidak mengirim email lagi dan melaporkan `outcome: "unchanged"`.
 
 #### Scenario: Production bersih kembali
 
 - **Given** tidak ada lagi baris berpola uji di `schools`
 - **When** Cron Trigger dijalankan
 - **Then** sidik alarm dihapus dari `system_settings` sehingga sampah baru di masa depan tetap dialarmkan
-- **And** sistem melaporkan `skipped: "production bersih"` tanpa mengirim email.
+- **And** sistem melaporkan `outcome: "clean"` tanpa mengirim email.
 
 #### Scenario: Pengiriman gagal dicoba ulang
 
@@ -52,3 +52,41 @@ alarm cron production dan alarm manual pre-merge `bun run check:d1-junk` (§8: d
 - **Given** sebuah id sekolah berpola uji
 - **When** diperiksa oleh `bun run check:d1-junk` (via wrangler, manual pre-merge) maupun oleh alarm cron
 - **Then** keduanya memakai predicate yang sama sehingga hasil deteksinya identik.
+
+### Requirement: Alarm Otomatis Drift Skema
+
+Sistem harus membandingkan skema yang dilihat ORM (`src/db/schema.ts`) dengan skema live di
+production D1 pada Cron Trigger yang sama, dan memberi tahu staf pusat bila ada tabel atau kolom
+yang hilang — kelas insiden §1 di mana migrasi tidak teraplikasi ke remote sehingga endpoint
+mengembalikan 500 (`no such table` / `no such column`) padahal test lokal hijau. Sebelum ini gate
+`bun run check:d1-drift` hanya bisa dijalankan manual karena butuh kredensial Cloudflare; alarm ini
+memakai binding D1 sehingga tidak butuh kredensial. Tabel ekstra di remote (tidak ada di
+`schema.ts`) bukan temuan.
+
+#### Scenario: Migrasi tertinggal dari schema.ts
+
+- **Given** sebuah tabel atau kolom ada di `schema.ts` tetapi tidak ada di production D1
+- **When** Cron Trigger dijalankan
+- **Then** sistem mengirim email alarm ke seluruh `central_admin` yang menyebut tabel/kolom hilang itu
+- **And** sidiknya disimpan di `system_settings` dengan kunci `d1_drift_alert_signature`.
+
+#### Scenario: Skema hasil migrasi terbukti sinkron
+
+- **Given** database hasil penerapan seluruh file `drizzle/00*.sql`
+- **When** pemindaian drift dijalankan
+- **Then** tidak ada temuan, sehingga test `scanDrift` pada database terisolasi menjadi bukti
+  bahwa migrasi tidak tertinggal dari `schema.ts` sebelum seseorang menyentuh production.
+
+### Requirement: Inti Alarm Bersama
+
+Sidik/anti-spam/pengiriman email kedua alarm harus berasal dari satu modul
+(`src/server/services/d1-alarm.ts`) — bukan dua implementasi paralel (§8) — dengan hasil
+terstruktur `{ count, recipients, sent, outcome, errors? }`; `outcome` bernilai
+`clean` | `unchanged` | `no-recipients` | `notified` | `notify-failed`.
+
+#### Scenario: Sidik hanya disimpan bila ada email terkirim
+
+- **Given** alarm punya temuan baru tetapi seluruh pengiriman email gagal
+- **When** alarm dijalankan
+- **Then** `outcome` bernilai `notify-failed` dan sidik **tidak** disimpan, sehingga putaran
+  berikutnya mengirim ulang alih-alih diam selamanya.

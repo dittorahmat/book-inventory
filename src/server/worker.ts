@@ -5,6 +5,7 @@ import type { D1Database, ExecutionContext, R2Bucket, ScheduledController } from
 import { getDatabase } from "../db";
 import { setStorageService, CloudflareR2StorageService } from "../services/storage";
 import { alertJunkSchools } from "./services/d1-junk-alert";
+import { alertDrift } from "./services/d1-drift-alert";
 import type { EmailRuntimeEnv } from "./services/email/types";
 
 type Bindings = {
@@ -52,7 +53,9 @@ export default {
   fetch: worker.fetch,
   /**
    * Cron harian (17:00 UTC = 00:00 WIB, lihat `[triggers]` wrangler.toml):
-   * alarm sampah data-uji production tanpa kredensial — query lewat binding D1.
+   * dua alarm production tanpa kredensial — sampah data-uji (§6) dan drift
+   * skema (§1) — keduanya query lewat binding D1. Dijalankan sekuensial
+   * (query tulis `system_settings` di dalamnya, §10: dilarang `Promise.all`).
    * `console.log` di sini disengaja: cron tidak punya respons HTTP, jadi Workers
    * Logs adalah satu-satunya kanal untuk melihat hasil/kegagalan non-email.
    */
@@ -63,7 +66,9 @@ export default {
   ): Promise<void> {
     if (!env.DB) return;
     const database = await getDatabase(env);
-    const result = await alertJunkSchools(database, { env: env as unknown as EmailRuntimeEnv });
-    console.log(`[cron d1-junk] ${JSON.stringify(result)}`);
+    const deps = { env: env as unknown as EmailRuntimeEnv };
+    const junk = await alertJunkSchools(database, deps);
+    const drift = await alertDrift(database, deps);
+    console.log(`[cron d1-alarm] junk=${JSON.stringify(junk)} drift=${JSON.stringify(drift)}`);
   },
 };
