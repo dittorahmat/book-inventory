@@ -211,6 +211,13 @@
       "when": 1792236527208,
       "tag": "0029_bizarre_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1792292763801,
+      "tag": "0030_premium_longshot",
+      "breakpoints": true
     }
   ]
 }
