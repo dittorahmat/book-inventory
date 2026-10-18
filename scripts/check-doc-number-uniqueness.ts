@@ -34,7 +34,7 @@ const GENERATED_COLUMNS: DocColumn[] = [
   { prefix: "USO", table: "uniformOrders", column: "orderNumber" },
   { prefix: "UPO", table: "uniformPos", column: "poNumber" },
   { prefix: "RFD-U", table: "uniformRefunds", column: "refundNumber" },
-  { prefix: "CLM", table: "uniformClaims", column: "claimNumber" },
+  { prefix: "CLM", table: "branchClaims", column: "claimNumber" },
   { prefix: "TGH", table: "branchCharges", column: "chargeNumber" },
   { prefix: "REG", table: "students", column: "nis" },
   {

@@ -656,11 +656,8 @@ export const uniformRejects = sqliteTable("uniform_rejects", {
   index("uniform_rejects_variant_idx").on(t.variantId),
 ]);
 
-/**
- * Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock.
- * Nama tabel historis (`uniform_*`), cakupan kini buku + seragam lewat branch_charges.
- */
-export const uniformClaims = sqliteTable("uniform_claims", {
+/** Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock. */
+export const branchClaims = sqliteTable("branch_claims", {
   id: text("id").primaryKey(),
   claimNumber: text("claim_number").notNull().unique(),
   schoolId: text("school_id").notNull().references(() => schools.id),
@@ -677,8 +674,8 @@ export const uniformClaims = sqliteTable("uniform_claims", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
-  index("uniform_claims_school_period_idx").on(t.schoolId, t.period),
-  unique("uniform_claims_school_period_unq").on(t.schoolId, t.period),
+  index("branch_claims_school_period_idx").on(t.schoolId, t.period),
+  unique("branch_claims_school_period_unq").on(t.schoolId, t.period),
 ]);
 
 /**
@@ -740,7 +737,7 @@ export const branchCharges = sqliteTable("branch_charges", {
   goodsAmount: integer("goods_amount").notNull().default(0),
   shippingAmount: integer("shipping_amount").notNull().default(0),
   status: text("status", { enum: ["open", "final"] }).notNull().default("open"),
-  claimId: text("claim_id").references(() => uniformClaims.id),
+  claimId: text("claim_id").references(() => branchClaims.id),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import type { AppDatabase } from "../../../db";
-import { branchCharges, schools, uniformClaims, uniformOrderItems } from "../../../db/schema";
+import type { AppDatabase } from "../../db";
+import { branchCharges, branchClaims, schools, uniformOrderItems } from "../../db/schema";
 import {
   chunkRows,
   d1WriteErrorStatus,
@@ -9,32 +9,34 @@ import {
   selectInChunks,
   writeNow,
   type WriteDeps,
-} from "../../lib/d1-write";
-import { documentNumber, randomSerial } from "../../lib/document-number";
-import { PERIOD_RE, periodBounds } from "../../lib/period";
-import { readSettingsMap } from "../settings-map";
-import type { UniformError } from "./catalog";
-
-export const UNIFORM_CLAIM_PREFIX_KEY = "uniform_claim_prefix";
-export const DEFAULT_UNIFORM_CLAIM_PREFIX = "CLM";
-
-type ClaimRow = typeof uniformClaims.$inferSelect;
-type ChargeRow = typeof branchCharges.$inferSelect;
-
-const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
-
-
+} from "../lib/d1-write";
+import { documentNumber, randomSerial } from "../lib/document-number";
+import { PERIOD_RE, periodBounds } from "../lib/period";
+import { readSettingsMap } from "./settings-map";
 
 /**
- * Klaim Cabang: snapshot gudang→cabang per periode+sekolah. Angka dibekukan
- * saat lock — mutasi pasca-lock (tukar/refund susulan) tidak menyentuh klaim
- * terkunci; selisihnya diselesaikan manual pada periode berikut.
+ * Klaim Cabang: rekonsiliasi gudang → cabang per periode + sekolah, mencakup
+ * buku DAN seragam lewat `branch_charges`. Angka dibekukan saat lock — tagihan
+ * yang final setelahnya tidak menyentuh klaim terkunci, melainkan masuk klaim
+ * periode berikutnya.
  */
-export async function createUniformClaim(
+
+/** Kunci `system_settings` ini sudah tersimpan di data produksi; nilainya jangan diubah. */
+export const CLAIM_PREFIX_KEY = "uniform_claim_prefix";
+export const DEFAULT_CLAIM_PREFIX = "CLM";
+
+type ClaimRow = typeof branchClaims.$inferSelect;
+type ChargeRow = typeof branchCharges.$inferSelect;
+
+type ClaimError = { ok: false; status: 400 | 404; message: string };
+
+const invalid = (message: string): ClaimError => ({ ok: false, status: 400, message });
+
+export async function createBranchClaim(
   database: AppDatabase,
   input: { schoolId: string; period: string },
   deps?: WriteDeps & { claimPrefix?: string }
-): Promise<{ ok: true; data: ClaimRow } | UniformError> {
+): Promise<{ ok: true; data: ClaimRow } | ClaimError> {
   const now = writeNow(deps);
   if (!PERIOD_RE.test(input.period)) return invalid("Periode wajib format YYYY-MM.");
   const [school] = await database.select({ id: schools.id }).from(schools).where(eq(schools.id, input.schoolId));
@@ -42,7 +44,8 @@ export async function createUniformClaim(
 
   const { end } = periodBounds(input.period);
   // Klaim = jumlah tagihan `final` yang belum masuk klaim dan jatuh di periode ini.
-  // Tagihan `open` (ongkir belum diinput) sengaja dilewati, bukan ditebak.
+  // Tanpa batas bawah: tagihan yang final setelah klaim periode lalu dikunci
+  // otomatis tersapu ke klaim berikutnya, bukan hilang.
   const charges: ChargeRow[] = await database
     .select()
     .from(branchCharges)
@@ -51,9 +54,6 @@ export async function createUniformClaim(
         eq(branchCharges.schoolId, input.schoolId),
         eq(branchCharges.status, "final"),
         isNull(branchCharges.claimId),
-        // Semua tagihan final yang belum diklaim sampai akhir periode ini.
-        // Tanpa batas bawah: tagihan yang final setelah klaim periode lalu
-        // dikunci otomatis tersapu ke klaim berikutnya, bukan hilang.
         lt(branchCharges.finalizedAt, end)
       )
     );
@@ -70,12 +70,12 @@ export async function createUniformClaim(
       )
     : [];
   const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-  const prefix = deps?.claimPrefix ?? (await readSettingsMap(database))[UNIFORM_CLAIM_PREFIX_KEY] ?? DEFAULT_UNIFORM_CLAIM_PREFIX;
+  const prefix = deps?.claimPrefix ?? (await readSettingsMap(database))[CLAIM_PREFIX_KEY] ?? DEFAULT_CLAIM_PREFIX;
 
   const id = newWriteId(deps);
   try {
     await runWriteBatch(database, [
-      database.insert(uniformClaims).values({
+      database.insert(branchClaims).values({
         id,
         claimNumber: documentNumber(prefix, input.period.replace("-", ""), randomSerial(6)),
         schoolId: input.schoolId,
@@ -97,24 +97,24 @@ export async function createUniformClaim(
     if (mapped) return { ok: false, ...mapped };
     throw err;
   }
-  const [created]: ClaimRow[] = await database.select().from(uniformClaims).where(eq(uniformClaims.id, id));
+  const [created]: ClaimRow[] = await database.select().from(branchClaims).where(eq(branchClaims.id, id));
   return { ok: true, data: created };
 }
 
-export async function lockUniformClaim(
+export async function lockBranchClaim(
   database: AppDatabase,
   claimId: string,
   deps?: WriteDeps
-): Promise<{ ok: true; data: ClaimRow } | UniformError> {
+): Promise<{ ok: true; data: ClaimRow } | ClaimError> {
   const now = writeNow(deps);
-  const [claim]: ClaimRow[] = await database.select().from(uniformClaims).where(eq(uniformClaims.id, claimId));
+  const [claim]: ClaimRow[] = await database.select().from(branchClaims).where(eq(branchClaims.id, claimId));
   if (!claim) return { ok: false, status: 404, message: "Klaim tidak ditemukan." };
   if (claim.status === "locked") return invalid("Klaim sudah dikunci.");
   await database
-    .update(uniformClaims)
+    .update(branchClaims)
     .set({ status: "locked", lockedAt: now, updatedAt: now })
-    .where(eq(uniformClaims.id, claimId));
-  const [updated]: ClaimRow[] = await database.select().from(uniformClaims).where(eq(uniformClaims.id, claimId));
+    .where(eq(branchClaims.id, claimId));
+  const [updated]: ClaimRow[] = await database.select().from(branchClaims).where(eq(branchClaims.id, claimId));
   return { ok: true, data: updated };
 }
 
@@ -144,11 +144,11 @@ const chargedTotalsByClaim = async (
 };
 
 /** Klaim + tagihan yang mendasarinya (audit: angka harus bisa dijelaskan barisnya). */
-export async function getUniformClaim(
+export async function getBranchClaim(
   database: AppDatabase,
   claimId: string
-): Promise<{ ok: true; data: { claim: ClaimRow; charges: ChargeRow[]; driftAmount: number } } | UniformError> {
-  const [claim]: ClaimRow[] = await database.select().from(uniformClaims).where(eq(uniformClaims.id, claimId));
+): Promise<{ ok: true; data: { claim: ClaimRow; charges: ChargeRow[]; driftAmount: number } } | ClaimError> {
+  const [claim]: ClaimRow[] = await database.select().from(branchClaims).where(eq(branchClaims.id, claimId));
   if (!claim) return { ok: false, status: 404, message: "Klaim tidak ditemukan." };
   const charges = await database
     .select()
@@ -161,10 +161,10 @@ export async function getUniformClaim(
 
 export type ClaimListRow = ClaimRow & { driftAmount: number };
 
-export async function listUniformClaims(database: AppDatabase, schoolId?: string): Promise<ClaimListRow[]> {
+export async function listBranchClaims(database: AppDatabase, schoolId?: string): Promise<ClaimListRow[]> {
   const rows: ClaimRow[] = schoolId
-    ? await database.select().from(uniformClaims).where(eq(uniformClaims.schoolId, schoolId)).orderBy(desc(uniformClaims.period)).limit(50)
-    : await database.select().from(uniformClaims).orderBy(desc(uniformClaims.period)).limit(50);
+    ? await database.select().from(branchClaims).where(eq(branchClaims.schoolId, schoolId)).orderBy(desc(branchClaims.period)).limit(50)
+    : await database.select().from(branchClaims).orderBy(desc(branchClaims.period)).limit(50);
   const charged = await chargedTotalsByClaim(database, rows.map((row) => row.id));
   return rows.map((row) => ({ ...row, driftAmount: driftAmountOf(row, charged.get(row.id) ?? 0) }));
 }

@@ -1,7 +1,7 @@
 import type { AppDatabase } from "../../../db";
 import { systemSettings } from "../../../db/schema";
 import { readSettingsMap } from "../settings-map";
-import { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "./claims";
+import { CLAIM_PREFIX_KEY, DEFAULT_CLAIM_PREFIX } from "../branch-claims";
 import { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY, UNIFORM_SATUAN_KEY } from "./orders";
 
 /**
@@ -18,7 +18,7 @@ export const getUniformNumbering = async (database: AppDatabase): Promise<Unifor
   const map = await readSettingsMap(database);
   return {
     orderPrefix: map[UNIFORM_ORDER_PREFIX_KEY] ?? DEFAULT_UNIFORM_ORDER_PREFIX,
-    claimPrefix: map[UNIFORM_CLAIM_PREFIX_KEY] ?? DEFAULT_UNIFORM_CLAIM_PREFIX,
+    claimPrefix: map[CLAIM_PREFIX_KEY] ?? DEFAULT_CLAIM_PREFIX,
   };
 };
 
@@ -26,7 +26,7 @@ export const saveUniformNumbering = async (database: AppDatabase, input: Uniform
   const now = new Date().toISOString();
   for (const [key, value] of [
     [UNIFORM_ORDER_PREFIX_KEY, input.orderPrefix],
-    [UNIFORM_CLAIM_PREFIX_KEY, input.claimPrefix],
+    [CLAIM_PREFIX_KEY, input.claimPrefix],
   ] as const) {
     await database
       .insert(systemSettings)

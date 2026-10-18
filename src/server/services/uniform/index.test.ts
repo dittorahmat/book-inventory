@@ -10,7 +10,6 @@ describe("uniform seam", () => {
       "requestUniformExchange", "resolveUniformExchange", "requestUniformRefund", "resolveUniformRefund",
       "listUniformExchanges", "listUniformRefunds",
       "createUniformPo", "receiveUniformPo", "assembleUniformPackages",
-      "createUniformClaim", "lockUniformClaim", "listUniformClaims",
       "getUniformSalesReport", "importUniformShipping",
       "getUniformNumbering", "saveUniformNumbering", "setUniformSatuanEnabled",
     ]) {

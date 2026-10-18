@@ -33,7 +33,7 @@ import {
   uniformOrderItems,
   uniformExchanges,
   uniformRefunds,
-  uniformClaims,
+  branchClaims,
 } from "../db/schema";
 
 export async function runIdempotentSeed(customDb?: any) {
@@ -942,7 +942,7 @@ export async function runIdempotentSeed(customDb?: any) {
       updatedAt: now,
     }).onConflictDoNothing();
 
-    await targetDb.insert(uniformClaims).values({
+    await targetDb.insert(branchClaims).values({
       id: "clm-demo-01",
       claimNumber: `CLM-DEMO-${now.slice(0, 7)}`,
       schoolId: "school-alw-1",

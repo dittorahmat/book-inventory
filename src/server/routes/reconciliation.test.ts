@@ -2,10 +2,10 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { mockActor, restoreActor } from "./test-actor";
 import { inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { branchCharges, paymentAllocations, paymentReceipts, schools, uniformClaims } from "../../db/schema";
+import { branchCharges, paymentAllocations, paymentReceipts, schools, branchClaims } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
-import { createUniformClaim, lockUniformClaim } from "../services/uniform";
+import { createBranchClaim, lockBranchClaim } from "../services/branch-claims";
 import { reconciliationRouter } from "./reconciliation";
 
 beforeEach(() => mockActor("central_admin", null));
@@ -68,7 +68,7 @@ describe("Rekonsiliasi API", () => {
       await db.delete(paymentAllocations).where(inArray(paymentAllocations.receiptId, [receiptId]));
       await db.delete(paymentReceipts).where(inArray(paymentReceipts.id, [receiptId]));
       await db.delete(branchCharges).where(inArray(branchCharges.sourceId, [chargeOk, chargeOpen]));
-      await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolId]));
+      await db.delete(branchClaims).where(inArray(branchClaims.schoolId, [schoolId]));
       await db.delete(schools).where(inArray(schools.id, [schoolId]));
     }
   });
@@ -91,10 +91,10 @@ describe("Rekonsiliasi API", () => {
       ]);
 
       // Klaim menyerap kedua jenis tagihan, lalu dikunci.
-      const claim = await createUniformClaim(db, { schoolId, period });
+      const claim = await createBranchClaim(db, { schoolId, period });
       if (!claim.ok) throw new Error("klaim gagal dibuat");
-      await lockUniformClaim(db, claim.data.id);
-      await db.insert(uniformClaims).values({
+      await lockBranchClaim(db, claim.data.id);
+      await db.insert(branchClaims).values({
         id: claimId, claimNumber: `CLM-EXTRA-${stamp}`, schoolId, period: "1999-01",
         status: "locked", totalQty: 0, goodsAmount: 500000, shippingAmount: 0, totalAmount: 500000,
         createdAt: now(), updatedAt: now(),
@@ -117,8 +117,8 @@ describe("Rekonsiliasi API", () => {
       expect(afterData.claims.totalAmount).toBe(claim.data.totalAmount);
     } finally {
       await db.delete(branchCharges).where(inArray(branchCharges.sourceId, [bookCharge, uniformCharge]));
-      await db.delete(uniformClaims).where(inArray(uniformClaims.id, [claimId]));
-      await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolId]));
+      await db.delete(branchClaims).where(inArray(branchClaims.id, [claimId]));
+      await db.delete(branchClaims).where(inArray(branchClaims.schoolId, [schoolId]));
       await db.delete(schools).where(inArray(schools.id, [schoolId]));
     }
   });

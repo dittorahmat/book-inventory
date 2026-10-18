@@ -2,11 +2,11 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { mockActor, restoreActor } from "./test-actor";
 import { inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { branchCharges, schools, uniformClaims } from "../../db/schema";
+import { branchCharges, schools, branchClaims } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
-import { createUniformClaim } from "../services/uniform";
-import { uniformClaimsRouter } from "./uniform-claims";
+import { createBranchClaim } from "../services/branch-claims";
+import { branchClaimsRouter } from "./branch-claims";
 
 beforeEach(() => mockActor("central_admin", null));
 afterEach(() => restoreActor());
@@ -38,18 +38,18 @@ describe("Klaim Cabang API", () => {
       // Hanya tagihan cabang A yang final; B tetap open.
       await runWriteBatch(db, [finalizeChargeQuery(db, "uniform_order", sourceA, 20000)]);
 
-      const claimA = await createUniformClaim(db, { schoolId: schoolA, period });
+      const claimA = await createBranchClaim(db, { schoolId: schoolA, period });
       expect(claimA.ok).toBe(true);
       if (!claimA.ok) return;
       expect(claimA.data.totalAmount).toBe(420000);
       expect(claimA.data.shippingAmount).toBe(20000);
 
-      const claimB = await createUniformClaim(db, { schoolId: schoolB, period });
+      const claimB = await createBranchClaim(db, { schoolId: schoolB, period });
       if (!claimB.ok) throw new Error("klaim B gagal dibuat");
       expect(claimB.data.totalAmount).toBe(0);
 
       mockActor("branch_admin", schoolA);
-      const list = await uniformClaimsRouter.request("/claims");
+      const list = await branchClaimsRouter.request("/claims");
       expect(list.status).toBe(200);
       const rows = (await list.json()).data as Array<{ schoolId: string }>;
       expect(rows).toHaveLength(1);
@@ -57,7 +57,7 @@ describe("Klaim Cabang API", () => {
 
       // Detail klaim adalah operasi logistik (gudang/pusat), bukan cabang.
       mockActor("central_admin", null);
-      const detail = await uniformClaimsRouter.request(`/claims/${claimA.data.id}`);
+      const detail = await branchClaimsRouter.request(`/claims/${claimA.data.id}`);
       expect(detail.status).toBe(200);
       const detailData = (await detail.json()).data as {
         charges: Array<{ sourceId: string }>;
@@ -69,7 +69,7 @@ describe("Klaim Cabang API", () => {
       expect(detailData.driftAmount).toBe(0);
 
       mockActor("branch_admin", schoolA);
-      const listAfterCreate = (await (await uniformClaimsRouter.request("/claims")).json()).data as Array<{
+      const listAfterCreate = (await (await branchClaimsRouter.request("/claims")).json()).data as Array<{
         id: string;
         driftAmount: number;
       }>;
@@ -78,13 +78,13 @@ describe("Klaim Cabang API", () => {
       // Ongkir dikoreksi setelah klaim dibuat → selisih wajib terlihat, bukan diam.
       await runWriteBatch(db, [finalizeChargeQuery(db, "uniform_order", sourceA, 45000)]);
       mockActor("central_admin", null);
-      const drifted = (await (await uniformClaimsRouter.request(`/claims/${claimA.data.id}`)).json()).data as {
+      const drifted = (await (await branchClaimsRouter.request(`/claims/${claimA.data.id}`)).json()).data as {
         driftAmount: number;
       };
       expect(drifted.driftAmount).toBe(25000);
       expect(claimA.data.totalAmount).toBe(420000);
     } finally {
-      await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolA, schoolB]));
+      await db.delete(branchClaims).where(inArray(branchClaims.schoolId, [schoolA, schoolB]));
       await db.delete(branchCharges).where(inArray(branchCharges.schoolId, [schoolA, schoolB]));
       await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
     }
