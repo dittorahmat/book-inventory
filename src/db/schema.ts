@@ -667,6 +667,11 @@ export const uniformClaims = sqliteTable("uniform_claims", {
   period: text("period").notNull(),
   status: text("status", { enum: ["draft", "locked"] }).notNull().default("draft"),
   totalQty: integer("total_qty").notNull().default(0),
+  /** Nilai barang saja (tanpa ongkir). */
+  goodsAmount: integer("goods_amount").notNull().default(0),
+  /** Ongkir pass-through yang di-recharge ke cabang. */
+  shippingAmount: integer("shipping_amount").notNull().default(0),
+  /** goodsAmount + shippingAmount — total yang ditagihkan. */
   totalAmount: integer("total_amount").notNull().default(0),
   lockedAt: text("locked_at"),
   createdAt: text("created_at").notNull(),
@@ -730,6 +735,8 @@ export const branchCharges = sqliteTable("branch_charges", {
   sourceId: text("source_id").notNull(),
   triggerEvent: text("trigger_event", { enum: ["handover", "order_created"] }).notNull(),
   chargeableAt: text("chargeable_at").notNull(),
+  /** Kapan tagihan menjadi final (ongkir masuk) — periode klaim memakai ini. */
+  finalizedAt: text("finalized_at"),
   goodsAmount: integer("goods_amount").notNull().default(0),
   shippingAmount: integer("shipping_amount").notNull().default(0),
   status: text("status", { enum: ["open", "final"] }).notNull().default("open"),

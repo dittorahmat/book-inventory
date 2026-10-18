@@ -60,7 +60,7 @@ export const finalizeChargeQuery = (
   const now = writeNow(deps);
   return database
     .update(branchCharges)
-    .set({ shippingAmount, status: "final", updatedAt: now })
+    .set({ shippingAmount, status: "final", finalizedAt: now, updatedAt: now })
     .where(and(eq(branchCharges.sourceType, sourceType), eq(branchCharges.sourceId, sourceId)));
 };
 
