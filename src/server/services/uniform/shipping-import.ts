@@ -1,6 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { students, uniformOrders } from "../../../db/schema";
+import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { finalizeChargeQuery } from "../branch-charges";
+import { recomputeOrderPayment } from "../payment-ledger";
 import { normalizeCsvNis, type UniformShippingCsvRow } from "./csv-row";
 
 /** Baris import ekspedisi = arah pulang round-trip CSV berkunci NIS. */
@@ -48,16 +51,29 @@ export const importUniformShipping = async (
       continue;
     }
     const now = new Date().toISOString();
-    await database
-      .update(uniformOrders)
-      .set({
-        shippingCost: row.ongkir,
-        shippingResi: row.resi.trim() || order.shippingResi,
-        shipmentStatus: markShipped ? "sudah_dikirim" : order.shipmentStatus,
-        shippedAt: markShipped ? (order.shippedAt ?? now) : order.shippedAt,
-        updatedAt: now,
-      })
-      .where(eq(uniformOrders.id, order.id));
+    // Impor massal juga "menginput ongkir": tagihan cabang wajib ikut final dan
+    // status pembayaran dihitung ulang — kalau tidak, tagihan menggantung open.
+    try {
+      await runWriteBatch(database, [
+        database
+          .update(uniformOrders)
+          .set({
+            shippingCost: row.ongkir,
+            shippingResi: row.resi.trim() || order.shippingResi,
+            shipmentStatus: markShipped ? "sudah_dikirim" : order.shipmentStatus,
+            shippedAt: markShipped ? (order.shippedAt ?? now) : order.shippedAt,
+            updatedAt: now,
+          })
+          .where(eq(uniformOrders.id, order.id)),
+        finalizeChargeQuery(database, "uniform_order", order.id, row.ongkir),
+      ]);
+    } catch (err) {
+      const mapped = d1WriteErrorStatus(err, "impor ongkir seragam");
+      if (!mapped) throw err;
+      rejected.push({ nis, reason: mapped.message });
+      continue;
+    }
+    await recomputeOrderPayment(database, "seragam", order.id, now);
     updated.push(nis);
   }
   return { updated, rejected };

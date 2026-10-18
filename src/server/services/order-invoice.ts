@@ -232,7 +232,7 @@ export async function confirmBookPayment(
       return [
         database.insert(paymentReceipts).values({
           id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
-          amount: Math.max(input.transferAmount, input.allocationAmount),
+          amount: input.transferAmount,
           bankName: input.bankName?.trim() || "Tanpa Bank",
           referenceNumber: input.referenceNumber?.trim() || null,
           proofUrl: url, receivedAt: now,
@@ -266,7 +266,7 @@ export async function confirmUniformPayment(
       return [
         database.insert(paymentReceipts).values({
           id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
-          amount: Math.max(input.transferAmount, input.allocationAmount),
+          amount: input.transferAmount,
           bankName: input.bankName?.trim() || "Tanpa Bank",
           referenceNumber: input.referenceNumber?.trim() || null,
           proofUrl: url, receivedAt: now,

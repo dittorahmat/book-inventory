@@ -206,6 +206,12 @@ export async function submitPublicOrder(
     }
 
     const needsPayment = !isScholarship && !!input.payment && input.payment.bookAllocationAmount > 0;
+    // Alokasi tidak boleh melebihi nominal struk: kalau dibiarkan, struk yang
+    // mustahil akan ditulis dengan nominal yang digelembungkan dan rekonsiliasi
+    // kehilangan selisihnya.
+    if (needsPayment && (input.payment?.transferAmount ?? 0) < (input.payment?.bookAllocationAmount ?? 0)) {
+      return { ok: false, status: 400, message: "Nominal alokasi buku melebihi total transfer di struk." };
+    }
     let paymentProofUrl: string | null = null;
     if (needsPayment && input.payment?.paymentProofBase64) {
       const key = `payments/${orderId}_${Date.now()}.jpg`;
@@ -232,7 +238,7 @@ export async function submitPublicOrder(
             id: receiptId,
             studentId: student.id,
             schoolId: student.schoolId,
-            amount: Math.max(input.payment?.transferAmount ?? 0, input.payment?.bookAllocationAmount ?? 0),
+            amount: input.payment?.transferAmount ?? 0,
             bankName: input.payment?.bankName?.trim() || "Tanpa Bank",
             referenceNumber: input.payment?.referenceNumber?.trim() || null,
             proofUrl: paymentProofUrl,

@@ -30,6 +30,8 @@ describe("ReconciliationSummary", () => {
     expect(screen.getByText("1 struk terverifikasi")).toBeDefined();
     expect(screen.getByText("Rp 8.500.000")).toBeDefined();
     expect(screen.getAllByText(/Ongkir Rp 45\.000/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Rp 775.000")).toBeDefined();
+    expect(screen.getByText("1 tagihan final belum ditagihkan ke cabang")).toBeDefined();
     // Baris "tagihan final" dan "klaim" sama-sama memecah barang vs ongkir.
     expect(screen.getAllByText("Barang Rp 1.500.000 · Ongkir Rp 45.000")).toHaveLength(2);
     expect(screen.getByText("Rp 8.455.000")).toBeDefined();

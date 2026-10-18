@@ -30,6 +30,11 @@ export function ReconciliationSummary({ data }: { data: ReconciliationResult }) 
       hint: `Barang ${formatRupiah(data.charges.final.goodsAmount)} · Ongkir ${formatRupiah(data.charges.final.shippingAmount)}`,
     },
     {
+      label: "Belum masuk klaim",
+      value: formatRupiah(data.unbilled.amount),
+      hint: `${data.unbilled.count} tagihan final belum ditagihkan ke cabang`,
+    },
+    {
       label: "Klaim periode ini",
       value: formatRupiah(data.claims.totalAmount),
       hint: `Barang ${formatRupiah(data.claims.goodsAmount)} · Ongkir ${formatRupiah(data.claims.shippingAmount)}`,

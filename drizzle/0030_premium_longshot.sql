@@ -57,40 +57,36 @@ CREATE TABLE `payment_receipts` (
 --> statement-breakpoint
 CREATE INDEX `payment_receipts_student_idx` ON `payment_receipts` (`student_id`);--> statement-breakpoint
 CREATE INDEX `payment_receipts_school_received_idx` ON `payment_receipts` (`school_id`,`received_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `payment_receipts_bank_ref_unq` ON `payment_receipts` (`bank_name`,`reference_number`);--> statement-breakpoint
 INSERT INTO `payment_receipts` (`id`,`student_id`,`school_id`,`amount`,`bank_name`,`reference_number`,`proof_url`,`received_at`,`verified_by_user_id`,`verified_at`,`rejected_at`,`reject_reason`,`created_by_user_id`,`notes`,`created_at`,`updated_at`)
 SELECT 'rcp-b-' || p.`id`, o.`student_id`, o.`school_id`, p.`transfer_amount`,
        COALESCE(NULLIF(TRIM(p.`bank_name`), ''), 'Tanpa Bank'),
-       CASE WHEN r.`rn` = 1 THEN NULLIF(TRIM(p.`reference_number`), '') ELSE NULL END,
+       NULLIF(TRIM(p.`reference_number`), ''),
        p.`payment_proof_url`, p.`created_at`, p.`verified_by_user_id`, p.`verified_at`,
        p.`rejected_at`, p.`reject_reason`, NULL, p.`notes`, p.`created_at`, p.`created_at`
 FROM `order_payments` p
-JOIN `student_book_orders` o ON o.`id` = p.`order_id`
-JOIN (
-  SELECT `id`, ROW_NUMBER() OVER (
-    PARTITION BY COALESCE(NULLIF(TRIM(`bank_name`), ''), 'Tanpa Bank'), NULLIF(TRIM(`reference_number`), '')
-    ORDER BY `created_at`, `id`
-  ) AS `rn`
-  FROM `order_payments`
-) r ON r.`id` = p.`id`;--> statement-breakpoint
+JOIN `student_book_orders` o ON o.`id` = p.`order_id`;--> statement-breakpoint
 INSERT INTO `payment_allocations` (`id`,`receipt_id`,`order_id`,`kind`,`amount`,`created_at`)
 SELECT 'alc-b-' || p.`id`, 'rcp-b-' || p.`id`, p.`order_id`, 'buku', p.`book_allocation_amount`, p.`created_at`
 FROM `order_payments` p WHERE p.`book_allocation_amount` > 0;--> statement-breakpoint
 INSERT INTO `payment_receipts` (`id`,`student_id`,`school_id`,`amount`,`bank_name`,`reference_number`,`proof_url`,`received_at`,`verified_by_user_id`,`verified_at`,`rejected_at`,`reject_reason`,`created_by_user_id`,`notes`,`created_at`,`updated_at`)
 SELECT 'rcp-u-' || p.`id`, o.`student_id`, o.`school_id`, p.`transfer_amount`,
        COALESCE(NULLIF(TRIM(p.`bank_name`), ''), 'Tanpa Bank'),
-       CASE WHEN r.`rn` = 1 THEN NULLIF(TRIM(p.`reference_number`), '') ELSE NULL END,
+       NULLIF(TRIM(p.`reference_number`), ''),
        p.`payment_proof_url`, p.`created_at`, p.`verified_by_user_id`, p.`verified_at`,
        p.`rejected_at`, p.`reject_reason`, NULL, p.`notes`, p.`created_at`, p.`created_at`
 FROM `uniform_payments` p
-JOIN `uniform_orders` o ON o.`id` = p.`order_id`
-JOIN (
-  SELECT `id`, ROW_NUMBER() OVER (
-    PARTITION BY COALESCE(NULLIF(TRIM(`bank_name`), ''), 'Tanpa Bank'), NULLIF(TRIM(`reference_number`), '')
-    ORDER BY `created_at`, `id`
-  ) AS `rn`
-  FROM `uniform_payments`
-) r ON r.`id` = p.`id`;--> statement-breakpoint
+JOIN `uniform_orders` o ON o.`id` = p.`order_id`;--> statement-breakpoint
 INSERT INTO `payment_allocations` (`id`,`receipt_id`,`order_id`,`kind`,`amount`,`created_at`)
 SELECT 'alc-u-' || p.`id`, 'rcp-u-' || p.`id`, p.`order_id`, 'seragam', p.`uniform_allocation_amount`, p.`created_at`
-FROM `uniform_payments` p WHERE p.`uniform_allocation_amount` > 0;
+FROM `uniform_payments` p WHERE p.`uniform_allocation_amount` > 0;--> statement-breakpoint
+-- Dedupe lintas KEDUA tabel lama sebelum indeks unik dipasang: satu struk bisa
+-- tercatat di order_payments DAN uniform_payments (itulah bug double-count yang
+-- ditutup ADR-0012). Hanya entri paling awal yang mempertahankan nomornya.
+UPDATE `payment_receipts` SET `reference_number` = NULL
+WHERE `reference_number` IS NOT NULL
+  AND `id` NOT IN (
+    SELECT MIN(`id`) FROM `payment_receipts`
+    WHERE `reference_number` IS NOT NULL
+    GROUP BY `bank_name`, `reference_number`
+  );--> statement-breakpoint
+CREATE UNIQUE INDEX `payment_receipts_bank_ref_unq` ON `payment_receipts` (`bank_name`,`reference_number`);

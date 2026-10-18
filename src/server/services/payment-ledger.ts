@@ -24,6 +24,9 @@ export type LedgerError = { ok: false; status: 400 | 404 | 409; message: string 
 const invalid = (message: string): LedgerError => ({ ok: false, status: 400, message });
 const notFound = (message: string): LedgerError => ({ ok: false, status: 404, message });
 
+type BookStatus = typeof studentBookOrders.$inferSelect["paymentStatus"];
+type UniformStatus = typeof uniformOrders.$inferSelect["paymentStatus"];
+
 export interface AllocationInput {
   orderId: string;
   kind: PaymentKind;
@@ -44,16 +47,16 @@ export interface ReceiptInput {
   autoVerify?: boolean;
 }
 
-export interface OrderCredit {
-  ok: true;
-  orderId: string;
-  paidAmount: number;
-  paymentStatus: string;
-  due: number;
-}
+/** Kredit hasil hitung ulang satu order; bentuknya sama untuk buku dan seragam. */
+export type OrderCredit =
+  | { ok: true; kind: "buku"; orderId: string; paidAmount: number; paymentStatus: BookStatus; due: number }
+  | { ok: true; kind: "seragam"; orderId: string; paidAmount: number; paymentStatus: UniformStatus; due: number };
 
-export const orderTableFor = (kind: PaymentKind) =>
-  kind === "buku" ? studentBookOrders : uniformOrders;
+export const orderTableFor = (kind: PaymentKind) => (kind === "buku" ? studentBookOrders : uniformOrders);
+
+/** Status turunan dari angka, bukan dari state sebelumnya. Beasiswa tetap apa adanya. */
+export const deriveStatus = (orderType: string, paid: number, due: number): "unpaid" | "partial" | "paid" | null =>
+  orderType === "scholarship" ? null : paid <= 0 ? "unpaid" : paid >= due ? "paid" : "partial";
 
 /** Jumlah alokasi terverifikasi untuk satu order — sumber kebenaran `paidAmount`. */
 export const verifiedAllocationSum = async (
@@ -76,32 +79,43 @@ export const verifiedAllocationSum = async (
   return Number(row?.total ?? 0);
 };
 
-const nextStatus = (orderType: string, current: string, paid: number, due: number): string =>
-  orderType === "scholarship" ? current : paid <= 0 ? "unpaid" : paid >= due ? "paid" : "partial";
-
-/** Hitung ulang kredit satu order dari barisnya, lalu tulis. */
+/**
+ * Kredit order hasil hitung dari barisnya. Nilainya turunan, jadi penulisan
+ * ulang selalu memulihkan angka — tidak ada riwayat inkremental yang bisa drift.
+ */
 export const recomputeOrderPayment = async (
   database: AppDatabase,
   kind: PaymentKind,
   orderId: string,
   now: string
 ): Promise<OrderCredit | LedgerError> => {
-  const table = orderTableFor(kind);
-  const [order] = await database.select().from(table).where(eq(table.id, orderId));
-  if (!order) return notFound("Pesanan tidak ditemukan.");
   const paidAmount = await verifiedAllocationSum(database, kind, orderId);
+  if (kind === "buku") {
+    const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    if (!order) return notFound("Pesanan tidak ditemukan.");
+    const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
+    const paymentStatus = deriveStatus(order.orderType, paidAmount, due) ?? order.paymentStatus;
+    await database
+      .update(studentBookOrders)
+      .set({ paidAmount, paymentStatus, updatedAt: now })
+      .where(eq(studentBookOrders.id, orderId));
+    return { ok: true, kind: "buku", orderId, paidAmount, paymentStatus, due };
+  }
+  const [order] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+  if (!order) return notFound("Pesanan tidak ditemukan.");
   const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
-  const paymentStatus = nextStatus(order.orderType, order.paymentStatus, paidAmount, due);
+  const paymentStatus = deriveStatus(order.orderType, paidAmount, due) ?? order.paymentStatus;
   await database
-    .update(table)
-    .set({ paidAmount, paymentStatus: paymentStatus as typeof order.paymentStatus, updatedAt: now })
-    .where(eq(table.id, orderId));
-  return { ok: true, orderId, paidAmount, paymentStatus, due };
+    .update(uniformOrders)
+    .set({ paidAmount, paymentStatus, updatedAt: now })
+    .where(eq(uniformOrders.id, orderId));
+  return { ok: true, kind: "seragam", orderId, paidAmount, paymentStatus, due };
 };
 
-const receiptNumberConflict = (err: unknown): boolean =>
-  /UNIQUE/i.test(err instanceof Error ? err.message : String(err)) &&
-  /payment_receipts/i.test(err instanceof Error ? err.message : String(err));
+const receiptNumberConflict = (err: unknown): boolean => {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /UNIQUE/i.test(msg) && /payment_receipts/i.test(msg);
+};
 
 /** Catat satu struk + alokasinya secara atomik. */
 export const recordReceipt = async (
