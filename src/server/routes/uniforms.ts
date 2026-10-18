@@ -42,7 +42,7 @@ import {
   resolveUniformRefund,
 } from "../services/uniform";
 import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
-import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/orders";
+import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import {
   cashierPaymentSchema,
   listPaymentsWithStatus,

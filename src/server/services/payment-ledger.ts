@@ -77,7 +77,7 @@ export const verifiedAllocationSum = async (
 };
 
 const nextStatus = (orderType: string, current: string, paid: number, due: number): string =>
-  orderType === "scholarship" ? current : paid >= due ? "paid" : "partial";
+  orderType === "scholarship" ? current : paid <= 0 ? "unpaid" : paid >= due ? "paid" : "partial";
 
 /** Hitung ulang kredit satu order dari barisnya, lalu tulis. */
 export const recomputeOrderPayment = async (

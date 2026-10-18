@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { studentBookOrders, studentOrderItems, uniformOrders } from "../../db/schema";
-import { writeNow, d1WriteErrorStatus, type WriteDeps } from "../lib/d1-write";
+import { writeNow, d1WriteErrorStatus, runWriteBatch, type WriteDeps } from "../lib/d1-write";
 import type { AccessActor } from "./access-scope";
 import { AccessHttpError } from "./access-scope";
+import { finalizeChargeQuery } from "./branch-charges";
+import { recomputeOrderPayment, type PaymentKind } from "./payment-ledger";
 
 export type ShippingError = { ok: false; status: 400 | 403 | 404; message: string };
 
@@ -58,7 +60,7 @@ const setShippingCore = async (
   table: ShippingOrderTable,
   orderId: string,
   input: { shippingCost: number; shippingResi?: string },
-  kind: { notFound: string; errorContext: string },
+  kind: { notFound: string; errorContext: string; paymentKind: PaymentKind },
   deps?: WriteDeps
 ): Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect | typeof uniformOrders.$inferSelect } | ShippingError> => {
   if (!Number.isInteger(input.shippingCost) || input.shippingCost < 0) return invalid("Ongkir wajib angka bulat >= 0.");
@@ -66,15 +68,27 @@ const setShippingCore = async (
   if (!order) return { ok: false, status: 404, message: kind.notFound };
   const now = writeNow(deps);
   try {
-    await database
-      .update(table)
-      .set({ shippingCost: input.shippingCost, shippingResi: input.shippingResi?.trim() || null, updatedAt: now })
-      .where(eq(table.id, orderId));
+    await runWriteBatch(database, [
+      database
+        .update(table)
+        .set({ shippingCost: input.shippingCost, shippingResi: input.shippingResi?.trim() || null, updatedAt: now })
+        .where(eq(table.id, orderId)),
+      // Ongkir pass-through: tagihan cabang menjadi final begitu nominalnya diketahui.
+      finalizeChargeQuery(
+        database,
+        kind.paymentKind === "buku" ? "book_order" : "uniform_order",
+        orderId,
+        input.shippingCost,
+        deps
+      ),
+    ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, kind.errorContext);
     if (mapped) return { ok: false, ...mapped } as ShippingError;
     throw err;
   }
+  // Total tagihan naik → status pembayaran wajib dihitung ulang, bukan dibiarkan basi.
+  await recomputeOrderPayment(database, kind.paymentKind, orderId, now);
   const [updated] = await database.select().from(table).where(eq(table.id, orderId));
   return { ok: true, data: updated };
 };
@@ -87,7 +101,7 @@ export async function setBookShipping(
   deps?: WriteDeps
 ): Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect } | ShippingError> {
   return setShippingCore(database, studentBookOrders, orderId, input, {
-    notFound: "Pesanan tidak ditemukan.", errorContext: "input ongkir buku",
+    notFound: "Pesanan tidak ditemukan.", errorContext: "input ongkir buku", paymentKind: "buku",
   }, deps) as Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect } | ShippingError>;
 }
 
@@ -99,6 +113,6 @@ export async function setUniformShipping(
   deps?: WriteDeps
 ): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | ShippingError> {
   return setShippingCore(database, uniformOrders, orderId, input, {
-    notFound: "Order seragam tidak ditemukan.", errorContext: "input ongkir seragam",
+    notFound: "Order seragam tidak ditemukan.", errorContext: "input ongkir seragam", paymentKind: "seragam",
   }, deps) as Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | ShippingError>;
 }

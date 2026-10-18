@@ -4,6 +4,7 @@ import { packageItems, studentBookOrders, students } from "../../db/schema";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, isoTimeFragment } from "../lib/document-number";
+import { emitChargeQuery } from "./branch-charges";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { checkHandoverBundle } from "./stock";
 
@@ -118,6 +119,19 @@ export async function handoverPackage(
         ...(order.packageId
           ? [database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId))]
           : []),
+        // Paket buku dipegang cabang (konsinyasi) → ditagihkan saat serah-terima.
+        // Order campuran sudah punya tagihan dari pembuatan order; unique sumber = no-op.
+        ...(order.packageId
+          ? [
+              emitChargeQuery(database, {
+                schoolId: order.schoolId,
+                sourceType: "book_order",
+                sourceId: orderId,
+                triggerEvent: "handover",
+                goodsAmount: order.totalAmount,
+              }, deps),
+            ]
+          : []),
       ]);
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "serah terima paket");
@@ -196,6 +210,13 @@ export async function handoverPackage(
         .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, availableBundle.id))
         .where(eq(studentBookOrders.id, orderId)),
       database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId)),
+      emitChargeQuery(database, {
+        schoolId: order.schoolId,
+        sourceType: "book_order",
+        sourceId: orderId,
+        triggerEvent: "handover",
+        goodsAmount: order.totalAmount,
+      }, deps),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "serah terima paket");

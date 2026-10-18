@@ -8,7 +8,7 @@ afterEach(() => {
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { schools, students, suppliers, systemSettings, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { branchCharges, schools, students, suppliers, systemSettings, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
 import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
@@ -507,15 +507,25 @@ describe("Uniform sales report & claims", () => {
     expect(goodOrder.ok).toBe(true);
     if (!goodOrder.ok) return;
     const orderId = goodOrder.data.order.id;
+    // Tagihan cabang terbit open sejak order seragam dibuat.
+    const [charge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+    expect(charge.status).toBe("open");
+    expect(charge.shippingAmount).toBe(0);
     const badCost = await postJson(`/orders/${orderId}/shipping`, { shippingCost: -100 });
     expect(badCost.status).toBe(400);
     const okCost = await postJson(`/orders/${orderId}/shipping`, { shippingCost: 20000, shippingResi: "SRM-1" });
     expect(okCost.status).toBe(200);
     expect((await okCost.json()).data.shippingCost).toBe(20000);
+    // Ongkir masuk → tagihan cabang final dengan baris ongkir terpisah.
+    const [finalCharge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+    expect(finalCharge.status).toBe("final");
+    expect(finalCharge.shippingAmount).toBe(20000);
+    expect(finalCharge.goodsAmount).toBe(charge.goodsAmount);
     const shipRes = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
     expect(shipRes.status).toBe(200);
     const [flagged] = await db.select().from(students).where(eq(students.id, studentId));
     expect(flagged.hasTakenUniform).toBe(true);
+    await db.delete(branchCharges).where(eq(branchCharges.sourceId, orderId));
     await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
     await db.delete(students).where(eq(students.id, studentId));
     await db.delete(schools).where(eq(schools.id, schoolId));

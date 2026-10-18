@@ -18,6 +18,7 @@ import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { validateHomeAddress } from "../../../lib/home-address";
 import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
+import { emitChargeQuery } from "../branch-charges";
 import { wprFeeForStudent } from "../pricing";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
@@ -277,6 +278,19 @@ export async function submitPublicOrder(
       ...chunkRows(itemRows).map((rows) => database.insert(studentOrderItems).values(rows)),
       ...receiptRows.map((row) => database.insert(paymentReceipts).values(row)),
       ...allocationRows.map((row) => database.insert(paymentAllocations).values(row)),
+      // Buku satuan dikirim dari gudang → ditagihkan ke cabang sejak order dibuat.
+      // Paket murni baru ditagih saat serah-terima (lihat order-handover).
+      ...(looseLines.length > 0
+        ? [
+            emitChargeQuery(database, {
+              schoolId: student.schoolId,
+              sourceType: "book_order",
+              sourceId: orderId,
+              triggerEvent: "order_created",
+              goodsAmount: totalAmount,
+            }),
+          ]
+        : []),
     ]);
   } catch (err) {
     await compensateUploads();

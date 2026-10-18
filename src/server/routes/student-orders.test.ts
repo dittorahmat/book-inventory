@@ -8,7 +8,7 @@ afterEach(() => {
 import { studentOrdersRouter } from "./student-orders";
 import { paymentsRouter } from "./payments";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books } from "../../db/schema";
+import { bookItems, bookReturns, branchCharges, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books, paymentAllocations, paymentReceipts } from "../../db/schema";
 import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { eq, inArray } from "drizzle-orm";
 
@@ -802,6 +802,60 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
     } finally {
       mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
+  it("ongkir masuk tidak meninggalkan status lunas yang basi (§status derived)", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-stale-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Stale Test", code: `ALW-STL-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-stale-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-STL-${stamp}`, name: "Siswa Stale",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const orderId = `ord-stale-${stamp}`;
+    const receiptId = `rcp-stale-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-STL-${String(stamp).slice(-6)}`,
+      studentId, schoolId, orderType: "regular",
+      paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+    });
+    try {
+      await db.insert(paymentReceipts).values({
+        id: receiptId, studentId, schoolId, amount: 100000, bankName: "BCA",
+        referenceNumber: `STALE-${stamp}`, receivedAt: now, verifiedAt: now,
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(paymentAllocations).values({
+        id: `alc-stale-${stamp}`, receiptId, orderId, kind: "buku" as const,
+        amount: 100000, createdAt: now,
+      });
+
+      const ship = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 25000, shippingResi: "STALE-1" }),
+      });
+      expect(ship.status).toBe(200);
+      const shipped = await ship.json();
+      expect(shipped.data.shippingCost).toBe(25000);
+      expect(shipped.data.paidAmount).toBe(100000);
+      expect(shipped.data.paymentStatus).toBe("partial");
+
+      const [charge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+      if (charge) expect(charge.status).toBe("final");
+    } finally {
+      await deleteReceiptsForOrders([orderId]);
+      await db.delete(branchCharges).where(eq(branchCharges.sourceId, orderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));
