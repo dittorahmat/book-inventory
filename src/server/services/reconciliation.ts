@@ -1,13 +1,26 @@
-import { and, eq, gte, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { branchCharges, paymentAllocations, paymentReceipts, uniformClaims } from "../../db/schema";
+import { selectInChunks } from "../lib/d1-write";
 import { periodBounds } from "../lib/period";
 
 /**
  * Satu layar rekonsiliasi: uang masuk dari wali, tagihan ke cabang, dan klaim.
  * Seluruh angka dihitung sebagai agregat SQL — dilarang `SELECT`-all lalu
- * difilter di JS (§11).
+ * difilter di JS (§11). Baris buku dan seragam selalu dipisah supaya satu
+ * laporan menjawab keduanya.
  */
+
+export interface KindSplitRow {
+  count: number;
+  goodsAmount: number;
+  shippingAmount: number;
+}
+
+export interface KindSplit {
+  buku: KindSplitRow;
+  seragam: KindSplitRow;
+}
 
 export interface ReconciliationResult {
   period: string;
@@ -15,15 +28,28 @@ export interface ReconciliationResult {
   allocations: { buku: number; seragam: number; total: number };
   unallocated: { receiptCount: number; amount: number };
   charges: {
-    open: { count: number; goodsAmount: number };
-    final: { count: number; goodsAmount: number; shippingAmount: number };
+    open: { count: number; goodsAmount: number; byKind: KindSplit };
+    final: { count: number; goodsAmount: number; shippingAmount: number; byKind: KindSplit };
   };
   unbilled: { count: number; amount: number };
-  claims: { count: number; totalAmount: number; goodsAmount: number; shippingAmount: number };
+  claims: {
+    count: number;
+    totalAmount: number;
+    goodsAmount: number;
+    shippingAmount: number;
+    byKind: KindSplit;
+    /** Klaim terkunci yang angkanya tidak lagi cocok dengan tagihan di bawahnya. */
+    lockedDrift: { count: number; amount: number };
+  };
   difference: number;
 }
 
 const num = (value: unknown): number => Number(value ?? 0);
+
+const emptySplitRow = (): KindSplitRow => ({ count: 0, goodsAmount: 0, shippingAmount: 0 });
+const emptySplit = (): KindSplit => ({ buku: emptySplitRow(), seragam: emptySplitRow() });
+
+const kindKey = (sourceType: string): keyof KindSplit => (sourceType === "book_order" ? "buku" : "seragam");
 
 export const buildReconciliation = async (
   database: AppDatabase,
@@ -38,6 +64,7 @@ export const buildReconciliation = async (
     isNull(paymentReceipts.rejectedAt),
     school ? eq(paymentReceipts.schoolId, school) : undefined,
   ];
+  const chargeScope = [school ? eq(branchCharges.schoolId, school) : undefined];
 
   const [money] = await database
     .select({ receiptCount: sql<number>`count(*)`, amount: sql<number>`coalesce(sum(${paymentReceipts.amount}), 0)` })
@@ -71,19 +98,47 @@ export const buildReconciliation = async (
     .from(receiptTotals)
     .where(sql`${receiptTotals.amount} > ${receiptTotals.allocated}`);
 
-  const chargeScope = [school ? eq(branchCharges.schoolId, school) : undefined];
-  const [openCharges] = await database
-    .select({ count: sql<number>`count(*)`, goodsAmount: sql<number>`coalesce(sum(${branchCharges.goodsAmount}), 0)` })
-    .from(branchCharges)
-    .where(and(...chargeScope, eq(branchCharges.status, "open")));
-  const [finalCharges] = await database
-    .select({
-      count: sql<number>`count(*)`,
-      goodsAmount: sql<number>`coalesce(sum(${branchCharges.goodsAmount}), 0)`,
-      shippingAmount: sql<number>`coalesce(sum(${branchCharges.shippingAmount}), 0)`,
-    })
-    .from(branchCharges)
-    .where(and(...chargeScope, eq(branchCharges.status, "final"), gte(branchCharges.finalizedAt, start), lt(branchCharges.finalizedAt, end)));
+  const chargeRowsOf = (status: "open" | "final") =>
+    database
+      .select({
+        sourceType: branchCharges.sourceType,
+        count: sql<number>`count(*)`,
+        goodsAmount: sql<number>`coalesce(sum(${branchCharges.goodsAmount}), 0)`,
+        shippingAmount: sql<number>`coalesce(sum(${branchCharges.shippingAmount}), 0)`,
+      })
+      .from(branchCharges)
+      .where(
+        and(
+          ...chargeScope,
+          eq(branchCharges.status, status),
+          status === "final" ? gte(branchCharges.finalizedAt, start) : undefined,
+          status === "final" ? lt(branchCharges.finalizedAt, end) : undefined
+        )
+      )
+      .groupBy(branchCharges.sourceType);
+
+  const openCharges = { count: 0, goodsAmount: 0, byKind: emptySplit() };
+  const finalCharges = { count: 0, goodsAmount: 0, shippingAmount: 0, byKind: emptySplit() };
+  for (const row of await chargeRowsOf("open")) {
+    openCharges.count += num(row.count);
+    openCharges.goodsAmount += num(row.goodsAmount);
+    openCharges.byKind[kindKey(row.sourceType)] = {
+      count: num(row.count),
+      goodsAmount: num(row.goodsAmount),
+      shippingAmount: num(row.shippingAmount),
+    };
+  }
+  for (const row of await chargeRowsOf("final")) {
+    finalCharges.count += num(row.count);
+    finalCharges.goodsAmount += num(row.goodsAmount);
+    finalCharges.shippingAmount += num(row.shippingAmount);
+    finalCharges.byKind[kindKey(row.sourceType)] = {
+      count: num(row.count),
+      goodsAmount: num(row.goodsAmount),
+      shippingAmount: num(row.shippingAmount),
+    };
+  }
+
   const [unbilled] = await database
     .select({
       count: sql<number>`count(*)`,
@@ -92,38 +147,79 @@ export const buildReconciliation = async (
     .from(branchCharges)
     .where(and(...chargeScope, eq(branchCharges.status, "final"), isNull(branchCharges.claimId)));
 
-  const [claims] = await database
-    .select({
-      count: sql<number>`count(*)`,
-      totalAmount: sql<number>`coalesce(sum(${uniformClaims.totalAmount}), 0)`,
-      goodsAmount: sql<number>`coalesce(sum(${uniformClaims.goodsAmount}), 0)`,
-      shippingAmount: sql<number>`coalesce(sum(${uniformClaims.shippingAmount}), 0)`,
-    })
+  const claimRows = await database
+    .select()
     .from(uniformClaims)
-    .where(and(school ? eq(uniformClaims.schoolId, school) : undefined, eq(uniformClaims.period, input.period)));
+    .where(and(school ? eq(uniformClaims.schoolId, school) : undefined, eq(uniformClaims.period, input.period)))
+    .limit(500);
+  const claimIds = claimRows.map((claim) => claim.id);
+  const claimChargeRows = claimIds.length > 0
+    ? await selectInChunks(claimIds, (chunk) =>
+        database
+          .select({
+            claimId: branchCharges.claimId,
+            sourceType: branchCharges.sourceType,
+            goodsAmount: sql<number>`coalesce(sum(${branchCharges.goodsAmount}), 0)`,
+            shippingAmount: sql<number>`coalesce(sum(${branchCharges.shippingAmount}), 0)`,
+          })
+          .from(branchCharges)
+          .where(inArray(branchCharges.claimId, chunk))
+          .groupBy(branchCharges.claimId, branchCharges.sourceType)
+      )
+    : [];
+
+  const claimsByKind = emptySplit();
+  const chargedPerClaim = new Map<string, number>();
+  for (const row of claimChargeRows) {
+    const split = claimsByKind[kindKey(row.sourceType)];
+    split.count += 1;
+    split.goodsAmount += num(row.goodsAmount);
+    split.shippingAmount += num(row.shippingAmount);
+    const key = row.claimId ?? "";
+    chargedPerClaim.set(key, (chargedPerClaim.get(key) ?? 0) + num(row.goodsAmount) + num(row.shippingAmount));
+  }
+
+  // Klaim terkunci yang total simpannya sudah tidak sama dengan tagihan di
+  // bawahnya (mis. ongkir dikoreksi setelah klaim dikunci) — selisih diam
+  // adalah yang dilarang, jadi ia dihitung dan ditampilkan.
+  let driftCount = 0;
+  let driftAmount = 0;
+  for (const claim of claimRows) {
+    if (claim.status !== "locked") continue;
+    const charged = chargedPerClaim.get(claim.id) ?? 0;
+    const drift = charged - claim.totalAmount;
+    if (drift !== 0) {
+      driftCount += 1;
+      driftAmount += Math.abs(drift);
+    }
+  }
+
+  const claimTotals = claimRows.reduce(
+    (acc, claim) => ({
+      totalAmount: acc.totalAmount + claim.totalAmount,
+      goodsAmount: acc.goodsAmount + claim.goodsAmount,
+      shippingAmount: acc.shippingAmount + claim.shippingAmount,
+    }),
+    { totalAmount: 0, goodsAmount: 0, shippingAmount: 0 }
+  );
 
   const moneyInAmount = num(money?.amount);
-  const claimAmount = num(claims?.totalAmount);
   return {
     period: input.period,
     moneyIn: { receiptCount: num(money?.receiptCount), amount: moneyInAmount },
     allocations: { buku, seragam, total: buku + seragam },
     unallocated: { receiptCount: num(unallocated?.receiptCount), amount: num(unallocated?.amount) },
     charges: {
-      open: { count: num(openCharges?.count), goodsAmount: num(openCharges?.goodsAmount) },
-      final: {
-        count: num(finalCharges?.count),
-        goodsAmount: num(finalCharges?.goodsAmount),
-        shippingAmount: num(finalCharges?.shippingAmount),
-      },
+      open: openCharges,
+      final: finalCharges,
     },
     unbilled: { count: num(unbilled?.count), amount: num(unbilled?.amount) },
     claims: {
-      count: num(claims?.count),
-      totalAmount: claimAmount,
-      goodsAmount: num(claims?.goodsAmount),
-      shippingAmount: num(claims?.shippingAmount),
+      count: claimRows.length,
+      ...claimTotals,
+      byKind: claimsByKind,
+      lockedDrift: { count: driftCount, amount: driftAmount },
     },
-    difference: moneyInAmount - claimAmount,
+    difference: moneyInAmount - claimTotals.totalAmount,
   };
 };

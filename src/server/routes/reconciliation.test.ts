@@ -5,6 +5,7 @@ import { db } from "../../db";
 import { branchCharges, paymentAllocations, paymentReceipts, schools, uniformClaims } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
+import { createUniformClaim, lockUniformClaim } from "../services/uniform";
 import { reconciliationRouter } from "./reconciliation";
 
 beforeEach(() => mockActor("central_admin", null));
@@ -51,15 +52,72 @@ describe("Rekonsiliasi API", () => {
       expect(data.moneyIn).toEqual({ receiptCount: 1, amount: 10000000 });
       expect(data.allocations).toEqual({ buku: 1000000, seragam: 0, total: 1000000 });
       expect(data.unallocated).toEqual({ receiptCount: 1, amount: 9000000 });
-      expect(data.charges.open).toEqual({ count: 1, goodsAmount: 250000 });
-      expect(data.charges.final).toEqual({ count: 1, goodsAmount: 750000, shippingAmount: 25000 });
+      expect(data.charges.open.count).toBe(1);
+      expect(data.charges.open.goodsAmount).toBe(250000);
+      expect(data.charges.final).toMatchObject({ count: 1, goodsAmount: 750000, shippingAmount: 25000 });
+      // Baris buku dan seragam selalu dipisah; keduanya tagihan seragam di sini.
+      expect(data.charges.final.byKind.seragam).toEqual({ count: 1, goodsAmount: 750000, shippingAmount: 25000 });
+      expect(data.charges.final.byKind.buku).toEqual({ count: 0, goodsAmount: 0, shippingAmount: 0 });
+      expect(data.charges.open.byKind.seragam.count).toBe(1);
       expect(data.unbilled).toEqual({ count: 1, amount: 775000 });
-      expect(data.claims).toEqual({ count: 0, totalAmount: 0, goodsAmount: 0, shippingAmount: 0 });
+      expect(data.claims.count).toBe(0);
+      expect(data.claims.totalAmount).toBe(0);
+      expect(data.claims.lockedDrift).toEqual({ count: 0, amount: 0 });
       expect(data.difference).toBe(10000000);
     } finally {
       await db.delete(paymentAllocations).where(inArray(paymentAllocations.receiptId, [receiptId]));
       await db.delete(paymentReceipts).where(inArray(paymentReceipts.id, [receiptId]));
       await db.delete(branchCharges).where(inArray(branchCharges.sourceId, [chargeOk, chargeOpen]));
+      await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolId]));
+      await db.delete(schools).where(inArray(schools.id, [schoolId]));
+    }
+  });
+
+  it("memisahkan tagihan buku vs seragam dan menandai klaim terkunci yang berubah", async () => {
+    const stamp = Date.now();
+    const schoolId = `sch-rck-${stamp}`;
+    const bookCharge = `bo-rck-${stamp}`;
+    const uniformCharge = `uo-rck-${stamp}`;
+    const claimId = `clm-rck-${stamp}`;
+    try {
+      await seedSchool(schoolId);
+      await runWriteBatch(db, [
+        emitChargeQuery(db, { schoolId, sourceType: "book_order", sourceId: bookCharge, triggerEvent: "handover", goodsAmount: 900000 }),
+        emitChargeQuery(db, { schoolId, sourceType: "uniform_order", sourceId: uniformCharge, triggerEvent: "order_created", goodsAmount: 300000 }),
+      ]);
+      await runWriteBatch(db, [
+        finalizeChargeQuery(db, "book_order", bookCharge, 30000),
+        finalizeChargeQuery(db, "uniform_order", uniformCharge, 15000),
+      ]);
+
+      // Klaim menyerap kedua jenis tagihan, lalu dikunci.
+      const claim = await createUniformClaim(db, { schoolId, period });
+      if (!claim.ok) throw new Error("klaim gagal dibuat");
+      await lockUniformClaim(db, claim.data.id);
+      await db.insert(uniformClaims).values({
+        id: claimId, claimNumber: `CLM-EXTRA-${stamp}`, schoolId, period: "1999-01",
+        status: "locked", totalQty: 0, goodsAmount: 500000, shippingAmount: 0, totalAmount: 500000,
+        createdAt: now(), updatedAt: now(),
+      }).onConflictDoNothing();
+
+      const before = await reconciliationRouter.request(`/?schoolId=${schoolId}&period=${period}`);
+      const beforeData = (await before.json()).data;
+      expect(beforeData.charges.final.byKind.buku).toEqual({ count: 1, goodsAmount: 900000, shippingAmount: 30000 });
+      expect(beforeData.charges.final.byKind.seragam).toEqual({ count: 1, goodsAmount: 300000, shippingAmount: 15000 });
+      expect(beforeData.claims.byKind.buku.goodsAmount).toBe(900000);
+      expect(beforeData.claims.byKind.seragam.goodsAmount).toBe(300000);
+      expect(beforeData.claims.lockedDrift).toEqual({ count: 0, amount: 0 });
+
+      // Ongkir dikoreksi SETELAH klaim dikunci → klaim tidak lagi cocok dengan tagihannya.
+      await runWriteBatch(db, [finalizeChargeQuery(db, "book_order", bookCharge, 40000)]);
+
+      const after = await reconciliationRouter.request(`/?schoolId=${schoolId}&period=${period}`);
+      const afterData = (await after.json()).data;
+      expect(afterData.claims.lockedDrift).toEqual({ count: 1, amount: 10000 });
+      expect(afterData.claims.totalAmount).toBe(claim.data.totalAmount);
+    } finally {
+      await db.delete(branchCharges).where(inArray(branchCharges.sourceId, [bookCharge, uniformCharge]));
+      await db.delete(uniformClaims).where(inArray(uniformClaims.id, [claimId]));
       await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolId]));
       await db.delete(schools).where(inArray(schools.id, [schoolId]));
     }

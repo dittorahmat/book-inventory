@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { branchCharges, schools, uniformClaims, uniformOrderItems } from "../../../db/schema";
 import {
@@ -118,11 +118,36 @@ export async function lockUniformClaim(
   return { ok: true, data: updated };
 }
 
+/**
+ * Selisih antara angka yang tersimpan di klaim dan jumlah tagihan di bawahnya.
+ * Nol = klaim masih cocok dengan tagihannya. Bukan nol = ada yang berubah
+ * setelah klaim dibuat (mis. ongkir dikoreksi) dan wajib terlihat, bukan diam.
+ */
+const driftAmountOf = (claim: ClaimRow, chargedTotal: number): number => chargedTotal - claim.totalAmount;
+
+const chargedTotalsByClaim = async (
+  database: AppDatabase,
+  claimIds: string[]
+): Promise<Map<string, number>> => {
+  if (claimIds.length === 0) return new Map();
+  const rows = await selectInChunks(claimIds, (chunk) =>
+    database
+      .select({
+        claimId: branchCharges.claimId,
+        total: sql<number>`coalesce(sum(${branchCharges.goodsAmount} + ${branchCharges.shippingAmount}), 0)`,
+      })
+      .from(branchCharges)
+      .where(inArray(branchCharges.claimId, chunk))
+      .groupBy(branchCharges.claimId)
+  );
+  return new Map(rows.map((row) => [row.claimId ?? "", Number(row.total)]));
+};
+
 /** Klaim + tagihan yang mendasarinya (audit: angka harus bisa dijelaskan barisnya). */
 export async function getUniformClaim(
   database: AppDatabase,
   claimId: string
-): Promise<{ ok: true; data: { claim: ClaimRow; charges: ChargeRow[] } } | UniformError> {
+): Promise<{ ok: true; data: { claim: ClaimRow; charges: ChargeRow[]; driftAmount: number } } | UniformError> {
   const [claim]: ClaimRow[] = await database.select().from(uniformClaims).where(eq(uniformClaims.id, claimId));
   if (!claim) return { ok: false, status: 404, message: "Klaim tidak ditemukan." };
   const charges = await database
@@ -130,12 +155,16 @@ export async function getUniformClaim(
     .from(branchCharges)
     .where(eq(branchCharges.claimId, claimId))
     .limit(500);
-  return { ok: true, data: { claim, charges } };
+  const chargedTotal = charges.reduce((sum, c) => sum + c.goodsAmount + c.shippingAmount, 0);
+  return { ok: true, data: { claim, charges, driftAmount: driftAmountOf(claim, chargedTotal) } };
 }
 
-export async function listUniformClaims(database: AppDatabase, schoolId?: string): Promise<ClaimRow[]> {
+export type ClaimListRow = ClaimRow & { driftAmount: number };
+
+export async function listUniformClaims(database: AppDatabase, schoolId?: string): Promise<ClaimListRow[]> {
   const rows: ClaimRow[] = schoolId
     ? await database.select().from(uniformClaims).where(eq(uniformClaims.schoolId, schoolId)).orderBy(desc(uniformClaims.period)).limit(50)
     : await database.select().from(uniformClaims).orderBy(desc(uniformClaims.period)).limit(50);
-  return rows;
+  const charged = await chargedTotalsByClaim(database, rows.map((row) => row.id));
+  return rows.map((row) => ({ ...row, driftAmount: driftAmountOf(row, charged.get(row.id) ?? 0) }));
 }

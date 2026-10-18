@@ -236,11 +236,22 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
               <div>
                 <div className="text-sm font-semibold">{c.claimNumber} <span className="font-normal text-[#65676B]">· {c.period}</span></div>
                 <div className="text-[#65676B]">{c.totalQty} qty · {formatRupiah(c.totalAmount)}</div>
-                <div className="mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {c.status === "locked" ? (
                     <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Terkunci</span>
                   ) : (
                     <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full">Draft</span>
+                  )}
+                  <span className="text-[11px] text-[#65676B]">
+                    Barang {formatRupiah(c.goodsAmount)} · Ongkir {formatRupiah(c.shippingAmount)}
+                  </span>
+                  {(c.driftAmount ?? 0) !== 0 && (
+                    <span
+                      role="alert"
+                      className="text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full"
+                    >
+                      Tagihan berubah setelah klaim: {formatRupiah(c.driftAmount ?? 0)}
+                    </span>
                   )}
                 </div>
               </div>

@@ -62,9 +62,27 @@ describe("Klaim Cabang API", () => {
       const detailData = (await detail.json()).data as {
         charges: Array<{ sourceId: string }>;
         claim: { totalAmount: number };
+        driftAmount: number;
       };
       expect(detailData.claim.totalAmount).toBe(420000);
       expect(detailData.charges.map((c) => c.sourceId)).toEqual([sourceA]);
+      expect(detailData.driftAmount).toBe(0);
+
+      mockActor("branch_admin", schoolA);
+      const listAfterCreate = (await (await uniformClaimsRouter.request("/claims")).json()).data as Array<{
+        id: string;
+        driftAmount: number;
+      }>;
+      expect(listAfterCreate[0].driftAmount).toBe(0);
+
+      // Ongkir dikoreksi setelah klaim dibuat → selisih wajib terlihat, bukan diam.
+      await runWriteBatch(db, [finalizeChargeQuery(db, "uniform_order", sourceA, 45000)]);
+      mockActor("central_admin", null);
+      const drifted = (await (await uniformClaimsRouter.request(`/claims/${claimA.data.id}`)).json()).data as {
+        driftAmount: number;
+      };
+      expect(drifted.driftAmount).toBe(25000);
+      expect(claimA.data.totalAmount).toBe(420000);
     } finally {
       await db.delete(uniformClaims).where(inArray(uniformClaims.schoolId, [schoolA, schoolB]));
       await db.delete(branchCharges).where(inArray(branchCharges.schoolId, [schoolA, schoolB]));
