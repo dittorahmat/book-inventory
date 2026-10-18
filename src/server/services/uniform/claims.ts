@@ -11,6 +11,7 @@ import {
   type WriteDeps,
 } from "../../lib/d1-write";
 import { documentNumber, randomSerial } from "../../lib/document-number";
+import { PERIOD_RE, periodBounds } from "../../lib/period";
 import { readSettingsMap } from "../settings-map";
 import type { UniformError } from "./catalog";
 
@@ -22,13 +23,7 @@ type ChargeRow = typeof branchCharges.$inferSelect;
 
 const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
 
-const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-const periodBounds = (period: string): { start: string; end: string } => {
-  const [y, m] = period.split("-").map(Number);
-  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-  return { start: `${period}-01`, end: `${next}-01` };
-};
 
 /**
  * Klaim Cabang: snapshot gudang→cabang per periode+sekolah. Angka dibekukan
