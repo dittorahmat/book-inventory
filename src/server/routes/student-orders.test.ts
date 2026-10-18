@@ -8,7 +8,8 @@ afterEach(() => {
 import { studentOrdersRouter } from "./student-orders";
 import { paymentsRouter } from "./payments";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, orderPayments, books } from "../../db/schema";
+import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books } from "../../db/schema";
+import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { eq, inArray } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
@@ -886,9 +887,9 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
 
       // Verifikasi gudang yang mengubah status order (50000 -> partial, +70000 -> paid).
-      const claims = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
-      const claimOne = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 50000);
-      const claimTwo = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 70000);
+      const claims = await selectReceiptsForOrder(orderId);
+      const claimOne = claims.find((row) => row.allocation.amount === 50000)?.receipt;
+      const claimTwo = claims.find((row) => row.allocation.amount === 70000)?.receipt;
       if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
       const verifyOne = await paymentsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
       expect(verifyOne.status).toBe(200);
@@ -972,7 +973,8 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       });
       expect(ship.status).toBe(200);
       // Klaim bukti transfer belum melunasi: gudang harus verifikasi dulu.
-      const [claim] = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
+      const [claimRow] = await selectReceiptsForOrder(orderId);
+      const claim = claimRow.receipt;
       mockActor("central_admin", null);
       const verifyClaim = await paymentsRouter.request(`/orders/${orderId}/payments/${claim.id}/verify`, { method: "POST" });
       expect(verifyClaim.status).toBe(200);
@@ -985,6 +987,7 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       expect(ok.status).toBe(200);
     } finally {
       mockActor("central_admin", null);
+      await deleteReceiptsForOrders([orderId]);
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(packageItems).where(eq(packageItems.id, `pi-pkr-${stamp}`));
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));

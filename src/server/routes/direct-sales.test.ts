@@ -9,7 +9,8 @@ import { directSalesRouter } from "./direct-sales";
 import { sellDirect } from "../services/order-intake";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, books, bookItems, studentBookOrders, studentOrderItems, orderPayments, students } from "../../db/schema";
+import { schools, books, bookItems, studentBookOrders, studentOrderItems, students } from "../../db/schema";
+import { deleteReceiptsForOrders } from "./test-payments";
 
 describe("Direct Sales API", () => {
   it("sells multiple titles atomically via Write Batch (volume regression)", async () => {
@@ -218,7 +219,7 @@ describe("Direct Sales API", () => {
       expect(order.studentId).toBe(studentId);
     } finally {
       if (orderId) {
-        await db.delete(orderPayments).where(eq(orderPayments.orderId, orderId));
+        await deleteReceiptsForOrders([orderId]);
         await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
         await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       }

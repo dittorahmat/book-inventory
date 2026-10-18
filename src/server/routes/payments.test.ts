@@ -8,7 +8,14 @@ afterEach(() => {
 import { paymentsRouter } from "./payments";
 import { publicOrdersRouter } from "./public-orders";
 import { db } from "../../db";
-import { schools, students, bookPackages, studentBookOrders, orderPayments } from "../../db/schema";
+import {
+  schools,
+  students,
+  bookPackages,
+  studentBookOrders,
+  paymentAllocations,
+  paymentReceipts,
+} from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 const postJson = (path: string, body: unknown) =>
@@ -38,16 +45,34 @@ async function seedOrder(stamp: number, totalAmount: number, paymentToken: strin
 }
 
 async function cleanup(schoolId: string, studentId: string, orderId: string) {
-  await db.delete(orderPayments).where(eq(orderPayments.orderId, orderId));
+  await db.delete(paymentAllocations).where(eq(paymentAllocations.orderId, orderId));
+  await db.delete(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
   await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
   await db.delete(students).where(eq(students.id, studentId));
   await db.delete(schools).where(eq(schools.id, schoolId));
 }
 
-const pendingRow = (id: string, orderId: string, allocation: number, now: string) => ({
-  id, orderId, transferAmount: allocation, bookAllocationAmount: allocation,
-  bankName: "BCA", notes: "Klaim orang tua", createdAt: now,
-});
+/** Struk pending + satu alokasi buku per baris. */
+async function seedPendingReceipts(
+  rows: Array<{ id: string; orderId: string; allocation: number }>,
+  studentId: string,
+  schoolId: string,
+  now: string
+) {
+  await db.insert(paymentReceipts).values(
+    rows.map((row) => ({
+      id: row.id, studentId, schoolId, amount: row.allocation,
+      bankName: "BCA", referenceNumber: null, receivedAt: now,
+      notes: "Klaim orang tua", createdAt: now, updatedAt: now,
+    }))
+  );
+  await db.insert(paymentAllocations).values(
+    rows.map((row) => ({
+      id: `alc-${row.id}`, receiptId: row.id, orderId: row.orderId,
+      kind: "buku" as const, amount: row.allocation, createdAt: now,
+    }))
+  );
+}
 
 describe("Payments & Cashier Verification API", () => {
   it("records partial and full cashier payments, and handles scholarship approval", async () => {
@@ -95,16 +120,83 @@ describe("Payments & Cashier Verification API", () => {
     await cleanup(schoolId, studentId, orderId);
   });
 
+  it("menolak struk dengan bank + nomor referensi yang sama (409, bukan 500)", async () => {
+    const stamp = Date.now();
+    const { schoolId, studentId, orderId } = await seedOrder(stamp, 1000000, null);
+    try {
+      const first = await postJson(`/orders/${orderId}/pay`, {
+        transferAmount: 500000, bookAllocationAmount: 500000, bankName: "BCA", referenceNumber: `DUP-${stamp}`,
+      });
+      expect(first.status).toBe(200);
+
+      const duplicate = await postJson(`/orders/${orderId}/pay`, {
+        transferAmount: 500000, bookAllocationAmount: 500000, bankName: "BCA", referenceNumber: `DUP-${stamp}`,
+      });
+      expect(duplicate.status).toBe(409);
+      expect((await duplicate.json()).message).toContain("sudah pernah dicatat");
+
+      const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(order.paidAmount).toBe(500000);
+      const receipts = await db.select().from(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
+      expect(receipts).toHaveLength(1);
+    } finally {
+      await cleanup(schoolId, studentId, orderId);
+    }
+  });
+
+  it("satu struk dua alokasi lintas order dikredit sekali per order", async () => {
+    const stamp = Date.now();
+    const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 600000, null);
+    const secondOrderId = `ord-rev2-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: secondOrderId, orderNumber: `ORD-REV2-${String(stamp).slice(-6)}`, studentId, schoolId,
+      orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 400000, paidAmount: 0, createdAt: now, updatedAt: now,
+    });
+    const receiptId = `rcp-multi-${stamp}`;
+    try {
+      await db.insert(paymentReceipts).values({
+        id: receiptId, studentId, schoolId, amount: 1000000, bankName: "BNI",
+        referenceNumber: `MULTI-${stamp}`, receivedAt: now, createdAt: now, updatedAt: now,
+      });
+      await db.insert(paymentAllocations).values([
+        { id: `alc-1-${stamp}`, receiptId, orderId, kind: "buku" as const, amount: 600000, createdAt: now },
+        { id: `alc-2-${stamp}`, receiptId, orderId: secondOrderId, kind: "buku" as const, amount: 400000, createdAt: now },
+      ]);
+
+      const verify = await paymentsRouter.request(`/orders/${orderId}/payments/${receiptId}/verify`, { method: "POST" });
+      expect(verify.status).toBe(200);
+      const verifyJson = await verify.json();
+      expect(verifyJson.data.paidAmount).toBe(600000);
+      expect(verifyJson.data.paymentStatus).toBe("paid");
+
+      const [second] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, secondOrderId));
+      expect(second.paidAmount).toBe(400000);
+      expect(second.paymentStatus).toBe("paid");
+
+      const receipts = await db.select().from(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
+      expect(receipts).toHaveLength(1);
+    } finally {
+      await db.delete(paymentAllocations).where(eq(paymentAllocations.receiptId, receiptId));
+      await db.delete(paymentReceipts).where(eq(paymentReceipts.id, receiptId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, secondOrderId));
+      await cleanup(schoolId, studentId, orderId);
+    }
+  });
+
   it("verify menambah paidAmount + notifikasi, reject tidak mengkredit", async () => {
     const stamp = Date.now();
     const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 100000, `tok-rev-${stamp}`);
     const first = `payv1-${stamp}`;
     const second = `payv2-${stamp}`;
     try {
-      await db.insert(orderPayments).values([
-        pendingRow(first, orderId, 40000, now),
-        pendingRow(second, orderId, 60000, now),
-      ]);
+      await seedPendingReceipts(
+        [
+          { id: first, orderId, allocation: 40000 },
+          { id: second, orderId, allocation: 60000 },
+        ],
+        studentId, schoolId, now
+      );
 
       const listed = await paymentsRouter.request(`/orders/${orderId}`);
       expect(listed.status).toBe(200);
@@ -147,13 +239,13 @@ describe("Payments & Cashier Verification API", () => {
     }
   });
 
-  it("reject menyimpan alasan + tautan unggah ulang; klaim ulang jadi baris pending baru", async () => {
+  it("reject menyimpan alasan + tautan unggah ulang; klaim ulang jadi struk pending baru", async () => {
     const stamp = Date.now();
     // paymentToken sengaja null: reject harus membuat tautan (ensureToken reuse).
     const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 100000, null);
     const claimId = `payj1-${stamp}`;
     try {
-      await db.insert(orderPayments).values(pendingRow(claimId, orderId, 100000, now));
+      await seedPendingReceipts([{ id: claimId, orderId, allocation: 100000 }], studentId, schoolId, now);
 
       const rejectRes = await postJson(`/orders/${orderId}/payments/${claimId}/reject`, { reason: "Bukti buram, mohon unggah ulang." });
       expect(rejectRes.status).toBe(200);
@@ -161,7 +253,7 @@ describe("Payments & Cashier Verification API", () => {
       expect(rejectJson.data.confirmUrl).toContain("/bayar/buku/");
       expect(rejectJson.data.notification.wa.success).toBe(true);
 
-      const [rejected] = await db.select().from(orderPayments).where(eq(orderPayments.id, claimId));
+      const [rejected] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, claimId));
       expect(rejected.rejectedAt).not.toBeNull();
       expect(rejected.rejectReason).toBe("Bukti buram, mohon unggah ulang.");
 
@@ -172,7 +264,7 @@ describe("Payments & Cashier Verification API", () => {
       const rejectAgain = await postJson(`/orders/${orderId}/payments/${claimId}/reject`, { reason: "Lagi" });
       expect(rejectAgain.status).toBe(400);
 
-      // Unggah ulang via tautan yang sama -> baris pending BARU (order tetap unpaid).
+      // Unggah ulang via tautan yang sama -> struk pending BARU (order tetap unpaid).
       const token = (rejectJson.data.confirmUrl as string).split("/").pop() as string;
       const reClaim = await publicOrdersRouter.request(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -181,12 +273,12 @@ describe("Payments & Cashier Verification API", () => {
       expect(reClaim.status).toBe(201);
       expect((await reClaim.json()).data.paymentStatus).toBe("unpaid");
 
-      const rows = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
-      expect(rows.filter((r: typeof orderPayments.$inferSelect) => r.rejectedAt !== null)).toHaveLength(1);
-      expect(rows.filter((r: typeof orderPayments.$inferSelect) => r.verifiedAt === null && r.rejectedAt === null)).toHaveLength(1);
+      const receipts = await db.select().from(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
+      expect(receipts.filter((r) => r.rejectedAt !== null)).toHaveLength(1);
+      expect(receipts.filter((r) => r.verifiedAt === null && r.rejectedAt === null)).toHaveLength(1);
 
       // Verifikasi klaim baru -> order lunas.
-      const newClaim = rows.find((r: typeof orderPayments.$inferSelect) => r.verifiedAt === null && r.rejectedAt === null);
+      const newClaim = receipts.find((r) => r.verifiedAt === null && r.rejectedAt === null);
       if (!newClaim) throw new Error("klaim baru tidak terbentuk");
       const verifyNew = await paymentsRouter.request(`/orders/${orderId}/payments/${newClaim.id}/verify`, { method: "POST" });
       expect(verifyNew.status).toBe(200);
@@ -196,12 +288,15 @@ describe("Payments & Cashier Verification API", () => {
     }
   });
 
-  it("volume: 30 klaim pending dihitung sekali grup-baca lalu diverifikasi (§10.5)", async () => {
+  it("volume: 30 struk pending dihitung sekali grup-baca lalu diverifikasi (§10.5)", async () => {
     const stamp = Date.now();
     const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 300000, `tok-vol-${stamp}`);
     try {
       const ids = Array.from({ length: 30 }, (_, i) => `payvol-${stamp}-${i}`);
-      await db.insert(orderPayments).values(ids.map((id) => pendingRow(id, orderId, 10000, now)));
+      await seedPendingReceipts(
+        ids.map((id) => ({ id, orderId, allocation: 10000 })),
+        studentId, schoolId, now
+      );
 
       const listed = await paymentsRouter.request(`/orders/${orderId}`);
       expect((await listed.json()).data.pendingCount).toBe(30);

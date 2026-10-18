@@ -8,7 +8,8 @@ afterEach(() => {
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { schools, students, suppliers, systemSettings, uniformOrders, uniformPayments, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { schools, students, suppliers, systemSettings, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
 const postJson = (path: string, body: unknown) =>
@@ -582,9 +583,9 @@ describe("Uniform sales report & claims", () => {
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
 
       // Uang baru sah setelah gudang memverifikasi tiap klaim.
-      const claims = await db.select().from(uniformPayments).where(eq(uniformPayments.orderId, orderId));
-      const claimOne = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 30000);
-      const claimTwo = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 35000);
+      const claims = await selectReceiptsForOrder(orderId);
+      const claimOne = claims.find((row) => row.allocation.amount === 30000)?.receipt;
+      const claimTwo = claims.find((row) => row.allocation.amount === 35000)?.receipt;
       if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
       const verifyOne = await uniformsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
       expect(verifyOne.status).toBe(200);
@@ -597,6 +598,7 @@ describe("Uniform sales report & claims", () => {
       expect(verifyTwoJson.data.paymentStatus).toBe("paid");
       expect(verifyTwoJson.data.notification.wa.success).toBe(true);
     } finally {
+      await deleteReceiptsForOrders([orderId]);
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));

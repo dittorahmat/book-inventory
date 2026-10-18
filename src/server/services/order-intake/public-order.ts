@@ -5,7 +5,8 @@ import {
   students,
   studentBookOrders,
   studentOrderItems,
-  orderPayments,
+  paymentAllocations,
+  paymentReceipts,
   bookPackages,
 } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
@@ -223,17 +224,32 @@ export async function submitPublicOrder(
       unitPriceSnapshot: line.unitPrice,
       createdAt: now,
     }));
-    const paymentRows = needsPayment
+    const receiptId = needsPayment ? genPaymentId() : null;
+    const receiptRows = receiptId
       ? [
           {
-            id: genPaymentId(),
-            orderId,
-            transferAmount: input.payment?.transferAmount ?? 0,
-            bookAllocationAmount: input.payment?.bookAllocationAmount ?? 0,
-            paymentProofUrl,
-            bankName: input.payment?.bankName || null,
-            referenceNumber: input.payment?.referenceNumber || null,
+            id: receiptId,
+            studentId: student.id,
+            schoolId: student.schoolId,
+            amount: Math.max(input.payment?.transferAmount ?? 0, input.payment?.bookAllocationAmount ?? 0),
+            bankName: input.payment?.bankName?.trim() || "Tanpa Bank",
+            referenceNumber: input.payment?.referenceNumber?.trim() || null,
+            proofUrl: paymentProofUrl,
+            receivedAt: now,
             notes: "Submitted via Public Form",
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      : [];
+    const allocationRows = receiptId
+      ? [
+          {
+            id: `alc-${receiptId}`,
+            receiptId,
+            orderId,
+            kind: "buku" as const,
+            amount: input.payment?.bookAllocationAmount ?? 0,
             createdAt: now,
           },
         ]
@@ -259,7 +275,8 @@ export async function submitPublicOrder(
         updatedAt: now,
       }),
       ...chunkRows(itemRows).map((rows) => database.insert(studentOrderItems).values(rows)),
-      ...paymentRows.map((row) => database.insert(orderPayments).values(row)),
+      ...receiptRows.map((row) => database.insert(paymentReceipts).values(row)),
+      ...allocationRows.map((row) => database.insert(paymentAllocations).values(row)),
     ]);
   } catch (err) {
     await compensateUploads();

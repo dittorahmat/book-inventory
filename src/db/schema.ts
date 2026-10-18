@@ -305,22 +305,6 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   index("orders_school_satuan_ship_idx").on(t.schoolId, t.satuanShipmentStatus),
 ]);
 
-export const orderPayments = sqliteTable("order_payments", {
-  id: text("id").primaryKey(),
-  orderId: text("order_id").notNull().references(() => studentBookOrders.id, { onDelete: "cascade" }),
-  transferAmount: integer("transfer_amount").notNull(), // Total di struk bank
-  bookAllocationAmount: integer("book_allocation_amount").notNull(), // Nominal yang dialokasikan khusus buku
-  paymentProofUrl: text("payment_proof_url"),
-  bankName: text("bank_name"),
-  referenceNumber: text("reference_number"),
-  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
-  verifiedAt: text("verified_at"),
-  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
-  rejectReason: text("reject_reason"),
-  notes: text("notes"),
-  createdAt: text("created_at").notNull(),
-});
-
 /** Baris order satuan: satu order dapat berisi banyak judul dengan kuantitas. */
 export const studentOrderItems = sqliteTable("student_order_items", {
   id: text("id").primaryKey(),
@@ -620,25 +604,6 @@ export const uniformOrderItems = sqliteTable("uniform_order_items", {
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("uniform_order_items_order_idx").on(t.orderId),
-]);
-
-/** Pembayaran seragam via link konfirmasi (transfer manual, termin bebas). */
-export const uniformPayments = sqliteTable("uniform_payments", {
-  id: text("id").primaryKey(),
-  orderId: text("order_id").notNull().references(() => uniformOrders.id, { onDelete: "cascade" }),
-  transferAmount: integer("transfer_amount").notNull(),
-  uniformAllocationAmount: integer("uniform_allocation_amount").notNull(),
-  paymentProofUrl: text("payment_proof_url"),
-  bankName: text("bank_name"),
-  referenceNumber: text("reference_number"),
-  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
-  verifiedAt: text("verified_at"),
-  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
-  rejectReason: text("reject_reason"),
-  notes: text("notes"),
-  createdAt: text("created_at").notNull(),
-}, (t) => [
-  index("uniform_payments_order_idx").on(t.orderId),
 ]);
 
 /** Tukar Ukuran: exchange olahraga belum-dipakai ≤14 hari (bukan refund dana). */

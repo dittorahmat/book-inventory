@@ -15,7 +15,8 @@ import {
   bookPackageItems, 
   packageItems, 
   studentBookOrders, 
-  orderPayments, 
+  paymentAllocations,
+  paymentReceipts,
   bookReturns, 
   systemSettings,
   users,
@@ -517,15 +518,25 @@ export async function runIdempotentSeed(customDb?: any) {
       updatedAt: now,
     }).onConflictDoNothing();
 
-    await targetDb.insert(orderPayments).values({
-      id: "pay-aisyah-1",
-      orderId: "ord-aisyah-done",
-      transferAmount: 1850000,
-      bookAllocationAmount: 1850000,
+    await targetDb.insert(paymentReceipts).values({
+      id: "rcp-aisyah-1",
+      studentId: "std-aisyah-2",
+      schoolId: "school-alw-1",
+      amount: 1850000,
       bankName: "BCA",
       referenceNumber: "BCA-TRX-881920",
+      receivedAt: now,
       verifiedAt: now,
       notes: "Pembayaran lunas buku",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+    await targetDb.insert(paymentAllocations).values({
+      id: "alc-aisyah-1",
+      receiptId: "rcp-aisyah-1",
+      orderId: "ord-aisyah-done",
+      kind: "buku",
+      amount: 1850000,
       createdAt: now,
     }).onConflictDoNothing();
 
@@ -546,15 +557,25 @@ export async function runIdempotentSeed(customDb?: any) {
       updatedAt: now,
     }).onConflictDoNothing();
 
-    await targetDb.insert(orderPayments).values({
-      id: "pay-nathan-1",
-      orderId: "ord-nathan-partial",
-      transferAmount: 3000000,
-      bookAllocationAmount: 500000,
+    await targetDb.insert(paymentReceipts).values({
+      id: "rcp-nathan-1",
+      studentId: "std-nathan-4",
+      schoolId: "school-alw-1",
+      amount: 3000000,
       bankName: "Mandiri",
       referenceNumber: "MND-TRX-551299",
+      receivedAt: now,
       verifiedAt: now,
       notes: "Transfer gabungan SPP bulan Juli dan cicilan ke-1 buku paket",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+    await targetDb.insert(paymentAllocations).values({
+      id: "alc-nathan-1",
+      receiptId: "rcp-nathan-1",
+      orderId: "ord-nathan-partial",
+      kind: "buku",
+      amount: 500000,
       createdAt: now,
     }).onConflictDoNothing();
 

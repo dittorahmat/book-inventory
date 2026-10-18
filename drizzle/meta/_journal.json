@@ -218,6 +218,13 @@
       "when": 1792292763801,
       "tag": "0030_premium_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1792300453847,
+      "tag": "0031_magenta_slipstream",
+      "breakpoints": true
     }
   ]
 }

@@ -44,9 +44,9 @@ const GENERATED_COLUMNS: DocColumn[] = [
   },
   {
     prefix: "RECEIPT",
-    table: "orderPayments",
+    table: "paymentReceipts",
     column: "referenceNumber",
-    nonUniqueReason: "nomor referensi pembayaran milik bank/kasir, boleh berulang",
+    nonUniqueReason: "nomor referensi pembayaran milik bank/kasir; keunikan dijaga komposit (bank, referensi)",
   },
 ];
 
