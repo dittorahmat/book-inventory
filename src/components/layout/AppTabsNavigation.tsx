@@ -214,6 +214,21 @@ export function AppMobileNavigation({
           <span className="text-[11px] font-semibold">Ke Gudang</span>
         </button>
 
+        {isLogisticsRole(role) && (
+          <button
+            type="button"
+            onClick={() => onSelectTab("reconciliation")}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
+              activeTab === "reconciliation"
+                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Scale className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold">Rekonsiliasi</span>
+          </button>
+        )}
+
         {isCentralRole(role) && (
           <button
             type="button"
