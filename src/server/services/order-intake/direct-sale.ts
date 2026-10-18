@@ -3,7 +3,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
 import {
   bookItems,
-  orderPayments,
+  paymentAllocations,
+  paymentReceipts,
   schools,
   studentBookOrders,
   studentOrderItems,
@@ -126,6 +127,7 @@ export async function sellDirect(
     if (matched) orderStudentId = matched.id;
   }
 
+  const receiptId = genItemId();
   try {
     await runWriteBatch(database, [
       database
@@ -170,14 +172,24 @@ export async function sellDirect(
           .set({ status: "sold", updatedAt: now })
           .where(and(inArray(bookItems.id, chunk), eq(bookItems.status, "in_stock")))
       ),
-      database.insert(orderPayments).values({
-        id: genItemId(),
-        orderId,
-        transferAmount: totalAmount,
-        bookAllocationAmount: totalAmount,
+      database.insert(paymentReceipts).values({
+        id: receiptId,
+        studentId: orderStudentId,
+        schoolId: input.schoolId,
+        amount: totalAmount,
         bankName: paymentMethod === "cash" ? "KAS TUNAI" : "TRANSFER DIRECT",
         referenceNumber: input.referenceNumber || documentNumber("RECEIPT", epochTimeFragment(Date.now(), 8)),
+        receivedAt: now,
         verifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      database.insert(paymentAllocations).values({
+        id: `alc-${receiptId}`,
+        receiptId,
+        orderId,
+        kind: "buku",
+        amount: totalAmount,
         createdAt: now,
       }),
     ]);

@@ -128,6 +128,18 @@ _Avoid_: Void, retur dana manual
 Snapshot rekonsiliasi gudang → cabang per periode + sekolah (nomor `CLM-*`, bisa lock); tukar/refund pasca-lock masuk periode berikut.
 _Avoid_: Tagihan manual, invoice campur
 
+**Struk Bayar**:
+Satu bukti transfer bank milik murid, dicatat sekali; identitasnya (bank, nomor referensi) unik dan dipecah menjadi Alokasi lintas order. Pembagian di luar buku (SPP, uang gedung) tidak dicatat aplikasi.
+_Avoid_: Bukti per order, pembayaran ganda
+
+**Alokasi**:
+Porsi satu Struk Bayar yang dibebankan ke satu order (`buku` | `seragam`); totalnya tidak boleh melebihi nominal struk.
+_Avoid_: Split manual, nominal buku
+
+**Tagihan Cabang**:
+Kewajiban cabang ke gudang per order (`TGH-*`): `open` sampai ongkir diinput, lalu `final` dan masuk klaim periode; nilainya barang + ongkir pass-through, bukan omzet.
+_Avoid_: Invoice wali, tagihan manual
+
 **WPR**:
 Buku Weekly Progress Report 750rb, wajib di BOM semua paket buku dan ditagihkan ke order satuan yang belum punya order paket (termasuk beasiswa). Bukan stok fisik rakitan: dikecualikan dari konsumsi stok saat kitting.
 _Avoid_: Fee admin, buku opsional

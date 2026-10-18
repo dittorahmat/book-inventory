@@ -18,7 +18,7 @@ export {
 export type { CreateUniformPoInput, ReceiveLineInput, UniformPoLineInput, UniformSupplyDeps } from "./supply";
 export { assembleUniformPackages, adjustManualStock, createUniformPo, receiveUniformPo } from "./supply";
 export { DEFAULT_UNIFORM_CLAIM_PREFIX, UNIFORM_CLAIM_PREFIX_KEY } from "./claims";
-export { createUniformClaim, listUniformClaims, lockUniformClaim } from "./claims";
+export { createUniformClaim, getUniformClaim, listUniformClaims, lockUniformClaim } from "./claims";
 export type { UniformSalesInput, UniformSalesReport, UniformSalesRow, UniformOrderStage } from "./report";
 export { buildEkspedisiCsv, buildPackingCsv, fetchUniformExportRows, getUniformSalesReport, uniformOrderStage, uniformSalesToCsv, uniformStageFilter } from "./report";
 export type { ImportShippingResult } from "./shipping-import";

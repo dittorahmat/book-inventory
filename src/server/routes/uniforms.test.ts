@@ -6,13 +6,21 @@ afterEach(() => {
   restoreActor();
 });
 import { uniformsRouter } from "./uniforms";
+import { uniformClaimsRouter } from "./uniform-claims";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { schools, students, suppliers, systemSettings, uniformOrders, uniformPayments, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { branchCharges, schools, students, suppliers, systemSettings, uniformClaims, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { runWriteBatch } from "../lib/d1-write";
+import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
+import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { requestUniformExchange, submitUniformOrder } from "../services/uniform";
 
 const postJson = (path: string, body: unknown) =>
   uniformsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** Klaim cabang dipisah ke router sendiri (batas 400 baris), dipakai dengan prefix yang sama. */
+const postClaimsJson = (path: string, body: unknown) =>
+  uniformClaimsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** SimMenu order paket lampau agar submit satuan lolos aturan wajib-paket. */
 async function seedPriorUniformOrder(schoolId: string, studentId: string, stamp: string | number, shipped = false) {
@@ -440,34 +448,109 @@ describe("Uniform sales report & claims", () => {
     );
     expect(((await filtered.json()).data.rows as unknown[]).length).toBe(0);
 
-    const cl = await uniformsRouter.request("/claims", {
+    // Order keempat sengaja dibiarkan `open` (ongkir belum diinput) — tidak boleh masuk klaim.
+    const openOrder = await submitUniformOrder(db, {
+      studentId: `stu-rp2-${stamp}`, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: olId, size: "M", quantity: 1 }],
+    }, { generateOrderNumber: () => `USO-RP4-${stamp}` });
+    if (!openOrder.ok) throw new Error("setup order open gagal");
+
+    // Ongkir masuk → tagihan final (pass-through Rp10.000 per order).
+    for (const order of [o1, o2, o3]) {
+      const ship = await postJson(`/orders/${order.data.order.id}/shipping`, { shippingCost: 10000 });
+      expect(ship.status).toBe(200);
+    }
+
+    const cl = await uniformClaimsRouter.request("/claims", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schoolId, period }),
     });
     expect(cl.status).toBe(201);
-    const claim = (await cl.json()).data as { id: string; claimNumber: string; totalQty: number; totalAmount: number; status: string };
+    const claim = (await cl.json()).data as {
+      id: string; claimNumber: string; totalQty: number;
+      totalAmount: number; goodsAmount: number; shippingAmount: number; status: string;
+    };
     expect(claim.claimNumber.startsWith("CLM-")).toBe(true);
     expect(claim.totalQty).toBe(5);
-    expect(claim.totalAmount).toBe(expectedRevenue);
+    expect(claim.goodsAmount).toBe(expectedRevenue);
+    expect(claim.shippingAmount).toBe(30000);
+    expect(claim.totalAmount).toBe(expectedRevenue + 30000);
 
-    const dup = await uniformsRouter.request("/claims", {
+    const detail = await uniformClaimsRouter.request(`/claims/${claim.id}`);
+    expect(detail.status).toBe(200);
+    const detailData = (await detail.json()).data as {
+      claim: { id: string };
+      charges: Array<{ sourceId: string; status: string }>;
+    };
+    expect(detailData.charges).toHaveLength(3);
+    expect(detailData.charges.every((c) => c.status === "final")).toBe(true);
+    expect(detailData.charges.map((c) => c.sourceId)).not.toContain(openOrder.data.order.id);
+
+    const dup = await uniformClaimsRouter.request("/claims", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schoolId, period }),
     });
     expect(dup.status).toBe(400);
 
-    const lock = await uniformsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    const lock = await uniformClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
     expect(lock.status).toBe(200);
     expect((await lock.json()).data.status).toBe("locked");
-    const lockAgain = await uniformsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    const lockAgain = await uniformClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
     expect(lockAgain.status).toBe(400);
 
     mockActor("branch_admin", schoolId);
-    const branchClaims = await uniformsRouter.request(`/claims?schoolId=${schoolId}`, { method: "GET" });
+    const branchClaims = await uniformClaimsRouter.request(`/claims?schoolId=${schoolId}`, { method: "GET" });
     expect(branchClaims.status).toBe(200);
     expect(((await branchClaims.json()).data as unknown[]).length).toBe(1);
+  });
+
+  it("tagihan yang final setelah klaim dikunci masuk klaim periode berikutnya", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-claimroll-${stamp}`;
+    const nowDate = new Date();
+    const periodOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const period = periodOf(nowDate);
+    const nextPeriod = periodOf(new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 1));
+    const sourceA = `uo-roll-a-${stamp}`;
+    const sourceB = `uo-roll-b-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Claim Roll", code: `ALW-CRL-${stamp}`,
+      type: "branch", createdAt: nowDate.toISOString(), updatedAt: nowDate.toISOString(),
+    }).onConflictDoNothing();
+    try {
+      await runWriteBatch(db, [
+        emitChargeQuery(db, { schoolId, sourceType: "uniform_order", sourceId: sourceA, triggerEvent: "order_created", goodsAmount: 200000 }),
+        emitChargeQuery(db, { schoolId, sourceType: "uniform_order", sourceId: sourceB, triggerEvent: "order_created", goodsAmount: 300000 }),
+      ]);
+
+      await runWriteBatch(db, [finalizeChargeQuery(db, "uniform_order", sourceA, 10000)]);
+      const first = await postClaimsJson("/claims", { schoolId, period });
+      expect(first.status).toBe(201);
+      const firstClaim = (await first.json()).data as { id: string; totalAmount: number };
+      expect(firstClaim.totalAmount).toBe(210000);
+      expect((await postClaimsJson(`/claims/${firstClaim.id}/lock`, {})).status).toBe(200);
+
+      // Ongkir B masuk SETELAH klaim dikunci → tidak boleh mengubah klaim lama.
+      await runWriteBatch(db, [finalizeChargeQuery(db, "uniform_order", sourceB, 5000)]);
+      const second = await postClaimsJson("/claims", { schoolId, period: nextPeriod });
+      expect(second.status).toBe(201);
+      const secondClaim = (await second.json()).data as { id: string; totalAmount: number; shippingAmount: number };
+      expect(secondClaim.totalAmount).toBe(305000);
+      expect(secondClaim.shippingAmount).toBe(5000);
+
+      const detail = await uniformClaimsRouter.request(`/claims/${secondClaim.id}`);
+      const charges = (await detail.json()).data.charges as Array<{ sourceId: string }>;
+      expect(charges.map((c) => c.sourceId)).toContain(sourceB);
+
+      const [lockedFirst] = await db.select().from(uniformClaims).where(eq(uniformClaims.id, firstClaim.id));
+      expect(lockedFirst.totalAmount).toBe(210000);
+    } finally {
+      await db.delete(uniformClaims).where(eq(uniformClaims.schoolId, schoolId));
+      await db.delete(branchCharges).where(eq(branchCharges.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 
   it("input ongkir seragam oleh gudang + tolak alamat tanpa RT/RW/kode pos", async () => {
@@ -506,15 +589,25 @@ describe("Uniform sales report & claims", () => {
     expect(goodOrder.ok).toBe(true);
     if (!goodOrder.ok) return;
     const orderId = goodOrder.data.order.id;
+    // Tagihan cabang terbit open sejak order seragam dibuat.
+    const [charge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+    expect(charge.status).toBe("open");
+    expect(charge.shippingAmount).toBe(0);
     const badCost = await postJson(`/orders/${orderId}/shipping`, { shippingCost: -100 });
     expect(badCost.status).toBe(400);
     const okCost = await postJson(`/orders/${orderId}/shipping`, { shippingCost: 20000, shippingResi: "SRM-1" });
     expect(okCost.status).toBe(200);
     expect((await okCost.json()).data.shippingCost).toBe(20000);
+    // Ongkir masuk → tagihan cabang final dengan baris ongkir terpisah.
+    const [finalCharge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+    expect(finalCharge.status).toBe("final");
+    expect(finalCharge.shippingAmount).toBe(20000);
+    expect(finalCharge.goodsAmount).toBe(charge.goodsAmount);
     const shipRes = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
     expect(shipRes.status).toBe(200);
     const [flagged] = await db.select().from(students).where(eq(students.id, studentId));
     expect(flagged.hasTakenUniform).toBe(true);
+    await db.delete(branchCharges).where(eq(branchCharges.sourceId, orderId));
     await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
     await db.delete(students).where(eq(students.id, studentId));
     await db.delete(schools).where(eq(schools.id, schoolId));
@@ -582,9 +675,9 @@ describe("Uniform sales report & claims", () => {
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
 
       // Uang baru sah setelah gudang memverifikasi tiap klaim.
-      const claims = await db.select().from(uniformPayments).where(eq(uniformPayments.orderId, orderId));
-      const claimOne = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 30000);
-      const claimTwo = claims.find((p: typeof uniformPayments.$inferSelect) => p.uniformAllocationAmount === 35000);
+      const claims = await selectReceiptsForOrder(orderId);
+      const claimOne = claims.find((row) => row.allocation.amount === 30000)?.receipt;
+      const claimTwo = claims.find((row) => row.allocation.amount === 35000)?.receipt;
       if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
       const verifyOne = await uniformsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
       expect(verifyOne.status).toBe(200);
@@ -597,6 +690,7 @@ describe("Uniform sales report & claims", () => {
       expect(verifyTwoJson.data.paymentStatus).toBe("paid");
       expect(verifyTwoJson.data.notification.wa.success).toBe(true);
     } finally {
+      await deleteReceiptsForOrders([orderId]);
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));

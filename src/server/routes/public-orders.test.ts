@@ -8,12 +8,12 @@ import {
   bookItems,
   books,
   bookPackages,
-  orderPayments,
   schools,
   studentBookOrders,
   studentOrderItems,
   students,
 } from "../../db/schema";
+import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 
 describe("Public Orders & Student Search API", () => {
   it("searches student with promotion detection and submits order with payment or scholarship", async () => {
@@ -598,18 +598,15 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
       expect(items).toHaveLength(2);
       expect(items[0].unitPriceSnapshot).toBe(60000);
 
-      const payments = await db
-        .select()
-        .from(orderPayments)
-        .where(eq(orderPayments.orderId, orderId));
+      const payments = await selectReceiptsForOrder(orderId);
       expect(payments).toHaveLength(1);
-      expect(payments[0].paymentProofUrl).toContain("/api/media/payments/");
+      expect(payments[0].receipt.proofUrl).toContain("/api/media/payments/");
 
-      const proof = payments[0].paymentProofUrl ?? "";
+      const proof = payments[0].receipt.proofUrl ?? "";
       const proofKey = proof.replace("/api/media/", "");
       expect(await storage.getFile(proofKey)).not.toBeNull();
     } finally {
-      await db.delete(orderPayments).where(eq(orderPayments.orderId, orderId));
+      await deleteReceiptsForOrders([orderId]);
       await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, orderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(bookItems).where(inArray(bookItems.id, [`bi-t6-a-${stamp}`, `bi-t6-b-${stamp}`]));
@@ -1293,12 +1290,12 @@ describe("Klaim bukti transfer = pending sampai verifikasi gudang", () => {
       expect(claimJson.data.paymentStatus).toBe("unpaid");
       expect(claimJson.data.paidAmount).toBe(0);
 
-      const rows = await db.select().from(orderPayments).where(eq(orderPayments.orderId, pendingOrderId));
+      const rows = await selectReceiptsForOrder(pendingOrderId);
       expect(rows).toHaveLength(1);
-      expect(rows[0].verifiedAt).toBeNull();
-      expect(rows[0].rejectedAt).toBeNull();
+      expect(rows[0].receipt.verifiedAt).toBeNull();
+      expect(rows[0].receipt.rejectedAt).toBeNull();
     } finally {
-      await db.delete(orderPayments).where(inArray(orderPayments.orderId, [paidOrderId, pendingOrderId]));
+      await deleteReceiptsForOrders([paidOrderId, pendingOrderId]);
       await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [paidOrderId, pendingOrderId]));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));

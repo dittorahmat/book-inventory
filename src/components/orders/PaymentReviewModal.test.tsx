@@ -1,4 +1,4 @@
-import "../portal/test-dom";
+import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
 // Dinamis + top-level await: shim DOM harus terpasang sebelum modul CJS
 // @testing-library mengikat screen ke document.body.

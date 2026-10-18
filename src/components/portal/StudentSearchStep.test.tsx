@@ -1,4 +1,4 @@
-import "./test-dom";
+import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 // Dinamis + top-level await: pastikan shim DOM sudah terpasang sebelum

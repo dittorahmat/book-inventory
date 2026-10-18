@@ -5,7 +5,8 @@ import {
   students,
   studentBookOrders,
   studentOrderItems,
-  orderPayments,
+  paymentAllocations,
+  paymentReceipts,
   bookPackages,
 } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
@@ -17,6 +18,7 @@ import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { validateHomeAddress } from "../../../lib/home-address";
 import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
+import { emitChargeQuery } from "../branch-charges";
 import { wprFeeForStudent } from "../pricing";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
@@ -204,6 +206,12 @@ export async function submitPublicOrder(
     }
 
     const needsPayment = !isScholarship && !!input.payment && input.payment.bookAllocationAmount > 0;
+    // Alokasi tidak boleh melebihi nominal struk: kalau dibiarkan, struk yang
+    // mustahil akan ditulis dengan nominal yang digelembungkan dan rekonsiliasi
+    // kehilangan selisihnya.
+    if (needsPayment && (input.payment?.transferAmount ?? 0) < (input.payment?.bookAllocationAmount ?? 0)) {
+      return { ok: false, status: 400, message: "Nominal alokasi buku melebihi total transfer di struk." };
+    }
     let paymentProofUrl: string | null = null;
     if (needsPayment && input.payment?.paymentProofBase64) {
       const key = `payments/${orderId}_${Date.now()}.jpg`;
@@ -223,17 +231,32 @@ export async function submitPublicOrder(
       unitPriceSnapshot: line.unitPrice,
       createdAt: now,
     }));
-    const paymentRows = needsPayment
+    const receiptId = needsPayment ? genPaymentId() : null;
+    const receiptRows = receiptId
       ? [
           {
-            id: genPaymentId(),
-            orderId,
-            transferAmount: input.payment?.transferAmount ?? 0,
-            bookAllocationAmount: input.payment?.bookAllocationAmount ?? 0,
-            paymentProofUrl,
-            bankName: input.payment?.bankName || null,
-            referenceNumber: input.payment?.referenceNumber || null,
+            id: receiptId,
+            studentId: student.id,
+            schoolId: student.schoolId,
+            amount: input.payment?.transferAmount ?? 0,
+            bankName: input.payment?.bankName?.trim() || "Tanpa Bank",
+            referenceNumber: input.payment?.referenceNumber?.trim() || null,
+            proofUrl: paymentProofUrl,
+            receivedAt: now,
             notes: "Submitted via Public Form",
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      : [];
+    const allocationRows = receiptId
+      ? [
+          {
+            id: `alc-${receiptId}`,
+            receiptId,
+            orderId,
+            kind: "buku" as const,
+            amount: input.payment?.bookAllocationAmount ?? 0,
             createdAt: now,
           },
         ]
@@ -259,7 +282,21 @@ export async function submitPublicOrder(
         updatedAt: now,
       }),
       ...chunkRows(itemRows).map((rows) => database.insert(studentOrderItems).values(rows)),
-      ...paymentRows.map((row) => database.insert(orderPayments).values(row)),
+      ...receiptRows.map((row) => database.insert(paymentReceipts).values(row)),
+      ...allocationRows.map((row) => database.insert(paymentAllocations).values(row)),
+      // Buku satuan dikirim dari gudang → ditagihkan ke cabang sejak order dibuat.
+      // Paket murni baru ditagih saat serah-terima (lihat order-handover).
+      ...(looseLines.length > 0
+        ? [
+            emitChargeQuery(database, {
+              schoolId: student.schoolId,
+              sourceType: "book_order",
+              sourceId: orderId,
+              triggerEvent: "order_created",
+              goodsAmount: totalAmount,
+            }),
+          ]
+        : []),
     ]);
   } catch (err) {
     await compensateUploads();

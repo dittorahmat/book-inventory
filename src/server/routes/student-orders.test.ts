@@ -8,7 +8,8 @@ afterEach(() => {
 import { studentOrdersRouter } from "./student-orders";
 import { paymentsRouter } from "./payments";
 import { db } from "../../db";
-import { bookItems, bookReturns, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, orderPayments, books } from "../../db/schema";
+import { bookItems, bookReturns, branchCharges, schools, students, bookPackages, packageItems, studentBookOrders, studentOrderItems, books, paymentAllocations, paymentReceipts } from "../../db/schema";
+import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
 import { eq, inArray } from "drizzle-orm";
 
 describe("Student Orders Handover Surat Jalan & Return API", () => {
@@ -807,6 +808,60 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
     }
   });
 
+  it("ongkir masuk tidak meninggalkan status lunas yang basi (§status derived)", async () => {
+    const stamp = Date.now();
+    const schoolId = `test-stale-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Stale Test", code: `ALW-STL-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-stale-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-STL-${stamp}`, name: "Siswa Stale",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const orderId = `ord-stale-${stamp}`;
+    const receiptId = `rcp-stale-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId, orderNumber: `ORD-STL-${String(stamp).slice(-6)}`,
+      studentId, schoolId, orderType: "regular",
+      paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now,
+    });
+    try {
+      await db.insert(paymentReceipts).values({
+        id: receiptId, studentId, schoolId, amount: 100000, bankName: "BCA",
+        referenceNumber: `STALE-${stamp}`, receivedAt: now, verifiedAt: now,
+        createdAt: now, updatedAt: now,
+      });
+      await db.insert(paymentAllocations).values({
+        id: `alc-stale-${stamp}`, receiptId, orderId, kind: "buku" as const,
+        amount: 100000, createdAt: now,
+      });
+
+      const ship = await studentOrdersRouter.request(`/${orderId}/shipping`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingCost: 25000, shippingResi: "STALE-1" }),
+      });
+      expect(ship.status).toBe(200);
+      const shipped = await ship.json();
+      expect(shipped.data.shippingCost).toBe(25000);
+      expect(shipped.data.paidAmount).toBe(100000);
+      expect(shipped.data.paymentStatus).toBe("partial");
+
+      const [charge] = await db.select().from(branchCharges).where(eq(branchCharges.sourceId, orderId));
+      if (charge) expect(charge.status).toBe("final");
+    } finally {
+      await deleteReceiptsForOrders([orderId]);
+      await db.delete(branchCharges).where(eq(branchCharges.sourceId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("validasi alamat kirim-rumah menolak tanpa RT/RW/kode pos", async () => {
     const { validateHomeAddress } = await import("../../lib/home-address");
     expect(validateHomeAddress("Jl. Mawar No. 10, Bogor").ok).toBe(false);
@@ -886,9 +941,9 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
 
       // Verifikasi gudang yang mengubah status order (50000 -> partial, +70000 -> paid).
-      const claims = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
-      const claimOne = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 50000);
-      const claimTwo = claims.find((p: typeof orderPayments.$inferSelect) => p.bookAllocationAmount === 70000);
+      const claims = await selectReceiptsForOrder(orderId);
+      const claimOne = claims.find((row) => row.allocation.amount === 50000)?.receipt;
+      const claimTwo = claims.find((row) => row.allocation.amount === 70000)?.receipt;
       if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
       const verifyOne = await paymentsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
       expect(verifyOne.status).toBe(200);
@@ -972,7 +1027,8 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       });
       expect(ship.status).toBe(200);
       // Klaim bukti transfer belum melunasi: gudang harus verifikasi dulu.
-      const [claim] = await db.select().from(orderPayments).where(eq(orderPayments.orderId, orderId));
+      const [claimRow] = await selectReceiptsForOrder(orderId);
+      const claim = claimRow.receipt;
       mockActor("central_admin", null);
       const verifyClaim = await paymentsRouter.request(`/orders/${orderId}/payments/${claim.id}/verify`, { method: "POST" });
       expect(verifyClaim.status).toBe(200);
@@ -985,6 +1041,7 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       expect(ok.status).toBe(200);
     } finally {
       mockActor("central_admin", null);
+      await deleteReceiptsForOrders([orderId]);
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(packageItems).where(eq(packageItems.id, `pi-pkr-${stamp}`));
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));

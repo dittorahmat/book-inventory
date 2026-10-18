@@ -6,7 +6,6 @@ import { db } from "../../db";
 import { uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
 import {
   assembleSchema,
-  claimSchema,
   exchangeSchema,
   receiveSchema,
   refundSchema,
@@ -23,7 +22,6 @@ import {
 } from "../services/access-scope";
 import {
   assembleUniformPackages,
-  createUniformClaim,
   createUniformPackage,
   createUniformPo,
   createUniformVariant,
@@ -32,8 +30,6 @@ import {
   listUniformPackages,
   listUniformRefunds,
   listUniformVariants,
-  lockUniformClaim,
-  listUniformClaims,
   markUniformShipped,
   receiveUniformPo,
   requestUniformExchange,
@@ -42,7 +38,7 @@ import {
   resolveUniformRefund,
 } from "../services/uniform";
 import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
-import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/orders";
+import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import {
   cashierPaymentSchema,
   listPaymentsWithStatus,
@@ -361,34 +357,4 @@ uniformsRouter.get("/reports/sales", async (c) => {
   }
 });
 
-uniformsRouter.get("/claims", async (c) => {
-  try {
-    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
-    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
-    return c.json({ success: true, data: await listUniformClaims(db, schoolId) });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
 
-uniformsRouter.post("/claims", zValidator("json", claimSchema), async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await createUniformClaim(db, c.req.valid("json"));
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, data: result.data }, 201);
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-uniformsRouter.post("/claims/:id/lock", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await lockUniformClaim(db, c.req.param("id"));
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});

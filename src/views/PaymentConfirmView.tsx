@@ -97,6 +97,11 @@ export function PaymentConfirmView({ kind, token }: Props) {
             <div className="flex justify-between"><span className="text-[#65676B]">Order:</span><span className="font-mono font-bold">{data.orderNumber}</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Tagihan:</span><span>{formatRupiah(data.totalAmount)}</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Ongkir:</span><span>{formatRupiah(data.shippingCost)}</span></div>
+            {data.shippingCost === 0 && (
+              <p className="text-[11px] text-[#65676B]">
+                Ongkir menyusul setelah barang ditimbang gudang — nominalnya akan muncul di sini.
+              </p>
+            )}
             <div className="flex justify-between font-bold border-t border-[#E4E6EB] pt-1.5"><span>Total:</span><span>{formatRupiah(data.due)}</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Sudah dibayar:</span><span>{formatRupiah(data.paidAmount)} ({data.paymentStatus})</span></div>
             <div className="flex justify-between font-bold"><span>Sisa:</span><span>{formatRupiah(Math.max(0, data.due - data.paidAmount))}</span></div>

@@ -181,6 +181,9 @@ export const downloadUniformSalesCsv = (params: { schoolId?: string; from?: stri
 export interface UniformClaimRow {
   id: string; claimNumber: string; schoolId: string; period: string;
   status: "draft" | "locked"; totalQty: number; totalAmount: number; lockedAt: string | null;
+  goodsAmount: number; shippingAmount: number;
+  /** Selisih angka klaim vs tagihan di bawahnya; bukan 0 = berubah setelah dibuat. */
+  driftAmount?: number;
 }
 
 export const fetchUniformClaims = (schoolId?: string): Promise<UniformClaimRow[]> =>

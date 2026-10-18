@@ -1,3 +1,4 @@
+import { formatRupiah } from "../../lib/transfer-pricing";
 import type { BookPackageOption, StudentSearchResult } from "../../lib/portal-types";
 import type { LooseSelection } from "./OrderItemStep";
 
@@ -20,6 +21,36 @@ export const allocationForChoice = (choice: "full" | "partial", bookTotal: numbe
 
 export const draftRemainder = (bookTotal: number, allocation: number): number =>
   Math.max(0, bookTotal - allocation);
+
+export type AllocationCheck = { ok: true } | { ok: false; message: string };
+
+/**
+ * Guard alokasi yang sama dipakai form (pesan inline) dan payload (tolak kirim):
+ * alokasi tidak boleh nol, tidak boleh melebihi nominal struk, dan tidak boleh
+ * melebihi total tagihan. Ketiganya wajib — satu struk sering menutup SPP juga.
+ */
+export const validateAllocation = (input: {
+  transferAmount: number;
+  allocationAmount: number;
+  bookTotal: number;
+}): AllocationCheck => {
+  if (input.allocationAmount < 1) {
+    return { ok: false, message: "Alokasi untuk buku minimal Rp 1." };
+  }
+  if (input.allocationAmount > input.bookTotal) {
+    return {
+      ok: false,
+      message: `Alokasi ${formatRupiah(input.allocationAmount)} melebihi total tagihan ${formatRupiah(input.bookTotal)}.`,
+    };
+  }
+  if (input.transferAmount > 0 && input.allocationAmount > input.transferAmount) {
+    return {
+      ok: false,
+      message: `Alokasi ${formatRupiah(input.allocationAmount)} melebihi total struk ${formatRupiah(input.transferAmount)}.`,
+    };
+  }
+  return { ok: true };
+};
 
 /** Baris pkg satuan untuk PaymentStep: harga sudah termasuk WPR sekali. */
 export const buildSatuanPkg = (input: {

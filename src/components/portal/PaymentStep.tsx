@@ -7,7 +7,7 @@ import type {
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
 import { WprQuestion } from "./WprQuestion";
-import { allocationForChoice, draftRemainder } from "./order-draft";
+import { allocationForChoice, draftRemainder, validateAllocation } from "./order-draft";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
@@ -76,6 +76,11 @@ export function PaymentStep({
   onBack,
   onSubmit,
 }: PaymentStepProps) {
+  const allocationCheck = validateAllocation({
+    transferAmount,
+    allocationAmount: bookAllocationAmount,
+    bookTotal: pkg.price,
+  });
   return (
     <form onSubmit={onSubmit} className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-6">
       <div className="border-b border-[#E4E6EB] pb-4">
@@ -262,6 +267,11 @@ export function PaymentStep({
                 <span>Tagihan: {formatRupiah(pkg.price)}</span>
                 <span>Sisa: {formatRupiah(draftRemainder(pkg.price, bookAllocationAmount))}</span>
               </div>
+              {!allocationCheck.ok && (
+                <p role="alert" className="mt-1.5 text-[11px] font-semibold text-red-600">
+                  {allocationCheck.message}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">

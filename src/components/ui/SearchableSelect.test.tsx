@@ -1,4 +1,4 @@
-import "../portal/test-dom";
+import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
 const { cleanup, render, screen, fireEvent } = await import("@testing-library/react");
 import { SearchableSingleSelect } from "./SearchableSingleSelect";

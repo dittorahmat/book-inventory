@@ -11,6 +11,7 @@ export type PaymentReviewStatus = "pending" | "verified" | "rejected";
 export interface RawPaymentRow {
   id: string;
   transferAmount?: number | null;
+  allocationAmount?: number | null;
   bookAllocationAmount?: number | null;
   uniformAllocationAmount?: number | null;
   paymentProofUrl?: string | null;
@@ -44,7 +45,7 @@ export interface PaymentReviewRow {
 export const normalizePaymentRow = (row: RawPaymentRow): PaymentReviewRow => ({
   id: row.id,
   transferAmount: row.transferAmount ?? 0,
-  allocationAmount: row.bookAllocationAmount ?? row.uniformAllocationAmount ?? 0,
+  allocationAmount: row.allocationAmount ?? row.bookAllocationAmount ?? row.uniformAllocationAmount ?? 0,
   paymentProofUrl: row.paymentProofUrl ?? null,
   bankName: row.bankName ?? null,
   referenceNumber: row.referenceNumber ?? null,

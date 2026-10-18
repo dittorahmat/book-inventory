@@ -1,6 +1,5 @@
-import { formatRupiah } from "../../lib/transfer-pricing";
 import { validateHomeAddress } from "../../lib/home-address";
-import { calcDraftTotal } from "./order-draft";
+import { calcDraftTotal, validateAllocation } from "./order-draft";
 import type { FinalOrderPayload } from "./portal-api";
 
 export interface OrderTotalsInput {
@@ -54,10 +53,13 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
     looseTotal: input.looseTotal,
     wprFee: input.wprFee ?? 0,
   });
-  if (input.orderType === "regular" && input.bookAllocationAmount > bookTotal) {
-    throw new Error(
-      `Alokasi buku ${formatRupiah(input.bookAllocationAmount)} melebihi total tagihan ${formatRupiah(bookTotal)}. Sesuaikan nominal lalu kirim ulang.`
-    );
+  if (input.orderType === "regular" && input.bookAllocationAmount > 0) {
+    const check = validateAllocation({
+      transferAmount: input.transferAmount,
+      allocationAmount: input.bookAllocationAmount,
+      bookTotal,
+    });
+    if (!check.ok) throw new Error(`${check.message} Sesuaikan nominal lalu kirim ulang.`);
   }
 
   return {

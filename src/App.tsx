@@ -14,6 +14,7 @@ import { PaymentConfirmView } from "./views/PaymentConfirmView";
 import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
 import { SalesReportView } from "./views/SalesReportView";
+import { ReconciliationView } from "./views/ReconciliationView";
 import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
 import { AppHeader } from "./components/layout/AppHeader";
@@ -203,6 +204,9 @@ export function App() {
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView />}
         {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
+        {activeTab === "reconciliation" && (
+          <ReconciliationView activeSchool={selectedSchool} isCentralAdmin={isCentralAdmin} />
+        )}
         {activeTab === "reports" && (
           <SalesReportView
             schools={schools}

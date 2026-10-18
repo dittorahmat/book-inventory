@@ -1,13 +1,13 @@
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
-  orderPayments,
+  paymentAllocations,
+  paymentReceipts,
   studentBookOrders,
   studentOrderItems,
   students,
   uniformOrderItems,
   uniformOrders,
-  uniformPayments,
 } from "../../db/schema";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { decodeBase64ToBytes } from "../base64";
@@ -191,7 +191,7 @@ const confirmPaymentCore = async (
   token: string,
   input: ConfirmPaymentInput,
   kind: ConfirmKind,
-  recordPayment: (orderId: string, url: string | null, now: string) => unknown,
+  recordPayment: (order: { id: string; studentId: string; schoolId: string }, url: string | null, now: string) => unknown[],
   deps?: ConfirmDeps
 ): Promise<{ ok: true; data: { paymentStatus: string; paidAmount: number } } | InvoiceError> => {
   const bad = checkConfirmInput(input);
@@ -205,7 +205,7 @@ const confirmPaymentCore = async (
   }
   const { url, key } = await uploadProof(storage, kind.proofPrefix, order.id, input.paymentProofBase64);
   try {
-    await runWriteBatch(database, [recordPayment(order.id, url, now)]);
+    await runWriteBatch(database, recordPayment(order, url, now));
     return { ok: true, data: { paymentStatus: order.paymentStatus, paidAmount: order.paidAmount } };
   } catch (err) {
     if (key) { try { await storage.delete(key); } catch { /* best-effort */ } }
@@ -227,12 +227,24 @@ export async function confirmBookPayment(
     token,
     input,
     BOOK_CONFIRM,
-    (orderId, url, now) => database.insert(orderPayments).values({
-      id: crypto.randomUUID(), orderId,
-      transferAmount: input.transferAmount, bookAllocationAmount: input.allocationAmount,
-      paymentProofUrl: url, bankName: input.bankName || null, referenceNumber: input.referenceNumber || null,
-      notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)", createdAt: now,
-    }),
+    (order, url, now) => {
+      const receiptId = crypto.randomUUID();
+      return [
+        database.insert(paymentReceipts).values({
+          id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
+          amount: input.transferAmount,
+          bankName: input.bankName?.trim() || "Tanpa Bank",
+          referenceNumber: input.referenceNumber?.trim() || null,
+          proofUrl: url, receivedAt: now,
+          notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
+          createdAt: now, updatedAt: now,
+        }),
+        database.insert(paymentAllocations).values({
+          id: `${receiptId}-buku`, receiptId, orderId: order.id, kind: "buku",
+          amount: input.allocationAmount, createdAt: now,
+        }),
+      ];
+    },
     deps
   );
 }
@@ -249,22 +261,55 @@ export async function confirmUniformPayment(
     token,
     input,
     UNIFORM_CONFIRM,
-    (orderId, url, now) => database.insert(uniformPayments).values({
-      id: crypto.randomUUID(), orderId,
-      transferAmount: input.transferAmount, uniformAllocationAmount: input.allocationAmount,
-      paymentProofUrl: url, bankName: input.bankName || null, referenceNumber: input.referenceNumber || null,
-      notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)", createdAt: now,
-    }),
+    (order, url, now) => {
+      const receiptId = crypto.randomUUID();
+      return [
+        database.insert(paymentReceipts).values({
+          id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
+          amount: input.transferAmount,
+          bankName: input.bankName?.trim() || "Tanpa Bank",
+          referenceNumber: input.referenceNumber?.trim() || null,
+          proofUrl: url, receivedAt: now,
+          notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
+          createdAt: now, updatedAt: now,
+        }),
+        database.insert(paymentAllocations).values({
+          id: `${receiptId}-seragam`, receiptId, orderId: order.id, kind: "seragam",
+          amount: input.allocationAmount, createdAt: now,
+        }),
+      ];
+    },
     deps
   );
 }
+
+/** Struk + porsi alokasi yang menyentuh satu order (terbaru lebih dulu). */
+const receiptsForOrder = (database: AppDatabase, kind: "buku" | "seragam", orderId: string) =>
+  database
+    .select({
+      id: paymentReceipts.id,
+      transferAmount: paymentReceipts.amount,
+      allocationAmount: paymentAllocations.amount,
+      paymentProofUrl: paymentReceipts.proofUrl,
+      bankName: paymentReceipts.bankName,
+      referenceNumber: paymentReceipts.referenceNumber,
+      verifiedAt: paymentReceipts.verifiedAt,
+      rejectedAt: paymentReceipts.rejectedAt,
+      rejectReason: paymentReceipts.rejectReason,
+      notes: paymentReceipts.notes,
+      createdAt: paymentReceipts.createdAt,
+    })
+    .from(paymentAllocations)
+    .innerJoin(paymentReceipts, eq(paymentReceipts.id, paymentAllocations.receiptId))
+    .where(and(eq(paymentAllocations.kind, kind), eq(paymentAllocations.orderId, orderId)))
+    .orderBy(desc(paymentReceipts.createdAt));
 
 export async function lookupBookByToken(database: AppDatabase, token: string) {
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.paymentToken, token));
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(studentOrderItems).where(eq(studentOrderItems.orderId, order.id));
-  const payments = await database.select().from(orderPayments).where(eq(orderPayments.orderId, order.id)).orderBy(desc(orderPayments.createdAt));
+  const payments = await receiptsForOrder(database, "buku", order.id);
   return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }
 
@@ -273,6 +318,6 @@ export async function lookupUniformByToken(database: AppDatabase, token: string)
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(uniformOrderItems).where(eq(uniformOrderItems.orderId, order.id));
-  const payments = await database.select().from(uniformPayments).where(eq(uniformPayments.orderId, order.id)).orderBy(desc(uniformPayments.createdAt));
+  const payments = await receiptsForOrder(database, "seragam", order.id);
   return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }

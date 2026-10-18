@@ -305,22 +305,6 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   index("orders_school_satuan_ship_idx").on(t.schoolId, t.satuanShipmentStatus),
 ]);
 
-export const orderPayments = sqliteTable("order_payments", {
-  id: text("id").primaryKey(),
-  orderId: text("order_id").notNull().references(() => studentBookOrders.id, { onDelete: "cascade" }),
-  transferAmount: integer("transfer_amount").notNull(), // Total di struk bank
-  bookAllocationAmount: integer("book_allocation_amount").notNull(), // Nominal yang dialokasikan khusus buku
-  paymentProofUrl: text("payment_proof_url"),
-  bankName: text("bank_name"),
-  referenceNumber: text("reference_number"),
-  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
-  verifiedAt: text("verified_at"),
-  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
-  rejectReason: text("reject_reason"),
-  notes: text("notes"),
-  createdAt: text("created_at").notNull(),
-});
-
 /** Baris order satuan: satu order dapat berisi banyak judul dengan kuantitas. */
 export const studentOrderItems = sqliteTable("student_order_items", {
   id: text("id").primaryKey(),
@@ -622,25 +606,6 @@ export const uniformOrderItems = sqliteTable("uniform_order_items", {
   index("uniform_order_items_order_idx").on(t.orderId),
 ]);
 
-/** Pembayaran seragam via link konfirmasi (transfer manual, termin bebas). */
-export const uniformPayments = sqliteTable("uniform_payments", {
-  id: text("id").primaryKey(),
-  orderId: text("order_id").notNull().references(() => uniformOrders.id, { onDelete: "cascade" }),
-  transferAmount: integer("transfer_amount").notNull(),
-  uniformAllocationAmount: integer("uniform_allocation_amount").notNull(),
-  paymentProofUrl: text("payment_proof_url"),
-  bankName: text("bank_name"),
-  referenceNumber: text("reference_number"),
-  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
-  verifiedAt: text("verified_at"),
-  rejectedAt: text("rejected_at"), // Diisi gudang saat bukti transfer ditolak (pending = verifiedAt & rejectedAt null).
-  rejectReason: text("reject_reason"),
-  notes: text("notes"),
-  createdAt: text("created_at").notNull(),
-}, (t) => [
-  index("uniform_payments_order_idx").on(t.orderId),
-]);
-
 /** Tukar Ukuran: exchange olahraga belum-dipakai ≤14 hari (bukan refund dana). */
 export const uniformExchanges = sqliteTable("uniform_exchanges", {
   id: text("id").primaryKey(),
@@ -691,7 +656,10 @@ export const uniformRejects = sqliteTable("uniform_rejects", {
   index("uniform_rejects_variant_idx").on(t.variantId),
 ]);
 
-/** Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock. */
+/**
+ * Klaim Cabang: snapshot gudang→cabang per periode+sekolah, bisa lock.
+ * Nama tabel historis (`uniform_*`), cakupan kini buku + seragam lewat branch_charges.
+ */
 export const uniformClaims = sqliteTable("uniform_claims", {
   id: text("id").primaryKey(),
   claimNumber: text("claim_number").notNull().unique(),
@@ -699,6 +667,11 @@ export const uniformClaims = sqliteTable("uniform_claims", {
   period: text("period").notNull(),
   status: text("status", { enum: ["draft", "locked"] }).notNull().default("draft"),
   totalQty: integer("total_qty").notNull().default(0),
+  /** Nilai barang saja (tanpa ongkir). */
+  goodsAmount: integer("goods_amount").notNull().default(0),
+  /** Ongkir pass-through yang di-recharge ke cabang. */
+  shippingAmount: integer("shipping_amount").notNull().default(0),
+  /** goodsAmount + shippingAmount — total yang ditagihkan. */
   totalAmount: integer("total_amount").notNull().default(0),
   lockedAt: text("locked_at"),
   createdAt: text("created_at").notNull(),
@@ -706,4 +679,72 @@ export const uniformClaims = sqliteTable("uniform_claims", {
 }, (t) => [
   index("uniform_claims_school_period_idx").on(t.schoolId, t.period),
   unique("uniform_claims_school_period_unq").on(t.schoolId, t.period),
+]);
+
+/**
+ * Struk Bayar: satu bukti transfer bank milik murid, dicatat sekali.
+ * (bank, nomor referensi) unik supaya bukti yang sama tidak dipakai dua kali;
+ * referensi kosong boleh berulang karena SQLite menganggap NULL berbeda.
+ */
+export const paymentReceipts = sqliteTable("payment_receipts", {
+  id: text("id").primaryKey(),
+  studentId: text("student_id").notNull().references(() => students.id),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  amount: integer("amount").notNull(), // Total nominal struk, bukan hanya porsi buku
+  bankName: text("bank_name").notNull(),
+  referenceNumber: text("reference_number"),
+  proofUrl: text("proof_url"),
+  receivedAt: text("received_at").notNull(),
+  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+  verifiedAt: text("verified_at"),
+  rejectedAt: text("rejected_at"), // pending = verifiedAt & rejectedAt null
+  rejectReason: text("reject_reason"),
+  createdByUserId: text("created_by_user_id").references(() => users.id),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("payment_receipts_student_idx").on(t.studentId),
+  index("payment_receipts_school_received_idx").on(t.schoolId, t.receivedAt),
+  unique("payment_receipts_bank_ref_unq").on(t.bankName, t.referenceNumber),
+]);
+
+/** Alokasi: porsi satu Struk Bayar yang dibebankan ke satu order. */
+export const paymentAllocations = sqliteTable("payment_allocations", {
+  id: text("id").primaryKey(),
+  receiptId: text("receipt_id").notNull().references(() => paymentReceipts.id, { onDelete: "cascade" }),
+  // Polimorfik: mengacu ke student_book_orders atau uniform_orders sesuai `kind`.
+  orderId: text("order_id").notNull(),
+  kind: text("kind", { enum: ["buku", "seragam"] }).notNull(),
+  amount: integer("amount").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("payment_allocations_receipt_idx").on(t.receiptId),
+  index("payment_allocations_order_idx").on(t.kind, t.orderId),
+]);
+
+/**
+ * Tagihan Cabang: kewajiban cabang ke gudang per order.
+ * `open` sampai ongkir diinput gudang, lalu `final` dan masuk klaim periode.
+ */
+export const branchCharges = sqliteTable("branch_charges", {
+  id: text("id").primaryKey(),
+  chargeNumber: text("charge_number").notNull().unique(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  sourceType: text("source_type", { enum: ["book_order", "uniform_order"] }).notNull(),
+  sourceId: text("source_id").notNull(),
+  triggerEvent: text("trigger_event", { enum: ["handover", "order_created"] }).notNull(),
+  chargeableAt: text("chargeable_at").notNull(),
+  /** Kapan tagihan menjadi final (ongkir masuk) — periode klaim memakai ini. */
+  finalizedAt: text("finalized_at"),
+  goodsAmount: integer("goods_amount").notNull().default(0),
+  shippingAmount: integer("shipping_amount").notNull().default(0),
+  status: text("status", { enum: ["open", "final"] }).notNull().default("open"),
+  claimId: text("claim_id").references(() => uniformClaims.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("branch_charges_school_status_idx").on(t.schoolId, t.status),
+  index("branch_charges_claim_idx").on(t.claimId),
+  unique("branch_charges_source_unq").on(t.sourceType, t.sourceId),
 ]);

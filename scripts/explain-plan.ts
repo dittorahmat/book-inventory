@@ -48,7 +48,7 @@ const QUERIES: PlannedQuery[] = [
 const REGISTERED_SEARCH_SOURCES = new Set([
   "src/server/lib/partitioned-search.ts", // pemilik pola `%q%` + lower()
   "src/server/services/public-order.ts",
-  "src/server/services/uniform/orders.ts",
+  "src/server/services/uniform/order-query.ts",
   "src/server/routes/students.ts",
   "src/server/routes/student-orders.ts",
   "src/server/routes/public-orders.ts",
