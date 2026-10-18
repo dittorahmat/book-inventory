@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { branchCharges, paymentAllocations, paymentReceipts, uniformClaims } from "../../db/schema";
+import { branchCharges, paymentAllocations, paymentReceipts, branchClaims } from "../../db/schema";
 import { selectInChunks } from "../lib/d1-write";
 import { periodBounds } from "../lib/period";
 
@@ -149,8 +149,8 @@ export const buildReconciliation = async (
 
   const claimRows = await database
     .select()
-    .from(uniformClaims)
-    .where(and(school ? eq(uniformClaims.schoolId, school) : undefined, eq(uniformClaims.period, input.period)))
+    .from(branchClaims)
+    .where(and(school ? eq(branchClaims.schoolId, school) : undefined, eq(branchClaims.period, input.period)))
     .limit(500);
   const claimIds = claimRows.map((claim) => claim.id);
   const claimChargeRows = claimIds.length > 0

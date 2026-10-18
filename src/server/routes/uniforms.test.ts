@@ -6,10 +6,10 @@ afterEach(() => {
   restoreActor();
 });
 import { uniformsRouter } from "./uniforms";
-import { uniformClaimsRouter } from "./uniform-claims";
+import { branchClaimsRouter } from "./branch-claims";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { branchCharges, schools, students, suppliers, systemSettings, uniformClaims, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { branchCharges, schools, students, suppliers, systemSettings, branchClaims, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
 import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
@@ -20,7 +20,7 @@ const postJson = (path: string, body: unknown) =>
 
 /** Klaim cabang dipisah ke router sendiri (batas 400 baris), dipakai dengan prefix yang sama. */
 const postClaimsJson = (path: string, body: unknown) =>
-  uniformClaimsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  branchClaimsRouter.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** SimMenu order paket lampau agar submit satuan lolos aturan wajib-paket. */
 async function seedPriorUniformOrder(schoolId: string, studentId: string, stamp: string | number, shipped = false) {
@@ -461,7 +461,7 @@ describe("Uniform sales report & claims", () => {
       expect(ship.status).toBe(200);
     }
 
-    const cl = await uniformClaimsRouter.request("/claims", {
+    const cl = await branchClaimsRouter.request("/claims", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schoolId, period }),
@@ -477,7 +477,7 @@ describe("Uniform sales report & claims", () => {
     expect(claim.shippingAmount).toBe(30000);
     expect(claim.totalAmount).toBe(expectedRevenue + 30000);
 
-    const detail = await uniformClaimsRouter.request(`/claims/${claim.id}`);
+    const detail = await branchClaimsRouter.request(`/claims/${claim.id}`);
     expect(detail.status).toBe(200);
     const detailData = (await detail.json()).data as {
       claim: { id: string };
@@ -487,21 +487,21 @@ describe("Uniform sales report & claims", () => {
     expect(detailData.charges.every((c) => c.status === "final")).toBe(true);
     expect(detailData.charges.map((c) => c.sourceId)).not.toContain(openOrder.data.order.id);
 
-    const dup = await uniformClaimsRouter.request("/claims", {
+    const dup = await branchClaimsRouter.request("/claims", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schoolId, period }),
     });
     expect(dup.status).toBe(400);
 
-    const lock = await uniformClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    const lock = await branchClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
     expect(lock.status).toBe(200);
     expect((await lock.json()).data.status).toBe("locked");
-    const lockAgain = await uniformClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
+    const lockAgain = await branchClaimsRouter.request(`/claims/${claim.id}/lock`, { method: "POST" });
     expect(lockAgain.status).toBe(400);
 
     mockActor("branch_admin", schoolId);
-    const branchClaims = await uniformClaimsRouter.request(`/claims?schoolId=${schoolId}`, { method: "GET" });
+    const branchClaims = await branchClaimsRouter.request(`/claims?schoolId=${schoolId}`, { method: "GET" });
     expect(branchClaims.status).toBe(200);
     expect(((await branchClaims.json()).data as unknown[]).length).toBe(1);
   });
@@ -540,14 +540,14 @@ describe("Uniform sales report & claims", () => {
       expect(secondClaim.totalAmount).toBe(305000);
       expect(secondClaim.shippingAmount).toBe(5000);
 
-      const detail = await uniformClaimsRouter.request(`/claims/${secondClaim.id}`);
+      const detail = await branchClaimsRouter.request(`/claims/${secondClaim.id}`);
       const charges = (await detail.json()).data.charges as Array<{ sourceId: string }>;
       expect(charges.map((c) => c.sourceId)).toContain(sourceB);
 
-      const [lockedFirst] = await db.select().from(uniformClaims).where(eq(uniformClaims.id, firstClaim.id));
+      const [lockedFirst] = await db.select().from(branchClaims).where(eq(branchClaims.id, firstClaim.id));
       expect(lockedFirst.totalAmount).toBe(210000);
     } finally {
-      await db.delete(uniformClaims).where(eq(uniformClaims.schoolId, schoolId));
+      await db.delete(branchClaims).where(eq(branchClaims.schoolId, schoolId));
       await db.delete(branchCharges).where(eq(branchCharges.schoolId, schoolId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }

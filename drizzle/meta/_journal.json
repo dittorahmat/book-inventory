@@ -232,6 +232,13 @@
       "when": 1792319818770,
       "tag": "0032_luxuriant_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1792328173771,
+      "tag": "0033_motionless_terror",
+      "breakpoints": true
     }
   ]
 }
