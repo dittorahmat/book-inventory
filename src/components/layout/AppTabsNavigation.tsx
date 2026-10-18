@@ -10,6 +10,7 @@ import {
   BookOpen,
   Truck,
   BarChart3,
+  Scale,
   Settings,
   Shirt,
 } from "lucide-react";
@@ -27,6 +28,7 @@ export const TAB_IDS = [
   "internal_orders",
   "returns",
   "transfers",
+  "reconciliation",
   "reports",
   "settings",
 ] as const;
@@ -53,6 +55,7 @@ const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentT
   { id: "inventory", label: "Stok Satuan", icon: Layers },
   { id: "catalog", label: "Katalog", icon: BookOpen },
   { id: "transfers", label: "Transfer", icon: Truck },
+  { id: "reconciliation", label: "Rekonsiliasi", icon: Scale, requireLogistics: true },
   { id: "reports", label: "Laporan", icon: BarChart3 },
   { id: "settings", label: "Pengaturan", icon: Settings, requireCentral: true },
 ];
