@@ -18,22 +18,26 @@ import {
   requireScopedActor,
 } from "../services/access-scope";
 import { matchAnyLower } from "../lib/partitioned-search";
+import { idSchema } from "../lib/validators";
 
 export const bookReturnsRouter = new Hono();
 
+const VALID_RETURN_STATUSES = ["reported", "approved", "replaced", "rejected", "refunded"] as const;
+type ReturnStatus = (typeof VALID_RETURN_STATUSES)[number];
+
 const returnBookSchema = z.object({
-  orderId: z.string().min(1, "Order ID is required"),
-  studentId: z.string().min(1, "Student ID is required"),
-  defectiveBookId: z.string().min(1, "Defective book ID is required"),
+  orderId: idSchema,
+  studentId: idSchema,
+  defectiveBookId: idSchema,
   reason: z.string().min(1, "Reason is required"),
   photoProofBase64: z.string().optional(),
 });
 
 const resolveReturnSchema = z.object({
   action: z.enum(["replace", "reject", "refund"]),
-  replacementBookItemId: z.string().optional(),
+  replacementBookItemId: idSchema.optional(),
   refundAmount: z.number().int().min(0).optional(),
-  handledByUserId: z.string().optional(),
+  handledByUserId: idSchema.optional(),
 });
 
 // 1. POST Report Defective Book for Return/Refund
@@ -63,12 +67,9 @@ bookReturnsRouter.get("/", async (c) => {
     const returnStatus = c.req.query("status");
     const returnSearch = c.req.query("search")?.trim().toLowerCase();
 
-    const validStatuses = ["reported", "approved", "replaced", "rejected", "refunded"] as const;
-    type ReturnStatus = (typeof validStatuses)[number];
-
     const returnConditions = [];
     if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, scope));
-    if (returnStatus && returnStatus !== "all" && validStatuses.includes(returnStatus as ReturnStatus)) {
+    if (returnStatus && returnStatus !== "all" && VALID_RETURN_STATUSES.includes(returnStatus as ReturnStatus)) {
       returnConditions.push(eq(bookReturns.status, returnStatus as ReturnStatus));
     }
     if (returnSearch) {
@@ -116,16 +117,13 @@ bookReturnsRouter.get("/export", async (c) => {
     const schoolId = c.req.query("schoolId");
     const status = c.req.query("status") || "approved";
 
-    const validStatuses = ["reported", "approved", "replaced", "rejected", "refunded"] as const;
-    type ReturnStatus = (typeof validStatuses)[number];
-
     const conditions = [];
     if (scope && scope.length > 0) conditions.push(inArray(studentBookOrders.schoolId, scope));
     if (schoolId) {
       assertLocationAllowed({ role: "central_admin", schoolId: null }, schoolId, locations);
       conditions.push(eq(studentBookOrders.schoolId, schoolId));
     }
-    if (status && status !== "all" && validStatuses.includes(status as ReturnStatus)) {
+    if (status && status !== "all" && VALID_RETURN_STATUSES.includes(status as ReturnStatus)) {
       conditions.push(eq(bookReturns.status, status as ReturnStatus));
     }
 
