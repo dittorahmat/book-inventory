@@ -92,7 +92,8 @@ export interface InternalShipmentListItem {
 
 export interface InternalShipmentListRow {
   id: string;
-  internalPoId: string;
+  internalPoId: string | null;
+  destinationSchoolId?: string | null;
   deliveryNoteNumber: string;
   transferShipmentId: string | null;
   shippedDate: string | null;
@@ -354,6 +355,7 @@ export async function fulfillInternalPo(
       database.insert(internalShipments).values({
         id: shipmentId,
         internalPoId: poId,
+        destinationSchoolId: po.schoolId,
         deliveryNoteNumber: input.deliveryNoteNumber.trim(),
         shippedDate: input.shippedDate || now.split("T")[0],
         status: "in_transit",

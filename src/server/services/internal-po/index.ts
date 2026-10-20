@@ -20,3 +20,10 @@ export type {
   ReceiveInternalShipmentResult,
 } from "./receipt";
 export { receiveInternalShipment } from "./receipt";
+export type {
+  CreateManualShipmentInput,
+  CreateManualShipmentResult,
+  OutstandingPoLine,
+  OutstandingPoRow,
+} from "./shipment";
+export { createManualShipment, listOutstandingPOs } from "./shipment";

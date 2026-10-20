@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Truck } from "lucide-react";
 import type { School } from "../types";
 import type { StaffRole } from "../components/layout/AppTabsNavigation";
-import { isCentralRole } from "../lib/staff-roles";
+import { isCentralRole, isLogisticsRole } from "../lib/staff-roles";
+import { CreateInternalShipmentModal } from "../components/internal-orders/CreateInternalShipmentModal";
+import { InternalShipmentPrintModal } from "../components/internal-orders/InternalShipmentPrintModal";
+import type { InternalOrder } from "../lib/internal-orders-types";
 import { useInternalOrders } from "../components/internal-orders/useInternalOrders";
 import { InternalOrdersTable } from "../components/internal-orders/InternalOrdersTable";
 import { CreateInternalOrderModal } from "../components/internal-orders/CreateInternalOrderModal";
@@ -24,6 +27,7 @@ export function InternalProcurementView({
   userSchoolId,
 }: InternalProcurementViewProps) {
   const isCentral = isCentralRole(userRole);
+  const isLogistics = isLogisticsRole(userRole);
   const filterSchoolId = isCentral ? (activeSchool?.id ?? null) : (userSchoolId ?? activeSchool?.id ?? null);
   const {
     orders,
@@ -31,6 +35,8 @@ export function InternalProcurementView({
     loadError,
     loadData,
     submitOrder,
+    submitPoShipment,
+    submitManualShipment,
     shipmentsByOrder,
     shipmentsLoading,
     shipmentsError,
@@ -38,6 +44,8 @@ export function InternalProcurementView({
   } = useInternalOrders(filterSchoolId);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isShipmentOpen, setIsShipmentOpen] = useState(false);
+  const [printTarget, setPrintTarget] = useState<{ order: InternalOrder; shipment: InternalShipment } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<{ orderId: string; shipment: InternalShipment } | null>(null);
   const [createSchoolId, setCreateSchoolId] = useState<string | null>(null);
@@ -71,6 +79,19 @@ export function InternalProcurementView({
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </button>
+          {isLogistics && (
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                setIsShipmentOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-[#1877F2] bg-white px-3.5 py-2 text-xs font-semibold text-[#1877F2] shadow-2xs transition-colors hover:bg-blue-50 active:scale-[0.98]"
+            >
+              <Truck className="h-4 w-4" />
+              <span>Buat Surat Jalan</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -115,6 +136,7 @@ export function InternalProcurementView({
           if (expanded) loadShipments(orderId);
         }}
         onReceiveShipment={(orderId, shipment) => setReceiveTarget({ orderId, shipment })}
+        onPrintShipment={(order, shipment) => setPrintTarget({ order, shipment })}
       />
 
       {receiveTarget && (
@@ -125,6 +147,25 @@ export function InternalProcurementView({
             await loadShipments(receiveTarget.orderId);
             setNotice(`SJ Internal ${receiveTarget.shipment.deliveryNoteNumber} diterima cabang.`);
           }}
+        />
+      )}
+
+      {printTarget && (
+        <InternalShipmentPrintModal
+          shipment={printTarget.shipment}
+          poNumber={printTarget.order.poNumber}
+          destinationSchoolName={printTarget.order.schoolName}
+          onClose={() => setPrintTarget(null)}
+        />
+      )}
+
+      {isShipmentOpen && (
+        <CreateInternalShipmentModal
+          schoolOptions={schools.map((s) => ({ id: s.id, name: s.name }))}
+          onSubmitPoShipment={submitPoShipment}
+          onSubmitManualShipment={submitManualShipment}
+          onClose={() => setIsShipmentOpen(false)}
+          onCreated={(deliveryNoteNumber) => setNotice(`Surat Jalan ${deliveryNoteNumber} berhasil diterbitkan.`)}
         />
       )}
 

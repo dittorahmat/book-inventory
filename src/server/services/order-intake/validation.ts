@@ -92,6 +92,16 @@ export function validateScholarshipProof(
     : { ok: true };
 }
 
+/** Bukti transfer wajib untuk order reguler. Murni: tanpa DB. */
+export function validatePaymentProof(
+  isRegular: boolean,
+  proof: string | null | undefined
+): { ok: true } | ValidationError {
+  return isRegular && !proof
+    ? { ok: false, status: 400, message: "Bukti transfer pembayaran wajib dilampirkan" }
+    : { ok: true };
+}
+
 /** Total kotor = harga paket + subtotal satuan (seam harga snapshot). */
 export function grossOrderAmount(packagePrice: number, looseLines: Array<{ unitPrice: number; quantity: number }>): number {
   return packagePrice + calcHeaderTotal(looseLines.map((l) => ({ unitPriceSnapshot: l.unitPrice, quantity: l.quantity })));

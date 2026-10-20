@@ -27,6 +27,7 @@ import {
   validateOrderLines,
   validatePackageForOrder,
   validateSatuanCutoff,
+  validatePaymentProof,
   validateScholarshipProof,
   validateStudentForOrder,
 } from "./validation";
@@ -150,10 +151,12 @@ export async function submitPublicOrder(
   if (!resolved.ok) return resolved;
   const looseLines = resolved.lines;
 
-  // 5. Bukti beasiswa (aturan murni)
+  // 5. Bukti beasiswa atau bukti transfer pembayaran (aturan murni)
   const isScholarship = input.orderType === "scholarship";
   const scholarshipCheck = validateScholarshipProof(isScholarship, input.scholarshipProofBase64);
   if (!scholarshipCheck.ok) return scholarshipCheck;
+  const paymentProofCheck = validatePaymentProof(!isScholarship, input.payment?.paymentProofBase64);
+  if (!paymentProofCheck.ok) return paymentProofCheck;
 
   // 6. Reservasi kuantitas satuan via modul intake bersama SEBELUM upload bukti.
   // WPR bukan stok fisik: tidak direservasi, ditambahkan sebagai baris biaya sesudahnya.

@@ -87,6 +87,7 @@ describe("Public Orders & Student Search API", () => {
           bookAllocationAmount: 800000,
           bankName: "BCA",
           referenceNumber: "TRX-BCA-9921",
+          paymentProofBase64: "data:image/jpeg;base64,dGVzdC1oZW5kcmEtcHJvb2Y=",
         },
       }),
     });
@@ -235,6 +236,43 @@ describe("Public Orders & Student Search API", () => {
       .from(bookPackages)
       .where(eq(bookPackages.gradeLevel, "99"));
     expect(pkgs.length).toBe(0);
+  });
+
+  it("rejects regular submit without payment proof and accepts it with proof", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-regproof-${stamp}`;
+    const studentId = `st-regproof-${stamp}`;
+    const pkgId = `pkg-regproof-${stamp}`;
+    const now = new Date().toISOString();
+    await db.insert(schools).values({ id: schoolId, name: "Reg Proof School", code: `RPS-${stamp}`, type: "branch", createdAt: now, updatedAt: now });
+    await db.insert(bookPackages).values({ id: pkgId, code: `PKG-RP-${stamp}`, name: "Paket Reg Proof", academicYear: "2026/2027", gradeLevel: "1", curriculumType: "international", price: 500000, createdAt: now, updatedAt: now });
+    await db.insert(students).values({ id: studentId, schoolId, nis: `RP-${stamp}`, name: "Anak Reg Proof", gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now });
+
+    const rejected = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, packageId: pkgId, orderType: "regular" }),
+    });
+    expect(rejected.status).toBe(400);
+    const rejectedJson = await rejected.json();
+    expect(rejectedJson.success).toBe(false);
+    expect(rejectedJson.message).toContain("Bukti transfer");
+
+    const accepted = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        packageId: pkgId,
+        orderType: "regular",
+        payment: {
+          transferAmount: 500000,
+          bookAllocationAmount: 500000,
+          paymentProofBase64: "data:image/jpeg;base64,dGVzdC1yZWdwcm9vZg==",
+        },
+      }),
+    });
+    expect(accepted.status).toBe(201);
   });
 
   it("rejects scholarship submit without proof and accepts it with proof", async () => {
@@ -883,6 +921,11 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
           looseItems: bookIds.map((bookId) => ({ bookId, quantity: 1 })),
           homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
           orderType: "regular",
+          payment: {
+            transferAmount: 300000 + 750000,
+            bookAllocationAmount: 300000 + 750000,
+            paymentProofBase64: "data:image/jpeg;base64,dGVzdC12b2x1bWUtcHJvb2Y=",
+          },
         },
         {
           database: db,
@@ -1194,7 +1237,17 @@ describe("WPR wajib satuan buku (750rb, bebas bila sudah paket)", () => {
       expect((await eligBefore.json()).data.needsWpr).toBe(true);
 
       const first = await submitPublicOrder(
-        { studentId, looseItems: [{ bookId, quantity: 1 }], homeAddress: addr, orderType: "regular" },
+        {
+          studentId,
+          looseItems: [{ bookId, quantity: 1 }],
+          homeAddress: addr,
+          orderType: "regular",
+          payment: {
+            transferAmount: 60000 + 750000,
+            bookAllocationAmount: 60000 + 750000,
+            paymentProofBase64: "data:image/jpeg;base64,dGVzdC13cHItcHJvb2Y=",
+          },
+        },
         { database: db, storage: new MemoryStorageService(), getSatuanStatus: openSatuan() }
       );
       expect(first.ok).toBe(true);
@@ -1218,7 +1271,17 @@ describe("WPR wajib satuan buku (750rb, bebas bila sudah paket)", () => {
         barcode: `WPR2-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now,
       });
       const second = await submitPublicOrder(
-        { studentId, looseItems: [{ bookId, quantity: 1 }], homeAddress: addr, orderType: "regular" },
+        {
+          studentId,
+          looseItems: [{ bookId, quantity: 1 }],
+          homeAddress: addr,
+          orderType: "regular",
+          payment: {
+            transferAmount: 60000,
+            bookAllocationAmount: 60000,
+            paymentProofBase64: "data:image/jpeg;base64,dGVzdC13cHItcHJvb2Yy",
+          },
+        },
         { database: db, storage: new MemoryStorageService(), getSatuanStatus: openSatuan() }
       );
       expect(second.ok).toBe(true);

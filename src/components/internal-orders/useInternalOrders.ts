@@ -68,12 +68,55 @@ export function useInternalOrders(schoolId?: string | null) {
     [loadOrders]
   );
 
+  const submitPoShipment = useCallback(
+    async (
+      poId: string,
+      payload: {
+        deliveryNoteNumber: string;
+        shippedDate?: string;
+        notes?: string;
+        items: Array<{ packageId?: string; quantity: number; isOutstandingFollowup?: boolean }>;
+      }
+    ) => {
+      const res = await postJson<{ shipmentId: string; status: string }>(
+        `/api/internal-orders/${encodeURIComponent(poId)}/shipments`,
+        payload,
+        "Gagal menerbitkan Surat Jalan internal."
+      );
+      await loadOrders();
+      await loadShipments(poId);
+      return res;
+    },
+    [loadOrders, loadShipments]
+  );
+
+  const submitManualShipment = useCallback(
+    async (payload: {
+      destinationSchoolId: string;
+      deliveryNoteNumber: string;
+      shippedDate?: string;
+      notes?: string;
+      items: Array<{ packageId?: string; quantity: number }>;
+    }) => {
+      const res = await postJson<{ shipmentId: string }>(
+        "/api/internal-orders/shipments/manual",
+        payload,
+        "Gagal menerbitkan Surat Jalan manual."
+      );
+      await loadOrders();
+      return res;
+    },
+    [loadOrders]
+  );
+
   return {
     orders,
     isLoading,
     loadError,
     loadData,
     submitOrder,
+    submitPoShipment,
+    submitManualShipment,
     shipmentsByOrder,
     shipmentsLoading,
     shipmentsError,

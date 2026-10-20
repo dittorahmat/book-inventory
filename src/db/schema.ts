@@ -368,7 +368,8 @@ export const internalPurchaseOrderItems = sqliteTable("internal_purchase_order_i
 
 export const internalShipments = sqliteTable("internal_shipments", {
   id: text("id").primaryKey(),
-  internalPoId: text("internal_po_id").notNull().references(() => internalPurchaseOrders.id, { onDelete: "cascade" }),
+  internalPoId: text("internal_po_id").references(() => internalPurchaseOrders.id, { onDelete: "cascade" }),
+  destinationSchoolId: text("destination_school_id").references(() => schools.id),
   deliveryNoteNumber: text("delivery_note_number").notNull().unique(), // Surat Jalan Pengiriman Internal
   transferShipmentId: text("transfer_shipment_id").references(() => transferShipments.id),
   shippedDate: text("shipped_date").notNull(),
@@ -380,6 +381,7 @@ export const internalShipments = sqliteTable("internal_shipments", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
+  index("internal_shipments_destination_idx").on(t.destinationSchoolId),
   index("internal_shipments_transfer_idx").on(t.transferShipmentId),
   index("internal_shipments_po_idx").on(t.internalPoId),
 ]);

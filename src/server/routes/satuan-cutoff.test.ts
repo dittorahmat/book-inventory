@@ -223,6 +223,11 @@ describe("Order satuan di portal publik (spec: public-order-satuan)", () => {
             { bookId: bookB, quantity: 1 },
           ],
           homeAddress: "Jl. Mawar No. 10, RT 02 RW 05, Bogor 16111",
+          payment: {
+            transferAmount: 75000 + 750000,
+            bookAllocationAmount: 75000,
+            paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          },
         }),
       });
       expect(res.status).toBe(201);
