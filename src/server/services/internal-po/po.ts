@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
   bookPackages,
@@ -8,106 +8,41 @@ import {
   internalShipmentItems,
   internalShipments,
   schools,
+  students,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
+import type {
+  CreateInternalPoInput,
+  CreateInternalPoResult,
+  FulfillInternalPoInput,
+  FulfillInternalPoResult,
+  InternalPoDeps,
+  InternalPoItemInput,
+  InternalPoListItem,
+  InternalPoListRow,
+  InternalShipmentItemInput,
+  InternalShipmentListItem,
+  InternalShipmentListRow,
+  ListInternalShipmentsResult,
+} from "./types";
 
-export interface InternalPoItemInput {
-  packageId: string;
-  quantityOrdered: number;
-}
-
-export interface CreateInternalPoInput {
-  schoolId: string;
-  notes?: string;
-  items: InternalPoItemInput[];
-}
-
-export interface InternalPoDeps {
-  now?: () => string;
-  generateId?: () => string;
-  generatePoNumber?: (nowIso: string) => string;
-  generateItemId?: () => string;
-}
-
-export type CreateInternalPoResult =
-  | { ok: true; data: { id: string; poNumber: string } }
-  | { ok: false; status: 400 | 404; message: string };
-
-export interface InternalShipmentItemInput {
-  packageId?: string;
-  packageItemId?: string;
-  bookId?: string;
-  quantity: number;
-  isOutstandingFollowup?: boolean;
-}
-
-export interface FulfillInternalPoInput {
-  deliveryNoteNumber: string;
-  shippedDate?: string;
-  notes?: string;
-  items: InternalShipmentItemInput[];
-}
-
-export type FulfillInternalPoResult =
-  | { ok: true; data: { shipmentId: string; status: string } }
-  | { ok: false; status: 400 | 404; message: string };
+export type {
+  CreateInternalPoInput,
+  CreateInternalPoResult,
+  FulfillInternalPoInput,
+  FulfillInternalPoResult,
+  InternalPoDeps,
+  InternalPoItemInput,
+  InternalPoListItem,
+  InternalPoListRow,
+  InternalShipmentItemInput,
+  InternalShipmentListItem,
+  InternalShipmentListRow,
+  ListInternalShipmentsResult,
+};
 
 type InternalPoItemRow = typeof internalPurchaseOrderItems.$inferSelect;
-
-export interface InternalPoListItem {
-  id: string;
-  internalPoId: string;
-  packageId: string;
-  packageName: string | null;
-  packageCode: string | null;
-  quantityOrdered: number;
-  quantityFulfilled: number | null;
-}
-
-export interface InternalPoListRow {
-  id: string;
-  poNumber: string;
-  schoolId: string;
-  schoolName: string;
-  status: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  items: InternalPoListItem[];
-}
-
-export interface InternalShipmentListItem {
-  id: string;
-  shipmentId: string;
-  packageId: string | null;
-  packageName: string | null;
-  bookId: string | null;
-  bookTitle: string | null;
-  quantity: number;
-  isOutstandingFollowup: boolean | null;
-  receivedCondition: string | null;
-  receivedNotes: string | null;
-}
-
-export interface InternalShipmentListRow {
-  id: string;
-  internalPoId: string | null;
-  destinationSchoolId?: string | null;
-  deliveryNoteNumber: string;
-  transferShipmentId: string | null;
-  shippedDate: string | null;
-  receivedDate: string | null;
-  receivedByUserId: string | null;
-  status: string;
-  notes: string | null;
-  createdAt: string;
-  items: InternalShipmentListItem[];
-}
-
-export type ListInternalShipmentsResult =
-  | { ok: true; data: InternalShipmentListRow[] }
-  | { ok: false; status: 404; message: string };
 
 /**
  * Satu-satunya pemilik bacaan daftar Internal PO beserta baris paketnya:
@@ -253,11 +188,40 @@ export async function createInternalPo(
   const packageIds = [...new Set(input.items.map((it) => it.packageId))];
   const pkgRows =
     packageIds.length > 0
-      ? await database.select({ id: bookPackages.id }).from(bookPackages).where(inArray(bookPackages.id, packageIds))
+      ? await database
+          .select({ id: bookPackages.id, name: bookPackages.name, gradeLevel: bookPackages.gradeLevel })
+          .from(bookPackages)
+          .where(inArray(bookPackages.id, packageIds))
       : [];
-  const knownPackages = new Set(pkgRows.map((r: { id: string }) => r.id));
+  const knownPackages = new Map(pkgRows.map((r) => [r.id, r]));
   const missing = packageIds.find((pid) => !knownPackages.has(pid));
   if (missing) return { ok: false, status: 400, message: `Paket dengan ID ${missing} tidak ditemukan` };
+
+  // Capping kuota pesanan cabang: Jumlah pesanan paket tidak boleh melebihi siswa aktif cabang di jenjang tsb
+  for (const item of input.items) {
+    const pkg = knownPackages.get(item.packageId);
+    if (pkg?.gradeLevel) {
+      const [countResult] = await database
+        .select({ count: sql<number>`count(*)` })
+        .from(students)
+        .where(
+          and(
+            eq(students.schoolId, input.schoolId),
+            eq(students.gradeLevel, pkg.gradeLevel),
+            eq(students.status, "active")
+          )
+        );
+      const studentCount = Number(countResult?.count ?? 0);
+      // Jika data siswa di cabang untuk jenjang ini ada, batasi maksimal pesanan sebesar jumlah siswa tersebut
+      if (studentCount > 0 && item.quantityOrdered > studentCount) {
+        return {
+          ok: false,
+          status: 400,
+          message: `Pesanan paket "${pkg.name}" (${item.quantityOrdered}) melebihi total siswa aktif kelas ${pkg.gradeLevel} di cabang ini (${studentCount} siswa)`,
+        };
+      }
+    }
+  }
 
   const now = (deps.now ?? (() => new Date().toISOString()))();
   const id = (deps.generateId ?? (() => crypto.randomUUID()))();

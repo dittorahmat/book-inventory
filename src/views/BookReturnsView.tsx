@@ -6,7 +6,8 @@ import {
   Search,
   RefreshCw,
   X,
-  Layers
+  Layers,
+  Download,
 } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 
@@ -90,25 +91,38 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
       <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-              Komplain & Retur
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+              Pusat Logistik
             </span>
-            <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Pilih Cabang"}</span>
+            <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Semua Cabang"}</span>
           </div>
           <h1 className="text-xl font-bold text-[#050505] tracking-tight mt-1">
-            Penanganan Retur Buku Cacat / Rusak
+            Penanganan Refund Buku
           </h1>
           <p className="text-xs text-[#65676B] max-w-2xl mt-0.5">
-            Laporan murid terkait buku rusak fisik/halaman sobek dengan lampiran foto bukti dan alur tukar buku baru dari stok satuan.
+            Pemeriksaan dan checklist persetujuan pengembalian buku (refund dana) yang dikembalikan langsung ke gudang logistik beserta unduh laporan rekap untuk Finance.
           </p>
         </div>
 
-        <button
-          onClick={() => loadReturns()}
-          className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href={buildQuery("/api/student-orders/returns/export", {
+              schoolId: activeSchool?.id,
+              status: statusFilter === "all" ? undefined : statusFilter,
+            })}
+            download="rekap-refund-buku.csv"
+            className="px-3 py-2 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs"
+          >
+            <Download className="w-4 h-4 text-[#1877F2]" />
+            <span>Ekspor CSV (Finance)</span>
+          </a>
+          <button
+            onClick={() => loadReturns()}
+            className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">

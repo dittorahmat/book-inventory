@@ -1,30 +1,33 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../db";
 import {
   studentBookOrders,
   students,
   bookPackages,
-  bookReturns,
-  books,
 } from "../../db/schema";
-import { reportReturn, resolveReturn } from "../services/return";
 import { markSatuanShipped } from "../services/order-intake";
 import { assertInvoiceGate, sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
   accessErrorResponse,
-  loadScopedOrder,
+  assertLocationAllowed,
   requireScopedActor,
 } from "../services/access-scope";
 import { guardScopedOrderMutation } from "../services/order-operations";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { pendingPaymentCounts } from "../services/order-payment-review";
+import { formatRupiah } from "../../lib/transfer-pricing";
+
+import { bookReturnsRouter } from "./book-returns";
 
 export const studentOrdersRouter = new Hono();
+
+// Mount sub-router book-returns di bawah /returns
+studentOrdersRouter.route("/returns", bookReturnsRouter);
 
 // Schema for updating fulfillment (pickup / surat jalan)
 const handoverSchema = z.object({
@@ -33,22 +36,6 @@ const handoverSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Schema for book defect return report
-const returnBookSchema = z.object({
-  orderId: z.string().min(1, "Order ID is required"),
-  studentId: z.string().min(1, "Student ID is required"),
-  defectiveBookId: z.string().min(1, "Defective book ID is required"),
-  reason: z.string().min(1, "Reason is required"),
-  photoProofBase64: z.string().optional(),
-});
-
-// Schema for resolving return with replacement loose item or parent refund
-const resolveReturnSchema = z.object({
-  action: z.enum(["replace", "reject", "refund"]),
-  replacementBookItemId: z.string().optional(),
-  refundAmount: z.number().int().min(0).optional(),
-  handledByUserId: z.string().optional(),
-});
 
 // 1. GET all student orders for a school with matrix filters
 studentOrdersRouter.get("/", async (c) => {
@@ -143,73 +130,6 @@ studentOrdersRouter.post("/:id/handover", zValidator("json", handoverSchema), as
   }
 });
 
-// 3. POST Report Defective Book for Return/Exchange
-studentOrdersRouter.post("/returns", zValidator("json", returnBookSchema), async (c) => {
-  try {
-    const { actor, locations } = await requireScopedActor(db, c);
-    const body = c.req.valid("json");
-    const scoped = await loadScopedOrder(db, actor, locations, body.orderId);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
-    }
-    const result = await reportReturn(db, { ...body, source: "staff" });
-    if (!result.ok) {
-      return c.json({ success: false, message: result.message }, result.status);
-    }
-    return c.json({ success: true, message: "Laporan retur buku cacat berhasil disimpan", data: result.created }, 201);
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// 4. GET all book returns
-studentOrdersRouter.get("/returns", async (c) => {
-  try {
-    const { scope, locations } = await requireScopedActor(db, c);
-    const scopedOnly = scope.length < locations.length;
-    const returnStatus = c.req.query("status");
-    const returnSearch = c.req.query("search")?.trim().toLowerCase();
-    // Pencarian Partisi (§11): status + substring di dalam partisi sekolah.
-    const returnConditions = [];
-    if (scopedOnly) returnConditions.push(inArray(studentBookOrders.schoolId, scope));
-    if (returnStatus && returnStatus !== "all") returnConditions.push(eq(bookReturns.status, returnStatus as any));
-    if (returnSearch) {
-      const matched = matchAnyLower([students.name, students.nis, studentBookOrders.orderNumber, books.title], returnSearch);
-      if (matched) returnConditions.push(matched);
-    }
-    const visible = await db
-    .select({
-      id: bookReturns.id,
-      orderId: bookReturns.orderId,
-      orderNumber: studentBookOrders.orderNumber,
-      studentId: bookReturns.studentId,
-      studentName: students.name,
-      nis: students.nis,
-      orderSchoolId: studentBookOrders.schoolId,
-      defectiveBookId: bookReturns.defectiveBookId,
-      bookTitle: books.title,
-      isbn: books.isbn,
-      reason: bookReturns.reason,
-      photoProofUrl: bookReturns.photoProofUrl,
-      status: bookReturns.status,
-      replacementBookItemId: bookReturns.replacementBookItemId,
-      resolvedAt: bookReturns.resolvedAt,
-      createdAt: bookReturns.createdAt,
-    })
-    .from(bookReturns)
-    .innerJoin(studentBookOrders, eq(bookReturns.orderId, studentBookOrders.id))
-    .innerJoin(students, eq(bookReturns.studentId, students.id))
-    .innerJoin(books, eq(bookReturns.defectiveBookId, books.id))
-    .where(returnConditions.length > 0 ? and(...returnConditions) : undefined)
-    .orderBy(desc(bookReturns.createdAt))
-    .limit(50);
-
-  return c.json({ success: true, data: visible });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
 // 5b. POST Tandai satuan terkirim (kirim-rumah, gudang/pusat saja, tanpa SJ-SERAH)
 studentOrdersRouter.post("/:id/mark-satuan-shipped", async (c) => {
   try {
@@ -277,37 +197,6 @@ studentOrdersRouter.post("/:id/send-invoice", async (c) => {
   }
 });
 
-// 5. POST Resolve Book Return (Exchange from loose stock)
-studentOrdersRouter.post("/returns/:id/resolve", zValidator("json", resolveReturnSchema), async (c) => {
-  try {
-    const { actor, locations } = await requireScopedActor(db, c);
-    const returnId = c.req.param("id");
-    const body = c.req.valid("json");
-
-    const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
-    if (!ret) {
-      return c.json({ success: false, message: "Laporan retur tidak ditemukan" }, 404);
-    }
-    const scoped = await loadScopedOrder(db, actor, locations, ret.orderId);
-    if (!scoped.ok) {
-      return c.json({ success: false, message: scoped.message }, scoped.status);
-    }
-
-    const result = await resolveReturn(db, returnId, body);
-    if (!result.ok) {
-      return c.json({ success: false, message: result.message }, result.status);
-    }
-
-    return c.json({
-      success: true,
-      message: result.message,
-      data: result.data,
-    });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
 // DELETE student order (membatalkan/menghapus pesanan siswa)
 studentOrdersRouter.delete("/:id", async (c) => {
   try {
@@ -356,6 +245,54 @@ studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema)
       success: true,
       message: "Diskresi Finance berhasil diterapkan pada pesanan.",
       data: updated,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 7. POST Logistics Partial Scholarship Discount
+const scholarshipDiscountSchema = z.object({
+  discountPct: z.number().int().min(1).max(100, "Persentase diskon 1-100%"),
+});
+
+studentOrdersRouter.post("/:id/scholarship-discount", zValidator("json", scholarshipDiscountSchema), async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const id = c.req.param("id");
+    const { discountPct } = c.req.valid("json");
+
+    const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
+    if (!order) {
+      return c.json({ success: false, message: "Pesanan siswa tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, order.schoolId, locations);
+
+    const now = new Date().toISOString();
+    // Hitung potongan nominal dari totalAmount
+    const discountAmount = Math.round((order.totalAmount * discountPct) / 100);
+    const finalAmount = Math.max(0, order.totalAmount - discountAmount);
+
+    await db
+      .update(studentBookOrders)
+      .set({
+        scholarshipDiscountPct: discountPct,
+        scholarshipDiscountApprovedAt: now,
+        discountAmount,
+        notes: `${order.notes ? order.notes + " | " : ""}Diskon beasiswa logistik ${discountPct}% (-${formatRupiah(discountAmount)})`,
+        updatedAt: now,
+      })
+      .where(eq(studentBookOrders.id, id));
+
+    return c.json({
+      success: true,
+      message: `Diskon beasiswa ${discountPct}% berhasil diinput oleh logistik. Total tagihan menjadi ${formatRupiah(finalAmount)}`,
+      data: {
+        id,
+        discountPct,
+        discountAmount,
+        finalAmount,
+      },
     });
   } catch (err) {
     return accessErrorResponse(c, err);

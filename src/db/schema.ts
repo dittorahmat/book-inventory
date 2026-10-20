@@ -17,7 +17,16 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
   image: text("image"),
-  role: text("role", { enum: ["central_admin", "warehouse_admin", "school_admin", "branch_admin"] }).notNull().default("branch_admin"),
+  role: text("role", { 
+    enum: [
+      "central_admin", 
+      "warehouse_admin", 
+      "warehouse_books_admin", 
+      "warehouse_uniforms_admin", 
+      "school_admin", 
+      "branch_admin"
+    ] 
+  }).notNull().default("branch_admin"),
   schoolId: text("school_id").references(() => schools.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
@@ -146,7 +155,9 @@ export const students = sqliteTable("students", {
   status: text("status", { enum: ["active", "promoted", "new_pending", "rejected", "graduated"] }).notNull().default("active"),
   isScholarship: integer("is_scholarship", { mode: "boolean" }).notNull().default(false),
   hasTakenPackage: integer("has_taken_package", { mode: "boolean" }).notNull().default(false),
+  packageReceivedAt: text("package_received_at"),
   hasTakenUniform: integer("has_taken_uniform", { mode: "boolean" }).notNull().default(false),
+  uniformReceivedAt: text("uniform_received_at"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
@@ -279,6 +290,13 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   handoverDeliveryNumber: text("handover_delivery_number"), // SJ Serah-Terima (ambil langsung)
   handoverDate: text("handover_date"),
   handoverRecipient: text("handover_recipient"),
+  // Beasiswa parsial & diskon logistik
+  scholarshipDiscountPct: integer("scholarship_discount_pct"), // Persentase diskon diinput oleh logistik (misal 50)
+  scholarshipDiscountApprovedAt: text("scholarship_discount_approved_at"),
+  scholarshipDiscountApprovedByUserId: text("scholarship_discount_approved_by_user_id").references(() => users.id),
+  firstPaymentProofUrl: text("first_payment_proof_url"),
+  firstPaymentVerifiedAt: text("first_payment_verified_at"),
+  firstPaymentVerifiedByUserId: text("first_payment_verified_by_user_id").references(() => users.id),
   // Kirim-Rumah Satuan (cermin seragam): snapshot alamat + flag manual gudang.
   // Paket murni -> null/belum_dikirim diabaikan; satuan kirim-rumah tanpa SJ-SERAH.
   homeAddressSnapshot: text("home_address_snapshot"),
@@ -375,6 +393,7 @@ export const internalShipments = sqliteTable("internal_shipments", {
   shippedDate: text("shipped_date").notNull(),
   receivedDate: text("received_date"),
   status: text("status", { enum: ["in_transit", "delivered", "discrepancy"] }).notNull().default("in_transit"),
+  deliveryProofUrl: text("delivery_proof_url"), // Bukti Surat Jalan fisik bertanda tangan & cap basah
   shippedByUserId: text("shipped_by_user_id").references(() => users.id),
   receivedByUserId: text("received_by_user_id").references(() => users.id),
   notes: text("notes"),

@@ -35,45 +35,4 @@ export interface Book {
   sellPrice?: number;
 }
 
-export interface BookItem {
-  id: string;
-  barcode: string;
-  condition: "new" | "good" | "fair" | "damaged";
-  status: "in_stock" | "in_transit" | "disposed" | "lost" | "sold";
-  notes?: string;
-  createdAt: string;
-  book?: Book;
-  school?: School;
-}
 
-export interface TransferShipment {
-  id: string;
-  shipmentNumber: string;
-  fromSchoolId: string;
-  toSchoolId: string;
-  status: "draft" | "pending_dispatch" | "in_transit" | "completed" | "completed_with_discrepancy" | "cancelled";
-  totalDeclaredValue?: number;
-  looseCount?: number;
-  packageCount?: number;
-  dispatchedAt?: string;
-  receivedAt?: string;
-  notes?: string;
-  reason?: string;
-  createdAt: string;
-  fromSchool?: School;
-  toSchool?: School;
-  items?: Array<{
-    id: string;
-    itemType?: "loose" | "package";
-    bookItemId?: string | null;
-    packageId?: string | null;
-    packageItemId?: string | null;
-    quantity?: number;
-    unitPriceSnapshot?: number;
-    lineTotal?: number;
-    receivedCondition?: string;
-    barcode?: string;
-    condition?: string;
-    bookTitle?: string;
-  }>;
-}

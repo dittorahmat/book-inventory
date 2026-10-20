@@ -9,9 +9,9 @@ import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
 import { InternalProcurementView } from "./views/InternalProcurementView";
+import { PublicBookReturnView } from "./views/PublicBookReturnView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { PaymentConfirmView } from "./views/PaymentConfirmView";
-import { TransfersView } from "./views/TransfersView";
 import { SettingsView } from "./views/SettingsView";
 import { SalesReportView } from "./views/SalesReportView";
 import { ReconciliationView } from "./views/ReconciliationView";
@@ -45,6 +45,7 @@ export function App() {
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
+  const isRefundUrl = typeof window !== "undefined" && (window.location.pathname === "/refund" || window.location.search.includes("mode=refund"));
   const payMatch = typeof window !== "undefined" ? window.location.pathname.match(/^\/bayar\/(buku|seragam)\/([^/]+)$/) : null;
   const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
@@ -102,6 +103,13 @@ export function App() {
 
   // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)
   if (!session && !showStaffLogin) {
+    if (isRefundUrl) {
+      return (
+        <div className="min-h-screen bg-[#F0F2F5]">
+          <PublicBookReturnView />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#F0F2F5]">
         {seedNotice && <SeedNotice message={seedNotice} />}
@@ -203,7 +211,6 @@ export function App() {
         {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView />}
-        {activeTab === "transfers" && <TransfersView activeSchool={selectedSchool} />}
         {activeTab === "reconciliation" && (
           <ReconciliationView activeSchool={selectedSchool} isCentralAdmin={isCentralAdmin} />
         )}

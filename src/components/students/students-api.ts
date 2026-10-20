@@ -17,6 +17,10 @@ export interface StudentRecord {
   parentPhone?: string | null;
   status: string;
   isScholarship: boolean;
+  hasTakenPackage?: boolean;
+  packageReceivedAt?: string | null;
+  hasTakenUniform?: boolean;
+  uniformReceivedAt?: string | null;
   schoolId: string;
   schoolName: string;
   createdAt: string;

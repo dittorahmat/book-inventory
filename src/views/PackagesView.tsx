@@ -5,7 +5,6 @@ import { usePackagesFilter } from "../components/packages/usePackagesFilter";
 import { PackageCard } from "../components/packages/PackageCard";
 import { BundlingModal } from "../components/BundlingModal";
 import { CreatePackageModal } from "../components/packages/CreatePackageModal";
-import { PackageTransferModal } from "../components/packages/PackageTransferModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 
@@ -34,9 +33,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
   // Bundling / Unbundling Modal State
   const [modalPkg, setModalPkg] = useState<BookPackage | null>(null);
   const [modalMode, setModalMode] = useState<"bundle" | "unbundle">("bundle");
-
-  // Direct Package Transfer Modal State
-  const [transferPkg, setTransferPkg] = useState<BookPackage | null>(null);
 
   // Create Package Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -153,7 +149,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                 setModalPkg(pkg);
                 setModalMode(mode);
               }}
-              onOpenTransfer={() => setTransferPkg(pkg)}
               deletePackage={deletePackage}
             />
           ))}
@@ -177,19 +172,6 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
           stockPotential={stockMap[modalPkg.id] || null}
           mode={modalMode}
           onClose={() => setModalPkg(null)}
-          onSuccess={() => loadPackagesData()}
-        />
-      )}
-
-      {/* Direct Package Transfer Modal */}
-      {transferPkg && (
-        <PackageTransferModal
-          packageId={transferPkg.id}
-          packageCode={transferPkg.code}
-          packageName={transferPkg.name}
-          packagePrice={transferPkg.price}
-          activeSchool={activeSchool}
-          onClose={() => setTransferPkg(null)}
           onSuccess={() => loadPackagesData()}
         />
       )}

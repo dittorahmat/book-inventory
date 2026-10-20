@@ -172,6 +172,7 @@ const receiveShipmentSchema = z.object({
   receivedDate: z.string().optional(),
   receivedByUserId: idSchema.optional(),
   transferShipmentId: idSchema.optional(),
+  deliveryProofUrl: z.string().optional(),
   items: z.array(
     z.object({
       shipmentItemId: idSchema,

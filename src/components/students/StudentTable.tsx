@@ -45,6 +45,15 @@ export function StudentTable({ students, onEdit, onDelete }: StudentTableProps) 
                 NIS {st.nis} &bull; Kelas {st.gradeLevel} (
                 {st.curriculumType === "international" ? "Internasional" : "Nasional"}) &bull; {st.schoolName}
               </div>
+              {st.packageReceivedAt ? (
+                <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                  ✓ Buku diterima pada: {st.packageReceivedAt.split("T")[0]}
+                </div>
+              ) : st.hasTakenPackage ? (
+                <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                  ✓ Buku sudah diserahkan
+                </div>
+              ) : null}
               {st.status === "new_pending" && (
                 <div className="text-[11px] text-amber-700 mt-0.5">
                   Kelola persetujuan di Antrian Verifikasi di atas.
