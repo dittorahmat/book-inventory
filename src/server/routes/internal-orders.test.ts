@@ -283,4 +283,71 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).data.status).toBe("delivered");
   });
+  it("allows warehouse_admin to view branch POs, access outstanding items, and issue manual shipments", async () => {
+    const stamp = Date.now() + 10;
+    const branchId = `school-vis-${stamp}`;
+    const hqId = `school-wh-${stamp}`;
+    const packageId = `pkg-vis-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Visibilitas", code: `VIS-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Penugasan", code: `GWH-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-VIS-${stamp}`,
+      name: "Paket Visibilitas",
+      gradeLevel: "1",
+      curriculumType: "national",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // 1. Branch issues PO
+    mockActor("branch_admin", branchId);
+    const createRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 5 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const poId = ((await createRes.json()) as { data: { id: string } }).data.id;
+
+    // 2. Warehouse admin at school-wh queries internal orders without schoolId filter
+    mockActor("warehouse_admin", hqId);
+    const listRes = await internalOrdersRouter.request("/", { method: "GET" });
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as { data: Array<{ id: string }> };
+    expect(listJson.data.some((po) => po.id === poId)).toBe(true);
+
+    // 3. Warehouse admin queries /outstanding
+    const outRes = await internalOrdersRouter.request("/outstanding", { method: "GET" });
+    expect(outRes.status).toBe(200);
+    const outJson = (await outRes.json()) as { data: Array<{ id: string; items: Array<{ quantityRemaining: number }> }> };
+    const foundOutPo = outJson.data.find((po) => po.id === poId);
+    expect(foundOutPo).toBeDefined();
+    expect(foundOutPo?.items[0]?.quantityRemaining).toBe(5);
+
+    // 4. Warehouse admin issues Manual Shipment without PO to branch
+    const manualShipRes = await internalOrdersRouter.request("/shipments/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        destinationSchoolId: branchId,
+        deliveryNoteNumber: `SJ-MANUAL-${stamp}`,
+        notes: "Pengiriman darurat tanpa PO",
+        items: [{ packageId, quantity: 2 }],
+      }),
+    });
+    expect(manualShipRes.status).toBe(201);
+    const manualJson = (await manualShipRes.json()) as { success: boolean; data: { shipmentId: string } };
+    expect(manualJson.success).toBe(true);
+    expect(manualJson.data.shipmentId).toBeDefined();
+  });
 });

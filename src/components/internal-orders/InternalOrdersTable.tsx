@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Truck } from "lucide-react";
+import { ChevronDown, Printer, Truck } from "lucide-react";
 import type { InternalOrder, InternalShipment } from "../../lib/internal-orders-types";
 import { internalPoProgress, internalPoStatusLabel, internalPoStatusTone, internalShipmentStatusLabel, internalShipmentStatusTone } from "../../lib/internal-orders-types";
 
@@ -11,6 +11,7 @@ interface InternalOrdersTableProps {
   shipmentsError: Record<string, string | null>;
   onToggleShipments: (orderId: string, expanded: boolean) => void;
   onReceiveShipment?: (orderId: string, shipment: InternalShipment) => void;
+  onPrintShipment?: (order: InternalOrder, shipment: InternalShipment) => void;
 }
 
 function ShipmentHistory({
@@ -18,15 +19,17 @@ function ShipmentHistory({
   isLoading,
   error,
   onRetry,
-  orderId,
+  order,
   onReceiveShipment,
+  onPrintShipment,
 }: {
   shipments: InternalShipment[];
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
-  orderId: string;
+  order: InternalOrder;
   onReceiveShipment?: (orderId: string, shipment: InternalShipment) => void;
+  onPrintShipment?: (order: InternalOrder, shipment: InternalShipment) => void;
 }) {
   if (isLoading) {
     return (
@@ -70,15 +73,28 @@ function ShipmentHistory({
               {internalShipmentStatusLabel(s.status)}
             </span>
             {s.receivedDate && <span className="text-[#65676B]">diterima {s.receivedDate}</span>}
-            {s.status === "in_transit" && onReceiveShipment && (
-              <button
-                type="button"
-                onClick={() => onReceiveShipment(orderId, s)}
-                className="rounded-lg bg-[#1877F2] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#166FE5] active:scale-[0.98]"
-              >
-                Terima
-              </button>
-            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              {onPrintShipment && (
+                <button
+                  type="button"
+                  onClick={() => onPrintShipment(order, s)}
+                  title="Cetak Surat Jalan"
+                  className="flex items-center gap-1 rounded-lg border border-[#CED0D4] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#050505] hover:bg-[#F0F2F5] active:scale-[0.98]"
+                >
+                  <Printer className="h-3 w-3 text-[#65676B]" />
+                  <span>Cetak</span>
+                </button>
+              )}
+              {s.status === "in_transit" && onReceiveShipment && (
+                <button
+                  type="button"
+                  onClick={() => onReceiveShipment(order.id, s)}
+                  className="rounded-lg bg-[#1877F2] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#166FE5] active:scale-[0.98]"
+                >
+                  Terima
+                </button>
+              )}
+            </div>
           </div>
           <p className="mt-1 text-xs text-[#050505]">
             {s.items.map((i) => `${i.packageName ?? i.bookTitle ?? "Item"} × ${i.quantity}`).join(" · ") || "—"}
@@ -99,6 +115,7 @@ export function InternalOrdersTable({
   shipmentsError,
   onToggleShipments,
   onReceiveShipment,
+  onPrintShipment,
 }: InternalOrdersTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -168,8 +185,9 @@ export function InternalOrdersTable({
                     isLoading={!!shipmentsLoading[order.id]}
                     error={shipmentsError[order.id] ?? null}
                     onRetry={() => onToggleShipments(order.id, true)}
-                    orderId={order.id}
+                    order={order}
                     onReceiveShipment={onReceiveShipment}
+                    onPrintShipment={onPrintShipment}
                   />
                 </div>
               )}

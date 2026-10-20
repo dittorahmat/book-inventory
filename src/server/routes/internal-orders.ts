@@ -15,11 +15,18 @@ import {
   fulfillInternalPo,
   listInternalPOs,
   listInternalShipments,
+  listOutstandingPOs,
+  createManualShipment,
   receiveInternalShipment,
 } from "../services/internal-po";
 import { idSchema } from "../lib/validators";
+import { isLogisticsRole } from "../../lib/staff-roles";
 
 export const internalOrdersRouter = new Hono();
+
+const resolveSchoolScope = (role: string | undefined, requested: string | undefined, scopeList: string[]): string | undefined =>
+  isLogisticsRole(role as Parameters<typeof isLogisticsRole>[0]) ? requested : scopeList.length === 1 ? scopeList[0] : requested;
+
 
 const createInternalPoSchema = z.object({
   schoolId: z.string().min(1, "Cabang pemesan wajib dipilih"),
@@ -50,11 +57,23 @@ const createShipmentSchema = z.object({
 // 1. GET list internal purchase orders
 internalOrdersRouter.get("/", async (c) => {
   try {
-    const { scope: scopeList } = await requireScopedActor(db, c, c.req.query("schoolId"));
-    const scope = new Set(scopeList);
-    const schoolId = scope.size === 1 ? [...scope][0] : c.req.query("schoolId");
+    const { actor, scope: scopeList } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = resolveSchoolScope(actor.role, c.req.query("schoolId"), scopeList);
 
     const data = await listInternalPOs(db, schoolId);
+    return c.json({ success: true, data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 2. GET list outstanding POs for shipments suggestion
+internalOrdersRouter.get("/outstanding", async (c) => {
+  try {
+    const { actor, scope: scopeList } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = resolveSchoolScope(actor.role, c.req.query("schoolId"), scopeList);
+
+    const data = await listOutstandingPOs(db, schoolId);
     return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -79,6 +98,46 @@ internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async
         success: true,
         message: `PO Internal ${poNumber} berhasil diterbitkan ke Gudang Pusat`,
         data: { id, poNumber },
+      },
+      201
+    );
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const createManualShipmentSchema = z.object({
+  destinationSchoolId: idSchema,
+  deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
+  shippedDate: z.string().optional(),
+  notes: z.string().optional(),
+  items: z.array(
+    z.object({
+      packageId: idSchema.optional(),
+      packageItemId: idSchema.optional(),
+      bookId: idSchema.optional(),
+      quantity: z.number().int().min(1).default(1),
+      isOutstandingFollowup: z.boolean().default(false),
+    })
+  ).min(1, "Minimal 1 item yang dikirim"),
+});
+
+// 4. POST create Manual Shipment without PO
+internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualShipmentSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+
+    const result = await createManualShipment(db, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json(
+      {
+        success: true,
+        message: `Surat Jalan Pengiriman Manual ${body.deliveryNoteNumber} berhasil dibuat`,
+        data: { shipmentId: result.data.shipmentId },
       },
       201
     );
@@ -136,14 +195,10 @@ internalOrdersRouter.post("/shipments/:shipmentId/receive", zValidator("json", r
     if (!shipment) {
       return c.json({ success: false, message: "Surat Jalan Internal tidak ditemukan" }, 404);
     }
-    const [po] = await db
-      .select()
-      .from(internalPurchaseOrders)
-      .where(eq(internalPurchaseOrders.id, shipment.internalPoId));
-    if (!po) {
-      return c.json({ success: false, message: "PO Internal tidak ditemukan" }, 404);
+    const targetSchoolId = shipment.destinationSchoolId;
+    if (targetSchoolId) {
+      assertLocationAllowed(actor, targetSchoolId, locations);
     }
-    assertLocationAllowed(actor, po.schoolId, locations);
 
     const result = await receiveInternalShipment(db, shipmentId, body);
     if (!result.ok) {

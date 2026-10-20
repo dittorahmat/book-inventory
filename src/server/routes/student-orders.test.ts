@@ -1004,7 +1004,11 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
         studentId, packageId: pkgId,
         homeAddress: "Jl. Pkr RT 01 RW 01, Serpong 15310",
         orderType: "regular",
-        payment: { transferAmount: 500000, bookAllocationAmount: 500000 },
+        payment: {
+          transferAmount: 500000,
+          bookAllocationAmount: 500000,
+          paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        },
       },
       { database: db, storage: new MemoryStorageService() }
     );

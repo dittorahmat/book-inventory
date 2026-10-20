@@ -96,3 +96,23 @@ export const internalPoProgress = (order: InternalOrder): { fulfilled: number; o
   const fulfilled = order.items.reduce((sum, i) => sum + Math.min(i.quantityFulfilled, i.quantityOrdered), 0);
   return { fulfilled, ordered, percent: ordered === 0 ? 0 : Math.round((fulfilled / ordered) * 100) };
 };
+
+export interface OutstandingPoLine {
+  id: string;
+  packageId: string;
+  packageName: string | null;
+  packageCode: string | null;
+  quantityOrdered: number;
+  quantityFulfilled: number;
+  quantityRemaining: number;
+}
+
+export interface OutstandingPo {
+  id: string;
+  poNumber: string;
+  schoolId: string;
+  schoolName: string;
+  status: string;
+  createdAt: string;
+  items: OutstandingPoLine[];
+}

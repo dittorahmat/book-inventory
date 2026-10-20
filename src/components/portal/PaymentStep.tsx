@@ -25,6 +25,7 @@ interface PaymentStepProps {
   setBankName: (val: string) => void;
   referenceNumber: string;
   setReferenceNumber: (val: string) => void;
+  paymentProofBase64?: string;
   setPaymentProofBase64: (val: string) => void;
   notes: string;
   setNotes: (val: string) => void;
@@ -59,14 +60,13 @@ export function PaymentStep({
   setBankName,
   referenceNumber,
   setReferenceNumber,
+  paymentProofBase64,
   setPaymentProofBase64,
   notes,
   setNotes,
   isSatuan,
   homeAddress,
   setHomeAddress,
-  paketKirim,
-  setPaketKirim,
   hasTakenPackage,
   setHasTakenPackage,
   wprFee,
@@ -276,14 +276,25 @@ export function PaymentStep({
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Foto / Screenshot Bukti Transfer
+                Foto / Screenshot Bukti Transfer <span className="text-red-500 font-bold">*Wajib</span>
               </label>
               <input
                 type="file"
                 accept="image/*"
+                required
+                data-testid="payment-proof-input"
                 onChange={(e) => onFileUpload(e, setPaymentProofBase64)}
                 className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
               />
+              {paymentProofBase64 ? (
+                <p className="mt-1 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                  ✓ Bukti transfer telah terunggah
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                  *Wajib unggah bukti transfer sebelum pesanan dapat dikirimkan.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -298,34 +309,10 @@ export function PaymentStep({
         />
       )}
 
-      {!isSatuan && (
+      {isSatuan && (
         <div>
           <label className="block text-xs font-semibold text-[#050505] mb-1">
-            Serah-terima paket
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {([false, true] as const).map((val) => (
-              <button
-                key={String(val)}
-                type="button"
-                onClick={() => setPaketKirim?.(val)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all active:scale-[0.98] ${
-                  (paketKirim ?? false) === val
-                    ? "border-[#1877F2] bg-[#E7F3FF]/40 text-[#050505]"
-                    : "border-[#E4E6EB] bg-white text-[#65676B] hover:border-[#CED0D4]"
-                }`}
-              >
-                {val ? "Kirim ke rumah" : "Ambil di sekolah"}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(isSatuan || paketKirim) && (
-        <div>
-          <label className="block text-xs font-semibold text-[#050505] mb-1">
-            Alamat Rumah {isSatuan ? "(Wajib, satuan dikirim ke rumah)" : "(Wajib, paket dikirim ke rumah)"}
+            Alamat Rumah (Wajib, buku satuan dikirim ke rumah)
           </label>
           <textarea
             rows={2}
@@ -336,7 +323,7 @@ export function PaymentStep({
             className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
           />
           <span className="text-[10px] text-[#65676B] block mt-0.5">
-            *Buku satuan diantar ke alamat ini. Paket tetap diambil di sekolah dengan SJ Serah-Terima.
+            *Buku satuan diantar ke alamat ini via kurir ekspedisi.
           </span>
         </div>
       )}
@@ -362,14 +349,22 @@ export function PaymentStep({
         >
           Kembali
         </button>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
-        >
-          <span>{isSubmitting ? "Mengirimkan Pesanan..." : "Konfirmasi & Kirim Pesanan"}</span>
-          <CheckCircle2 className="w-4 h-4" />
-        </button>
+        {(() => {
+          const isMissingProof =
+            orderType === "regular"
+              ? !paymentProofBase64
+              : !scholarshipProofBase64;
+          return (
+            <button
+              type="submit"
+              disabled={isSubmitting || isMissingProof || !allocationCheck.ok}
+              className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? "Mengirimkan Pesanan..." : "Konfirmasi & Kirim Pesanan"}</span>
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          );
+        })()}
       </div>
     </form>
   );

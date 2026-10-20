@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   derivePaymentStatus,
   grossOrderAmount,
+  validatePaymentProof,
   validateSatuanCutoff,
   validateStudentForOrder,
 } from "./validation";
@@ -31,5 +32,12 @@ describe("order-validation murni", () => {
   test("kotor = paket + snapshot satuan", () => {
     expect(grossOrderAmount(800000, [{ unitPrice: 50000, quantity: 2 }])).toBe(900000);
     expect(grossOrderAmount(0, [])).toBe(0);
+  });
+
+  test("validasi bukti transfer pembayaran untuk pesanan reguler", () => {
+    expect(validatePaymentProof(true, undefined)).toMatchObject({ ok: false, status: 400 });
+    expect(validatePaymentProof(true, "")).toMatchObject({ ok: false, status: 400 });
+    expect(validatePaymentProof(true, "data:image/jpeg;base64,...")).toEqual({ ok: true });
+    expect(validatePaymentProof(false, undefined)).toEqual({ ok: true });
   });
 });

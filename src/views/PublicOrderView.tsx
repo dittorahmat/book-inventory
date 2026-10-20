@@ -253,6 +253,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 setBankName={order.setBankName}
                 referenceNumber={order.referenceNumber}
                 setReferenceNumber={order.setReferenceNumber}
+                paymentProofBase64={order.paymentProofBase64}
                 setPaymentProofBase64={order.setPaymentProofBase64}
                 notes={order.notes}
                 setNotes={order.setNotes}
