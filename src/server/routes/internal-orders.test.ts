@@ -7,7 +7,7 @@ afterEach(() => {
 });
 import { internalOrdersRouter } from "./internal-orders";
 import { db } from "../../db";
-import { schools, bookPackages, books } from "../../db/schema";
+import { schools, bookPackages, books, students } from "../../db/schema";
 
 describe("Internal Orders & Multi-Delivery Shipments API", () => {
   it("creates internal PO from branch to HQ and records multiple partial shipments without duplicating PO", async () => {
@@ -349,5 +349,86 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     const manualJson = (await manualShipRes.json()) as { success: boolean; data: { shipmentId: string } };
     expect(manualJson.success).toBe(true);
     expect(manualJson.data.shipmentId).toBeDefined();
+  });
+
+  it("menolak pesanan paket cabang yang melebihi jumlah siswa aktif jenjang tersebut", async () => {
+    const stamp = Date.now();
+    const branchId = `school-cap-${stamp}`;
+    const packageId = `pkg-cap-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: branchId,
+      name: "Cabang Kuota Test",
+      code: `CP-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-CAP-${stamp}`,
+      name: "Paket Kelas 1 Capping",
+      gradeLevel: "1",
+      curriculumType: "international",
+      academicYear: "2026/2027",
+      price: 250000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Seed 2 siswa aktif kelas 1
+    await db.insert(students).values([
+      {
+        id: `stu-1-${stamp}`,
+        schoolId: branchId,
+        nis: `NIS1-${stamp}`,
+        name: "Siswa 1",
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `stu-2-${stamp}`,
+        schoolId: branchId,
+        nis: `NIS2-${stamp}`,
+        name: "Siswa 2",
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    mockActor("branch_admin", branchId);
+
+    // Order 5 paket padahal hanya ada 2 siswa -> harus ditolak 400
+    const failRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 5 }],
+      }),
+    });
+    expect(failRes.status).toBe(400);
+    const failJson = (await failRes.json()) as { success: boolean; message: string };
+    expect(failJson.success).toBe(false);
+    expect(failJson.message).toContain("melebihi total siswa aktif");
+
+    // Order 2 paket (sesuai kuota siswa) -> harus sukses 201
+    const okRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 2 }],
+      }),
+    });
+    expect(okRes.status).toBe(201);
   });
 });

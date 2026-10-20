@@ -12,7 +12,7 @@ interface PackageCardProps {
   isExpanded: boolean;
   onToggleExpand: () => void;
   onOpenBundling: (mode: "bundle" | "unbundle") => void;
-  onOpenTransfer: () => void;
+  onOpenTransfer?: () => void;
   deletePackage: (packageId: string) => Promise<void>;
 }
 
@@ -124,15 +124,17 @@ export function PackageCard({
               Bongkar
             </button>
 
-            <button
-              onClick={onOpenTransfer}
-              disabled={readyCount <= 0}
-              title="Transfer bundel ready ke cabang lain"
-              className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-40 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 active:scale-[0.98]"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Transfer
-            </button>
+            {onOpenTransfer && (
+              <button
+                onClick={onOpenTransfer}
+                disabled={readyCount <= 0}
+                title="Transfer bundel ready ke cabang lain"
+                className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-40 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Transfer
+              </button>
+            )}
 
             <button
               onClick={onToggleExpand}

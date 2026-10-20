@@ -51,6 +51,7 @@ const REGISTERED_SEARCH_SOURCES = new Set([
   "src/server/services/uniform/order-query.ts",
   "src/server/routes/students.ts",
   "src/server/routes/student-orders.ts",
+  "src/server/routes/book-returns.ts",
   "src/server/routes/public-orders.ts",
   "src/server/routes/public-uniform-orders.ts",
 ]);

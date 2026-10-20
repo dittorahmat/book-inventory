@@ -3,12 +3,30 @@ import { auth } from "../auth";
 import type { AppDatabase } from "../../db";
 import { purchaseOrders, schools, studentBookOrders, transferShipments } from "../../db/schema";
 
-export type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
+export type StaffRole = 
+  | "central_admin" 
+  | "warehouse_admin" 
+  | "warehouse_books_admin" 
+  | "warehouse_uniforms_admin" 
+  | "school_admin" 
+  | "branch_admin";
 
-export const STAFF_ROLES: StaffRole[] = ["central_admin", "warehouse_admin", "school_admin", "branch_admin"];
+export const STAFF_ROLES: StaffRole[] = [
+  "central_admin", 
+  "warehouse_admin", 
+  "warehouse_books_admin", 
+  "warehouse_uniforms_admin", 
+  "school_admin", 
+  "branch_admin"
+];
 
 /** Logistics managers: allowed to run procurement and package-master mutations. */
-export const LOGISTICS_ROLES: StaffRole[] = ["central_admin", "warehouse_admin"];
+export const LOGISTICS_ROLES: StaffRole[] = [
+  "central_admin", 
+  "warehouse_admin", 
+  "warehouse_books_admin", 
+  "warehouse_uniforms_admin"
+];
 
 export interface AccessActor {
   role: StaffRole;

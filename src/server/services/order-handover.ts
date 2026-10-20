@@ -117,7 +117,7 @@ export async function handoverPackage(
           .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, bundle.id))
           .where(eq(studentBookOrders.id, orderId)),
         ...(order.packageId
-          ? [database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId))]
+          ? [database.update(students).set({ hasTakenPackage: true, packageReceivedAt: now, updatedAt: now }).where(eq(students.id, order.studentId))]
           : []),
         // Paket buku dipegang cabang (konsinyasi) → ditagihkan saat serah-terima.
         // Order campuran sudah punya tagihan dari pembuatan order; unique sumber = no-op.
@@ -209,7 +209,7 @@ export async function handoverPackage(
         .update(studentBookOrders)
         .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, availableBundle.id))
         .where(eq(studentBookOrders.id, orderId)),
-      database.update(students).set({ hasTakenPackage: true, updatedAt: now }).where(eq(students.id, order.studentId)),
+      database.update(students).set({ hasTakenPackage: true, packageReceivedAt: now, updatedAt: now }).where(eq(students.id, order.studentId)),
       emitChargeQuery(database, {
         schoolId: order.schoolId,
         sourceType: "book_order",

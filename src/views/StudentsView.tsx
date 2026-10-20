@@ -13,19 +13,30 @@ import { Upload } from "lucide-react";
 
 interface StudentsViewProps {
   activeSchool: School | null;
+  schools?: SchoolOption[];
 }
 
-export function StudentsView({ activeSchool }: StudentsViewProps) {
-  const s = useStudents(activeSchool?.id ?? null);
-  const [schools, setSchools] = useState<SchoolOption[]>([]);
+export function StudentsView({ activeSchool, schools: initialSchools }: StudentsViewProps) {
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeSchool?.id ?? "all");
+  const currentSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
+  const s = useStudents(currentSchoolId);
+  const [schools, setSchools] = useState<SchoolOption[]>(initialSchools || []);
   const [showBulkUpload, setShowBulkUpload] = useState<boolean>(false);
   const { setError } = s;
 
   useEffect(() => {
-    fetchSchools()
-      .then(setSchools)
-      .catch((err: any) => setError(err.message || "Gagal memuat daftar sekolah."));
-  }, [setError]);
+    if (activeSchool?.id) {
+      setSelectedSchoolId(activeSchool.id);
+    }
+  }, [activeSchool?.id]);
+
+  useEffect(() => {
+    if (schools.length === 0) {
+      fetchSchools()
+        .then(setSchools)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : "Gagal memuat daftar sekolah."));
+    }
+  }, [schools.length, setError]);
 
   return (
     <div className="space-y-4">
@@ -64,6 +75,17 @@ export function StudentsView({ activeSchool }: StudentsViewProps) {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
+        <div className="w-full sm:w-56">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Cabang / Sekolah" },
+              ...schools.map((sc) => ({ value: sc.id, label: sc.name })),
+            ]}
+            value={selectedSchoolId}
+            onChange={(v) => setSelectedSchoolId(v)}
+            placeholder="Pilih Cabang..."
+          />
+        </div>
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input

@@ -15,6 +15,7 @@ export interface ReceiveInternalShipmentInput {
   receivedDate?: string;
   receivedByUserId?: string;
   transferShipmentId?: string;
+  deliveryProofUrl?: string;
   items: InternalReceiptLineInput[];
 }
 
@@ -78,6 +79,7 @@ export async function receiveInternalShipment(
           receivedDate: input.receivedDate || now.split("T")[0],
           receivedByUserId: input.receivedByUserId || shipment.receivedByUserId,
           transferShipmentId: input.transferShipmentId || shipment.transferShipmentId,
+          deliveryProofUrl: input.deliveryProofUrl || shipment.deliveryProofUrl,
           updatedAt: now,
         })
         .where(eq(internalShipments.id, shipmentId)),

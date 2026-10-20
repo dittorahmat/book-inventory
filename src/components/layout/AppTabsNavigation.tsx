@@ -8,13 +8,12 @@ import {
   RotateCcw,
   Layers,
   BookOpen,
-  Truck,
   BarChart3,
   Scale,
   Settings,
   Shirt,
 } from "lucide-react";
-import { isCentralRole, isLogisticsRole, type StaffRole } from "../../lib/staff-roles";
+import { isCentralRole, isLogisticsRole, isUniformStaffRole, isBookWarehouseStaffRole, isSchoolRole, type StaffRole } from "../../lib/staff-roles";
 
 export const TAB_IDS = [
   "dashboard",
@@ -27,7 +26,6 @@ export const TAB_IDS = [
   "procurement",
   "internal_orders",
   "returns",
-  "transfers",
   "reconciliation",
   "reports",
   "settings",
@@ -43,21 +41,92 @@ interface AppTabsNavigationProps {
   role: StaffRole;
 }
 
-const DESKTOP_TABS: Array<{ id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; requireCentral?: boolean; requireLogistics?: boolean }> = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "students", label: "Database Siswa", icon: GraduationCap },
-  { id: "student_orders", label: "Pesanan Siswa", icon: Users },
-  { id: "uniforms", label: "Seragam", icon: Shirt },
-  { id: "packages", label: "Paket & Rakit", icon: Package },
-  { id: "procurement", label: "PO Supplier", icon: ShoppingBag, requireLogistics: true },
-  { id: "internal_orders", label: "Pesan ke Gudang", icon: Warehouse },
-  { id: "returns", label: "Retur Buku", icon: RotateCcw },
-  { id: "inventory", label: "Stok Satuan", icon: Layers },
-  { id: "catalog", label: "Katalog", icon: BookOpen },
-  { id: "transfers", label: "Transfer", icon: Truck },
-  { id: "reconciliation", label: "Rekonsiliasi", icon: Scale, requireLogistics: true },
-  { id: "reports", label: "Laporan", icon: BarChart3 },
-  { id: "settings", label: "Pengaturan", icon: Settings, requireCentral: true },
+interface DesktopTabItem {
+  id: ActiveTab;
+  label: (role: StaffRole) => string;
+  icon: React.ComponentType<{ className?: string }>;
+  visible: (role: StaffRole) => boolean;
+}
+
+const DESKTOP_TABS: DesktopTabItem[] = [
+  {
+    id: "dashboard",
+    label: () => "Dashboard",
+    icon: LayoutDashboard,
+    visible: (r) => isCentralRole(r) || r === "warehouse_admin",
+  },
+  {
+    id: "internal_orders",
+    label: (r) => (isSchoolRole(r) ? "Pesan ke Gudang" : "Pesanan dari Cabang"),
+    icon: Warehouse,
+    visible: (r) => isSchoolRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "students",
+    label: () => "Data Siswa",
+    icon: GraduationCap,
+    visible: (r) => isSchoolRole(r) || isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "uniforms",
+    label: () => "Gudang Seragam",
+    icon: Shirt,
+    visible: (r) => isUniformStaffRole(r),
+  },
+  {
+    id: "student_orders",
+    label: () => "Pesanan Siswa",
+    icon: Users,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "packages",
+    label: () => "Paket & Rakit",
+    icon: Package,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "procurement",
+    label: () => "PO Supplier",
+    icon: ShoppingBag,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "returns",
+    label: () => "Refund Buku",
+    icon: RotateCcw,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "inventory",
+    label: () => "Stok Satuan",
+    icon: Layers,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "catalog",
+    label: () => "Katalog",
+    icon: BookOpen,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "reconciliation",
+    label: () => "Rekonsiliasi",
+    icon: Scale,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "reports",
+    label: () => "Laporan",
+    icon: BarChart3,
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+  },
+  {
+    id: "settings",
+    label: () => "Pengaturan",
+    icon: Settings,
+    visible: (r) => isCentralRole(r),
+  },
 ];
 
 export function AppTabsNavigation({
@@ -65,14 +134,12 @@ export function AppTabsNavigation({
   onSelectTab,
   role,
 }: AppTabsNavigationProps) {
+  const visibleTabs = DESKTOP_TABS.filter((tab) => tab.visible(role));
+
   return (
     <div className="bg-white border-b border-[#E4E6EB]">
       <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
-        {DESKTOP_TABS.filter(
-          (tab) =>
-            (!tab.requireCentral || role === "central_admin") &&
-            (!tab.requireLogistics || isLogisticsRole(role))
-        ).map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -87,7 +154,7 @@ export function AppTabsNavigation({
               }`}
             >
               <Icon className="w-4 h-4" />
-              {tab.label}
+              {tab.label(role)}
             </button>
           );
         })}
@@ -177,15 +244,15 @@ export function AppMobileNavigation({
 
         <button
           type="button"
-          onClick={() => onSelectTab("transfers")}
+          onClick={() => onSelectTab("internal_orders")}
           className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "transfers"
+            activeTab === "internal_orders"
               ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
               : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
           }`}
         >
-          <Truck className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Transfer</span>
+          <Warehouse className="w-5 h-5 mb-1" />
+          <span className="text-[11px] font-semibold">{isSchoolRole(role) ? "Pesan" : "Pesanan"}</span>
         </button>
 
         <button
