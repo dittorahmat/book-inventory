@@ -36,6 +36,7 @@ const GENERATED_COLUMNS: DocColumn[] = [
   { prefix: "RFD-U", table: "uniformRefunds", column: "refundNumber" },
   { prefix: "CLM", table: "branchClaims", column: "claimNumber" },
   { prefix: "TGH", table: "branchCharges", column: "chargeNumber" },
+  { prefix: "BA-RECON", table: "termReconciliations", column: "reconciliationNumber" },
   { prefix: "REG", table: "students", column: "nis" },
   {
     prefix: "SJ-SERAH",
