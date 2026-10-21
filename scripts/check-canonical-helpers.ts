@@ -26,10 +26,28 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "epochTimeFragment", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
   { name: "documentNumber", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
   { name: "randomSerial", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
+  { name: "getDefaultTabForRole", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
+  { name: "getRoleBadgeLabel", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
+  { name: "getVisibleTabsForRole", owner: "src/components/layout/AppTabsNavigation.tsx", module: "components/layout/AppTabsNavigation" },
+];
+
+/** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
+interface CanonicalType {
+  name: string;
+  owner: string;
+  module: string;
+}
+
+const CANONICAL_TYPES: CanonicalType[] = [
+  { name: "ActiveTab", owner: "src/components/layout/AppTabsNavigation.tsx", module: "components/layout/AppTabsNavigation" },
+  { name: "StaffRole", owner: "src/server/services/access-scope.ts", module: "server/services/access-scope" },
 ];
 
 const definitionOf = (name: string): RegExp =>
   new RegExp(`^(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function)\\s+${name}\\b`);
+
+const typeDefinitionOf = (name: string): RegExp =>
+  new RegExp(`^(?:export\\s+)?type\\s+${name}\\s*=`);
 
 /** Re-implementasi escape HTML manual (jejak `.replace(/&/g, "&amp;")`). */
 const HTML_ESCAPE_REIMPL = /\.replace\(\s*\/&\s*\/g\s*,\s*["'`]&amp;/;
@@ -52,6 +70,12 @@ for (const { file, line } of lines) {
     if (file === helper.owner) continue;
     if (definitionOf(helper.name).test(text)) {
       hits.push(`${file}: mendefinisikan ulang \`${helper.name}\` — impor dari ${helper.module} (baris: ${text})`);
+    }
+  }
+  for (const typeDef of CANONICAL_TYPES) {
+    if (file === typeDef.owner) continue;
+    if (typeDefinitionOf(typeDef.name).test(text)) {
+      hits.push(`${file}: mendefinisikan ulang tipe kanonik \`${typeDef.name}\` — impor dari ${typeDef.module} (baris: ${text})`);
     }
   }
   if (file !== "src/server/services/email/po-template.ts" && HTML_ESCAPE_REIMPL.test(text)) {

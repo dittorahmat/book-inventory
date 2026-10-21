@@ -13,7 +13,7 @@ import {
   Settings,
   Shirt,
 } from "lucide-react";
-import { isCentralRole, isLogisticsRole, isUniformStaffRole, isBookWarehouseStaffRole, isSchoolRole, type StaffRole } from "../../lib/staff-roles";
+import { isCentralRole, isUniformStaffRole, isBookWarehouseStaffRole, isSchoolRole, type StaffRole } from "../../lib/staff-roles";
 
 export const TAB_IDS = [
   "dashboard",
@@ -129,6 +129,9 @@ const DESKTOP_TABS: DesktopTabItem[] = [
   },
 ];
 
+export const getVisibleTabsForRole = (role: StaffRole): ActiveTab[] =>
+  DESKTOP_TABS.filter((tab) => tab.visible(role)).map((tab) => tab.id);
+
 export function AppTabsNavigation({
   activeTab,
   onSelectTab,
@@ -174,142 +177,32 @@ export function AppMobileNavigation({
   onSelectTab,
   role,
 }: AppMobileNavigationProps) {
+  const visibleTabs = DESKTOP_TABS.filter((tab) => tab.visible(role));
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-      <div className="grid grid-cols-4 gap-1.5">
-        <button
-          type="button"
-          onClick={() => onSelectTab("dashboard")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "dashboard"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <LayoutDashboard className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Dashboard</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("inventory")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "inventory"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <Layers className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Stok</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("packages")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "packages"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <Package className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Paket</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("catalog")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "catalog"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <BookOpen className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Katalog</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("students")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "students"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <GraduationCap className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Siswa</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("internal_orders")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "internal_orders"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <Warehouse className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">{isSchoolRole(role) ? "Pesan" : "Pesanan"}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("uniforms")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "uniforms"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <Shirt className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Seragam</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelectTab("internal_orders")}
-          className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-            activeTab === "internal_orders"
-              ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-              : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-          }`}
-        >
-          <Warehouse className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Ke Gudang</span>
-        </button>
-
-        {isLogisticsRole(role) && (
-          <button
-            type="button"
-            onClick={() => onSelectTab("reconciliation")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-              activeTab === "reconciliation"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <Scale className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold">Rekonsiliasi</span>
-          </button>
-        )}
-
-        {isCentralRole(role) && (
-          <button
-            type="button"
-            onClick={() => onSelectTab("settings")}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-colors active:scale-[0.98] ${
-              activeTab === "settings"
-                ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
-                : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
-            }`}
-          >
-            <Settings className="w-5 h-5 mb-1" />
-          <span className="text-[11px] font-semibold">Pengaturan</span>
-          </button>
-        )}
+      <div className="flex items-center gap-1 overflow-x-auto py-1">
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onSelectTab(tab.id)}
+              className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-xl transition-colors shrink-0 min-w-[64px] active:scale-[0.98] ${
+                isActive
+                  ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
+                  : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
+              }`}
+            >
+              <Icon className="w-5 h-5 mb-1" />
+              <span className="text-[11px] font-semibold truncate max-w-[72px]">
+                {tab.label(role)}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

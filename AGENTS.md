@@ -85,17 +85,18 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Pindai dulu, perbaiki dalam scope**: setiap sesi yang menyentuh `src/` **WAJIB** diawali pemindaian code smell read-only (`Grep` / `rg` / `Select-String`, tanpa edit) dan diakhiri eliminasi temuan sesuai scope yang disepakati user (quick wins / monolit / hardening).
 2. **Katalog smell yang wajib dicek**:
    - File sumber >400 baris (§7, kecuali `*.test.ts`, `schema.ts`, `seed.ts`).
-   - Helper duplikat: rupiah/total/pricing/fetch **wajib** memakai modul kanonik (§8: `lib/transfer-pricing.ts`, `lib/book-pricing.ts` (harga efektif, client-safe) + `server/services/pricing.ts` (harga sisi server), `lib/api.ts`); dilarang `function rupiah()` / `readJson()` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper yang sudah punya pemilik kanonik tunggal.
+   - Helper & tipe duplikat: rupiah/total/pricing/fetch/tipe kanonik **wajib** memakai modul kanonik (§8: `lib/transfer-pricing.ts`, `lib/book-pricing.ts` (harga efektif, client-safe) + `server/services/pricing.ts` (harga sisi server), `lib/api.ts`, `lib/staff-roles.ts` untuk routing/badge/predikat staf, `components/layout/AppTabsNavigation.tsx` untuk `ActiveTab`); dilarang `function rupiah()` / `readJson()` / deklarasi ulang `type ActiveTab` lokal baru — ditegakkan oleh `bun run check:canonical-helpers` untuk helper dan tipe yang sudah punya pemilik kanonik tunggal.
    - `any` baru, `@ts-ignore` / `eslint-disable` baru, `console.log` produksi.
    - `fetch` tanpa `try/catch` atau `.catch(()=>{})` diam tanpa toast (§5 anti silent failure).
    - `z.string().uuid()` (§5): gunakan `idSchema` dari `src/server/lib/validators.ts`.
    - Kode mati: hapus beserta test-nya — ditegakkan oleh `bun run check:dead`, bukan pemindaian manual.
+   - Zero UI Layout Redesign without Spec Mandate: dilarang merombak layout/struktur kontainer UI (misal grid ke scrollable flex) kecuali secara eksplisit disyaratkan dalam spec/design proposal.
    - Nomor dokumen dibangkitkan `documentNumber()` tetapi kolom targetnya tanpa UNIQUE (duplikat senyap) — ditegakkan `check:doc-numbers`.
    - Berkas yang menulis lewat `runWriteBatch()` tanpa `d1WriteErrorStatus()` (constraint D1 naik jadi 500) — ditegakkan `check:d1-error-mapping`.
    - Kolom ber-partisi (`…schoolId`) tanpa indeks pendahulu — read list `WHERE school_id = ?` jadi `SCAN` saat volume naik — ditegakkan `check:plans` (kelengkapan).
    - Baca daftar tak-terbatas pada route tabel ber-partisi (endpoint tumbuh tanpa `LIMIT`) — ditegakkan `check:plans` (batas baca).
 3. **Aturan perbaikan**: kanonikalisasi ke modul yang sudah ada; satu perilaku per perubahan (dilarang mengubah perilaku saat refactor §8); setiap bug yang diperbaiki **wajib** disertai regression test di `src/server/routes/*.test.ts`.
-4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`, `isoTimeFragment`, `epochTimeFragment`, `documentNumber`, `randomSerial`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
+4. **Dilarang menambah utang baru**: kode baru dengan `any`, helper duplikat, atau silent-catch = belum boleh lapor selesai. `any` ditegakkan oleh `bun run check:no-any`; salinan lokal helper/tipe yang sudah punya pemilik kanonik (`escapeHtml`, `formatRupiah`, `toIntRupiah`, `readJson`, `isoTimeFragment`, `epochTimeFragment`, `documentNumber`, `randomSerial`, `getDefaultTabForRole`, `getRoleBadgeLabel`, `getVisibleTabsForRole`, `ActiveTab`, `StaffRole`) oleh `bun run check:canonical-helpers` — keduanya memeriksa baris baru, bukan pemindaian manual.
 5. **Verifikasi penutup**: `bun run check:all` menjalankan seluruh gate berurutan — daftar dan urutannya adalah field `check:all` di `package.json` (CI memakai urutan yang sama di `.github/workflows/checks.yml`), jadi jangan disalin ke sini. Yang perlu diketahui: tiga gate diff-scoped (`check:file-size`, `check:no-any`, `check:canonical-helpers`) tidak vakum di CI karena mendiff base ref PR (`GATE_BASE_REF`; `--all` untuk file-size), sedangkan sisanya memindai seluruh pohon.
 
 ---
@@ -118,6 +119,11 @@ After adding, modifying, or refactoring any feature, you **must** run and pass t
 1. **Physical Unit Tracking**: Books are tracked at the physical copy level (`book_items`) with unique barcode/asset tags, physical condition, and current school assignment.
 2. **Branch Isolation**: School branch administrators must only access and manage inventory assigned to their school (`current_school_id = branch_id`).
 3. **Inter-school Transfers**: Books moved between HQ and branches must transition through formal transfer shipments with status tracking (`draft` -> `pending_dispatch` -> `in_transit` -> `completed` / `discrepancy`).
+4. **Staff Roles & Navigation Boundaries**: Pemetaan wewenang role staf dan routing tab navigasi diatur secara kanonik:
+   - Backend access scope & role checking: `src/server/services/access-scope.ts` (`STAFF_ROLES`, `LOGISTICS_ROLES`, `resolveRequestActor`).
+   - Frontend staff predicates, routing tab default, & badge labels: `src/lib/staff-roles.ts` (`getDefaultTabForRole`, `getRoleBadgeLabel`, `isCentralRole`, `isLogisticsRole`, `isUniformStaffRole`, `isBookWarehouseStaffRole`, `isSchoolRole`).
+   - Navigasi tab & desktop/mobile visibility: `src/components/layout/AppTabsNavigation.tsx` (`TAB_IDS`, `ActiveTab`, `getVisibleTabsForRole`, `AppTabsNavigation`, `AppMobileNavigation`).
+   - Dilarang membuat routing tab ad-hoc di luar helper kanonik ini.
 
 ---
 
