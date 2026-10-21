@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School, User } from "../../types";
+import type { StaffRole } from "../../lib/staff-roles";
 import type { NewUserInput } from "./useSettingsData";
 
 interface UsersSettingsTabProps {
@@ -19,7 +20,7 @@ export function UsersSettingsTab({
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("password123");
-  const [userRole, setUserRole] = useState<"central_admin" | "warehouse_admin" | "school_admin" | "branch_admin">("branch_admin");
+  const [userRole, setUserRole] = useState<StaffRole>("branch_admin");
   const [userSchoolId, setUserSchoolId] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,12 +108,14 @@ export function UsersSettingsTab({
                 label="Peran / Role *"
                 options={[
                   { value: "school_admin", label: "Admin Sekolah" },
-                  { value: "warehouse_admin", label: "Admin Gudang (Gudang Logistik)" },
                   { value: "branch_admin", label: "Branch Admin (Admin Cabang)" },
+                  { value: "warehouse_books_admin", label: "Admin Gudang Buku (Gudang Logistik)" },
+                  { value: "warehouse_uniforms_admin", label: "Admin Gudang Seragam (Gudang Logistik)" },
+                  { value: "warehouse_admin", label: "Admin Gudang Umum (Buku & Seragam)" },
                   { value: "central_admin", label: "Central Admin (Admin Pusat HQ)" },
                 ]}
                 value={userRole}
-                onChange={(v) => setUserRole(v as "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin")}
+                onChange={(v) => setUserRole(v as StaffRole)}
                 placeholder="Pilih peran..."
                 required
               />
@@ -167,6 +170,14 @@ export function UsersSettingsTab({
                   {u.role === "central_admin" ? (
                     <span className="bg-[#E7F3FF] text-[#1877F2] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                       CENTRAL ADMIN
+                    </span>
+                  ) : u.role === "warehouse_books_admin" ? (
+                    <span className="bg-[#FFF4E5] text-[#B45309] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                      GUDANG BUKU
+                    </span>
+                  ) : u.role === "warehouse_uniforms_admin" ? (
+                    <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                      GUDANG SERAGAM
                     </span>
                   ) : u.role === "warehouse_admin" ? (
                     <span className="bg-[#FFF4E5] text-[#B45309] px-2.5 py-0.5 rounded-full text-[10px] font-bold">

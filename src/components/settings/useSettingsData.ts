@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { School, User } from "../../types";
+import type { StaffRole } from "../../lib/staff-roles";
 import { getJson, postJson } from "../../lib/api";
 
 export interface NewSchoolInput {
@@ -14,7 +15,7 @@ export interface NewUserInput {
   name: string;
   email: string;
   password: string;
-  role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
+  role: StaffRole;
   schoolId?: string;
 }
 

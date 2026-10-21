@@ -10,23 +10,23 @@ import {
   accessErrorResponse,
   requireCentralAdmin,
   resolveRequestActor,
+  STAFF_ROLES,
+  type StaffRole,
 } from "../services/access-scope";
 
 export const usersRouter = new Hono();
-
-const staffRoles = ["central_admin", "warehouse_admin", "school_admin", "branch_admin"] as const;
 
 const createUserSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(staffRoles),
+  role: z.enum(STAFF_ROLES as [StaffRole, ...StaffRole[]]),
   schoolId: z.string().optional().nullable(),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
-  role: z.enum(staffRoles).optional(),
+  role: z.enum(STAFF_ROLES as [StaffRole, ...StaffRole[]]).optional(),
   schoolId: z.string().optional().nullable(),
 });
 

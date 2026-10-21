@@ -134,6 +134,20 @@ export async function runIdempotentSeed(customDb?: any) {
       role: "central_admin" as const,
       schoolId: "school-warehouse",
     },
+    {
+      id: "usr-admin-buku",
+      name: "Admin Gudang Buku",
+      email: "admin.buku@alwildan.sch.id",
+      role: "warehouse_books_admin" as const,
+      schoolId: "school-warehouse",
+    },
+    {
+      id: "usr-admin-seragam",
+      name: "Admin Gudang Seragam",
+      email: "admin.seragam@alwildan.sch.id",
+      role: "warehouse_uniforms_admin" as const,
+      schoolId: "school-warehouse",
+    },
   ];
 
   // Hash scrypt asli untuk 'password123' (stub base64 lama tak pernah lolos
