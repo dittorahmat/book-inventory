@@ -18,9 +18,9 @@ import { ReconciliationView } from "./views/ReconciliationView";
 import { LoginView } from "./views/LoginView";
 import { DashboardLoadingFallback } from "./views/DashboardFallback";
 import { AppHeader } from "./components/layout/AppHeader";
-import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, type ActiveTab } from "./components/layout/AppTabsNavigation";
+import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, getVisibleTabsForRole, type ActiveTab } from "./components/layout/AppTabsNavigation";
 import { useSession, signOut } from "./lib/auth-client";
-import { isCentralRole, type StaffRole } from "./lib/staff-roles";
+import { isCentralRole, getDefaultTabForRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
 import { Loader2 } from "lucide-react";
 
@@ -41,7 +41,8 @@ export function App() {
   const [schools, setSchools] = useState<School[]>([]);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+  const sessionRole = (session?.user as unknown as { role?: StaffRole } | undefined)?.role;
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => getDefaultTabForRole(sessionRole));
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
@@ -50,8 +51,6 @@ export function App() {
   const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
-
-  const sessionRole = (session?.user as unknown as { role?: StaffRole } | undefined)?.role;
 
   const loadSchools = useCallback(async () => {
     try {
@@ -87,6 +86,16 @@ export function App() {
       if (assigned && assigned.id !== selectedSchool?.id) setSelectedSchool(assigned);
     }
   }, [session, schools, selectedSchool]);
+
+  // Guard tab aktif sesuai wewenang role pengguna (mencegah landing tab salah atau terlarang)
+  useEffect(() => {
+    if (sessionRole) {
+      const allowedTabs = getVisibleTabsForRole(sessionRole);
+      if (!allowedTabs.includes(activeTab)) {
+        setActiveTab(getDefaultTabForRole(sessionRole));
+      }
+    }
+  }, [sessionRole, activeTab]);
 
   if (isPending) {
     return (
@@ -162,6 +171,7 @@ export function App() {
         <AppHeader
           selectedSchool={selectedSchool}
           isCentralAdmin={isCentralAdmin}
+          userRole={userRole}
           userName={currentUser.name}
           onOpenPublicPortal={() => setIsPublicMode(true)}
           onSignOut={() => signOut()}

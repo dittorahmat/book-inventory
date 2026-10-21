@@ -1,9 +1,11 @@
 import { BookOpen, Globe, LogOut, School as SchoolIcon, Shield } from "lucide-react";
 import type { School } from "../../types";
+import { getRoleBadgeLabel, type StaffRole } from "../../lib/staff-roles";
 
 interface AppHeaderProps {
   selectedSchool: School | null;
   isCentralAdmin: boolean;
+  userRole?: StaffRole;
   userName: string;
   onOpenPublicPortal: () => void;
   onSignOut: () => void;
@@ -12,10 +14,13 @@ interface AppHeaderProps {
 export function AppHeader({
   selectedSchool,
   isCentralAdmin,
+  userRole,
   userName,
   onOpenPublicPortal,
   onSignOut,
 }: AppHeaderProps) {
+  const badgeLabel = getRoleBadgeLabel(userRole);
+
   return (
     <div className="bg-[#1877F2]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
@@ -60,10 +65,10 @@ export function AppHeader({
               <div className="text-[11px] text-white/75 flex items-center justify-end gap-1">
                 {isCentralAdmin ? (
                   <span className="text-white flex items-center gap-1 font-semibold">
-                    <Shield className="w-3 h-3 text-white" /> HQ Central Admin
+                    <Shield className="w-3 h-3 text-white" /> {badgeLabel}
                   </span>
                 ) : (
-                  <span>Branch Admin</span>
+                  <span>{badgeLabel}</span>
                 )}
               </div>
             </div>
