@@ -766,3 +766,56 @@ export const branchCharges = sqliteTable("branch_charges", {
   index("branch_charges_claim_idx").on(t.claimId),
   unique("branch_charges_source_unq").on(t.sourceType, t.sourceId),
 ]);
+
+/**
+ * Rekonsiliasi Stok Akhir Periode (End of Term Stock Reconciliation).
+ * Digunakan logistik pusat untuk audit fisik di cabang, rekapitulasi penyerahan buku siswa,
+ * dan penerbitan Berita Acara serta tagihan susulan kehilangan buku fisik ke Finance Cabang.
+ */
+export const termReconciliations = sqliteTable("term_reconciliations", {
+  id: text("id").primaryKey(),
+  reconciliationNumber: text("reconciliation_number").notNull().unique(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  academicYear: text("academic_year").notNull(), // e.g. "2026/2027"
+  term: text("term").notNull(), // e.g. "Ganjil" | "Genap"
+  status: text("status", { enum: ["draft", "submitted", "finalized"] }).notNull().default("draft"),
+  notes: text("notes"),
+  totalInbound: integer("total_inbound").notNull().default(0),
+  totalDistributed: integer("total_distributed").notNull().default(0),
+  totalSystemRemaining: integer("total_system_remaining").notNull().default(0),
+  totalPhysicalRemaining: integer("total_physical_remaining").notNull().default(0),
+  totalDiscrepancy: integer("total_discrepancy").notNull().default(0),
+  totalLossAmount: integer("total_loss_amount").notNull().default(0),
+  createdByUserId: text("created_by_user_id").references(() => users.id),
+  finalizedAt: text("finalized_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("term_reconciliations_school_idx").on(t.schoolId),
+  index("term_reconciliations_school_period_idx").on(t.schoolId, t.academicYear, t.term),
+  index("term_reconciliations_status_idx").on(t.status),
+]);
+
+/** Item rincian per paket/buku dalam sesi rekonsiliasi. */
+export const termReconciliationItems = sqliteTable("term_reconciliation_items", {
+  id: text("id").primaryKey(),
+  reconciliationId: text("reconciliation_id").notNull().references(() => termReconciliations.id, { onDelete: "cascade" }),
+  itemType: text("item_type", { enum: ["package", "book"] }).notNull().default("package"),
+  packageId: text("package_id").references(() => bookPackages.id),
+  bookId: text("book_id").references(() => books.id),
+  totalInbound: integer("total_inbound").notNull().default(0),
+  totalDistributed: integer("total_distributed").notNull().default(0),
+  systemRemaining: integer("system_remaining").notNull().default(0),
+  physicalRemaining: integer("physical_remaining").notNull().default(0),
+  discrepancyQuantity: integer("discrepancy_quantity").notNull().default(0),
+  unitPrice: integer("unit_price").notNull().default(0),
+  totalLossAmount: integer("total_loss_amount").notNull().default(0),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("term_reconciliation_items_recon_idx").on(t.reconciliationId),
+  index("term_reconciliation_items_package_idx").on(t.packageId),
+  index("term_reconciliation_items_book_idx").on(t.bookId),
+]);
+

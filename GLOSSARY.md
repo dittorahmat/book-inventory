@@ -155,3 +155,15 @@ _Avoid_: Status kirim, status bayar mentah
 **Reject**:
 Flag ok/reject barang: eksemplar buku via `is_rejected` per barcode; seragam via catatan `uniform_rejects` (varian-size + qty + alasan).
 _Avoid_: Kondisi rusak, retur publik
+
+**Push Distribution**:
+Distribusi massal satu arah dari Gudang Pusat ke cabang di awal tahun ajaran berbasis kuota siswa aktif (Cap Max) per jenjang (`students.gradeLevel`) tanpa mewajibkan PO internal dari cabang.
+_Avoid_: Pengiriman sepihak tanpa kuota, PO massal
+
+**Rekonsiliasi Akhir Periode**:
+Audit fisik stok buku di rak cabang pada penutupan periode ajaran: membandingkan Inbound yang sudah diterima (`internalShipments.status` delivered/received/completed) dikurangi penyerahan selesai ke siswa (`studentBookOrders.fulfillmentStatus = 'picked_up'`) terhadap sisa fisik aktual.
+_Avoid_: Rekonsiliasi nominal saja, audit parsial
+
+**Berita Acara & Memo Tagihan**:
+Dokumen formal hasil audit rekonsiliasi akhir periode (`BA-RECON-*`): mencatat sisa fisik yang ditarik ke gudang pusat dan menagihkan selisih kehilangan buku ke Finance Cabang berbasis harga jual resmi paket/buku (`bookPackages.price`).
+_Avoid_: Denda informal, nota lisan

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus, RefreshCw, Truck } from "lucide-react";
+import { Plus, RefreshCw, Send, Truck } from "lucide-react";
 import type { School } from "../types";
 import type { StaffRole } from "../components/layout/AppTabsNavigation";
 import { isCentralRole, isLogisticsRole } from "../lib/staff-roles";
 import { CreateInternalShipmentModal } from "../components/internal-orders/CreateInternalShipmentModal";
+import { PushDistributionModal } from "../components/internal-orders/PushDistributionModal";
 import { InternalShipmentPrintModal } from "../components/internal-orders/InternalShipmentPrintModal";
 import type { InternalOrder } from "../lib/internal-orders-types";
 import { useInternalOrders } from "../components/internal-orders/useInternalOrders";
@@ -45,6 +46,7 @@ export function InternalProcurementView({
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isShipmentOpen, setIsShipmentOpen] = useState(false);
+  const [isPushOpen, setIsPushOpen] = useState(false);
   const [printTarget, setPrintTarget] = useState<{ order: InternalOrder; shipment: InternalShipment } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<{ orderId: string; shipment: InternalShipment } | null>(null);
@@ -79,6 +81,19 @@ export function InternalProcurementView({
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </button>
+          {isLogistics && (
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                setIsPushOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-2xs transition-colors hover:bg-emerald-100 active:scale-[0.98]"
+            >
+              <Send className="h-4 w-4" />
+              <span>Push Distribution Awal Tahun</span>
+            </button>
+          )}
           {isLogistics && (
             <button
               type="button"
@@ -168,6 +183,16 @@ export function InternalProcurementView({
           onCreated={(deliveryNoteNumber) => setNotice(`Surat Jalan ${deliveryNoteNumber} berhasil diterbitkan.`)}
         />
       )}
+
+      <PushDistributionModal
+        isOpen={isPushOpen}
+        onClose={() => setIsPushOpen(false)}
+        schools={schools}
+        onSuccess={() => {
+          setNotice("Surat Jalan Push Distribution berhasil diterbitkan.");
+          loadData();
+        }}
+      />
 
       {isCreateOpen && (
         <CreateInternalOrderModal

@@ -212,7 +212,7 @@ export function App() {
         {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
         {activeTab === "catalog" && <CatalogView />}
         {activeTab === "reconciliation" && (
-          <ReconciliationView activeSchool={selectedSchool} isCentralAdmin={isCentralAdmin} />
+          <ReconciliationView activeSchool={selectedSchool} schools={schools} isCentralAdmin={isCentralAdmin} />
         )}
         {activeTab === "reports" && (
           <SalesReportView
