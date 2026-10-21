@@ -1,3 +1,5 @@
+import type { StaffRole } from "../lib/staff-roles";
+
 export interface School {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
+  role: StaffRole;
   schoolId?: string | null;
   createdAt: string;
   updatedAt: string;

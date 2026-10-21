@@ -4,8 +4,8 @@ import { db } from "../../db";
 import { users, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
+import type { StaffRole } from "../services/access-scope";
 
-type StaffRole = "central_admin" | "warehouse_admin" | "school_admin" | "branch_admin";
 afterEach(() => {
   restoreActor();
 });
@@ -128,6 +128,8 @@ describe("Users RBAC (#41): central only", () => {
       { role: "school_admin", schoolId: "school-alw-1" },
       { role: "branch_admin", schoolId: "school-alw-1" },
       { role: "warehouse_admin", schoolId: "school-warehouse" },
+      { role: "warehouse_books_admin", schoolId: "school-warehouse" },
+      { role: "warehouse_uniforms_admin", schoolId: "school-warehouse" },
     ];
     for (const { role, schoolId } of roles) {
       mockActor(role, schoolId);
