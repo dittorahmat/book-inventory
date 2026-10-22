@@ -5,13 +5,15 @@
  * Total optimistik tinggal di `lib/book-pricing` + `lib/transfer-pricing`,
  * resolusi paket di `lib/resolve-package`, perakitan payload di `order-payload`.
  */
-import { buildQuery, getJson, postJson } from "../../lib/api";
+import { ApiError, buildQuery, getJson, postJson } from "../../lib/api";
 import type {
   SchoolOption,
   StudentSearchResult,
   BookPackageOption,
   NewStudentForm,
   SatuanStatus,
+  PortalOrderLookup,
+  PortalBookChoice,
 } from "../../lib/portal-types";
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
@@ -81,4 +83,49 @@ export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> 
   getJson<WprEligibility>(
     buildQuery("/api/public/orders/wpr-eligibility", { studentId }),
     "Gagal memeriksa status WPR."
+  );
+
+/**
+ * Pencarian pesanan untuk alur refund buku. Server membalas 404 saat tidak ada
+ * yang cocok; itu keadaan normal (empty state), bukan kegagalan, jadi
+ * dikembalikan sebagai daftar kosong alih-alih melempar banner galat.
+ */
+export const lookupReturnableOrders = async (
+  query: string,
+  schoolId: string
+): Promise<PortalOrderLookup[]> => {
+  try {
+    return await getJson<PortalOrderLookup[]>(
+      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId }),
+      "Gagal mencari pesanan."
+    );
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return [];
+    throw err;
+  }
+};
+
+/** Judul buku publik (alias samaran) untuk pilihan pada form refund. */
+export const fetchBookChoices = (): Promise<PortalBookChoice[]> =>
+  getJson<PortalBookChoice[]>("/api/public/orders/book-choices", "Gagal memuat daftar buku.");
+
+export interface ReturnReportPayload {
+  orderId: string;
+  studentId: string;
+  defectiveBookId: string;
+  reason: string;
+  photoProofBase64: string;
+}
+
+export interface ReturnReportResult {
+  returnId: string;
+  orderNumber: string;
+  status: string;
+}
+
+export const submitReturnReport = (payload: ReturnReportPayload): Promise<ReturnReportResult> =>
+  postJson<ReturnReportResult>(
+    "/api/public/orders/submit-return",
+    payload,
+    "Gagal mengirimkan pengajuan refund buku."
   );

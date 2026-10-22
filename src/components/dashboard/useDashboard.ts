@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardSummaryPayload, DashboardSummaryResponse } from "../../lib/dashboard-types";
-import { apiEnvelope, buildQuery } from "../../lib/api";
+import { apiEnvelope, ApiError, buildQuery } from "../../lib/api";
 
 async function fetchDashboardSummary(
   schoolId: string | null
@@ -16,7 +16,7 @@ async function fetchDashboardSummary(
     return body.data;
   } catch (err) {
     if (err instanceof Error) {
-      const body = (err as { body?: DashboardSummaryResponse }).body;
+      const body = err instanceof ApiError ? (err.body as DashboardSummaryResponse | null) : null;
       const ref = body && (body as { ref?: string }).ref ? ` (ref ${(body as { ref?: string }).ref})` : "";
       if (ref && !err.message.includes("ref")) throw new Error(`${err.message}${ref} Coba lagi.`);
       if (err.message === "Failed to fetch" || err.message.includes("fetch")) {

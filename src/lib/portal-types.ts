@@ -63,6 +63,30 @@ export interface StaffBookReturn {
   createdAt: string;
 }
 
+/** Pesanan hasil pencarian portal untuk alur refund buku. */
+export interface PortalOrderLookup {
+  id: string;
+  orderNumber: string;
+  studentId: string;
+  studentName: string;
+  nis: string;
+  schoolId: string;
+  schoolName: string;
+  packageId: string | null;
+  packageName: string | null;
+  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress";
+  paymentStatus: string;
+  handoverDate: string | null;
+  handoverDeliveryNumber: string | null;
+  handoverRecipient: string | null;
+}
+
+/** Judul buku versi publik (alias samaran, tanpa ISBN) untuk form refund. */
+export interface PortalBookChoice {
+  bookId: string;
+  title: string;
+}
+
 export interface NewStudentForm {  schoolId: string;
   name: string;
   gender: "male" | "female";

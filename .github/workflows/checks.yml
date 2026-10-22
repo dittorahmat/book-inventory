@@ -1,5 +1,6 @@
-# Quality gates: type-check, lint, ukuran file, kedalaman import, pairing route-test, validator,
-# dead-export, canonical-helper, d1-write, d1-error-mapping, test-isolation, doc-number, lane-ownership, query plan, build, dan test.
+# Quality gates: type-check, lint, ukuran file, kedalaman import, kontrak API klien→route,
+# pairing route-test, validator, dead-export, canonical-helper, d1-write, d1-error-mapping,
+# test-isolation, doc-number, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -44,6 +45,11 @@ jobs:
 
       - name: Import-depth gate
         run: bun run check:imports
+
+      - name: API-contract gate
+        # Setiap literal /api/... di klien wajib cocok dengan route terdaftar,
+        # dan portal publik hanya boleh memanggil /api/public/*.
+        run: bun run check:api-contract
 
       - name: Route-test pairing gate
         run: bun run check:route-tests

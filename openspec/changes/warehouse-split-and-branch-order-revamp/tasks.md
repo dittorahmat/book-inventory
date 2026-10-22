@@ -21,7 +21,7 @@
 - [x] 3.4 Perbarui tabel Data Siswa untuk Admin Gudang Pusat agar menampilkan seluruh data siswa lintas cabang dengan filter dropdown cabang
 - [x] 3.5 Tampilkan kolom "Tanggal Penerimaan Buku" pada tabel penerimaan siswa di sisi cabang dan pusat
 - [x] 3.6 Ubah tab Retur Buku eksisting di `src/views/BookReturnsView.tsx` menjadi tab "Refund Buku" dengan tombol ekspor CSV dan checklist approval logistik
-- [x] 3.7 Aktifkan kembali formulir publik Refund Buku (`src/views/PublicBookReturnView.tsx`) dengan alur pencarian siswa (cabang -> NIS/nama -> centang item -> upload foto) yang memanfaatkan endpoint eksisting `POST /api/student-orders/returns`
+- [x] 3.7 Aktifkan kembali formulir publik Refund Buku sebagai tab keempat portal publik (bukan hanya deep-link): alur cabang → cari pesanan via `GET /api/public/orders/lookup-order` → pilih judul dari `GET /api/public/orders/book-choices` → alasan + foto wajib → `POST /api/public/orders/submit-return` (sumber `public`, bukan endpoint staf). Harga acuan refund tidak ditampilkan ke orang tua.
 
 ## 4. Verification & Quality Gates
 

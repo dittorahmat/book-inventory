@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { api, apiEnvelope, buildQuery, getJson, patchJson, postForm, postJson, readJson } from "./api";
+import { api, apiEnvelope, ApiError, buildQuery, getJson, patchJson, postForm, postJson, readJson } from "./api";
 
 const jsonRes = (body: unknown, ok = true, status = 200): Response =>
   new Response(JSON.stringify(body), { status: ok ? status : status, headers: { "Content-Type": "application/json" } });
@@ -23,9 +23,10 @@ describe("canonical fetch seam", () => {
   test("error membawa pesan server + body mentah", async () => {
     const seen: { url?: string; init?: RequestInit } = {};
     stubFetch(jsonRes({ success: false, message: "Kode sudah terdaftar", ref: "r1" }, false, 400), seen);
-    const err = (await api("/api/x", undefined, "Jatuh").catch((e) => e)) as Error;
+    const err = (await api("/api/x", undefined, "Jatuh").catch((e) => e)) as ApiError;
     expect(err.message).toBe("Kode sudah terdaftar");
-    expect((err as { body?: { ref?: string } }).body?.ref).toBe("r1");
+    expect(err.status).toBe(400);
+    expect((err.body as { ref?: string }).ref).toBe("r1");
   });
 
   test("fallback dipakai bila body bukan JSON / kosong", async () => {

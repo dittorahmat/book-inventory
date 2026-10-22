@@ -1,13 +1,13 @@
 #!/bin/sh
-# Pre-commit: gates cepat (type-check + file-size + imports + route-tests + validators + dead-exports + no-any + canonical-helpers + d1-writes + d1-error-mapping + test-isolation + doc-numbers + lanes + plans)
-# + eslint pada file staged (*.ts/*.tsx) agar pelanggaran lint tertangkap lokal,
-# bukan menunggu CI (insiden: toLocaleString("id-ID") lolos ke HEAD).
-# Suite berat (build/test penuh) tetap ditanggung CI agar commit ringan.
+# Pre-commit: gate cepat yang relevan dengan file yang di-commit.
+# Selalu: type-check, eslint staged, import-depth, api-contract, lane-ownership.
+# Bersyarat: gate yang hanya bermakna bila area terkait tersentuh (server/db/test).
+# Suite penuh (build + test + gate repo-wide) tetap ditanggung CI.
 # Terpasang via `bun scripts/setup-hooks.ts` (tanpa dependensi baru).
 set -e
 
 # Branch guard (AGENTS.md §4.8): tolak commit langsung ke main/master. Gate lain
-# memeriksa ISI commit; tak satu pun memeriksa TUJUANNYA — insiden Okt 2026: dua
+# memeriksa ISI commit; tak satu pun memeriksa TUJUANNYA - insiden Okt 2026: dua
 # commit nyasar ke main dan baru ketahuan saat akan didorong.
 # Rebase/merge/cherry-pick yang sedang berjalan dilewati (git memakai hook ini
 # juga untuk commit lanjutan), dan penyelesaian konflik di main tak terhalang.
@@ -28,21 +28,38 @@ if [ -z "$IN_PROGRESS" ] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
       ;;
   esac
 fi
+
+CHANGED=$(git diff --cached --name-only --diff-filter=ACM)
+# `has <regex>`: true bila ada file staged yang cocok. Empty CHANGED = tidak ada
+# yang cocok, sehingga gate bersyarat dilewati (mis. commit amend kosong).
+has() { [ -n "$CHANGED" ] && printf '%s\n' "$CHANGED" | grep -Eq "$1"; }
+
 STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx')
 if [ -n "$STAGED_TS" ]; then
   echo "$STAGED_TS" | xargs npx eslint
 fi
+
 bun run type-check
-bun run check:file-size
 bun run check:imports
-bun run check:route-tests
-bun run check:validators
-bun run check:dead
-bun run check:no-any
-bun run check:canonical-helpers
-bun run check:d1-writes
-bun run check:d1-error-mapping
-bun run check:test-isolation
-bun run check:doc-numbers
+bun run check:api-contract
 bun run check:lanes
-bun run check:plans
+
+if has '^src/'; then
+  bun run check:file-size
+  bun run check:no-any
+  bun run check:canonical-helpers
+  bun run check:dead
+  bun run check:doc-numbers
+fi
+
+if has '^(src/server/|src/db/|drizzle/)'; then
+  bun run check:route-tests
+  bun run check:validators
+  bun run check:d1-writes
+  bun run check:d1-error-mapping
+  bun run check:plans
+fi
+
+if has '^(src/.*\.test\.tsx?$|src/test-dom|test/|bunfig\.toml)'; then
+  bun run check:test-isolation
+fi
