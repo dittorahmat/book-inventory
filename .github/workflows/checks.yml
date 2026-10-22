@@ -45,6 +45,11 @@ jobs:
       - name: Import-depth gate
         run: bun run check:imports
 
+      - name: API-contract gate
+        # Setiap literal /api/... di klien wajib cocok dengan route terdaftar,
+        # dan portal publik hanya boleh memanggil /api/public/*.
+        run: bun run check:api-contract
+
       - name: Route-test pairing gate
         run: bun run check:route-tests
 

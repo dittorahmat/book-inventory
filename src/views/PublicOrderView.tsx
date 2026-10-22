@@ -1,5 +1,6 @@
-import { BookOpen, AlertCircle, Clock, Shirt, ArrowLeftRight, RotateCcw } from "lucide-react";
+import { BookOpen, AlertCircle, Clock } from "lucide-react";
 import { usePublicOrder, type PortalTab } from "../components/portal/usePublicOrder";
+import { PortalTabs } from "../components/portal/PortalTabs";
 import { PublicUniformOrderView } from "./PublicUniformOrderView";
 import { PublicUniformReturnView } from "./PublicUniformReturnView";
 import { PublicBookReturnView } from "./PublicBookReturnView";
@@ -54,75 +55,15 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
 
       {/* Main Body */}
       <main className="max-w-3xl w-full mx-auto px-4 py-8 flex-1">
-        {/* Portal Mode Switcher */}
-        <div className="flex justify-center mb-6">
-          <div className="flex flex-wrap justify-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setActivePortalTab("order");
-                setErrorMessage(null);
-                order.cancelNoResult();
-              }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                activePortalTab === "order"
-                  ? "bg-white text-[#1877F2] shadow-xs"
-                  : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Formulir Pesan Buku</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActivePortalTab("uniform");
-                setErrorMessage(null);
-                order.cancelNoResult();
-              }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                activePortalTab === "uniform"
-                  ? "bg-white text-[#1877F2] shadow-xs"
-                  : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              <Shirt className="w-4 h-4" />
-              <span>Pesan Seragam</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActivePortalTab("uniform_return");
-                setErrorMessage(null);
-                order.cancelNoResult();
-              }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                activePortalTab === "uniform_return"
-                  ? "bg-white text-[#1877F2] shadow-xs"
-                  : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              <ArrowLeftRight className="w-4 h-4" />
-              <span>Retur Seragam</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActivePortalTab("book_return");
-                setErrorMessage(null);
-                order.cancelNoResult();
-              }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                activePortalTab === "book_return"
-                  ? "bg-white text-[#1877F2] shadow-xs"
-                  : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Refund Buku</span>
-            </button>
-          </div>
-        </div>
+        {/* Portal Mode Switcher — daftar tab kanonik di PUBLIC_TABS. */}
+        <PortalTabs
+          activeTab={activePortalTab}
+          onSelect={(tab) => {
+            setActivePortalTab(tab);
+            setErrorMessage(null);
+            order.cancelNoResult();
+          }}
+        />
 
         {/* ===================== TAB 1: PEMESANAN BUKU ===================== */}
         {activePortalTab === "order" && (
