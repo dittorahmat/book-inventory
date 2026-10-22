@@ -1,5 +1,5 @@
 import type { StaffRole } from "../server/services/access-scope";
-import type { ActiveTab } from "../components/layout/AppTabsNavigation";
+import type { ActiveTab } from "../components/layout/staff-tabs";
 
 export type { StaffRole, ActiveTab };
 

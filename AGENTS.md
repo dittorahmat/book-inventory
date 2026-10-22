@@ -17,7 +17,7 @@ mesin, bukan disiplin:
    endpoint berarti: daftarkan di router, lalu pakai path itu dari klien.
 2. **Navigasi data-driven.** Daftar tab/nav wajib array data (`PUBLIC_TABS`,
    `DESKTOP_TABS`), bukan JSX inline. Tab baru = entry array + test yang mengunci
-   daftar (`PortalTabs.test.tsx`, `AppTabsNavigation`). JSX inline membuat tab
+   daftar (`PortalTabs.test.tsx`, `staff-tabs.test.ts`). JSX inline membuat tab
    rusak/hilang lolos `type-check`, `lint`, dan `build`.
 3. **Fitur baru wajib punya pintu masuk yang teruji.** Sebelum lapor selesai,
    buktikan jalur yang membuka UI itu ada (tab, tautan, atau URL→tab mapping di
@@ -89,8 +89,9 @@ mesin, bukan disiplin:
      `LOGISTICS_ROLES`, `resolveRequestActor`);
    - frontend: `src/lib/staff-roles.ts` (`getDefaultTabForRole`,
      `getRoleBadgeLabel`, `is*Role`);
-   - tab: `src/components/layout/AppTabsNavigation.tsx` (`TAB_IDS`, `ActiveTab`,
-     `getVisibleTabsForRole`).
+   - tab: `src/components/layout/staff-tabs.ts` (`TAB_IDS`, `ActiveTab`,
+     `DESKTOP_TABS`, `getVisibleTabsForRole`) dirender oleh
+     `components/layout/AppTabsNavigation.tsx` (komponen saja).
 
 ---
 
@@ -164,7 +165,7 @@ Verifikasi: `check:file-size` (diff-scoped; `--all` di CI).
 - Helper duplikat dikanonikalisasi ke pemilik tunggal: `lib/transfer-pricing.ts`
   (rupiah/total), `lib/book-pricing.ts` (client-safe) + `server/services/pricing.ts`
   (server), `lib/api.ts` (fetch), `lib/staff-roles.ts`,
-  `components/layout/AppTabsNavigation.tsx` (`ActiveTab`), dan
+  `components/layout/staff-tabs.ts` (`ActiveTab`, `getVisibleTabsForRole`), dan
   `lib/book-return.ts` (batas foto + status refund).
 - Kode mati dihapus beserta test-nya, bukan dikomentari (`check:dead`).
 - Prefer one-liner: guard/loop verbose yang setara `map`/`filter`/`reduce`/`??`/
