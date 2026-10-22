@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, RefreshCw, Send, Truck } from "lucide-react";
 import type { School } from "../types";
-import type { StaffRole } from "../components/layout/AppTabsNavigation";
+import type { StaffRole } from "../lib/staff-roles";
 import { isCentralRole, isLogisticsRole } from "../lib/staff-roles";
 import { CreateInternalShipmentModal } from "../components/internal-orders/CreateInternalShipmentModal";
 import { PushDistributionModal } from "../components/internal-orders/PushDistributionModal";

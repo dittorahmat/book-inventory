@@ -1,39 +1,5 @@
-import {
-  LayoutDashboard,
-  GraduationCap,
-  Users,
-  Package,
-  ShoppingBag,
-  Warehouse,
-  RotateCcw,
-  Layers,
-  BookOpen,
-  BarChart3,
-  Scale,
-  Settings,
-  Shirt,
-} from "lucide-react";
-import { isCentralRole, isUniformStaffRole, isBookWarehouseStaffRole, isSchoolRole, type StaffRole } from "../../lib/staff-roles";
-
-export const TAB_IDS = [
-  "dashboard",
-  "catalog",
-  "packages",
-  "inventory",
-  "students",
-  "student_orders",
-  "uniforms",
-  "procurement",
-  "internal_orders",
-  "returns",
-  "reconciliation",
-  "reports",
-  "settings",
-] as const;
-
-export type ActiveTab = typeof TAB_IDS[number];
-
-export type { StaffRole };
+import { DESKTOP_TABS, type ActiveTab } from "./staff-tabs";
+import type { StaffRole } from "../../lib/staff-roles";
 
 interface AppTabsNavigationProps {
   activeTab: ActiveTab;
@@ -41,102 +7,7 @@ interface AppTabsNavigationProps {
   role: StaffRole;
 }
 
-interface DesktopTabItem {
-  id: ActiveTab;
-  label: (role: StaffRole) => string;
-  icon: React.ComponentType<{ className?: string }>;
-  visible: (role: StaffRole) => boolean;
-}
-
-const DESKTOP_TABS: DesktopTabItem[] = [
-  {
-    id: "dashboard",
-    label: () => "Dashboard",
-    icon: LayoutDashboard,
-    visible: (r) => isCentralRole(r) || r === "warehouse_admin",
-  },
-  {
-    id: "internal_orders",
-    label: (r) => (isSchoolRole(r) ? "Pesan ke Gudang" : "Pesanan dari Cabang"),
-    icon: Warehouse,
-    visible: (r) => isSchoolRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "students",
-    label: () => "Data Siswa",
-    icon: GraduationCap,
-    visible: (r) => isSchoolRole(r) || isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "uniforms",
-    label: () => "Gudang Seragam",
-    icon: Shirt,
-    visible: (r) => isUniformStaffRole(r),
-  },
-  {
-    id: "student_orders",
-    label: () => "Pesanan Siswa",
-    icon: Users,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "packages",
-    label: () => "Paket & Rakit",
-    icon: Package,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "procurement",
-    label: () => "PO Supplier",
-    icon: ShoppingBag,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "returns",
-    label: () => "Refund Buku",
-    icon: RotateCcw,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "inventory",
-    label: () => "Stok Satuan",
-    icon: Layers,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "catalog",
-    label: () => "Katalog",
-    icon: BookOpen,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "reconciliation",
-    label: () => "Rekonsiliasi",
-    icon: Scale,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "reports",
-    label: () => "Laporan",
-    icon: BarChart3,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
-  },
-  {
-    id: "settings",
-    label: () => "Pengaturan",
-    icon: Settings,
-    visible: (r) => isCentralRole(r),
-  },
-];
-
-export const getVisibleTabsForRole = (role: StaffRole): ActiveTab[] =>
-  DESKTOP_TABS.filter((tab) => tab.visible(role)).map((tab) => tab.id);
-
-export function AppTabsNavigation({
-  activeTab,
-  onSelectTab,
-  role,
-}: AppTabsNavigationProps) {
+export function AppTabsNavigation({ activeTab, onSelectTab, role }: AppTabsNavigationProps) {
   const visibleTabs = DESKTOP_TABS.filter((tab) => tab.visible(role));
 
   return (
@@ -149,6 +20,7 @@ export function AppTabsNavigation({
             <button
               key={tab.id}
               type="button"
+              aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectTab(tab.id)}
               className={`py-3 px-3.5 flex items-center gap-2 font-semibold transition-all relative shrink-0 active:scale-[0.98] ${
                 isActive
@@ -172,11 +44,7 @@ interface AppMobileNavigationProps {
   role: StaffRole;
 }
 
-export function AppMobileNavigation({
-  activeTab,
-  onSelectTab,
-  role,
-}: AppMobileNavigationProps) {
+export function AppMobileNavigation({ activeTab, onSelectTab, role }: AppMobileNavigationProps) {
   const visibleTabs = DESKTOP_TABS.filter((tab) => tab.visible(role));
 
   return (
@@ -189,6 +57,7 @@ export function AppMobileNavigation({
             <button
               key={tab.id}
               type="button"
+              aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectTab(tab.id)}
               className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-xl transition-colors shrink-0 min-w-[64px] active:scale-[0.98] ${
                 isActive
@@ -197,9 +66,7 @@ export function AppMobileNavigation({
               }`}
             >
               <Icon className="w-5 h-5 mb-1" />
-              <span className="text-[11px] font-semibold truncate max-w-[72px]">
-                {tab.label(role)}
-              </span>
+              <span className="text-[11px] font-semibold truncate max-w-[72px]">{tab.label(role)}</span>
             </button>
           );
         })}

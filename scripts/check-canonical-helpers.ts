@@ -28,7 +28,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "randomSerial", owner: "src/server/lib/document-number.ts", module: "lib/document-number" },
   { name: "getDefaultTabForRole", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
   { name: "getRoleBadgeLabel", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
-  { name: "getVisibleTabsForRole", owner: "src/components/layout/AppTabsNavigation.tsx", module: "components/layout/AppTabsNavigation" },
+  { name: "getVisibleTabsForRole", owner: "src/components/layout/staff-tabs.ts", module: "components/layout/staff-tabs" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
@@ -39,7 +39,7 @@ interface CanonicalType {
 }
 
 const CANONICAL_TYPES: CanonicalType[] = [
-  { name: "ActiveTab", owner: "src/components/layout/AppTabsNavigation.tsx", module: "components/layout/AppTabsNavigation" },
+  { name: "ActiveTab", owner: "src/components/layout/staff-tabs.ts", module: "components/layout/staff-tabs" },
   { name: "StaffRole", owner: "src/server/services/access-scope.ts", module: "server/services/access-scope" },
 ];
 
