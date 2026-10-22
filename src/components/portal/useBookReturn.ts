@@ -1,20 +1,39 @@
 import { useEffect, useState } from "react";
 import { fetchBookChoices, lookupReturnableOrders, submitReturnReport } from "./portal-api";
-import type { PortalBookChoice, PortalOrderLookup } from "../../lib/portal-types";
+import { BOOK_RETURN_MAX_PHOTO_BYTES, BOOK_RETURN_MIN_QUERY } from "../../lib/book-return";
+import type { BookPackageOption, PortalBookChoice, PortalOrderLookup } from "../../lib/portal-types";
 
-/** Ambang minimum pencarian: sama dengan batas server (`lookup-order`). */
-export const BOOK_RETURN_MIN_QUERY = 3;
-export const BOOK_RETURN_MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 const MIN_REASON_CHARS = 5;
 
 type SubmitSuccess = { returnId: string; orderNumber: string };
 
+/** Buku milik pesanan: BOM paket bila ada; `[]` untuk pesanan satuan. */
+const booksFromOrder = (order: PortalOrderLookup, packages: BookPackageOption[]): PortalBookChoice[] => {
+  const items = packages.find((p) => p.id === order.packageId)?.items ?? [];
+  return items
+    .filter((it): it is { bookId: string; title: string; quantity: number } => Boolean(it.bookId))
+    .map((it) => ({ bookId: it.bookId, title: it.title }));
+};
+
+export type BookReturnFormApi = Pick<
+  ReturnType<typeof useBookReturn>,
+  | "bookChoices"
+  | "booksLoading"
+  | "booksError"
+  | "selectedBookId"
+  | "setSelectedBookId"
+  | "reason"
+  | "setReason"
+  | "photoBase64"
+  | "handlePhoto"
+  | "submitting"
+>;
+
 /**
- * State alur refund buku publik: pencarian pesanan → pilih judul + alasan +
- * foto → kirim. Hanya pesanan berstatus `picked_up` yang boleh diajukan;
- * sisanya tetap tampil dengan alasan agar ortu tahu kenapa belum bisa.
+ * State alur refund buku publik: cari pesanan → pilih buku dari paket pesanan
+ * (fallback katalog publik untuk pesanan satuan) → alasan + foto → kirim.
  */
-export function useBookReturn() {
+export function useBookReturn(packages: BookPackageOption[] = []) {
   const [schoolId, setSchoolId] = useState("");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -66,6 +85,13 @@ export function useBookReturn() {
 
   useEffect(() => {
     if (!selectedOrder) return;
+    const orderBooks = booksFromOrder(selectedOrder, packages);
+    if (orderBooks.length > 0) {
+      setBookChoices(orderBooks);
+      setBooksError(null);
+      setBooksLoading(false);
+      return;
+    }
     let cancelled = false;
     setBooksLoading(true);
     setBooksError(null);
@@ -82,18 +108,18 @@ export function useBookReturn() {
     return () => {
       cancelled = true;
     };
-  }, [selectedOrder]);
+  }, [selectedOrder, packages]);
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
     if (!file.type.startsWith("image/")) {
-      setError("Berkas bukti harus berupa gambar (JPG/PNG).");
+      setError("Berkas bukti harus berupa gambar (JPG/PNG/WebP).");
       return;
     }
     if (file.size > BOOK_RETURN_MAX_PHOTO_BYTES) {
-      setError("Ukuran foto maksimal 2 MB. Kompres atau pilih foto lain.");
+      setError("Ukuran foto melebihi batas 2 MB. Kompres atau pilih foto lain.");
       return;
     }
     const reader = new FileReader();
@@ -135,16 +161,22 @@ export function useBookReturn() {
     }
   };
 
-  const reset = () => {
+  /** Kembali ke pencarian tanpa membawa galat/form lama (`Ganti Pesanan`). */
+  const backToSearch = () => {
     setSelectedOrder(null);
-    setQuery("");
-    setOrders([]);
-    setSearched(false);
-    setError(null);
-    setBookChoices([]);
     setSelectedBookId("");
     setReason("");
     setPhotoBase64("");
+    setBookChoices([]);
+    setBooksError(null);
+    setError(null);
+  };
+
+  const reset = () => {
+    backToSearch();
+    setQuery("");
+    setOrders([]);
+    setSearched(false);
     setSuccess(null);
   };
 
@@ -157,7 +189,6 @@ export function useBookReturn() {
     searched,
     orders,
     selectedOrder,
-    setSelectedOrder,
     selectOrder,
     error,
     setError,
@@ -174,6 +205,7 @@ export function useBookReturn() {
     submitting,
     success,
     submit,
+    backToSearch,
     reset,
   };
 }

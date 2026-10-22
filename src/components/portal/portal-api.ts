@@ -5,7 +5,7 @@
  * Total optimistik tinggal di `lib/book-pricing` + `lib/transfer-pricing`,
  * resolusi paket di `lib/resolve-package`, perakitan payload di `order-payload`.
  */
-import { buildQuery, getJson, postJson } from "../../lib/api";
+import { ApiError, buildQuery, getJson, postJson } from "../../lib/api";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -100,7 +100,7 @@ export const lookupReturnableOrders = async (
       "Gagal mencari pesanan."
     );
   } catch (err) {
-    if ((err as { status?: number }).status === 404) return [];
+    if (err instanceof ApiError && err.status === 404) return [];
     throw err;
   }
 };

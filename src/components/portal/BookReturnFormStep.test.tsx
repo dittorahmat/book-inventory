@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 // Dinamis + top-level await: shim DOM harus terpasang sebelum testing-library mengikat document.
 const { cleanup, render, screen, fireEvent } = await import("@testing-library/react");
 import { BookReturnFormStep } from "./BookReturnFormStep";
+import type { BookReturnFormApi } from "./useBookReturn";
 import type { PortalBookChoice, PortalOrderLookup } from "../../lib/portal-types";
 
 afterEach(() => {
@@ -36,20 +37,25 @@ const books: PortalBookChoice[] = [
   { bookId: "book-rf-2", title: "Buku IPA Kelas 5" },
 ];
 
+const form = (overrides: Partial<BookReturnFormApi> = {}): BookReturnFormApi => ({
+  bookChoices: books,
+  booksLoading: false,
+  booksError: null,
+  selectedBookId: "",
+  setSelectedBookId: () => {},
+  reason: "",
+  setReason: () => {},
+  photoBase64: "",
+  handlePhoto: () => {},
+  submitting: false,
+  ...overrides,
+});
+
 const renderForm = (props: Partial<Parameters<typeof BookReturnFormStep>[0]> = {}) =>
   render(
     <BookReturnFormStep
       order={order}
-      bookChoices={books}
-      booksLoading={false}
-      booksError={null}
-      selectedBookId=""
-      setSelectedBookId={() => {}}
-      reason=""
-      setReason={() => {}}
-      photoBase64=""
-      onPhoto={() => {}}
-      submitting={false}
+      form={form()}
       error={null}
       onSubmit={noopSubmit}
       onBack={() => {}}
@@ -58,7 +64,7 @@ const renderForm = (props: Partial<Parameters<typeof BookReturnFormStep>[0]> = {
   );
 
 describe("BookReturnFormStep", () => {
-  it("memuat identitas pesanan dan pilihan judul buku dari katalog publik", () => {
+  it("memuat identitas pesanan dan pilihan judul buku dari paket pesanan", () => {
     renderForm();
     expect(screen.getByText("Ananda Form")).toBeTruthy();
     expect(screen.getByText(/ORD-202610-0008/)).toBeTruthy();
@@ -66,13 +72,15 @@ describe("BookReturnFormStep", () => {
   });
 
   it("menampilkan pratinjau foto setelah bukti terunggah", () => {
-    renderForm({ photoBase64: "data:image/png;base64,c2FtcGxl" });
+    renderForm({ form: form({ photoBase64: "data:image/png;base64,c2FtcGxl" }) });
     expect(screen.getByAltText("Pratinjau foto bukti kondisi buku")).toBeTruthy();
     expect(screen.getByText("Ganti Foto")).toBeTruthy();
   });
 
   it("mengunci tombol kirim saat pengiriman berjalan", () => {
-    renderForm({ submitting: true, selectedBookId: "book-rf-1", reason: "Halaman sobek" });
+    renderForm({
+      form: form({ submitting: true, selectedBookId: "book-rf-1", reason: "Halaman sobek" }),
+    });
     const submit = screen.getByRole("button", { name: /mengirim/i }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
   });
@@ -86,7 +94,7 @@ describe("BookReturnFormStep", () => {
   });
 
   it("menampilkan status memuat katalog buku", () => {
-    renderForm({ booksLoading: true });
+    renderForm({ form: form({ booksLoading: true }) });
     expect(screen.getByText(/Memuat daftar buku/i)).toBeTruthy();
   });
 });

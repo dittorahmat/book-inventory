@@ -2,14 +2,15 @@ import { RotateCcw, CheckCircle2 } from "lucide-react";
 import { useBookReturn } from "../components/portal/useBookReturn";
 import { BookReturnSearchStep } from "../components/portal/BookReturnSearchStep";
 import { BookReturnFormStep } from "../components/portal/BookReturnFormStep";
-import type { SchoolOption } from "../lib/portal-types";
+import type { BookPackageOption, SchoolOption } from "../lib/portal-types";
 
 interface PublicBookReturnViewProps {
   schools: SchoolOption[];
+  packages: BookPackageOption[];
 }
 
-export function PublicBookReturnView({ schools }: PublicBookReturnViewProps) {
-  const ret = useBookReturn();
+export function PublicBookReturnView({ schools, packages }: PublicBookReturnViewProps) {
+  const ret = useBookReturn(packages);
 
   if (ret.success) {
     return (
@@ -65,19 +66,10 @@ export function PublicBookReturnView({ schools }: PublicBookReturnViewProps) {
       ) : (
         <BookReturnFormStep
           order={ret.selectedOrder}
-          bookChoices={ret.bookChoices}
-          booksLoading={ret.booksLoading}
-          booksError={ret.booksError}
-          selectedBookId={ret.selectedBookId}
-          setSelectedBookId={ret.setSelectedBookId}
-          reason={ret.reason}
-          setReason={ret.setReason}
-          photoBase64={ret.photoBase64}
-          onPhoto={ret.handlePhoto}
-          submitting={ret.submitting}
+          form={ret}
           error={ret.error}
           onSubmit={ret.submit}
-          onBack={() => ret.setSelectedOrder(null)}
+          onBack={ret.backToSearch}
         />
       )}
     </div>

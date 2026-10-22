@@ -56,7 +56,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
       <main className="max-w-3xl w-full mx-auto px-4 py-8 flex-1">
         {/* Portal Mode Switcher */}
         <div className="flex justify-center mb-6">
-          <div className="inline-flex p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1">
+          <div className="flex flex-wrap justify-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1">
             <button
               type="button"
               onClick={() => {
@@ -308,7 +308,9 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
         {activePortalTab === "uniform_return" && <PublicUniformReturnView />}
 
         {/* ===================== TAB 4: REFUND BUKU ===================== */}
-        {activePortalTab === "book_return" && <PublicBookReturnView schools={order.schools} />}
+        {activePortalTab === "book_return" && (
+          <PublicBookReturnView schools={order.schools} packages={order.packages} />
+        )}
       </main>
 
       {/* Footer */}

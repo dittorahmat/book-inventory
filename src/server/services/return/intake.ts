@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
-import { bookReturns, studentBookOrders } from "../../../db/schema";
+import { bookPackageItems, bookReturns, studentBookOrders } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
+import { detectImageMime } from "../../../lib/book-return";
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { isOrderReportable } from "./flow";
 
@@ -33,6 +34,8 @@ export interface ReportReturnDeps {
  * tandai order `return_in_progress`. Berbagi mesin status reportable dengan
  * resolveReturn (order-fulfilment): hanya order picked_up/return_in_progress
  * yang boleh dilaporkan; seluruh tulis DB satu batch atomik (§10 D1).
+ * Sumber publik diperketat: satu pengajuan per pesanan (hanya `picked_up`),
+ * buku wajib bagian dari BOM paket, dan foto diverifikasi dari magic bytes.
  * Storage diterima di seam (default produksi) agar test memakai in-memory;
  * upload gagal-tulis dikompensasi (best-effort delete) supaya tak orphan.
  */
@@ -48,12 +51,49 @@ export async function reportReturn(
   if (!order) {
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
   }
+  if (order.studentId !== input.studentId) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Pesanan tidak sesuai dengan data siswa yang dipilih",
+    };
+  }
+  // Sumber publik hanya boleh mengajukan sekali per pesanan; staf tetap boleh
+  // menambah item retur lain dari pesanan yang sama (`return_in_progress`).
+  if (input.source === "public" && order.fulfillmentStatus !== "picked_up") {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        order.fulfillmentStatus === "return_in_progress"
+          ? "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diproses logistik."
+          : `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
+    };
+  }
   if (!isOrderReportable(order.fulfillmentStatus)) {
     return {
       ok: false,
       status: 400,
       message: `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
     };
+  }
+  // Buku yang direfund harus benar-benar bagian dari paket pesanan, bukan judul
+  // lain yang kebetulan ada di katalog. Pesanan satuan tidak punya BOM sehingga
+  // pemeriksaan ini dilewati (daftar bukunya tidak diekspos di portal).
+  if (input.source === "public" && order.packageId) {
+    const [bom] = await database
+      .select({ id: bookPackageItems.id })
+      .from(bookPackageItems)
+      .where(
+        and(
+          eq(bookPackageItems.packageId, order.packageId),
+          eq(bookPackageItems.bookId, input.defectiveBookId)
+        )
+      )
+      .limit(1);
+    if (!bom) {
+      return { ok: false, status: 400, message: "Buku yang dipilih bukan bagian dari paket pesanan ini" };
+    }
   }
 
   const store: StorageService = deps.storage ?? defaultStorage;
@@ -63,10 +103,23 @@ export async function reportReturn(
   let photoProofUrl: string | null = null;
   let photoKey: string | null = null;
   if (input.photoProofBase64) {
+    let buffer: Uint8Array;
+    try {
+      buffer = decodeBase64ToBytes(input.photoProofBase64);
+    } catch {
+      return { ok: false, status: 400, message: "Foto bukti tidak dapat dibaca, silakan unggah ulang" };
+    }
+    // Bukti publik tidak dipercaya dari content-type klien: tipe asli dibaca
+    // dari magic bytes, dan non-gambar ditolak sebelum menyentuh storage.
+    const detected = detectImageMime(buffer);
+    if (input.source === "public" && !detected) {
+      return { ok: false, status: 400, message: "Foto bukti harus berupa gambar JPG/PNG/WebP" };
+    }
+    const contentType = detected ?? "image/jpeg";
+    const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
     const prefix = input.source === "public" ? "returns/public_" : "returns/";
-    const buffer = decodeBase64ToBytes(input.photoProofBase64);
-    photoKey = `${prefix}${returnId}_${Date.now()}.jpg`;
-    photoProofUrl = await store.upload(photoKey, buffer, "image/jpeg");
+    photoKey = `${prefix}${returnId}_${Date.now()}.${extension}`;
+    photoProofUrl = await store.upload(photoKey, buffer, contentType);
   }
 
   try {

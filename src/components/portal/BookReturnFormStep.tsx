@@ -1,40 +1,31 @@
 import { ArrowLeft, ImagePlus, RotateCcw, Loader2 } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import type { PortalBookChoice, PortalOrderLookup } from "../../lib/portal-types";
+import type { BookReturnFormApi } from "./useBookReturn";
+import type { PortalOrderLookup } from "../../lib/portal-types";
 
 interface BookReturnFormStepProps {
   order: PortalOrderLookup;
-  bookChoices: PortalBookChoice[];
-  booksLoading: boolean;
-  booksError: string | null;
-  selectedBookId: string;
-  setSelectedBookId: (value: string) => void;
-  reason: string;
-  setReason: (value: string) => void;
-  photoBase64: string;
-  onPhoto: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  submitting: boolean;
+  /** State + aksi form; satu objek agar field baru tidak mengubah 3 berkas. */
+  form: BookReturnFormApi;
   error: string | null;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
 }
 
-export function BookReturnFormStep({
-  order,
-  bookChoices,
-  booksLoading,
-  booksError,
-  selectedBookId,
-  setSelectedBookId,
-  reason,
-  setReason,
-  photoBase64,
-  onPhoto,
-  submitting,
-  error,
-  onSubmit,
-  onBack,
-}: BookReturnFormStepProps) {
+export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: BookReturnFormStepProps) {
+  const {
+    bookChoices,
+    booksLoading,
+    booksError,
+    selectedBookId,
+    setSelectedBookId,
+    reason,
+    setReason,
+    photoBase64,
+    handlePhoto,
+    submitting,
+  } = form;
+
   return (
     <form onSubmit={onSubmit} className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-5">
       <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#E4E6EB]">
@@ -89,9 +80,9 @@ export function BookReturnFormStep({
       </div>
 
       <div>
-        <label htmlFor="book-return-photo" className="block text-xs font-semibold text-[#050505] mb-1">
+        <span className="block text-xs font-semibold text-[#050505] mb-1">
           Foto Kondisi Fisik Buku <span className="text-red-600">*</span>
-        </label>
+        </span>
         <div className="flex items-center gap-3">
           <label
             htmlFor="book-return-photo"
@@ -103,8 +94,9 @@ export function BookReturnFormStep({
           <input
             id="book-return-photo"
             type="file"
-            accept="image/*"
-            onChange={onPhoto}
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Foto kondisi fisik buku"
+            onChange={handlePhoto}
             className="sr-only"
           />
           {photoBase64 && (
@@ -116,7 +108,7 @@ export function BookReturnFormStep({
           )}
         </div>
         <p className="text-[11px] text-[#65676B] mt-1.5">
-          Foto jelas bagian buku yang rusak. Maksimal 2 MB (JPG/PNG).
+          Foto jelas bagian buku yang rusak. Maksimal 2 MB (JPG/PNG/WebP).
         </p>
       </div>
 

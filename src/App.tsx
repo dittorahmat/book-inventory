@@ -21,6 +21,7 @@ import { AppTabsNavigation, AppMobileNavigation, TAB_IDS, getVisibleTabsForRole,
 import { useSession, signOut } from "./lib/auth-client";
 import { isCentralRole, getDefaultTabForRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
+import { resolvePublicEntryTab } from "./lib/public-portal-url";
 import { Loader2 } from "lucide-react";
 
 const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
@@ -45,9 +46,11 @@ export function App() {
   
   // Public vs Staff View state (default to public portal if unauthenticated or visiting /order)
   const isDirectOrderUrl = typeof window !== "undefined" && (window.location.pathname === "/order" || window.location.search.includes("mode=public"));
-  const isRefundUrl = typeof window !== "undefined" && (window.location.pathname === "/refund" || window.location.search.includes("mode=refund"));
+  const publicEntryTab =
+    typeof window !== "undefined"
+      ? resolvePublicEntryTab(window.location.pathname, window.location.search)
+      : undefined;
   const payMatch = typeof window !== "undefined" ? window.location.pathname.match(/^\/bayar\/(buku|seragam)\/([^/]+)$/) : null;
-  const isDirectUniformUrl = typeof window !== "undefined" && (window.location.pathname === "/seragam" || window.location.search.includes("mode=seragam"));
   const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
@@ -116,7 +119,7 @@ export function App() {
         {seedNotice && <SeedNotice message={seedNotice} />}
         <PublicOrderView
           onNavigateToStaffLogin={() => setShowStaffLogin(true)}
-          initialTab={isRefundUrl ? "book_return" : isDirectUniformUrl ? "uniform" : undefined}
+          initialTab={publicEntryTab}
         />
       </div>
     );

@@ -1,23 +1,30 @@
 /**
  * Kanonik fetch klien: satu-satunya seam HTTP untuk view/hook/komponen.
- * Semua helper melempar Error(pesan server) agar pemanggil selalu menampilkan
- * feedback (anti silent failure). Body error mentah tersedia di
- * `(err as { body?: unknown }).body` untuk kasus khusus (mis. ref dashboard).
+ * Semua helper melempar `ApiError` (pesan server + status) agar pemanggil
+ * selalu menampilkan feedback dan bisa membedakan 404 dari kegagalan nyata.
  */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export const readJson = async (res: Response, fallback: string): Promise<any> => {
   let data: any = null;
   try {
     const text = await res.text();
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(fallback);
+    throw new ApiError(fallback, res.status, null);
   }
   if (!res.ok || !data || data.success === false) {
-    const err = new Error((data && (data.message || data.error)) || fallback);
-    // `status` ikut dibawa: pemanggil perlu membedakan "tidak ditemukan" (404)
-    // dari kegagalan nyata tanpa mencocokkan teks pesan server.
-    Object.assign(err, { body: data, status: res.status });
-    throw err;
+    throw new ApiError((data && (data.message || data.error)) || fallback, res.status, data);
   }
   return data;
 };

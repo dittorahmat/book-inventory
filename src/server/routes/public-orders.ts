@@ -19,6 +19,7 @@ import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBilling
 import { wprFeeForEligibility } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
+import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
 import { reportReturn } from "../services/return";
 import {
   searchVerifiedStudents,
@@ -284,25 +285,14 @@ const publicReturnSchema = z.object({
   reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
   photoProofBase64: z
     .string()
-    .min(1, "Foto bukti fisik buku wajib dilampirkan")
-    .max(2_800_000, "Ukuran foto maksimal 2 MB"),
+    .regex(BOOK_RETURN_PHOTO_DATA_URL, "Foto bukti harus berupa gambar JPG/PNG/WebP.")
+    .max(BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, "Ukuran foto melebihi batas 2 MB"),
 });
 
 publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
   const body = c.req.valid("json");
-  // Kepemilikan diperiksa sebelum intake: laporan tidak boleh menempel ke
-  // pesanan milik murid lain hanya karena ID-nya ditebak.
-  const [order] = await db
-    .select({ id: studentBookOrders.id, studentId: studentBookOrders.studentId })
-    .from(studentBookOrders)
-    .where(eq(studentBookOrders.id, body.orderId));
-  if (!order) {
-    return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
-  }
-  if (order.studentId !== body.studentId) {
-    return c.json({ success: false, message: "Pesanan tidak sesuai dengan data siswa yang dipilih" }, 400);
-  }
-
+  // Kepemilikan pesanan, kelayakan status, dan keanggotaan buku divalidasi di
+  // intake (satu pemilik aturan, satu baca baris order) — bukan di route.
   const result = await reportReturn(db, { ...body, source: "public" });
   if (!result.ok) {
     return c.json({ success: false, message: result.message }, result.status);

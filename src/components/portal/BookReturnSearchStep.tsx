@@ -1,5 +1,6 @@
 import { Search, RotateCcw, Info } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { bookReturnStatus } from "../../lib/book-return";
 import type { PortalOrderLookup, SchoolOption } from "../../lib/portal-types";
 
 interface BookReturnSearchStepProps {
@@ -15,23 +16,6 @@ interface BookReturnSearchStepProps {
   onSearch: (e: React.FormEvent) => void;
   onSelectOrder: (order: PortalOrderLookup) => void;
 }
-
-const isReturnable = (order: PortalOrderLookup) => order.fulfillmentStatus === "picked_up";
-
-const statusBadge = (order: PortalOrderLookup) => {
-  if (order.fulfillmentStatus === "picked_up") {
-    return { text: "Sudah diserahkan", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" };
-  }
-  if (order.fulfillmentStatus === "return_in_progress") {
-    return { text: "Refund sedang diproses", cls: "text-[#1877F2] bg-[#E7F3FF] border-[#C3DFFF]" };
-  }
-  return { text: "Belum diserahkan", cls: "text-amber-700 bg-amber-50 border-amber-200" };
-};
-
-const blockedReason = (order: PortalOrderLookup) =>
-  order.fulfillmentStatus === "return_in_progress"
-    ? "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diperiksa logistik."
-    : "Buku belum diserahkan ke siswa, jadi belum bisa diajukan refund.";
 
 export function BookReturnSearchStep({
   schools,
@@ -113,8 +97,7 @@ export function BookReturnSearchStep({
           </div>
           <div className="divide-y divide-[#E4E6EB] border border-[#E4E6EB] rounded-xl overflow-hidden">
             {orders.map((order) => {
-              const badge = statusBadge(order);
-              const returnable = isReturnable(order);
+              const status = bookReturnStatus(order.fulfillmentStatus);
               return (
                 <div
                   key={order.id}
@@ -137,17 +120,17 @@ export function BookReturnSearchStep({
                       )}
                     </div>
                     <span
-                      className={`inline-block text-[10px] font-bold uppercase tracking-wider border px-2 py-0.5 rounded-full mt-1.5 ${badge.cls}`}
+                      className={`inline-block text-[10px] font-bold uppercase tracking-wider border px-2 py-0.5 rounded-full mt-1.5 ${status.cls}`}
                     >
-                      {badge.text}
+                      {status.text}
                     </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => onSelectOrder(order)}
-                    disabled={!returnable}
-                    title={returnable ? undefined : blockedReason(order)}
+                    disabled={!status.returnable}
+                    title={status.blockedReason ?? undefined}
                     className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <RotateCcw className="w-4 h-4" />
