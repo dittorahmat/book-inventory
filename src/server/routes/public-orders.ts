@@ -19,6 +19,7 @@ import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBilling
 import { wprFeeForEligibility } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
+import { reportReturn } from "../services/return";
 import {
   searchVerifiedStudents,
   toBookSearchView,
@@ -272,4 +273,52 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   }
 
   return c.json({ success: true, data: matchedOrders });
+});
+
+// 5. Pengajuan refund buku oleh orang tua (tanpa login). Foto wajib: keputusan
+// approval logistik bergantung pada bukti fisik, jadi intake menolak tanpa foto.
+const publicReturnSchema = z.object({
+  orderId: idSchema,
+  studentId: idSchema,
+  defectiveBookId: idSchema,
+  reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
+  photoProofBase64: z
+    .string()
+    .min(1, "Foto bukti fisik buku wajib dilampirkan")
+    .max(2_800_000, "Ukuran foto maksimal 2 MB"),
+});
+
+publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
+  const body = c.req.valid("json");
+  // Kepemilikan diperiksa sebelum intake: laporan tidak boleh menempel ke
+  // pesanan milik murid lain hanya karena ID-nya ditebak.
+  const [order] = await db
+    .select({ id: studentBookOrders.id, studentId: studentBookOrders.studentId })
+    .from(studentBookOrders)
+    .where(eq(studentBookOrders.id, body.orderId));
+  if (!order) {
+    return c.json({ success: false, message: "Pesanan tidak ditemukan" }, 404);
+  }
+  if (order.studentId !== body.studentId) {
+    return c.json({ success: false, message: "Pesanan tidak sesuai dengan data siswa yang dipilih" }, 400);
+  }
+
+  const result = await reportReturn(db, { ...body, source: "public" });
+  if (!result.ok) {
+    return c.json({ success: false, message: result.message }, result.status);
+  }
+
+  return c.json(
+    {
+      success: true,
+      message:
+        "Pengajuan refund buku berhasil dikirim. Tim logistik gudang akan memverifikasi kondisi fisik buku Anda.",
+      data: {
+        returnId: result.created.id,
+        orderNumber: result.orderNumber,
+        status: result.created.status,
+      },
+    },
+    201
+  );
 });

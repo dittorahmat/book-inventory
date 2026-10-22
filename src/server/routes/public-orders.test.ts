@@ -2,10 +2,11 @@ import { describe, expect, it } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { publicOrdersRouter } from "./public-orders";
 import { submitPublicOrder } from "../services/order-intake";
-import { MemoryStorageService } from "../../services/storage";
+import { MemoryStorageService, setStorageService } from "../../services/storage";
 import { db } from "../../db";
 import {
   bookItems,
+  bookReturns,
   books,
   bookPackages,
   schools,
@@ -482,20 +483,184 @@ describe("Public Orders & Student Search API", () => {
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
 
-  it("submit-return publik dihapus: lapor rusak hanya via staf", async () => {
-    const stamp = Date.now();
-    const res = await publicOrdersRouter.request("/submit-return", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId: `ord-ghost-pub-${stamp}`,
-        studentId: `st-ghost-pub-${stamp}`,
-        defectiveBookId: `b-ghost-pub-${stamp}`,
+  it("submit-return publik: mencatat refund, menolak pesanan yang tidak layak, dan menyimpan foto bukti", async () => {
+    const stamp = () => Date.now() + Math.floor(Math.random() * 10000);
+    const now = new Date().toISOString();
+    const storage = new MemoryStorageService();
+    setStorageService(storage);
+
+    interface Seed {
+      schoolId: string;
+      studentId: string;
+      bookId: string;
+      orderId: string;
+      orderNumber: string;
+      cleanup: () => Promise<void>;
+    }
+
+    const seed = async (
+      fulfillmentStatus: "picked_up" | "waiting_preparation" = "picked_up"
+    ): Promise<Seed> => {
+      const s = stamp();
+      const schoolId = `test-rf-school-${s}`;
+      const studentId = `test-rf-student-${s}`;
+      const bookId = `test-rf-book-${s}`;
+      const orderId = `test-rf-order-${s}`;
+      const orderNumber = `ORD-RF-${s}`;
+      await db.insert(schools).values({
+        id: schoolId,
+        name: `Sekolah Refund ${s}`,
+        code: `RF-${s}`,
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId,
+        nis: `NIS-RF-${s}`,
+        name: `Murid Refund ${s}`,
+        gender: "male",
+        gradeLevel: "4",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        parentName: "Ortu Refund",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-RF-${s}`,
+        title: `Buku Refund ${s}`,
+        author: "Penulis",
+        publisher: "Penerbit",
+        price: 90000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId,
+        orderNumber,
+        studentId,
+        schoolId,
+        orderType: "regular",
+        paymentStatus: "paid",
+        fulfillmentStatus,
+        totalAmount: 90000,
+        paidAmount: 90000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return {
+        schoolId,
+        studentId,
+        bookId,
+        orderId,
+        orderNumber,
+        cleanup: async () => {
+          await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));
+          await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+          await db.delete(books).where(eq(books.id, bookId));
+          await db.delete(students).where(eq(students.id, studentId));
+          await db.delete(schools).where(eq(schools.id, schoolId));
+        },
+      };
+    };
+
+    const postReturn = (payload: Record<string, unknown>) =>
+      publicOrdersRouter.request("/submit-return", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+    // 1. Jalur bahagia: tersimpan, pesanan pindah ke return_in_progress, foto publik.
+    const ok = await seed();
+    try {
+      const res = await postReturn({
+        orderId: ok.orderId,
+        studentId: ok.studentId,
+        defectiveBookId: ok.bookId,
         reason: "Halaman 15 sampai 22 sobek dan tidak tercetak",
         photoProofBase64: "data:image/jpeg;base64,dGVzdC1mb3RvLXJ1c2Fr",
-      }),
+      });
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.data.orderNumber).toBe(ok.orderNumber);
+      expect(json.data.status).toBe("reported");
+
+      const [row] = await db.select().from(bookReturns).where(eq(bookReturns.id, json.data.returnId));
+      expect(row.status).toBe("reported");
+      expect(row.photoProofUrl).toContain("/api/media/returns/public_");
+      const proofKey = (row.photoProofUrl ?? "").replace("/api/media/", "");
+      expect(await storage.getFile(proofKey)).not.toBeNull();
+
+      const [order] = await db
+        .select()
+        .from(studentBookOrders)
+        .where(eq(studentBookOrders.id, ok.orderId));
+      expect(order.fulfillmentStatus).toBe("return_in_progress");
+    } finally {
+      await ok.cleanup();
+    }
+
+    // 2. Pesanan milik murid lain ditolak 400.
+    const owner = await seed();
+    const otherStudent = `test-rf-other-${stamp()}`;
+    try {
+      const res = await postReturn({
+        orderId: owner.orderId,
+        studentId: otherStudent,
+        defectiveBookId: owner.bookId,
+        reason: "Buku salah kirim, ingin dikembalikan",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdA==",
+      });
+      expect(res.status).toBe(400);
+    } finally {
+      await owner.cleanup();
+    }
+
+    // 3. Pesanan yang belum diserahkan ditolak 400 oleh mesin status retur.
+    const pending = await seed("waiting_preparation");
+    try {
+      const res = await postReturn({
+        orderId: pending.orderId,
+        studentId: pending.studentId,
+        defectiveBookId: pending.bookId,
+        reason: "Buku belum diterima tetapi ingin refund",
+        photoProofBase64: "data:image/jpeg;base64,dGVzdA==",
+      });
+      expect(res.status).toBe(400);
+    } finally {
+      await pending.cleanup();
+    }
+
+    // 4. Foto wajib: tanpa foto tidak pernah sampai ke intake.
+    const noPhoto = await seed();
+    try {
+      const res = await postReturn({
+        orderId: noPhoto.orderId,
+        studentId: noPhoto.studentId,
+        defectiveBookId: noPhoto.bookId,
+        reason: "Halaman robek",
+      });
+      expect(res.status).toBe(400);
+      const stored = await db.select().from(bookReturns).where(eq(bookReturns.orderId, noPhoto.orderId));
+      expect(stored).toHaveLength(0);
+    } finally {
+      await noPhoto.cleanup();
+    }
+
+    // 5. Pesanan tak dikenal 404.
+    const ghost = await postReturn({
+      orderId: `test-rf-ghost-${stamp()}`,
+      studentId: `test-rf-ghost-student-${stamp()}`,
+      defectiveBookId: `test-rf-ghost-book-${stamp()}`,
+      reason: "Pesanan tidak ada",
+      photoProofBase64: "data:image/jpeg;base64,dGVzdA==",
     });
-    expect(res.status).toBe(404);
+    expect(ghost.status).toBe(404);
   });
 });
 
