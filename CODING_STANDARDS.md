@@ -125,10 +125,10 @@ dijalankan serial oleh agent utama.
 
 | Insiden | Aturan turunan |
 |---|---|
-| 180 sekolah sampah dari QA ke production | §3 `AGENTS.md` (anti-polusi D1, `isTestSeedValue`, alarm cron) |
-| Inbound 30 eks → 500 di D1 | §4 `AGENTS.md` (chunk, batch, error mapping, uji volume) |
+| 180 sekolah sampah dari QA ke production | §6 `AGENTS.md` (anti-polusi D1, `isTestSeedValue`, alarm cron) |
+| Inbound 30 eks → 500 di D1 | §10 `AGENTS.md` (chunk, batch, error mapping, uji volume) |
 | Form refund publik menembak endpoint tak ada + endpoint staf | §0.1 (`check:api-contract`) |
 | Tab portal rusak saat menambah tab, semua gate hijau | §0.2 (nav data-driven + test) |
 | Fitur refund publik hidup seminggu tanpa pintu masuk | §0.3 (uji entry point) |
-| `});` menghapus blok salah | §9 (`AGENTS.md`) + §7 di sini |
-| Dua commit nyasar ke `main` | branch guard pre-commit |
+| `});` menghapus blok salah | §12 `AGENTS.md` + §7 di sini |
+| Dua commit nyasar ke `main` | §4.8 `AGENTS.md` + branch guard pre-commit |
