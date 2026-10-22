@@ -13,6 +13,7 @@ import type {
   NewStudentForm,
   SatuanStatus,
   PortalOrderLookup,
+  PortalBookChoice,
 } from "../../lib/portal-types";
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
@@ -103,3 +104,28 @@ export const lookupReturnableOrders = async (
     throw err;
   }
 };
+
+/** Judul buku publik (alias samaran) untuk pilihan pada form refund. */
+export const fetchBookChoices = (): Promise<PortalBookChoice[]> =>
+  getJson<PortalBookChoice[]>("/api/public/orders/book-choices", "Gagal memuat daftar buku.");
+
+export interface ReturnReportPayload {
+  orderId: string;
+  studentId: string;
+  defectiveBookId: string;
+  reason: string;
+  photoProofBase64: string;
+}
+
+export interface ReturnReportResult {
+  returnId: string;
+  orderNumber: string;
+  status: string;
+}
+
+export const submitReturnReport = (payload: ReturnReportPayload): Promise<ReturnReportResult> =>
+  postJson<ReturnReportResult>(
+    "/api/public/orders/submit-return",
+    payload,
+    "Gagal mengirimkan pengajuan refund buku."
+  );

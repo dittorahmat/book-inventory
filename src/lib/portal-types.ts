@@ -81,6 +81,12 @@ export interface PortalOrderLookup {
   handoverRecipient: string | null;
 }
 
+/** Judul buku versi publik (alias samaran, tanpa ISBN) untuk form refund. */
+export interface PortalBookChoice {
+  bookId: string;
+  title: string;
+}
+
 export interface NewStudentForm {  schoolId: string;
   name: string;
   gender: "male" | "female";

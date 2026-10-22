@@ -1,6 +1,7 @@
-import { RotateCcw, ArrowLeft, ClipboardList } from "lucide-react";
+import { RotateCcw, CheckCircle2 } from "lucide-react";
 import { useBookReturn } from "../components/portal/useBookReturn";
 import { BookReturnSearchStep } from "../components/portal/BookReturnSearchStep";
+import { BookReturnFormStep } from "../components/portal/BookReturnFormStep";
 import type { SchoolOption } from "../lib/portal-types";
 
 interface PublicBookReturnViewProps {
@@ -9,6 +10,30 @@ interface PublicBookReturnViewProps {
 
 export function PublicBookReturnView({ schools }: PublicBookReturnViewProps) {
   const ret = useBookReturn();
+
+  if (ret.success) {
+    return (
+      <div className="bg-white rounded-2xl border border-emerald-200 p-8 text-center space-y-4 shadow-xs">
+        <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+          <CheckCircle2 className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-bold text-[#050505]">Pengajuan Refund Terkirim</h2>
+        <p className="text-xs text-[#65676B] max-w-md mx-auto leading-relaxed">
+          Nomor referensi pengajuan Anda{" "}
+          <span className="font-mono font-bold text-[#050505]">{ret.success.returnId}</span> untuk pesanan{" "}
+          <span className="font-semibold text-[#050505]">{ret.success.orderNumber}</span>. Tim logistik gudang akan
+          memeriksa kondisi fisik buku sebelum menyetujui pengembalian dana.
+        </p>
+        <button
+          type="button"
+          onClick={ret.reset}
+          className="px-4 py-2 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold transition-all"
+        >
+          Ajukan Pengembalian Lain
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -38,33 +63,22 @@ export function PublicBookReturnView({ schools }: PublicBookReturnViewProps) {
           onSelectOrder={ret.selectOrder}
         />
       ) : (
-        <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-4">
-          <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#E4E6EB]">
-            <div className="min-w-0">
-              <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Pesanan Dipilih</span>
-              <div className="text-sm font-bold text-[#050505] mt-1 truncate">{ret.selectedOrder.studentName}</div>
-              <div className="text-xs text-[#65676B] mt-0.5">
-                NIS {ret.selectedOrder.nis} &bull; {ret.selectedOrder.orderNumber}
-                {ret.selectedOrder.handoverDeliveryNumber ? ` &bull; SJ ${ret.selectedOrder.handoverDeliveryNumber}` : ""}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => ret.setSelectedOrder(null)}
-              className="text-xs font-semibold text-[#1877F2] hover:underline shrink-0 flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Ganti Pesanan
-            </button>
-          </div>
-
-          <div className="p-4 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl flex items-start gap-3">
-            <ClipboardList className="w-4 h-4 text-[#65676B] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#65676B]">
-              Pesanan ini siap diajukan refund. Lanjutkan dengan memilih judul buku dan melampirkan bukti foto.
-            </p>
-          </div>
-        </div>
+        <BookReturnFormStep
+          order={ret.selectedOrder}
+          bookChoices={ret.bookChoices}
+          booksLoading={ret.booksLoading}
+          booksError={ret.booksError}
+          selectedBookId={ret.selectedBookId}
+          setSelectedBookId={ret.setSelectedBookId}
+          reason={ret.reason}
+          setReason={ret.setReason}
+          photoBase64={ret.photoBase64}
+          onPhoto={ret.handlePhoto}
+          submitting={ret.submitting}
+          error={ret.error}
+          onSubmit={ret.submit}
+          onBack={() => ret.setSelectedOrder(null)}
+        />
       )}
     </div>
   );
