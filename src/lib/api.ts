@@ -14,7 +14,9 @@ export const readJson = async (res: Response, fallback: string): Promise<any> =>
   }
   if (!res.ok || !data || data.success === false) {
     const err = new Error((data && (data.message || data.error)) || fallback);
-    (err as { body?: unknown }).body = data;
+    // `status` ikut dibawa: pemanggil perlu membedakan "tidak ditemukan" (404)
+    // dari kegagalan nyata tanpa mencocokkan teks pesan server.
+    Object.assign(err, { body: data, status: res.status });
     throw err;
   }
   return data;

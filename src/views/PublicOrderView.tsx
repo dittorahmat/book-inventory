@@ -1,7 +1,8 @@
-import { BookOpen, AlertCircle, Clock, Shirt, ArrowLeftRight } from "lucide-react";
+import { BookOpen, AlertCircle, Clock, Shirt, ArrowLeftRight, RotateCcw } from "lucide-react";
 import { usePublicOrder, type PortalTab } from "../components/portal/usePublicOrder";
 import { PublicUniformOrderView } from "./PublicUniformOrderView";
 import { PublicUniformReturnView } from "./PublicUniformReturnView";
+import { PublicBookReturnView } from "./PublicBookReturnView";
 import { StudentSearchStep } from "../components/portal/StudentSearchStep";
 import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal";
 import { OrderItemStep } from "../components/portal/OrderItemStep";
@@ -103,6 +104,22 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
             >
               <ArrowLeftRight className="w-4 h-4" />
               <span>Retur Seragam</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActivePortalTab("book_return");
+                setErrorMessage(null);
+                order.cancelNoResult();
+              }}
+              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                activePortalTab === "book_return"
+                  ? "bg-white text-[#1877F2] shadow-xs"
+                  : "text-[#65676B] hover:text-[#050505]"
+              }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Refund Buku</span>
             </button>
           </div>
         </div>
@@ -289,6 +306,9 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
 
         {/* ===================== TAB 3: RETUR SERAGAM MANDIRI ===================== */}
         {activePortalTab === "uniform_return" && <PublicUniformReturnView />}
+
+        {/* ===================== TAB 4: REFUND BUKU ===================== */}
+        {activePortalTab === "book_return" && <PublicBookReturnView schools={order.schools} />}
       </main>
 
       {/* Footer */}

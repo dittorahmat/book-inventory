@@ -9,7 +9,6 @@ import { StudentsView } from "./views/StudentsView";
 import { BookReturnsView } from "./views/BookReturnsView";
 import { ProcurementView } from "./views/ProcurementView";
 import { InternalProcurementView } from "./views/InternalProcurementView";
-import { PublicBookReturnView } from "./views/PublicBookReturnView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { PaymentConfirmView } from "./views/PaymentConfirmView";
 import { SettingsView } from "./views/SettingsView";
@@ -112,19 +111,12 @@ export function App() {
 
   // 1. If user is in Public Portal mode (or unauthenticated and hasn't chosen staff login)
   if (!session && !showStaffLogin) {
-    if (isRefundUrl) {
-      return (
-        <div className="min-h-screen bg-[#F0F2F5]">
-          <PublicBookReturnView />
-        </div>
-      );
-    }
     return (
       <div className="min-h-screen bg-[#F0F2F5]">
         {seedNotice && <SeedNotice message={seedNotice} />}
         <PublicOrderView
           onNavigateToStaffLogin={() => setShowStaffLogin(true)}
-          initialTab={isDirectUniformUrl ? "uniform" : undefined}
+          initialTab={isRefundUrl ? "book_return" : isDirectUniformUrl ? "uniform" : undefined}
         />
       </div>
     );

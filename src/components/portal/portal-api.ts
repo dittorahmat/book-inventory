@@ -12,6 +12,7 @@ import type {
   BookPackageOption,
   NewStudentForm,
   SatuanStatus,
+  PortalOrderLookup,
 } from "../../lib/portal-types";
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
@@ -82,3 +83,23 @@ export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> 
     buildQuery("/api/public/orders/wpr-eligibility", { studentId }),
     "Gagal memeriksa status WPR."
   );
+
+/**
+ * Pencarian pesanan untuk alur refund buku. Server membalas 404 saat tidak ada
+ * yang cocok; itu keadaan normal (empty state), bukan kegagalan, jadi
+ * dikembalikan sebagai daftar kosong alih-alih melempar banner galat.
+ */
+export const lookupReturnableOrders = async (
+  query: string,
+  schoolId: string
+): Promise<PortalOrderLookup[]> => {
+  try {
+    return await getJson<PortalOrderLookup[]>(
+      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId }),
+      "Gagal mencari pesanan."
+    );
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return [];
+    throw err;
+  }
+};
