@@ -172,7 +172,7 @@ const receiveShipmentSchema = z.object({
   receivedDate: z.string().optional(),
   receivedByUserId: idSchema.optional(),
   transferShipmentId: idSchema.optional(),
-  deliveryProofUrl: z.string().optional(),
+  deliveryProofUrl: z.string().min(1, "Dokumen Surat Jalan bertanda tangan dan cap basah wajib diunggah"),
   items: z.array(
     z.object({
       shipmentItemId: idSchema,

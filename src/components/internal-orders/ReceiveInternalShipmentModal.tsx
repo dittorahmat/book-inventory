@@ -19,16 +19,22 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [transferShipmentId, setTransferShipmentId] = useState("");
+  const [deliveryProofUrl, setDeliveryProofUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!deliveryProofUrl.trim()) {
+      alert("Wajib mengunggah atau menyertakan URL/bukti dokumen Surat Jalan yang sudah ditandatangani dan dicap.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const result = await postJson<{ shipmentId: string; status: string }>(
         `/api/internal-orders/shipments/${encodeURIComponent(shipment.id)}/receive`,
         {
           transferShipmentId: transferShipmentId.trim() || undefined,
+          deliveryProofUrl: deliveryProofUrl.trim(),
           items: shipment.items.map((i) => ({
             shipmentItemId: i.id,
             condition: conditions[i.id] ?? "good",
@@ -64,6 +70,22 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 p-6 text-xs">
+          <div>
+            <label className="mb-1 block font-semibold text-[#050505]">
+              Upload / Bukti Dokumen Surat Jalan Bertanda Tangan <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Contoh: https://storage.../sj-ttd-cabang.pdf atau masukkan link bukti scan"
+              value={deliveryProofUrl}
+              onChange={(e) => setDeliveryProofUrl(e.target.value)}
+              className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-[#050505]"
+            />
+            <p className="mt-1 text-[11px] text-[#65676B]">
+              Wajib menyertakan bukti scan/foto Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.
+            </p>
+          </div>
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">ID Transfer Fisik Tertaut (Opsional)</label>
             <input
