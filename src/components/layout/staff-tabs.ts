@@ -81,7 +81,7 @@ export const DESKTOP_TABS: DesktopTabItem[] = [
     id: "student_orders",
     label: () => "Pesanan Siswa",
     icon: Users,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r) || isSchoolRole(r),
   },
   {
     id: "packages",
