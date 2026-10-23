@@ -8,8 +8,8 @@ Berkas ini mengarahkan **implementasi**. Standar yang dibaca **saat review**
 
 ## 0. Mandat anti-kambuh
 
-Tiga cacat yang pernah lolos semua gate (Okt 2026). Ketiganya sekarang ditutup
-mesin, bukan disiplin:
+Aturan anti-kambuh (Okt 2026). Yang mekanis ditutup gate/tipe, bukan disiplin;
+rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 
 1. **Kontrak path API.** Setiap literal `/api/...` di klien wajib menunjuk route
    yang terdaftar, dan portal publik hanya boleh memanggil `/api/public/*`.
@@ -23,16 +23,32 @@ mesin, bukan disiplin:
    buktikan jalur yang membuka UI itu ada (tab, tautan, atau URL→tab mapping di
    `src/lib/public-portal-url.ts`) dan punya test. Komponen yang tidak bisa
    dicapai dari UI = fitur belum jadi, walau semua gate hijau.
+4. **Struk Bayar** — satu pembentuk baris (`payment-ledger`) dan satu pembaca;
+   baris `payment_receipts`/`payment_allocations` hanya lewat modul itu
+   (`check:single-writer`). Duplikat bank + referensi = 409.
+5. **Kelayakan order** — satu aturan untuk buku dan seragam
+   (`student-eligibility`); pencarian portal membawa `canOrder` yang sama dengan
+   penegakan submit.
+6. **Tab staf** — `TAB_IDS` + `STAFF_TAB_RENDERERS` berpasangan; `Record<ActiveTab,
+   …>` membuat tab tanpa renderer gagal `type-check`.
+7. **Stok seragam** — semua mutasi lewat `uniform/stock`
+   (`check:single-writer`), dengan kebijakan `require`/`create`/`skip` eksplisit.
+8. **Draf portal** — state + transisi di `useOrderDraft`; step menerima
+   `{ draft, actions }`, bukan belasan pasangan nilai/setter. Server tetap
+   otoritas validasi terakhir.
 
 ---
 
 ## 1. Post-Modification Quality Checklist
 
 1. **Loop per tiket**: `bun test <file>` untuk umpan balik cepat, lalu
-   `bun run check:fast` sebelum commit. Jangan menjalankan `check:all` setiap
-   commit — suite penuh sekali per PR. Daftar gate dan urutannya adalah field
-   `check:all` di `package.json` (CI memakai urutan yang sama di
-   `.github/workflows/checks.yml`); arti tiap gate ada di `CODING_STANDARDS.md` §1.
+   `bun run check:fast` sebelum commit. `check:fast` menjalankan
+   `scripts/check-changed.ts` untuk seluruh file berubah (gate yang sama dengan
+   pre-commit, termasuk `check:dead` dan `check:single-writer`). Jangan
+   menjalankan `check:all` setiap commit — suite penuh sekali per PR. Daftar gate
+   dan urutannya adalah field `check:all` di `package.json` (CI memakai urutan
+   yang sama di `.github/workflows/checks.yml`); arti tiap gate ada di
+   `CODING_STANDARDS.md` §1.
 2. **Skema berubah** → `bun run db:push` (lokal, idempoten; `--all` untuk DB baru)
    lalu migrasi remote D1: `bun run db:generate` → terapkan file SQL ke
    `book-inventory-db --remote` → verifikasi. Bukti tanpa tebak: `bun run check:d1-drift`
@@ -59,7 +75,9 @@ mesin, bukan disiplin:
    meniru `src/components/portal/StudentSearchStep.test.tsx` (shim `test-dom` +
    dynamic import `@testing-library/react`); `@testing-library/user-event` tidak
    terinstal.
-7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge.
+7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan
+   isi bagian **“Perubahan perilaku”** di PR (kosong untuk refactor murni; lihat
+   `CODING_STANDARDS.md` §10).
 
 ---
 
@@ -166,14 +184,18 @@ Verifikasi: `check:file-size` (diff-scoped; `--all` di CI).
   (rupiah/total), `lib/book-pricing.ts` (client-safe) + `server/services/pricing.ts`
   (server), `lib/api.ts` (fetch), `lib/staff-roles.ts`,
   `components/layout/staff-tabs.ts` (`ActiveTab`, `getVisibleTabsForRole`), dan
-  `lib/book-return.ts` (batas foto + status refund).
+  `lib/book-return.ts` (batas foto + status refund). Daftar pemilik modul baru +
+  pola tulis terlarang: `CODING_STANDARDS.md` §10; penegak mekanisnya
+  `check:canonical-helpers` + `check:single-writer`.
 - Kode mati dihapus beserta test-nya, bukan dikomentari (`check:dead`).
 - Prefer one-liner: guard/loop verbose yang setara `map`/`filter`/`reduce`/`??`/
   ternary satu baris bila perilakunya sama.
 - **Pengecualian D1**: `Promise.all` hanya untuk query BACA independen; TULIS
   wajib sekuensial atau satu `db.batch()` (§10).
-- Refactor dilarang mengubah perilaku; alias tipis dipertahankan bila public API
-  dipakai route/test.
+- Refactor dilarang mengubah perilaku. Perubahan perilaku yang disengaja wajib
+  dipisah dari refactor, dicatat di bagian “Perubahan perilaku” PR, dan dikunci
+  test skenario baru (`CODING_STANDARDS.md` §10). Alias tipis dipertahankan bila
+  public API dipakai route/test.
 
 ---
 

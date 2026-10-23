@@ -10,6 +10,7 @@ import {
 import { WPR_PRICE } from "../../lib/wpr";
 import { buildFinalOrderPayload } from "./order-payload";
 import { usePortalCatalog } from "./usePortalCatalog";
+import { useOrderDraft } from "./useOrderDraft";
 import type { LooseSelection } from "./OrderItemStep";
 import type {
   StudentSearchResult,
@@ -75,8 +76,6 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
 
   // Package & Order State
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
-  const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
-  const [scholarshipProofBase64, setScholarshipProofBase64] = useState<string>("");
 
   // Order satuan (hanya tersedia saat periode satuan dibuka; milik katalog).
   const [packageMode, setPackageMode] = useState(true);
@@ -84,20 +83,25 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
 
   const looseTotal = calcLooseOrderTotal(looseSelections, satuanBooks);
 
-  // Payment details (Regular)
-  const [paymentChoice, setPaymentChoice] = useState<"full" | "partial">("full");
-  const [transferAmount, setTransferAmount] = useState<number>(0);
-  const [bookAllocationAmount, setBookAllocationAmount] = useState<number>(0);
-  const [bankName, setBankName] = useState("BCA");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [paymentProofBase64, setPaymentProofBase64] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [homeAddress, setHomeAddress] = useState("");
-  const [paketKirim, setPaketKirim] = useState(false);
+  // Draf pembayaran: satu modul pemilik state + transisi (useOrderDraft).
+  const { draft, actions: draftActions } = useOrderDraft(WPR_PRICE);
+  const {
+    orderType,
+    scholarshipProofBase64,
+    transferAmount,
+    bookAllocationAmount,
+    bankName,
+    referenceNumber,
+    paymentProofBase64,
+    notes,
+    homeAddress,
+    paketKirim,
+    hasTakenPackage,
+    wprPrice,
+  } = draft;
+  const { setPaketKirim, setHasTakenPackage, setWprPrice, setAmounts } = draftActions;
 
   // WPR satuan buku: jawaban paket (default dari server) + biaya estimasi.
-  const [hasTakenPackage, setHasTakenPackage] = useState<boolean | null>(null);
-  const [wprPrice, setWprPrice] = useState(WPR_PRICE);
   const [wprLoading, setWprLoading] = useState(false);
   const wprFee = !packageMode && hasTakenPackage === false ? wprPrice : 0;
 
@@ -126,17 +130,15 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     if (nextId === selectedPackageId) return;
     setSelectedPackageId(nextId);
     if (matched && transferAmount === 0 && bookAllocationAmount === 0) {
-      setTransferAmount(matched.price);
-      setBookAllocationAmount(matched.price);
+      setAmounts(matched.price, matched.price);
     }
-  }, [packages, selectedStudent, step, selectedPackageId, transferAmount, bookAllocationAmount]);
+  }, [packages, selectedStudent, step, selectedPackageId, transferAmount, bookAllocationAmount, setAmounts]);
 
   const applyLockedPackage = (st: StudentSearchResult) => {
     const matched = resolveLockedPackage(st, packages);
     if (matched) {
       setSelectedPackageId(matched.id);
-      setTransferAmount(matched.price);
-      setBookAllocationAmount(matched.price);
+      setAmounts(matched.price, matched.price);
     } else {
       setSelectedPackageId("");
     }
@@ -168,7 +170,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
       })
       .catch(() => setHasTakenPackage(false))
       .finally(() => setWprLoading(false));
-  }, [selectedStudent, satuanOpen]);
+  }, [selectedStudent, satuanOpen, setHasTakenPackage, setWprPrice]);
 
   useEffect(() => {
     if (catalog.loadError) setErrorMessage(catalog.loadError);
@@ -336,14 +338,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     selectedPackageId, selectedPackage,
     satuanOpen, satuanBooks, packageMode, setPackageMode,
     looseSelections, looseTotal, handleLooseQuantityChange, resetLooseSelection,
-    orderType, setOrderType, scholarshipProofBase64, setScholarshipProofBase64,
-    paymentChoice, setPaymentChoice, transferAmount, setTransferAmount,
-    bookAllocationAmount, setBookAllocationAmount, bankName, setBankName,
-    referenceNumber, setReferenceNumber, paymentProofBase64, setPaymentProofBase64,
-    notes, setNotes,
-    homeAddress, setHomeAddress,
-    paketKirim, setPaketKirim,
-    hasTakenPackage, setHasTakenPackage, wprFee, wprPrice, wprLoading,
+    draft, draftActions, wprFee, wprLoading,
     isSubmitting, errorMessage, setErrorMessage, submittedOrder,
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,

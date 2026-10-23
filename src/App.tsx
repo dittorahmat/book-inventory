@@ -1,31 +1,17 @@
-import { useState, useEffect, useCallback, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { School } from "./types";
-import { CatalogView } from "./views/CatalogView";
-import { InventoryView } from "./views/InventoryView";
-import { PackagesView } from "./views/PackagesView";
-import { StudentOrdersView } from "./views/StudentOrdersView";
-import { UniformView } from "./views/UniformView";
-import { StudentsView } from "./views/StudentsView";
-import { BookReturnsView } from "./views/BookReturnsView";
-import { ProcurementView } from "./views/ProcurementView";
-import { InternalProcurementView } from "./views/InternalProcurementView";
 import { PublicOrderView } from "./views/PublicOrderView";
 import { PaymentConfirmView } from "./views/PaymentConfirmView";
-import { SettingsView } from "./views/SettingsView";
-import { SalesReportView } from "./views/SalesReportView";
-import { ReconciliationView } from "./views/ReconciliationView";
 import { LoginView } from "./views/LoginView";
-import { DashboardLoadingFallback } from "./views/DashboardFallback";
 import { AppHeader } from "./components/layout/AppHeader";
 import { AppTabsNavigation, AppMobileNavigation } from "./components/layout/AppTabsNavigation";
 import { TAB_IDS, getVisibleTabsForRole, type ActiveTab } from "./components/layout/staff-tabs";
+import { STAFF_TAB_RENDERERS } from "./components/layout/staff-tab-views";
 import { useSession, signOut } from "./lib/auth-client";
 import { isCentralRole, getDefaultTabForRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
 import { resolvePublicEntryTab } from "./lib/public-portal-url";
 import { Loader2 } from "lucide-react";
-
-const DashboardView = lazy(() => import("./views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
 function SeedNotice({ message }: { message: string }) {
   return (
@@ -181,54 +167,19 @@ export function App() {
 
       {seedNotice && <SeedNotice message={seedNotice} />}
 
-      {/* Main Content Area */}
+      {/* Main Content Area — satu renderer per tab dari registry kanonik. */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">
-        {activeTab === "dashboard" && (
-          <Suspense fallback={<DashboardLoadingFallback />}>
-            <DashboardView
-              activeSchool={selectedSchool}
-              isCentralAdmin={isCentralAdmin}
-              onNavigateTab={(tab) => {
-                if ((TAB_IDS as readonly string[]).includes(tab)) setActiveTab(tab as ActiveTab);
-              }}
-            />
-          </Suspense>
-        )}
-        {activeTab === "student_orders" && <StudentOrdersView activeSchool={selectedSchool} />}
-        {activeTab === "uniforms" && (
-          <UniformView
-            schools={schools}
-            activeSchool={selectedSchool}
-            userRole={userRole}
-            userSchoolId={userSchoolId}
-          />
-        )}
-        {activeTab === "students" && <StudentsView activeSchool={selectedSchool} />}
-        {activeTab === "packages" && <PackagesView activeSchool={selectedSchool} />}
-        {activeTab === "procurement" && <ProcurementView activeSchool={selectedSchool} userRole={userRole} />}
-        {activeTab === "internal_orders" && (
-          <InternalProcurementView
-            activeSchool={selectedSchool}
-            schools={schools}
-            userRole={userRole}
-            userSchoolId={userSchoolId}
-          />
-        )}
-        {activeTab === "returns" && <BookReturnsView activeSchool={selectedSchool} />}
-        {activeTab === "inventory" && <InventoryView activeSchool={selectedSchool} />}
-        {activeTab === "catalog" && <CatalogView />}
-        {activeTab === "reconciliation" && (
-          <ReconciliationView activeSchool={selectedSchool} schools={schools} isCentralAdmin={isCentralAdmin} />
-        )}
-        {activeTab === "reports" && (
-          <SalesReportView
-            schools={schools}
-            lockedSchoolId={isCentralAdmin ? null : currentUser?.schoolId ?? null}
-          />
-        )}
-        {activeTab === "settings" && isCentralAdmin && (
-          <SettingsView onSchoolsUpdated={() => loadSchools()} />
-        )}
+        {STAFF_TAB_RENDERERS[activeTab]({
+          activeSchool: selectedSchool,
+          schools,
+          userRole,
+          userSchoolId,
+          isCentralAdmin,
+          onSchoolsUpdated: loadSchools,
+          onNavigateTab: (tab) => {
+            if ((TAB_IDS as readonly string[]).includes(tab)) setActiveTab(tab as ActiveTab);
+          },
+        })}
       </main>
 
       {/* Bottom Navigation Bar for Mobile (< md) */}

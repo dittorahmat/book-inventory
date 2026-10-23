@@ -7,7 +7,6 @@ import {
   uniformStock,
   uniformPackages,
   uniformPackageBom,
-  uniformPackageStock,
   uniformPos,
   uniformPoItems,
 } from "../../../db/schema";
@@ -21,6 +20,7 @@ import {
 } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { KAIN_SIZE, type UniformError } from "./catalog";
+import { adjustPackageStockQuery, adjustVariantStockQuery, setVariantStockQuery } from "./stock";
 
 export interface UniformSupplyDeps extends WriteDeps {
   generatePoNumber?: (nowIso: string) => string;
@@ -165,15 +165,12 @@ export async function receiveUniformPo(
       .update(uniformPoItems)
       .set({ quantityReceived: target.quantityReceived + line.quantity })
       .where(eq(uniformPoItems.id, target.id));
-    const [stock] = await database
-      .select()
-      .from(uniformStock)
-      .where(and(eq(uniformStock.variantId, line.variantId), eq(uniformStock.size, size)));
-    if (stock) {
-      await database.update(uniformStock).set({ quantity: stock.quantity + line.quantity, updatedAt: now }).where(eq(uniformStock.id, stock.id));
-    } else {
-      await database.insert(uniformStock).values({ id: newWriteId(deps), variantId: line.variantId, size, quantity: line.quantity, updatedAt: now });
-    }
+    await adjustVariantStockQuery(
+      database,
+      { variantId: line.variantId, size, delta: line.quantity },
+      "create",
+      { now }
+    );
     remainingByKey.set(`${line.variantId}::${size}`, remaining - line.quantity);
   }
   const done = [...remainingByKey.values()].every((r) => r === 0);
@@ -205,16 +202,16 @@ export async function adjustManualStock(
       .where(and(eq(uniformSizes.variantId, variant.id), eq(uniformSizes.size, size)));
     if (allowed.length === 0) return invalid(`Size ${size} tidak terdaftar untuk varian tersebut.`);
   }
-  const [stock] = await database
-    .select()
-    .from(uniformStock)
-    .where(and(eq(uniformStock.variantId, input.variantId), eq(uniformStock.size, size)));
-  const nextQty = stock ? (input.mode === "add" ? stock.quantity + input.quantity : input.quantity) : input.quantity;
   try {
-    if (stock) {
-      await database.update(uniformStock).set({ quantity: nextQty, updatedAt: now }).where(eq(uniformStock.id, stock.id));
+    if (input.mode === "add") {
+      await adjustVariantStockQuery(
+        database,
+        { variantId: input.variantId, size, delta: input.quantity },
+        "create",
+        { now }
+      );
     } else {
-      await database.insert(uniformStock).values({ id: newWriteId(deps), variantId: input.variantId, size, quantity: nextQty, updatedAt: now });
+      await setVariantStockQuery(database, { variantId: input.variantId, size, quantity: input.quantity }, { now });
     }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penyesuaian stok manual");
@@ -251,12 +248,16 @@ export async function assembleUniformPackages(
     .where(eq(uniformPackageBom.packageId, packageId));
   if (bom.length === 0) return invalid("Paket belum punya BOM.");
 
-  const need = new Map<string, { size: string; qty: number }>();
+  const need = new Map<string, { variantId: string; size: string; qty: number }>();
   for (const line of bom) {
     const size = line.size !== KAIN_SIZE ? line.size : line.kind === "kain_harian" ? KAIN_SIZE : (sizeOverrides?.[line.variantId]?.trim() || "");
     if (!size) return invalid("Size olahraga wajib dipilih saat merakit (BOM memakai —).");
     const key = `${line.variantId}::${size}`;
-    need.set(key, { size, qty: (need.get(key)?.qty ?? 0) + line.quantity * quantity });
+    need.set(key, {
+      variantId: line.variantId,
+      size,
+      qty: (need.get(key)?.qty ?? 0) + line.quantity * quantity,
+    });
   }
   const stocks: Array<typeof uniformStock.$inferSelect> = await database.select().from(uniformStock);
   const qtyByKey = new Map<string, typeof uniformStock.$inferSelect>(
@@ -266,16 +267,14 @@ export async function assembleUniformPackages(
     if ((qtyByKey.get(key)?.quantity ?? 0) < n.qty) return invalid("Stok komponen tidak cukup untuk merakit.");
   }
   // Tulis sekuensial (§10): kurangi komponen lalu tambah stok paket.
-  for (const [key, n] of need) {
-    const row = qtyByKey.get(key);
-    if (!row) continue;
-    await database.update(uniformStock).set({ quantity: row.quantity - n.qty, updatedAt: now }).where(eq(uniformStock.id, row.id));
+  for (const n of need.values()) {
+    await adjustVariantStockQuery(
+      database,
+      { variantId: n.variantId, size: n.size, delta: -n.qty },
+      "require",
+      { now }
+    );
   }
-  const [ready] = await database.select().from(uniformPackageStock).where(eq(uniformPackageStock.packageId, packageId));
-  if (ready) {
-    await database.update(uniformPackageStock).set({ quantity: ready.quantity + quantity, updatedAt: now }).where(eq(uniformPackageStock.id, ready.id));
-  } else {
-    await database.insert(uniformPackageStock).values({ id: newWriteId(deps), packageId, quantity, updatedAt: now });
-  }
+  await adjustPackageStockQuery(database, { packageId, delta: quantity }, "create", { now });
   return { ok: true, data: { packageId, quantityAssembled: quantity } };
 }

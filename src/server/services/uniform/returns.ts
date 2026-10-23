@@ -7,7 +7,6 @@ import {
   uniformOrders,
   uniformOrderItems,
   uniformPackageBom,
-  uniformPackageStock,
   uniformExchanges,
   uniformRefunds,
 } from "../../../db/schema";
@@ -20,6 +19,7 @@ import {
 } from "../../lib/d1-write";
 import { documentNumber, randomSerial } from "../../lib/document-number";
 import type { UniformError } from "./catalog";
+import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 
 /** Batas tukar ukuran (hari sejak order dibuat). */
 export const EXCHANGE_WINDOW_DAYS = 14;
@@ -151,17 +151,20 @@ export async function resolveUniformExchange(
     .from(uniformStock)
     .where(and(eq(uniformStock.variantId, ex.newVariantId), eq(uniformStock.size, ex.newSize)));
   if (!fresh || fresh.quantity < 1) return invalid("Stok size pengganti habis.");
-  const [oldStock] = await database
-    .select()
-    .from(uniformStock)
-    .where(and(eq(uniformStock.variantId, ex.oldVariantId), eq(uniformStock.size, ex.oldSize)));
-  const writes: unknown[] = [
-    database.update(uniformStock).set({ quantity: fresh.quantity - 1, updatedAt: now }).where(eq(uniformStock.id, fresh.id)),
-    oldStock
-      ? database.update(uniformStock).set({ quantity: oldStock.quantity + 1, updatedAt: now }).where(eq(uniformStock.id, oldStock.id))
-      : database.insert(uniformStock).values({ id: newWriteId(deps), variantId: ex.oldVariantId, size: ex.oldSize, quantity: 1, updatedAt: now }),
-  ];
-  await runWriteBatch(database, writes);
+  await runWriteBatch(database, [
+    adjustVariantStockQuery(
+      database,
+      { variantId: ex.newVariantId, size: ex.newSize, delta: -1 },
+      "require",
+      { now }
+    ),
+    adjustVariantStockQuery(
+      database,
+      { variantId: ex.oldVariantId, size: ex.oldSize, delta: 1 },
+      "create",
+      { now }
+    ),
+  ]);
   return setStatus("completed");
 }
 
@@ -232,20 +235,20 @@ export async function resolveUniformRefund(
     .where(eq(uniformOrderItems.orderId, rf.orderId));
   for (const item of items) {
     if (item.variantId) {
-      const [stock] = await database
-        .select()
-        .from(uniformStock)
-        .where(and(eq(uniformStock.variantId, item.variantId), eq(uniformStock.size, item.size)));
-      if (stock) {
-        await database.update(uniformStock).set({ quantity: stock.quantity + item.quantity, updatedAt: now }).where(eq(uniformStock.id, stock.id));
-      } else {
-        await database.insert(uniformStock).values({ id: newWriteId(deps), variantId: item.variantId, size: item.size, quantity: item.quantity, updatedAt: now });
-      }
+      await adjustVariantStockQuery(
+        database,
+        { variantId: item.variantId, size: item.size, delta: item.quantity },
+        "create",
+        { now }
+      );
     } else if (item.packageId) {
-      const [ready] = await database.select().from(uniformPackageStock).where(eq(uniformPackageStock.packageId, item.packageId));
-      if (ready) {
-        await database.update(uniformPackageStock).set({ quantity: ready.quantity + item.quantity, updatedAt: now }).where(eq(uniformPackageStock.id, ready.id));
-      }
+      // Paket refund tidak membuat baris stok paket yang hilang (perilaku lama).
+      await adjustPackageStockQuery(
+        database,
+        { packageId: item.packageId, delta: item.quantity },
+        "skip",
+        { now }
+      );
     }
   }
   return setStatus("refunded");

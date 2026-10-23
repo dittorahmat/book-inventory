@@ -197,31 +197,9 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                         wprFee: order.wprFee,
                       })
                 }
-                orderType={order.orderType}
-                setOrderType={order.setOrderType}
-                scholarshipProofBase64={order.scholarshipProofBase64}
-                setScholarshipProofBase64={order.setScholarshipProofBase64}
-                paymentChoice={order.paymentChoice}
-                setPaymentChoice={order.setPaymentChoice}
-                transferAmount={order.transferAmount}
-                setTransferAmount={order.setTransferAmount}
-                bookAllocationAmount={order.bookAllocationAmount}
-                setBookAllocationAmount={order.setBookAllocationAmount}
-                bankName={order.bankName}
-                setBankName={order.setBankName}
-                referenceNumber={order.referenceNumber}
-                setReferenceNumber={order.setReferenceNumber}
-                paymentProofBase64={order.paymentProofBase64}
-                setPaymentProofBase64={order.setPaymentProofBase64}
-                notes={order.notes}
-                setNotes={order.setNotes}
+                draft={order.draft}
+                actions={order.draftActions}
                 isSatuan={!order.packageMode}
-                homeAddress={order.homeAddress}
-                setHomeAddress={order.setHomeAddress}
-                paketKirim={order.paketKirim}
-                setPaketKirim={order.setPaketKirim}
-                hasTakenPackage={order.hasTakenPackage}
-                setHasTakenPackage={order.setHasTakenPackage}
                 wprFee={order.wprFee}
                 wprLoading={order.wprLoading}
                 isSubmitting={order.isSubmitting}

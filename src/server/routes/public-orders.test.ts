@@ -1620,3 +1620,70 @@ describe("Klaim bukti transfer = pending sampai verifikasi gudang", () => {
     }
   });
 });
+
+describe("Struk bayar ganda di intake publik", () => {
+  it("bank + nomor referensi yang sama ditolak 409, bukan 400 generik", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-dup-${stamp}`;
+    const studentId = `st-dup-${stamp}`;
+    const pkgId = `pkg-dup-${stamp}`;
+    const referenceNumber = `DUP-REF-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Duplikat", code: `ALW-DUP-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-DUP-${stamp}`, name: "Siswa Duplikat",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", parentName: "Ortu", parentPhone: "081200000000",
+      createdAt: now, updatedAt: now,
+    });
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-DUP-${stamp}`, name: "Paket Duplikat",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      price: 100000, createdAt: now, updatedAt: now,
+    });
+    const payload = {
+      studentId,
+      packageId: pkgId,
+      orderType: "regular",
+      payment: {
+        transferAmount: 100000,
+        bookAllocationAmount: 100000,
+        bankName: "BCA",
+        referenceNumber,
+        paymentProofBase64: "data:image/jpeg;base64,ZHVwLXByb29m",
+      },
+    };
+    try {
+      const first = await publicOrdersRouter.request("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(first.status).toBe(201);
+
+      const second = await publicOrdersRouter.request("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(second.status).toBe(409);
+      expect((await second.json()).message).toMatch(/referensi/i);
+    } finally {
+      const orders = await db
+        .select({ id: studentBookOrders.id })
+        .from(studentBookOrders)
+        .where(eq(studentBookOrders.studentId, studentId));
+      await deleteReceiptsForOrders(orders.map((order: { id: string }) => order.id));
+      for (const order of orders) {
+        await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, order.id));
+        await db.delete(studentBookOrders).where(eq(studentBookOrders.id, order.id));
+      }
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+});

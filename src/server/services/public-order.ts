@@ -3,7 +3,7 @@ import type { AppDatabase } from "../../db";
 import { schools, students } from "../../db/schema";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { validateStudentForOrder } from "./order-intake/validation";
-import { paymentRowStatus } from "./order-payment-review";
+import { paymentRowStatus } from "./payment-ledger";
 import { toEligibilityView } from "./student-lifecycle";
 
 /**
@@ -93,9 +93,14 @@ export interface UniformSearchView {
   schoolName: string;
   parentName: string | null;
   parentPhone: string | null;
+  detectedStatus: "naik_kelas" | "aktif" | "baru";
+  currentGradeLevel: string;
+  targetGradeLevel: string;
+  canOrder: boolean;
+  orderBlockedReason: string | null;
 }
 
-/** Bentuk baris portal seragam: subset kolom yang sama persis dengan sebelumnya. */
+/** Bentuk baris portal seragam: kolom yang sama persis dengan sebelumnya + kelayakan. */
 export const toUniformSearchView = (row: VerifiedStudentRow): UniformSearchView => ({
   id: row.id,
   nis: row.nis,
@@ -108,6 +113,7 @@ export const toUniformSearchView = (row: VerifiedStudentRow): UniformSearchView 
   schoolName: row.schoolName,
   parentName: row.parentName,
   parentPhone: row.parentPhone,
+  ...toEligibilityView(row, validateStudentForOrder(row)),
 });
 
 /** Ringkasan klaim transfer ortu untuk banner portal (terbaru lebih dulu). */

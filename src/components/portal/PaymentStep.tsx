@@ -8,34 +8,13 @@ import type {
 import { PackageBreakdown } from "./PackageBreakdown";
 import { WprQuestion } from "./WprQuestion";
 import { allocationForChoice, draftRemainder, validateAllocation } from "./order-draft";
+import type { OrderDraft, OrderDraftActions } from "./useOrderDraft";
 
 interface PaymentStepProps {
   pkg: BookPackageOption;
-  orderType: "regular" | "scholarship";
-  setOrderType: (val: "regular" | "scholarship") => void;
-  scholarshipProofBase64: string;
-  setScholarshipProofBase64: (val: string) => void;
-  paymentChoice: "full" | "partial";
-  setPaymentChoice: (val: "full" | "partial") => void;
-  transferAmount: number;
-  setTransferAmount: (val: number) => void;
-  bookAllocationAmount: number;
-  setBookAllocationAmount: (val: number) => void;
-  bankName: string;
-  setBankName: (val: string) => void;
-  referenceNumber: string;
-  setReferenceNumber: (val: string) => void;
-  paymentProofBase64?: string;
-  setPaymentProofBase64: (val: string) => void;
-  notes: string;
-  setNotes: (val: string) => void;
+  draft: OrderDraft;
+  actions: OrderDraftActions;
   isSatuan?: boolean;
-  homeAddress?: string;
-  setHomeAddress?: (val: string) => void;
-  paketKirim?: boolean;
-  setPaketKirim?: (val: boolean) => void;
-  hasTakenPackage?: boolean | null;
-  setHasTakenPackage?: (val: boolean) => void;
   wprFee?: number;
   wprLoading?: boolean;
   isSubmitting: boolean;
@@ -46,29 +25,9 @@ interface PaymentStepProps {
 
 export function PaymentStep({
   pkg,
-  orderType,
-  setOrderType,
-  scholarshipProofBase64,
-  setScholarshipProofBase64,
-  paymentChoice,
-  setPaymentChoice,
-  transferAmount,
-  setTransferAmount,
-  bookAllocationAmount,
-  setBookAllocationAmount,
-  bankName,
-  setBankName,
-  referenceNumber,
-  setReferenceNumber,
-  paymentProofBase64,
-  setPaymentProofBase64,
-  notes,
-  setNotes,
+  draft,
+  actions,
   isSatuan,
-  homeAddress,
-  setHomeAddress,
-  hasTakenPackage,
-  setHasTakenPackage,
   wprFee,
   wprLoading,
   isSubmitting,
@@ -76,6 +35,32 @@ export function PaymentStep({
   onBack,
   onSubmit,
 }: PaymentStepProps) {
+  const {
+    orderType,
+    scholarshipProofBase64,
+    paymentChoice,
+    transferAmount,
+    bookAllocationAmount,
+    bankName,
+    referenceNumber,
+    paymentProofBase64,
+    notes,
+    homeAddress,
+    hasTakenPackage,
+  } = draft;
+  const {
+    setOrderType,
+    setScholarshipProofBase64,
+    setPaymentChoice,
+    setTransferAmount,
+    setBookAllocationAmount,
+    setBankName,
+    setReferenceNumber,
+    setPaymentProofBase64,
+    setNotes,
+    setHomeAddress,
+    setHasTakenPackage,
+  } = actions;
   const allocationCheck = validateAllocation({
     transferAmount,
     allocationAmount: bookAllocationAmount,
@@ -303,7 +288,7 @@ export function PaymentStep({
       {isSatuan && (
         <WprQuestion
           hasTakenPackage={hasTakenPackage ?? null}
-          setHasTakenPackage={setHasTakenPackage ?? (() => {})}
+          setHasTakenPackage={setHasTakenPackage}
           wprFee={wprFee ?? 0}
           wprLoading={wprLoading ?? false}
         />

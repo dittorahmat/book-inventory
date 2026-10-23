@@ -103,6 +103,11 @@ export function useUniformOrder() {
   };
 
   const selectStudent = async (s: UniformStudent) => {
+    // Kelayakan milik server (aturan yang sama dengan submit buku & seragam).
+    if (s.canOrder === false) {
+      setError(s.orderBlockedReason ?? "Data siswa masih menunggu verifikasi admin sekolah.");
+      return;
+    }
     setStudent(s);
     setLoadingCatalog(true);
     setError(null);

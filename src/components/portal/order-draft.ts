@@ -1,4 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { allocationViolation } from "../../lib/order-allocation";
 import type { BookPackageOption, StudentSearchResult } from "../../lib/portal-types";
 import type { LooseSelection } from "./OrderItemStep";
 
@@ -34,16 +35,21 @@ export const validateAllocation = (input: {
   allocationAmount: number;
   bookTotal: number;
 }): AllocationCheck => {
-  if (input.allocationAmount < 1) {
+  const violation = allocationViolation({
+    allocationAmount: input.allocationAmount,
+    transferAmount: input.transferAmount,
+    billAmount: input.bookTotal,
+  });
+  if (violation === "below_minimum") {
     return { ok: false, message: "Alokasi untuk buku minimal Rp 1." };
   }
-  if (input.allocationAmount > input.bookTotal) {
+  if (violation === "above_bill") {
     return {
       ok: false,
       message: `Alokasi ${formatRupiah(input.allocationAmount)} melebihi total tagihan ${formatRupiah(input.bookTotal)}.`,
     };
   }
-  if (input.transferAmount > 0 && input.allocationAmount > input.transferAmount) {
+  if (violation === "above_receipt") {
     return {
       ok: false,
       message: `Alokasi ${formatRupiah(input.allocationAmount)} melebihi total struk ${formatRupiah(input.transferAmount)}.`,

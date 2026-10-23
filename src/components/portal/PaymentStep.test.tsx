@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 const { cleanup, render, screen } = await import("@testing-library/react");
 import { PaymentStep } from "./PaymentStep";
 import type { BookPackageOption } from "../../lib/portal-types";
+import type { OrderDraft, OrderDraftActions } from "./useOrderDraft";
 
 afterEach(() => {
   cleanup();
@@ -22,29 +23,47 @@ const samplePkg: BookPackageOption = {
 
 const noop = () => {};
 
+const actions: OrderDraftActions = {
+  setOrderType: noop,
+  setScholarshipProofBase64: noop,
+  setPaymentChoice: noop,
+  setTransferAmount: noop,
+  setBookAllocationAmount: noop,
+  setBankName: noop,
+  setReferenceNumber: noop,
+  setPaymentProofBase64: noop,
+  setNotes: noop,
+  setHomeAddress: noop,
+  setPaketKirim: noop,
+  setHasTakenPackage: noop,
+  setWprPrice: noop,
+  setAmounts: noop,
+};
+
+const draft = (overrides: Partial<OrderDraft> = {}): OrderDraft => ({
+  orderType: "regular",
+  scholarshipProofBase64: "",
+  paymentChoice: "full",
+  transferAmount: 900000,
+  bookAllocationAmount: 900000,
+  bankName: "BCA",
+  referenceNumber: "REF123",
+  paymentProofBase64: "",
+  notes: "",
+  homeAddress: "",
+  paketKirim: false,
+  hasTakenPackage: null,
+  wprPrice: 0,
+  ...overrides,
+});
+
 describe("PaymentStep", () => {
   it("does not render 'Kirim ke rumah' option for package orders", () => {
     render(
       <PaymentStep
         pkg={samplePkg}
-        orderType="regular"
-        setOrderType={noop}
-        scholarshipProofBase64=""
-        setScholarshipProofBase64={noop}
-        paymentChoice="full"
-        setPaymentChoice={noop}
-        transferAmount={900000}
-        setTransferAmount={noop}
-        bookAllocationAmount={900000}
-        setBookAllocationAmount={noop}
-        bankName="BCA"
-        setBankName={noop}
-        referenceNumber="REF123"
-        setReferenceNumber={noop}
-        paymentProofBase64=""
-        setPaymentProofBase64={noop}
-        notes=""
-        setNotes={noop}
+        draft={draft()}
+        actions={actions}
         isSatuan={false}
         isSubmitting={false}
         onFileUpload={noop}
@@ -61,24 +80,8 @@ describe("PaymentStep", () => {
     const { rerender } = render(
       <PaymentStep
         pkg={samplePkg}
-        orderType="regular"
-        setOrderType={noop}
-        scholarshipProofBase64=""
-        setScholarshipProofBase64={noop}
-        paymentChoice="full"
-        setPaymentChoice={noop}
-        transferAmount={900000}
-        setTransferAmount={noop}
-        bookAllocationAmount={900000}
-        setBookAllocationAmount={noop}
-        bankName="BCA"
-        setBankName={noop}
-        referenceNumber="REF123"
-        setReferenceNumber={noop}
-        paymentProofBase64=""
-        setPaymentProofBase64={noop}
-        notes=""
-        setNotes={noop}
+        draft={draft()}
+        actions={actions}
         isSatuan={false}
         isSubmitting={false}
         onFileUpload={noop}
@@ -93,24 +96,8 @@ describe("PaymentStep", () => {
     rerender(
       <PaymentStep
         pkg={samplePkg}
-        orderType="regular"
-        setOrderType={noop}
-        scholarshipProofBase64=""
-        setScholarshipProofBase64={noop}
-        paymentChoice="full"
-        setPaymentChoice={noop}
-        transferAmount={900000}
-        setTransferAmount={noop}
-        bookAllocationAmount={900000}
-        setBookAllocationAmount={noop}
-        bankName="BCA"
-        setBankName={noop}
-        referenceNumber="REF123"
-        setReferenceNumber={noop}
-        paymentProofBase64="data:image/png;base64,sampleproof"
-        setPaymentProofBase64={noop}
-        notes=""
-        setNotes={noop}
+        draft={draft({ paymentProofBase64: "data:image/png;base64,sampleproof" })}
+        actions={actions}
         isSatuan={false}
         isSubmitting={false}
         onFileUpload={noop}
