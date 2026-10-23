@@ -22,6 +22,18 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
   const [deliveryProofUrl, setDeliveryProofUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDeliveryProofUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deliveryProofUrl.trim()) {
@@ -72,19 +84,24 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
         <form onSubmit={handleSubmit} className="space-y-4 p-6 text-xs">
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">
-              Upload / Bukti Dokumen Surat Jalan Bertanda Tangan <span className="text-red-500">*</span>
+              Upload Dokumen Surat Jalan Bertanda Tangan & Cap <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
+              type="file"
+              accept="image/*,.pdf"
               required
-              placeholder="Contoh: https://storage.../sj-ttd-cabang.pdf atau masukkan link bukti scan"
-              value={deliveryProofUrl}
-              onChange={(e) => setDeliveryProofUrl(e.target.value)}
-              className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-[#050505]"
+              onChange={handleFileUpload}
+              className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
             />
-            <p className="mt-1 text-[11px] text-[#65676B]">
-              Wajib menyertakan bukti scan/foto Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.
-            </p>
+            {deliveryProofUrl ? (
+              <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+                ✓ Berkas Surat Jalan bertanda tangan telah siap diunggah
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-[#65676B]">
+                Wajib unggah scan/foto dokumen Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">ID Transfer Fisik Tertaut (Opsional)</label>

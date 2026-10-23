@@ -36,6 +36,18 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 8. **Draf portal** — state + transisi di `useOrderDraft`; step menerima
    `{ draft, actions }`, bukan belasan pasangan nilai/setter. Server tetap
    otoritas validasi terakhir.
+9. **Lokasi & Branch Roaming Gudang** — header (`AppHeader.tsx`) tetap badge
+   identitas murni tanpa mutasi global lokasi transaksi; pemilihan cabang untuk
+   role gudang/logistik dilakukan di tingkat view/tab transaksi spesifik (filter
+   view, form pengiriman, dan selector query), bukan menimpa state penugasan akun.
+10. **Integritas Skema & Anti-String-Packing** — data terstruktur domain (seperti
+    nomor WA manual, tautan dokumen finance) wajib dialokasikan di kolom skema
+    resmi atau objek terstruktur, dilarang dipadatkan (packed) ke dalam string
+    catatan bebas (`notes`) dengan tag parsing darurat (`[WA: ...]`).
+11. **Disiplin Validasi Bukti Dokumen** — input bukti dokumen (seperti Surat Jalan
+    atau surat rekomendasi) wajib menyediakan alur upload file (data-URL/blob/storage)
+    dan penambahan validasi wajib tidak boleh merusak pemanggil lama tanpa migrasi
+    lengkap di diff yang sama.
 
 ---
 

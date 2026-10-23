@@ -4,10 +4,7 @@ import { getRoleBadgeLabel, type StaffRole } from "../../lib/staff-roles";
 
 interface AppHeaderProps {
   selectedSchool: School | null;
-  schools?: School[];
-  onSelectSchool?: (school: School | null) => void;
   isCentralAdmin: boolean;
-  canSelectBranch?: boolean;
   userRole?: StaffRole;
   userName: string;
   onOpenPublicPortal: () => void;
@@ -16,10 +13,7 @@ interface AppHeaderProps {
 
 export function AppHeader({
   selectedSchool,
-  schools = [],
-  onSelectSchool,
   isCentralAdmin,
-  canSelectBranch = false,
   userRole,
   userName,
   onOpenPublicPortal,
@@ -46,35 +40,13 @@ export function AppHeader({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Assigned location badge or Branch Selector for central/logistics */}
-          {canSelectBranch && onSelectSchool ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/15 rounded-xl text-xs font-semibold text-white border border-white/30">
-              <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
-              <select
-                aria-label="Pilih Cabang"
-                className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer [&>option]:text-black"
-                value={selectedSchool?.id ?? "all"}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onSelectSchool(val === "all" ? null : schools.find((s) => s.id === val) ?? null);
-                }}
-              >
-                <option value="all">Semua Cabang (Global)</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
-              <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
-              <span className="truncate max-w-[110px] sm:max-w-none">
-                {selectedSchool?.name || "Assigned Branch"}
-              </span>
-            </div>
-          )}
+          {/* Assigned location badge (read-only invariant per AGENTS.md §3.4) */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
+            <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
+            <span className="truncate max-w-[110px] sm:max-w-none">
+              {selectedSchool?.name || "Assigned Branch"}
+            </span>
+          </div>
 
           {/* User Badge & Logout */}
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/25">
