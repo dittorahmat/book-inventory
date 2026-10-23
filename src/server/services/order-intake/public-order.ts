@@ -287,13 +287,9 @@ export async function submitPublicOrder(
         homeAddressSnapshot: input.homeAddress?.trim() ? input.homeAddress.trim() : null,
         satuanShipmentStatus: "belum_dikirim",
         scholarshipProofUrl,
-        notes: [
-          input.notes || null,
-          input.parentPhoneManual ? `[WA: ${input.parentPhoneManual}]` : null,
-          financeProofUrl ? `[Surat Finance: ${financeProofUrl}]` : null,
-        ]
-          .filter(Boolean)
-          .join(" ") || null,
+        financeProofUrl,
+        parentPhoneManual: input.parentPhoneManual?.trim() || null,
+        notes: input.notes || null,
         createdAt: now,
         updatedAt: now,
       }),
