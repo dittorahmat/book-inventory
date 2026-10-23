@@ -16,7 +16,7 @@ describe("PortalTabs", () => {
     // Daftar literal (bukan PUBLIC_TABS) supaya penambahan/penghapusan tab
     // memaksa perubahan test ini — itulah gunanya gate.
     expect(buttons.map((b) => b.textContent?.trim())).toEqual([
-      "Formulir Pesan Buku",
+      "Konfirmasi Pembayaran Buku",
       "Pesan Seragam",
       "Retur Seragam",
       "Refund Buku",
@@ -34,7 +34,7 @@ describe("PortalTabs", () => {
     render(<PortalTabs activeTab="book_return" onSelect={onSelect} />);
 
     expect(screen.getByRole("button", { name: /refund buku/i }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: /formulir pesan buku/i }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("button", { name: /konfirmasi pembayaran buku/i }).getAttribute("aria-current")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /retur seragam/i }));
     expect(onSelect).toHaveBeenCalledWith("uniform_return");

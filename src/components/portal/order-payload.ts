@@ -11,6 +11,8 @@ export interface OrderTotalsInput {
   looseTotal: number;
   orderType: "regular" | "scholarship";
   scholarshipProofBase64: string;
+  financeProofBase64?: string;
+  parentPhoneManual?: string;
   transferAmount: number;
   bookAllocationAmount: number;
   bankName: string;
@@ -68,6 +70,8 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
     ...(input.homeAddress?.trim() ? { homeAddress: input.homeAddress.trim() } : {}),
     orderType: input.orderType,
     notes: input.notes.trim() || undefined,
+    ...(input.parentPhoneManual?.trim() ? { parentPhoneManual: input.parentPhoneManual.trim() } : {}),
+    ...(input.financeProofBase64 ? { financeProofBase64: input.financeProofBase64 } : {}),
     ...(input.orderType === "scholarship" ? { scholarshipProofBase64: input.scholarshipProofBase64 } : {}),
     ...(input.orderType === "regular" && input.bookAllocationAmount > 0
       ? {
