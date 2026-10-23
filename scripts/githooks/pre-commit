@@ -29,37 +29,7 @@ if [ -z "$IN_PROGRESS" ] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
   esac
 fi
 
-CHANGED=$(git diff --cached --name-only --diff-filter=ACM)
-# `has <regex>`: true bila ada file staged yang cocok. Empty CHANGED = tidak ada
-# yang cocok, sehingga gate bersyarat dilewati (mis. commit amend kosong).
-has() { [ -n "$CHANGED" ] && printf '%s\n' "$CHANGED" | grep -Eq "$1"; }
-
-STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx')
-if [ -n "$STAGED_TS" ]; then
-  echo "$STAGED_TS" | xargs npx eslint
-fi
-
-bun run type-check
-bun run check:imports
-bun run check:api-contract
-bun run check:lanes
-
-if has '^src/'; then
-  bun run check:file-size
-  bun run check:no-any
-  bun run check:canonical-helpers
-  bun run check:dead
-  bun run check:doc-numbers
-fi
-
-if has '^(src/server/|src/db/|drizzle/)'; then
-  bun run check:route-tests
-  bun run check:validators
-  bun run check:d1-writes
-  bun run check:d1-error-mapping
-  bun run check:plans
-fi
-
-if has '^(src/.*\.test\.tsx?$|src/test-dom|test/|bunfig\.toml)'; then
-  bun run check:test-isolation
-fi
+# Seluruh gate file berubah (eslint staged, type-check, gate kondisional) ada di
+# satu skrip yang juga dipakai `check:fast`, supaya loop cepat tidak pernah lebih
+# longgar dari pre-commit.
+bun scripts/check-changed.ts --staged

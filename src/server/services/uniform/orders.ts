@@ -25,6 +25,8 @@ import { validateHomeAddress } from "../../../lib/home-address";
 import { defaultStorage } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import { emitChargeQuery } from "../branch-charges";
+import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligibility";
+import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 
@@ -71,8 +73,9 @@ export async function submitUniformOrder(
 
   const [student] = await database.select().from(students).where(eq(students.id, payload.studentId));
   if (!student) return { ok: false, status: 404, message: "Murid tidak ditemukan." };
-  if (student.status === "new_pending" || student.status === "rejected") {
-    return invalid("Murid belum terverifikasi admin sekolah.");
+  const eligibility = evaluateStudentEligibility(student);
+  if (!eligibility.ok) {
+    return { ok: false, status: eligibilityStatus(eligibility.reason), message: eligibility.message };
   }
   const schoolId: string = student.schoolId;
   const isScholarship = payload.orderType === "scholarship";
@@ -162,18 +165,20 @@ export async function submitUniformOrder(
   const readyByPkg = new Map(ready.map((r) => [r.packageId, r.quantity]));
   const stocks: Array<typeof uniformStock.$inferSelect> = await database.select().from(uniformStock);
   const stockByKey = new Map(stocks.map((s) => [`${s.variantId}::${s.size}`, s]));
-  const needSatuan = new Map<string, number>();
+  const needSatuan = new Map<string, { variantId: string; size: string; qty: number }>();
   for (const item of payload.items) {
     const qty = item.quantity ?? 1;
     if (item.packageId) {
       if ((readyByPkg.get(item.packageId) ?? 0) < qty) return invalid("Stok paket rakitan belum cukup — hubungi admin gudang.");
     } else if (item.variantId) {
-      const key = `${item.variantId}::${item.size?.trim() || KAIN_SIZE}`;
-      needSatuan.set(key, (needSatuan.get(key) ?? 0) + qty);
+      const size = item.size?.trim() || KAIN_SIZE;
+      const key = `${item.variantId}::${size}`;
+      const current = needSatuan.get(key);
+      needSatuan.set(key, { variantId: item.variantId, size, qty: (current?.qty ?? 0) + qty });
     }
   }
-  for (const [key, qty] of needSatuan) {
-    if ((stockByKey.get(key)?.quantity ?? 0) < qty) return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
+  for (const [key, need] of needSatuan) {
+    if ((stockByKey.get(key)?.quantity ?? 0) < need.qty) return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
   }
 
   // Total + baris order (beasiswa/free: total 0 menunggu verifikasi).
@@ -246,12 +251,17 @@ export async function submitUniformOrder(
         if (item.packageId) needPaket.set(item.packageId, (needPaket.get(item.packageId) ?? 0) + (item.quantity ?? 1));
       }
       for (const [packageId, qty] of needPaket) {
-        const row = ready.find((r) => r.packageId === packageId);
-        if (row) queries.push(database.update(uniformPackageStock).set({ quantity: row.quantity - qty, updatedAt: now }).where(eq(uniformPackageStock.id, row.id)));
+        queries.push(adjustPackageStockQuery(database, { packageId, delta: -qty }, "require", { now }));
       }
-      for (const [key, qty] of needSatuan) {
-        const row = stockByKey.get(key);
-        if (row) queries.push(database.update(uniformStock).set({ quantity: row.quantity - qty, updatedAt: now }).where(eq(uniformStock.id, row.id)));
+      for (const need of needSatuan.values()) {
+        queries.push(
+          adjustVariantStockQuery(
+            database,
+            { variantId: need.variantId, size: need.size, delta: -need.qty },
+            "require",
+            { now }
+          )
+        );
       }
       // Batch di-chunk per 10 query agar aman di limit D1, urutan FK terjaga.
       for (const group of chunkRows(queries, 10)) await runWriteBatch(database, group);

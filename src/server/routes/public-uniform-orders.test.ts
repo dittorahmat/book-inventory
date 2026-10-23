@@ -116,7 +116,7 @@ describe("Portal seragam publik", () => {
     expect(noSchool.status).toBe(400);
   });
 
-  it("search seragam mengembalikan subset kolom yang sama persis (tanpa bocor eligibility buku)", async () => {
+  it("search seragam mengembalikan kolom kanonik termasuk kelayakan order", async () => {
     const stamp = `w${Date.now()}`;
     const { schoolId } = await seedSchoolStudent(stamp);
     const ok = await publicUniformOrdersRouter.request(
@@ -125,7 +125,7 @@ describe("Portal seragam publik", () => {
     expect(ok.status).toBe(200);
     const rows = (await ok.json()).data as Array<Record<string, unknown>>;
     expect(rows.length).toBeGreaterThan(0);
-    const whitelist = ["id", "nis", "name", "gender", "gradeLevel", "academicYear", "status", "schoolId", "schoolName", "parentName", "parentPhone"].sort();
+    const whitelist = ["id", "nis", "name", "gender", "gradeLevel", "academicYear", "status", "schoolId", "schoolName", "parentName", "parentPhone", "detectedStatus", "currentGradeLevel", "targetGradeLevel", "canOrder", "orderBlockedReason"].sort();
     for (const row of rows) {
       expect(Object.keys(row).sort()).toEqual(whitelist);
     }

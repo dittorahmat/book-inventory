@@ -1,20 +1,16 @@
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { paymentAllocations, paymentReceipts, studentBookOrders, uniformOrders } from "../../db/schema";
-import {
-  chunkRows,
-  d1WriteErrorStatus,
-  runWriteBatch,
-  writeNow,
-  type WriteDeps,
-} from "../lib/d1-write";
-import { invoiceTotal } from "./order-invoice";
+import { dueOf } from "../../lib/order-money";
+import { allocationViolation } from "../../lib/order-allocation";
+import { chunkRows } from "../lib/d1-write";
 
 /**
- * Satu-satunya penulis Struk Bayar + Alokasi. Uang masuk dicatat sekali per
- * struk (identitas: bank + nomor referensi), lalu dipecah ke beberapa order.
- * `paidAmount` order diturunkan dari jumlah alokasi terverifikasi, bukan
- * ditambah bertahap — supaya angka tidak bisa melenceng dari barisnya.
+ * Satu-satunya modul Struk Bayar + Alokasi: membentuk baris (kernel
+ * `buildReceiptDraft`), membaca join per order, dan menurunkan kredit/status.
+ * Uang masuk dicatat sekali per struk (identitas: bank + nomor referensi), lalu
+ * dipecah ke beberapa order. `paidAmount` order diturunkan dari jumlah alokasi
+ * terverifikasi, bukan ditambah bertahap — supaya angka tidak melenceng.
  */
 
 export type PaymentKind = "buku" | "seragam";
@@ -31,6 +27,8 @@ export interface AllocationInput {
   orderId: string;
   kind: PaymentKind;
   amount: number;
+  /** Tagihan order (barang + ongkir) untuk plafon alokasi; default nominal struk. */
+  billAmount?: number;
 }
 
 export interface ReceiptInput {
@@ -57,6 +55,19 @@ export const orderTableFor = (kind: PaymentKind) => (kind === "buku" ? studentBo
 /** Status turunan dari angka, bukan dari state sebelumnya. Beasiswa tetap apa adanya. */
 export const deriveStatus = (orderType: string, paid: number, due: number): "unpaid" | "partial" | "paid" | null =>
   orderType === "scholarship" ? null : paid <= 0 ? "unpaid" : paid >= due ? "paid" : "partial";
+
+/**
+ * Satu-satunya tempat menghitung due + status bayar dari angka. `paymentStatus`
+ * sebelumnya dipertahankan saat beasiswa (deriveStatus = null), dan tipe aslinya
+ * ikut terbawa agar buku/seragam tidak perlu cast.
+ */
+export const creditParts = <S extends string>(
+  order: { orderType: string; totalAmount: number; shippingCost?: number | null; paymentStatus: S },
+  paidAmount: number
+): { due: number; paymentStatus: S | "unpaid" | "partial" | "paid" } => {
+  const due = dueOf(order);
+  return { due, paymentStatus: deriveStatus(order.orderType, paidAmount, due) ?? order.paymentStatus };
+};
 
 /** Jumlah alokasi terverifikasi untuk satu order — sumber kebenaran `paidAmount`. */
 export const verifiedAllocationSum = async (
@@ -93,8 +104,7 @@ export const recomputeOrderPayment = async (
   if (kind === "buku") {
     const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
     if (!order) return notFound("Pesanan tidak ditemukan.");
-    const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
-    const paymentStatus = deriveStatus(order.orderType, paidAmount, due) ?? order.paymentStatus;
+    const { due, paymentStatus } = creditParts(order, paidAmount);
     await database
       .update(studentBookOrders)
       .set({ paidAmount, paymentStatus, updatedAt: now })
@@ -103,8 +113,7 @@ export const recomputeOrderPayment = async (
   }
   const [order] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   if (!order) return notFound("Pesanan tidak ditemukan.");
-  const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
-  const paymentStatus = deriveStatus(order.orderType, paidAmount, due) ?? order.paymentStatus;
+  const { due, paymentStatus } = creditParts(order, paidAmount);
   await database
     .update(uniformOrders)
     .set({ paidAmount, paymentStatus, updatedAt: now })
@@ -112,44 +121,55 @@ export const recomputeOrderPayment = async (
   return { ok: true, kind: "seragam", orderId, paidAmount, paymentStatus, due };
 };
 
-const receiptNumberConflict = (err: unknown): boolean => {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /UNIQUE/i.test(msg) && /payment_receipts/i.test(msg);
-};
+export type ReceiptRow = typeof paymentReceipts.$inferInsert;
+export type AllocationRow = typeof paymentAllocations.$inferInsert;
 
-/** Catat satu struk + alokasinya secara atomik. */
-export const recordReceipt = async (
-  database: AppDatabase,
+export interface ReceiptDraft {
+  receiptId: string;
+  receipt: ReceiptRow;
+  allocations: AllocationRow[];
+}
+
+export interface ReceiptDraftOptions {
+  /** Bentuk id alokasi pemanggil; default kanonik `<receiptId>-<kind>-<orderId>`. */
+  allocationId?: (allocation: AllocationInput) => string;
+}
+
+/**
+ * Satu-satunya pembentuk baris Struk Bayar + Alokasi (ADR-0012). Murni:
+ * validasi nominal, dedupe, dan plafon alokasi tinggal di sini; penulisan
+ * batch tetap milik pemanggil agar order + struk tetap atomik.
+ */
+export const buildReceiptDraft = (
   input: ReceiptInput,
-  deps?: WriteDeps
-): Promise<{ ok: true; receiptId: string } | LedgerError> => {
-  const now = writeNow(deps);
-  const receiptId = deps?.generateId ? deps.generateId() : crypto.randomUUID();
+  now: string,
+  receiptId: string,
+  options?: ReceiptDraftOptions
+): { ok: true; draft: ReceiptDraft } | LedgerError => {
   if (!Number.isInteger(input.amount) || input.amount < 1) return invalid("Nominal struk wajib angka bulat >= 1.");
   if (input.allocations.length === 0) return invalid("Alokasi wajib diisi minimal satu order.");
-
   const seen = new Set<string>();
   for (const allocation of input.allocations) {
     if (!Number.isInteger(allocation.amount) || allocation.amount < 1) return invalid("Nominal alokasi wajib angka bulat >= 1.");
+    const violation = allocationViolation({
+      allocationAmount: allocation.amount,
+      transferAmount: input.amount,
+      billAmount: allocation.billAmount ?? input.amount,
+    });
+    if (violation === "above_bill") return invalid("Nominal alokasi melebihi total tagihan order.");
+    if (violation === "above_receipt") return invalid("Total alokasi melebihi nominal struk.");
     const key = `${allocation.kind}:${allocation.orderId}`;
     if (seen.has(key)) return invalid("Satu order hanya boleh muncul sekali dalam satu struk.");
     seen.add(key);
   }
-  const allocated = input.allocations.reduce((sum, a) => sum + a.amount, 0);
+  const allocated = input.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
   if (allocated > input.amount) return invalid("Total alokasi melebihi nominal struk.");
 
-  const allocationRows = input.allocations.map((allocation) => ({
-    id: `${receiptId}-${allocation.kind}-${allocation.orderId}`,
-    receiptId,
-    orderId: allocation.orderId,
-    kind: allocation.kind,
-    amount: allocation.amount,
-    createdAt: now,
-  }));
-
-  try {
-    await runWriteBatch(database, [
-      database.insert(paymentReceipts).values({
+  return {
+    ok: true,
+    draft: {
+      receiptId,
+      receipt: {
         id: receiptId,
         studentId: input.studentId,
         schoolId: input.schoolId,
@@ -164,20 +184,85 @@ export const recordReceipt = async (
         createdByUserId: input.createdByUserId ?? null,
         createdAt: now,
         updatedAt: now,
-      }),
-      ...chunkRows(allocationRows).map((rows) => database.insert(paymentAllocations).values(rows)),
-    ]);
-  } catch (err) {
-    if (receiptNumberConflict(err)) {
-      return {
-        ok: false,
-        status: 409,
-        message: "Bukti transfer dengan bank + nomor referensi ini sudah pernah dicatat.",
-      };
-    }
-    const mapped = d1WriteErrorStatus(err, "pencatatan struk bayar");
-    if (mapped) return { ok: false, status: 400, message: mapped.message };
-    throw err;
-  }
-  return { ok: true, receiptId };
+      },
+      allocations: input.allocations.map((allocation) => ({
+        id: options?.allocationId?.(allocation) ?? `${receiptId}-${allocation.kind}-${allocation.orderId}`,
+        receiptId,
+        orderId: allocation.orderId,
+        kind: allocation.kind,
+        amount: allocation.amount,
+        createdAt: now,
+      })),
+    },
+  };
+};
+
+/**
+ * Query insert kanonik untuk satu draft struk. Pemanggil menempelkannya ke
+ * batch atomiknya sendiri (order + struk), jadi hanya modul ini yang merakit
+ * pasangan tabel `payment_receipts`/`payment_allocations`.
+ */
+export const receiptWriteQueries = (database: AppDatabase, draft: ReceiptDraft) => [
+  database.insert(paymentReceipts).values(draft.receipt),
+  ...chunkRows(draft.allocations).map((rows) => database.insert(paymentAllocations).values(rows)),
+];
+
+/** Duplikat identitas struk (bank + nomor referensi) = 409, bukan 400 generik. */
+export const receiptNumberConflict = (err: unknown): boolean => {
+  const message = err instanceof Error ? err.message : String(err);
+  return /UNIQUE/i.test(message) && /payment_receipts/i.test(message);
+};
+
+/** Siklus hidup struk: rejected > verified > pending. Murni. */
+export type PaymentRowStatus = "pending" | "verified" | "rejected";
+
+export const paymentRowStatus = (payment: { verifiedAt: string | null; rejectedAt: string | null }): PaymentRowStatus =>
+  payment.rejectedAt ? "rejected" : payment.verifiedAt ? "verified" : "pending";
+
+/** Baris review: satu alokasi + struk induknya. */
+export interface ListPaymentRow {
+  id: string;
+  orderId: string;
+  transferAmount: number;
+  allocationAmount: number;
+  bankName: string | null;
+  referenceNumber: string | null;
+  paymentProofUrl: string | null;
+  verifiedAt: string | null;
+  rejectedAt: string | null;
+  rejectReason: string | null;
+  notes: string | null;
+  createdAt: string;
+  status: PaymentRowStatus;
+}
+
+/**
+ * Satu-satunya pembaca Struk Bayar + Alokasi per order. Join ini dipakai
+ * riwayat pembayaran dan tautan konfirmasi; dilarang disalin ke modul lain.
+ */
+export const listPaymentRows = async (
+  database: AppDatabase,
+  kind: PaymentKind,
+  orderId: string
+): Promise<ListPaymentRow[]> => {
+  const rows = await database
+    .select({
+      id: paymentReceipts.id,
+      orderId: paymentAllocations.orderId,
+      allocationAmount: paymentAllocations.amount,
+      transferAmount: paymentReceipts.amount,
+      bankName: paymentReceipts.bankName,
+      referenceNumber: paymentReceipts.referenceNumber,
+      paymentProofUrl: paymentReceipts.proofUrl,
+      verifiedAt: paymentReceipts.verifiedAt,
+      rejectedAt: paymentReceipts.rejectedAt,
+      rejectReason: paymentReceipts.rejectReason,
+      notes: paymentReceipts.notes,
+      createdAt: paymentReceipts.createdAt,
+    })
+    .from(paymentAllocations)
+    .innerJoin(paymentReceipts, eq(paymentReceipts.id, paymentAllocations.receiptId))
+    .where(and(eq(paymentAllocations.kind, kind), eq(paymentAllocations.orderId, orderId)))
+    .orderBy(desc(paymentReceipts.createdAt));
+  return rows.map((row) => ({ ...row, status: paymentRowStatus(row) }));
 };

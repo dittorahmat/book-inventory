@@ -1,8 +1,6 @@
-import { and, eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
-  paymentAllocations,
-  paymentReceipts,
   studentBookOrders,
   studentOrderItems,
   students,
@@ -10,16 +8,18 @@ import {
   uniformOrders,
 } from "../../db/schema";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { invoiceTotal } from "../../lib/order-money";
 import { decodeBase64ToBytes } from "../base64";
 import { defaultStorage, type StorageService } from "../../services/storage";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
+import { buildReceiptDraft, listPaymentRows, receiptNumberConflict, receiptWriteQueries, type PaymentKind } from "./payment-ledger";
 import { MetaWhatsAppSender, type WhatsAppSender } from "./whatsapp";
 
-export type InvoiceError = { ok: false; status: 400 | 404; message: string };
+export { invoiceTotal };
+
+export type InvoiceError = { ok: false; status: 400 | 404 | 409; message: string };
 
 const invalid = (message: string): InvoiceError => ({ ok: false, status: 400, message });
-
-export const invoiceTotal = (totalAmount: number, shippingCost: number): number => totalAmount + shippingCost;
 
 export const buildInvoiceText = (input: {
   studentName: string;
@@ -173,17 +173,29 @@ const uploadProof = async (storage: StorageService, prefix: string, orderId: str
 interface ConfirmKind {
   errorContext: string;
   proofPrefix: string;
+  paymentKind: PaymentKind;
+  notes: string;
 }
 
-const BOOK_CONFIRM: ConfirmKind = { errorContext: "konfirmasi pembayaran buku", proofPrefix: "payments" };
-const UNIFORM_CONFIRM: ConfirmKind = { errorContext: "konfirmasi pembayaran seragam", proofPrefix: "uniform-payments" };
+const BOOK_CONFIRM: ConfirmKind = {
+  errorContext: "konfirmasi pembayaran buku",
+  proofPrefix: "payments",
+  paymentKind: "buku",
+  notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
+};
+const UNIFORM_CONFIRM: ConfirmKind = {
+  errorContext: "konfirmasi pembayaran seragam",
+  proofPrefix: "uniform-payments",
+  paymentKind: "seragam",
+  notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
+};
 
 /**
  * Satu-satunya inti klaim pembayaran orang tua: validasi → bukti → catat
  * baris pembayaran PENDING saja. Klaim TIDAK menyentuh paidAmount/paymentStatus
  * order — uang baru sah setelah staf gudang memverifikasi (lihat
  * `order-payment-review`). Status order yang dikembalikan = status saat ini
- * (tak berubah). Kind hanya menyumbang prefix bukti.
+ * (tak berubah). Kind hanya menyumbang prefix bukti + jenis alokasi.
  */
 const confirmPaymentCore = async (
   database: AppDatabase,
@@ -191,7 +203,6 @@ const confirmPaymentCore = async (
   token: string,
   input: ConfirmPaymentInput,
   kind: ConfirmKind,
-  recordPayment: (order: { id: string; studentId: string; schoolId: string }, url: string | null, now: string) => unknown[],
   deps?: ConfirmDeps
 ): Promise<{ ok: true; data: { paymentStatus: string; paidAmount: number } } | InvoiceError> => {
   const bad = checkConfirmInput(input);
@@ -203,12 +214,35 @@ const confirmPaymentCore = async (
   if (order.paymentStatus === "paid") {
     return invalid("Pesanan ini sudah lunas diverifikasi gudang. Pengajuan bukti baru tidak diperlukan.");
   }
+  const due = invoiceTotal(order.totalAmount, order.shippingCost ?? 0);
   const { url, key } = await uploadProof(storage, kind.proofPrefix, order.id, input.paymentProofBase64);
+  const receiptId = crypto.randomUUID();
+  const built = buildReceiptDraft(
+    {
+      studentId: order.studentId,
+      schoolId: order.schoolId,
+      amount: input.transferAmount,
+      allocations: [
+        { orderId: order.id, kind: kind.paymentKind, amount: input.allocationAmount, billAmount: due },
+      ],
+      bankName: input.bankName,
+      referenceNumber: input.referenceNumber,
+      proofUrl: url,
+      notes: kind.notes,
+    },
+    now,
+    receiptId,
+    { allocationId: (allocation) => `${receiptId}-${allocation.kind}` }
+  );
+  if (!built.ok) return built;
   try {
-    await runWriteBatch(database, recordPayment(order, url, now));
+    await runWriteBatch(database, receiptWriteQueries(database, built.draft));
     return { ok: true, data: { paymentStatus: order.paymentStatus, paidAmount: order.paidAmount } };
   } catch (err) {
     if (key) { try { await storage.delete(key); } catch { /* best-effort */ } }
+    if (receiptNumberConflict(err)) {
+      return { ok: false, status: 409, message: "Bukti transfer dengan bank + nomor referensi ini sudah pernah dicatat." };
+    }
     const mapped = d1WriteErrorStatus(err, kind.errorContext);
     if (mapped) return { ok: false, ...mapped } as InvoiceError;
     throw err;
@@ -221,32 +255,7 @@ export async function confirmBookPayment(
   input: ConfirmPaymentInput,
   deps?: ConfirmDeps
 ): Promise<{ ok: true; data: { paymentStatus: string; paidAmount: number } } | InvoiceError> {
-  return confirmPaymentCore(
-    database,
-    studentBookOrders,
-    token,
-    input,
-    BOOK_CONFIRM,
-    (order, url, now) => {
-      const receiptId = crypto.randomUUID();
-      return [
-        database.insert(paymentReceipts).values({
-          id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
-          amount: input.transferAmount,
-          bankName: input.bankName?.trim() || "Tanpa Bank",
-          referenceNumber: input.referenceNumber?.trim() || null,
-          proofUrl: url, receivedAt: now,
-          notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
-          createdAt: now, updatedAt: now,
-        }),
-        database.insert(paymentAllocations).values({
-          id: `${receiptId}-buku`, receiptId, orderId: order.id, kind: "buku",
-          amount: input.allocationAmount, createdAt: now,
-        }),
-      ];
-    },
-    deps
-  );
+  return confirmPaymentCore(database, studentBookOrders, token, input, BOOK_CONFIRM, deps);
 }
 
 export async function confirmUniformPayment(
@@ -255,61 +264,16 @@ export async function confirmUniformPayment(
   input: ConfirmPaymentInput,
   deps?: ConfirmDeps
 ): Promise<{ ok: true; data: { paymentStatus: string; paidAmount: number } } | InvoiceError> {
-  return confirmPaymentCore(
-    database,
-    uniformOrders,
-    token,
-    input,
-    UNIFORM_CONFIRM,
-    (order, url, now) => {
-      const receiptId = crypto.randomUUID();
-      return [
-        database.insert(paymentReceipts).values({
-          id: receiptId, studentId: order.studentId, schoolId: order.schoolId,
-          amount: input.transferAmount,
-          bankName: input.bankName?.trim() || "Tanpa Bank",
-          referenceNumber: input.referenceNumber?.trim() || null,
-          proofUrl: url, receivedAt: now,
-          notes: "Konfirmasi via link pembayaran (menunggu verifikasi gudang)",
-          createdAt: now, updatedAt: now,
-        }),
-        database.insert(paymentAllocations).values({
-          id: `${receiptId}-seragam`, receiptId, orderId: order.id, kind: "seragam",
-          amount: input.allocationAmount, createdAt: now,
-        }),
-      ];
-    },
-    deps
-  );
+  return confirmPaymentCore(database, uniformOrders, token, input, UNIFORM_CONFIRM, deps);
 }
 
 /** Struk + porsi alokasi yang menyentuh satu order (terbaru lebih dulu). */
-const receiptsForOrder = (database: AppDatabase, kind: "buku" | "seragam", orderId: string) =>
-  database
-    .select({
-      id: paymentReceipts.id,
-      transferAmount: paymentReceipts.amount,
-      allocationAmount: paymentAllocations.amount,
-      paymentProofUrl: paymentReceipts.proofUrl,
-      bankName: paymentReceipts.bankName,
-      referenceNumber: paymentReceipts.referenceNumber,
-      verifiedAt: paymentReceipts.verifiedAt,
-      rejectedAt: paymentReceipts.rejectedAt,
-      rejectReason: paymentReceipts.rejectReason,
-      notes: paymentReceipts.notes,
-      createdAt: paymentReceipts.createdAt,
-    })
-    .from(paymentAllocations)
-    .innerJoin(paymentReceipts, eq(paymentReceipts.id, paymentAllocations.receiptId))
-    .where(and(eq(paymentAllocations.kind, kind), eq(paymentAllocations.orderId, orderId)))
-    .orderBy(desc(paymentReceipts.createdAt));
-
 export async function lookupBookByToken(database: AppDatabase, token: string) {
   const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.paymentToken, token));
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(studentOrderItems).where(eq(studentOrderItems.orderId, order.id));
-  const payments = await receiptsForOrder(database, "buku", order.id);
+  const payments = await listPaymentRows(database, "buku", order.id);
   return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }
 
@@ -318,6 +282,6 @@ export async function lookupUniformByToken(database: AppDatabase, token: string)
   if (!order) return null;
   const [student] = await database.select().from(students).where(eq(students.id, order.studentId));
   const lines = await database.select().from(uniformOrderItems).where(eq(uniformOrderItems.orderId, order.id));
-  const payments = await receiptsForOrder(database, "seragam", order.id);
+  const payments = await listPaymentRows(database, "seragam", order.id);
   return { order, student, lines, payments, due: invoiceTotal(order.totalAmount, order.shippingCost ?? 0) };
 }

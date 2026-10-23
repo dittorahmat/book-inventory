@@ -3,8 +3,6 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
 import {
   bookItems,
-  paymentAllocations,
-  paymentReceipts,
   schools,
   studentBookOrders,
   studentOrderItems,
@@ -12,6 +10,7 @@ import {
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
+import { buildReceiptDraft, receiptWriteQueries } from "../payment-ledger";
 import { validateOrderLines } from "./validation";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
@@ -128,6 +127,22 @@ export async function sellDirect(
   }
 
   const receiptId = genItemId();
+  const receiptDraft = buildReceiptDraft(
+    {
+      studentId: orderStudentId,
+      schoolId: input.schoolId,
+      amount: totalAmount,
+      allocations: [{ orderId, kind: "buku", amount: totalAmount, billAmount: totalAmount }],
+      bankName: paymentMethod === "cash" ? "KAS TUNAI" : "TRANSFER DIRECT",
+      referenceNumber: input.referenceNumber || documentNumber("RECEIPT", epochTimeFragment(Date.now(), 8)),
+      autoVerify: true,
+    },
+    now,
+    receiptId,
+    { allocationId: () => `alc-${receiptId}` }
+  );
+  if (!receiptDraft.ok) return receiptDraft;
+
   try {
     await runWriteBatch(database, [
       database
@@ -172,26 +187,7 @@ export async function sellDirect(
           .set({ status: "sold", updatedAt: now })
           .where(and(inArray(bookItems.id, chunk), eq(bookItems.status, "in_stock")))
       ),
-      database.insert(paymentReceipts).values({
-        id: receiptId,
-        studentId: orderStudentId,
-        schoolId: input.schoolId,
-        amount: totalAmount,
-        bankName: paymentMethod === "cash" ? "KAS TUNAI" : "TRANSFER DIRECT",
-        referenceNumber: input.referenceNumber || documentNumber("RECEIPT", epochTimeFragment(Date.now(), 8)),
-        receivedAt: now,
-        verifiedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      }),
-      database.insert(paymentAllocations).values({
-        id: `alc-${receiptId}`,
-        receiptId,
-        orderId,
-        kind: "buku",
-        amount: totalAmount,
-        createdAt: now,
-      }),
+      ...receiptWriteQueries(database, receiptDraft.draft),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penjualan langsung");

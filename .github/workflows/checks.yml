@@ -1,6 +1,6 @@
 # Quality gates: type-check, lint, ukuran file, kedalaman import, kontrak API klien→route,
-# pairing route-test, validator, dead-export, canonical-helper, d1-write, d1-error-mapping,
-# test-isolation, doc-number, lane-ownership, query plan, build, dan test.
+# pairing route-test, validator, dead-export, canonical-helper, single-writer, d1-write,
+# d1-error-mapping, test-isolation, doc-number, lane-ownership, query plan, build, dan test.
 # Berjalan di setiap push dan pull request — kepatuhan AGENTS.md aturan 1
 # tidak lagi bergantung pada disiplin agen saja.
 
@@ -70,6 +70,10 @@ jobs:
         env:
           GATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bun run check:canonical-helpers
+
+      - name: Single-writer gate
+        # Tabel struk & stok seragam hanya dirakit modul pemiliknya (AGENTS.md §0.4/§0.7).
+        run: bun run check:single-writer
 
       - name: D1 write-discipline gate
         # Static §10 gate: INSERT >10 baris per statement atau Promise.all untuk tulis.

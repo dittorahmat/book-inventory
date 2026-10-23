@@ -1,16 +1,28 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDatabase } from "../../db";
 import { paymentAllocations, paymentReceipts, studentBookOrders, students, uniformOrders } from "../../db/schema";
-import { d1WriteErrorStatus, runWriteBatch, selectInChunks, writeNow, type WriteDeps } from "../lib/d1-write";
-import { confirmUrlFor, ensurePaymentToken, invoiceTotal } from "./order-invoice";
+import {
+  d1WriteErrorStatus,
+  newWriteId,
+  runWriteBatch,
+  selectInChunks,
+  writeNow,
+  type WriteDeps,
+} from "../lib/d1-write";
+import { dueOf } from "../../lib/order-money";
+import { confirmUrlFor, ensurePaymentToken } from "./order-invoice";
 import { notifyOrderPaidOff, notifyPaymentRejected, type NotifyDeps, type NotifyResult } from "./order-paid-notify";
 import {
-  deriveStatus,
+  buildReceiptDraft,
+  creditParts,
+  listPaymentRows,
   orderTableFor,
-  recomputeOrderPayment,
-  recordReceipt,
+  paymentRowStatus,
+  receiptNumberConflict,
+  receiptWriteQueries,
   verifiedAllocationSum,
+  type ListPaymentRow,
   type PaymentKind,
 } from "./payment-ledger";
 
@@ -35,8 +47,6 @@ export const cashierPaymentSchema = z.object({
   notes: z.string().optional(),
 });
 
-export type PaymentRowStatus = "pending" | "verified" | "rejected";
-
 type OrderRow = typeof studentBookOrders.$inferSelect | typeof uniformOrders.$inferSelect;
 
 export type PaymentReviewError = { ok: false; status: 400 | 404 | 409; message: string };
@@ -44,27 +54,6 @@ export interface ReviewDeps extends WriteDeps, NotifyDeps {}
 
 const invalid = (message: string): PaymentReviewError => ({ ok: false, status: 400, message });
 const notFound = (message: string): PaymentReviewError => ({ ok: false, status: 404, message });
-
-/** Siklus hidup struk: rejected > verified > pending. Murni. */
-export const paymentRowStatus = (p: { verifiedAt: string | null; rejectedAt: string | null }): PaymentRowStatus =>
-  p.rejectedAt ? "rejected" : p.verifiedAt ? "verified" : "pending";
-
-/** Baris review: satu alokasi + struk induknya. */
-export interface ListPaymentRow {
-  id: string;
-  orderId: string;
-  transferAmount: number;
-  allocationAmount: number;
-  bankName: string | null;
-  referenceNumber: string | null;
-  paymentProofUrl: string | null;
-  verifiedAt: string | null;
-  rejectedAt: string | null;
-  rejectReason: string | null;
-  notes: string | null;
-  createdAt: string;
-  status: PaymentRowStatus;
-}
 
 /** Kredit satu order dari struk; bentuknya seragam untuk buku dan seragam. */
 type Credit =
@@ -82,28 +71,8 @@ const creditUpdateQuery = (database: AppDatabase, credit: Credit, now: string) =
         .set({ paidAmount: credit.paidAmount, paymentStatus: credit.paymentStatus, updatedAt: now })
         .where(eq(uniformOrders.id, credit.orderId));
 
-const receiptColumns = {
-  id: paymentReceipts.id,
-  transferAmount: paymentReceipts.amount,
-  bankName: paymentReceipts.bankName,
-  referenceNumber: paymentReceipts.referenceNumber,
-  paymentProofUrl: paymentReceipts.proofUrl,
-  verifiedAt: paymentReceipts.verifiedAt,
-  rejectedAt: paymentReceipts.rejectedAt,
-  rejectReason: paymentReceipts.rejectReason,
-  notes: paymentReceipts.notes,
-  createdAt: paymentReceipts.createdAt,
-};
-
-export const listPaymentsWithStatus = async (database: AppDatabase, kind: PaymentKind, orderId: string): Promise<ListPaymentRow[]> => {
-  const rows = await database
-    .select({ ...receiptColumns, orderId: paymentAllocations.orderId, allocationAmount: paymentAllocations.amount })
-    .from(paymentAllocations)
-    .innerJoin(paymentReceipts, eq(paymentReceipts.id, paymentAllocations.receiptId))
-    .where(and(eq(paymentAllocations.kind, kind), eq(paymentAllocations.orderId, orderId)))
-    .orderBy(desc(paymentReceipts.createdAt));
-  return rows.map((row) => ({ ...row, status: paymentRowStatus(row) }));
-};
+/** Nama lama dipertahankan: pembaca baris struk kini milik ledger. */
+export const listPaymentsWithStatus = listPaymentRows;
 
 /** Hitung struk pending per order dalam satu grup-baca (bukan N+1). */
 export const pendingPaymentCounts = async (
@@ -199,19 +168,13 @@ export const verifyPayment = async (
     if (allocation.kind === "buku") {
       const [target] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, allocation.orderId));
       if (!target) continue;
-      const due = invoiceTotal(target.totalAmount, target.shippingCost ?? 0);
-      credits.push({
-        kind: "buku", orderId: allocation.orderId, paidAmount, due,
-        paymentStatus: deriveStatus(target.orderType, paidAmount, due) ?? target.paymentStatus,
-      });
+      const { due, paymentStatus } = creditParts(target, paidAmount);
+      credits.push({ kind: "buku", orderId: allocation.orderId, paidAmount, due, paymentStatus });
     } else {
       const [target] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, allocation.orderId));
       if (!target) continue;
-      const due = invoiceTotal(target.totalAmount, target.shippingCost ?? 0);
-      credits.push({
-        kind: "seragam", orderId: allocation.orderId, paidAmount, due,
-        paymentStatus: deriveStatus(target.orderType, paidAmount, due) ?? target.paymentStatus,
-      });
+      const { due, paymentStatus } = creditParts(target, paidAmount);
+      credits.push({ kind: "seragam", orderId: allocation.orderId, paidAmount, due, paymentStatus });
     }
   }
   try {
@@ -231,7 +194,7 @@ export const verifyPayment = async (
   const credit = credits.find((c) => c.orderId === input.orderId);
   const paidAmount = credit?.paidAmount ?? order.paidAmount;
   const paymentStatus = credit?.paymentStatus ?? order.paymentStatus;
-  const due = credit?.due ?? order.totalAmount + (order.shippingCost ?? 0);
+  const due = credit?.due ?? dueOf(order);
   const updatedOrder = (await findOrder(database, input.kind, input.orderId)) ?? order;
   const payment = (await listPaymentsWithStatus(database, input.kind, input.orderId)).find((row) => row.id === receipt.id) ?? null;
   const allocationAmount = payment?.allocationAmount ?? 0;
@@ -336,31 +299,68 @@ export const recordCashierPayment = async (
   const now = writeNow(deps);
   const order = await findOrder(database, kind, orderId);
   if (!order) return notFound("Pesanan tidak ditemukan.");
-  const receipt = await recordReceipt(
-    database,
+  const alreadyPaid = await verifiedAllocationSum(database, kind, orderId);
+  const paidAmount = alreadyPaid + input.allocationAmount;
+  const { due, paymentStatus } = creditParts(order, paidAmount);
+  const receiptId = newWriteId(deps);
+  const built = buildReceiptDraft(
     {
       studentId: order.studentId,
       schoolId: order.schoolId,
       amount: input.transferAmount,
-      allocations: [{ orderId, kind, amount: input.allocationAmount }],
+      allocations: [{ orderId, kind, amount: input.allocationAmount, billAmount: due }],
       bankName: input.bankName,
       referenceNumber: input.referenceNumber,
       verifiedByUserId: input.verifiedByUserId ?? null,
       autoVerify: true,
       notes: input.notes,
     },
-    deps
+    now,
+    receiptId
   );
-  if (!receipt.ok) return { ok: false, status: receipt.status, message: receipt.message };
-  const credit = await recomputeOrderPayment(database, kind, orderId, now);
-  if (!credit.ok) return { ok: false, status: credit.status, message: credit.message };
+  if (!built.ok) return { ok: false, status: built.status, message: built.message };
+  // Kredit dihitung dari baris order yang sama sebelum batch; struk + kredit
+  // ditulis atomik agar verifikasi tidak pernah meninggalkan order tak terkredit.
+  const credit: Credit =
+    kind === "buku"
+      ? {
+          kind,
+          orderId,
+          paidAmount,
+          due,
+          paymentStatus: paymentStatus as typeof studentBookOrders.$inferSelect["paymentStatus"],
+        }
+      : {
+          kind,
+          orderId,
+          paidAmount,
+          due,
+          paymentStatus: paymentStatus as typeof uniformOrders.$inferSelect["paymentStatus"],
+        };
+  try {
+    await runWriteBatch(database, [
+      ...receiptWriteQueries(database, built.draft),
+      creditUpdateQuery(database, credit, now),
+    ]);
+  } catch (err) {
+    if (receiptNumberConflict(err)) {
+      return {
+        ok: false,
+        status: 409,
+        message: "Bukti transfer dengan bank + nomor referensi ini sudah pernah dicatat.",
+      };
+    }
+    const mapped = d1WriteErrorStatus(err, "pembayaran kasir");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
   return {
     ok: true,
     data: {
       orderId,
-      paymentStatus: credit.paymentStatus,
-      paidAmount: credit.paidAmount,
-      remainingAmount: Math.max(0, credit.due - credit.paidAmount),
+      paymentStatus,
+      paidAmount,
+      remainingAmount: Math.max(0, due - paidAmount),
     },
   };
 };

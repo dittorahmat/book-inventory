@@ -16,8 +16,9 @@ import {
   writeNow,
   type WriteDeps,
 } from "../../lib/d1-write";
+import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 
-export type UniformError = { ok: false; status: 400 | 404; message: string };
+export type UniformError = { ok: false; status: 400 | 403 | 404; message: string };
 
 export const UNIFORM_KINDS = ["kain_harian", "olahraga"] as const;
 export const UNIFORM_GENDERS = ["male", "female"] as const;
@@ -99,16 +100,11 @@ export async function createUniformVariant(
   )) {
     await runWriteBatch(database, [database.insert(uniformSizes).values(rows)]);
   }
-  for (const rows of chunkRows(
-    (input.kind === "kain_harian" ? [KAIN_SIZE] : sizes).map((size) => ({
-      id: newWriteId(deps),
-      variantId,
-      size,
-      quantity: 0,
-      updatedAt: now,
-    }))
-  )) {
-    await runWriteBatch(database, [database.insert(uniformStock).values(rows)]);
+  const stockQueries = (input.kind === "kain_harian" ? [KAIN_SIZE] : sizes).map((size) =>
+    adjustVariantStockQuery(database, { variantId, size, delta: 0 }, "create", deps)
+  );
+  for (const rows of chunkRows(stockQueries, 10)) {
+    await runWriteBatch(database, rows);
   }
 
   const [created] = await database.select().from(uniformVariants).where(eq(uniformVariants.id, variantId));
@@ -187,7 +183,7 @@ export async function createUniformPackage(
   )) {
     await runWriteBatch(database, [database.insert(uniformPackageBom).values(rows)]);
   }
-  await database.insert(uniformPackageStock).values({ id: newWriteId(deps), packageId, quantity: 0, updatedAt: now });
+  await adjustPackageStockQuery(database, { packageId, delta: 0 }, "create", deps);
 
   const [created] = await database.select().from(uniformPackages).where(eq(uniformPackages.id, packageId));
   return { ok: true, data: created };

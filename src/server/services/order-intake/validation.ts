@@ -1,23 +1,18 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { calcHeaderTotal } from "../../../lib/transfer-pricing";
+import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligibility";
 
 export type ValidationError = { ok: false; status: ContentfulStatusCode; message: string };
 
-/** Siswa boleh order bila ada dan berstatus aktif/promosi. Murni: tanpa DB. */
+/** Adapter buku: aturan kelayakan tinggal di student-eligibility, bentuk hasil lama dipertahankan. */
 export function validateStudentForOrder<T extends { status: string }>(
   student: T | undefined
 ): { ok: true; student: T } | ValidationError {
-  if (!student) {
-    return { ok: false, status: 404, message: "Data murid tidak ditemukan" };
-  }
-  if (student.status !== "active" && student.status !== "promoted") {
-    return {
-      ok: false,
-      status: 403,
-      message: "Data siswa masih menunggu verifikasi admin sekolah. Silakan coba lagi setelah disetujui.",
-    };
-  }
-  return { ok: true, student };
+  if (!student) return { ok: false, status: 404, message: "Data murid tidak ditemukan" };
+  const eligibility = evaluateStudentEligibility(student);
+  return eligibility.ok
+    ? { ok: true, student }
+    : { ok: false, status: eligibilityStatus(eligibility.reason), message: eligibility.message };
 }
 
 /** Order satuan menuntut periode cut-off terbuka. Murni: tanpa DB, tanpa jam. */

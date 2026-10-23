@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { studentBookOrders, students, bookPackages } from "../../db/schema";
+import { dueOf } from "../../lib/order-money";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -60,6 +61,7 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
         paymentStatus: studentBookOrders.paymentStatus,
         fulfillmentStatus: studentBookOrders.fulfillmentStatus,
         totalAmount: studentBookOrders.totalAmount,
+        shippingCost: studentBookOrders.shippingCost,
         paidAmount: studentBookOrders.paidAmount,
         scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
         notes: studentBookOrders.notes,
@@ -83,7 +85,7 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
         order,
         payments,
         pendingCount: payments.filter((p) => p.status === "pending").length,
-        remainingAmount: Math.max(0, order.totalAmount - order.paidAmount),
+        remainingAmount: Math.max(0, dueOf(order) - order.paidAmount),
       },
     });
   } catch (err) {

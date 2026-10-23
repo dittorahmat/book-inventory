@@ -5,8 +5,6 @@ import {
   students,
   studentBookOrders,
   studentOrderItems,
-  paymentAllocations,
-  paymentReceipts,
   bookPackages,
 } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
@@ -20,6 +18,7 @@ import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
 import { emitChargeQuery } from "../branch-charges";
 import { wprFeeForStudent } from "../pricing";
+import { buildReceiptDraft, receiptNumberConflict, receiptWriteQueries } from "../payment-ledger";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
@@ -183,6 +182,37 @@ export async function submitPublicOrder(
     grossAmount,
   });
 
+  // 7b. Bentuk struk SEBELUM efek samping: validasi nominal + alokasi terjadi
+  // sebelum upload bukti, sehingga 400 tidak meninggalkan objek yatim. Baris
+  // struk tetap milik kernel ledger (ADR-0012), bukan dirakit di sini.
+  const needsPayment = !isScholarship && !!input.payment && input.payment.bookAllocationAmount > 0;
+  const receiptId = needsPayment ? genPaymentId() : null;
+  const receiptDraft =
+    receiptId === null
+      ? null
+      : buildReceiptDraft(
+          {
+            studentId: student.id,
+            schoolId: student.schoolId,
+            amount: input.payment?.transferAmount ?? 0,
+            allocations: [
+              {
+                orderId,
+                kind: "buku",
+                amount: input.payment?.bookAllocationAmount ?? 0,
+                billAmount: totalAmount,
+              },
+            ],
+            bankName: input.payment?.bankName,
+            referenceNumber: input.payment?.referenceNumber,
+            notes: "Submitted via Public Form",
+          },
+          now,
+          receiptId,
+          { allocationId: () => `alc-${receiptId}` }
+        );
+  if (receiptDraft && !receiptDraft.ok) return receiptDraft;
+
   // 8. Upload bukti setelah reservasi + tulis batch atomik; kompensasi orphan
   // bila tulis gagal setelah upload (best-effort delete, tanpa Promise.all tulis).
   const uploadedKeys: string[] = [];
@@ -208,13 +238,6 @@ export async function submitPublicOrder(
       uploadedKeys.push(key);
     }
 
-    const needsPayment = !isScholarship && !!input.payment && input.payment.bookAllocationAmount > 0;
-    // Alokasi tidak boleh melebihi nominal struk: kalau dibiarkan, struk yang
-    // mustahil akan ditulis dengan nominal yang digelembungkan dan rekonsiliasi
-    // kehilangan selisihnya.
-    if (needsPayment && (input.payment?.transferAmount ?? 0) < (input.payment?.bookAllocationAmount ?? 0)) {
-      return { ok: false, status: 400, message: "Nominal alokasi buku melebihi total transfer di struk." };
-    }
     let paymentProofUrl: string | null = null;
     if (needsPayment && input.payment?.paymentProofBase64) {
       const key = `payments/${orderId}_${Date.now()}.jpg`;
@@ -225,6 +248,7 @@ export async function submitPublicOrder(
       );
       uploadedKeys.push(key);
     }
+    if (receiptDraft?.ok) receiptDraft.draft.receipt.proofUrl = paymentProofUrl;
 
     const itemRows = looseLines.map((line) => ({
       id: genItemId(),
@@ -234,36 +258,6 @@ export async function submitPublicOrder(
       unitPriceSnapshot: line.unitPrice,
       createdAt: now,
     }));
-    const receiptId = needsPayment ? genPaymentId() : null;
-    const receiptRows = receiptId
-      ? [
-          {
-            id: receiptId,
-            studentId: student.id,
-            schoolId: student.schoolId,
-            amount: input.payment?.transferAmount ?? 0,
-            bankName: input.payment?.bankName?.trim() || "Tanpa Bank",
-            referenceNumber: input.payment?.referenceNumber?.trim() || null,
-            proofUrl: paymentProofUrl,
-            receivedAt: now,
-            notes: "Submitted via Public Form",
-            createdAt: now,
-            updatedAt: now,
-          },
-        ]
-      : [];
-    const allocationRows = receiptId
-      ? [
-          {
-            id: `alc-${receiptId}`,
-            receiptId,
-            orderId,
-            kind: "buku" as const,
-            amount: input.payment?.bookAllocationAmount ?? 0,
-            createdAt: now,
-          },
-        ]
-      : [];
 
     await runWriteBatch(database, [
       database.insert(studentBookOrders).values({
@@ -285,8 +279,7 @@ export async function submitPublicOrder(
         updatedAt: now,
       }),
       ...chunkRows(itemRows).map((rows) => database.insert(studentOrderItems).values(rows)),
-      ...receiptRows.map((row) => database.insert(paymentReceipts).values(row)),
-      ...allocationRows.map((row) => database.insert(paymentAllocations).values(row)),
+      ...(receiptDraft?.ok ? receiptWriteQueries(database, receiptDraft.draft) : []),
       // Buku satuan dikirim dari gudang → ditagihkan ke cabang sejak order dibuat.
       // Paket murni baru ditagih saat serah-terima (lihat order-handover).
       ...(looseLines.length > 0
@@ -303,6 +296,13 @@ export async function submitPublicOrder(
     ]);
   } catch (err) {
     await compensateUploads();
+    if (receiptNumberConflict(err)) {
+      return {
+        ok: false,
+        status: 409,
+        message: "Bukti transfer dengan bank + nomor referensi ini sudah pernah dicatat.",
+      };
+    }
     const mapped = d1WriteErrorStatus(err, "pembuatan order publik");
     if (mapped) return { ok: false, ...mapped };
     throw err;

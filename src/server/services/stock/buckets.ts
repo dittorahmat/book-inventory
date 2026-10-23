@@ -5,6 +5,8 @@
  * dasbor agar perubahan status hanya diaudit di satu modul.
  */
 
+import { dueOf } from "../../../lib/order-money";
+
 export const AVAILABLE_LOOSE_STATUSES = ["in_stock"] as const;
 export const LOOSE_IN_TRANSIT_STATUSES = ["in_transit"] as const;
 export const LOST_STATUSES = ["lost"] as const;
@@ -59,9 +61,9 @@ export const isReadyBundle = (status: string): boolean =>
 export const isOpenOrder = (paymentStatus: string): boolean =>
   (OPEN_ORDER_PAYMENT_STATUSES as readonly string[]).includes(paymentStatus);
 
-/** Sisa tagihan satu order: total − terbayar, tidak pernah negatif. */
-export const outstandingOf = (order: { totalAmount: number; paidAmount: number }): number =>
-  Math.max(0, (order.totalAmount || 0) - (order.paidAmount || 0));
+/** Sisa tagihan satu order: due (barang + ongkir) − terbayar, tidak pernah negatif. */
+export const outstandingOf = (order: { totalAmount: number; paidAmount: number; shippingCost?: number | null }): number =>
+  Math.max(0, dueOf(order) - (order.paidAmount || 0));
 
 export const emptyConditionBuckets = () => ({ new: 0, good: 0, fair: 0, damaged: 0 });
 

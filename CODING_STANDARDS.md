@@ -24,6 +24,7 @@ ketahui adalah **apa yang dijamin tiap gate**:
 | `check:dead` | export tanpa perujuk |
 | `check:no-any` | `any` baru pada baris diff |
 | `check:canonical-helpers` | salinan lokal helper/tipe yang sudah punya pemilik kanonik |
+| `check:single-writer` | baris `payment_receipts`/`payment_allocations` hanya dirakit `payment-ledger`; stok seragam hanya di `uniform/stock` |
 | `check:d1-writes` | §10.1 chunk ≤10 baris dan §10.2 larangan `Promise.all` tulis |
 | `check:d1-error-mapping` | setiap `runWriteBatch()` memetakan constraint lewat `d1WriteErrorStatus()` |
 | `check:test-isolation` | test tidak menyentuh D1/Miniflare; preload `test/setup.ts` utuh |
@@ -35,6 +36,10 @@ ketahui adalah **apa yang dijamin tiap gate**:
 
 Gate diff-scoped (`check:file-size`, `check:no-any`, `check:canonical-helpers`)
 tidak vakum di CI karena mendiff `GATE_BASE_REF`; sisanya memindai seluruh pohon.
+
+`check:fast` dan pre-commit memakai satu skrip `scripts/check-changed.ts`
+(mode working vs `--staged`) agar loop lokal tidak pernah lebih longgar dari
+pre-commit. `check:all` tetap satu-satunya verifikasi penutup.
 
 ## 2. Smell baseline yang wajib dicek reviewer
 
@@ -132,3 +137,29 @@ dijalankan serial oleh agent utama.
 | Fitur refund publik hidup seminggu tanpa pintu masuk | §0.3 (uji entry point) |
 | `});` menghapus blok salah | §12 `AGENTS.md` + §7 di sini |
 | Dua commit nyasar ke `main` | §4.8 `AGENTS.md` + branch guard pre-commit |
+| Empat penulis struk + lima salinan stok menyimpang (id alokasi, default bank, 400 vs 409) | §10 + `check:single-writer` |
+
+## 10. Kepemilikan modul & perubahan perilaku
+
+Modul berikut punya satu pemilik. Pemakai wajib memanggil seam-nya; baris tabel
+dilarang dirakit ulang. `check:single-writer` menjaga dua tabel berisiko;
+`check:canonical-helpers` menjaga nama helper/tipe.
+
+| Modul | Pemilik | Pemakai wajib memakai | Dilarang |
+|---|---|---|---|
+| Uang order | `src/lib/order-money.ts` | `invoiceTotal`, `dueOf` | menyalin `total + ongkir` |
+| Aturan alokasi | `src/lib/order-allocation.ts` | `allocationViolation` | guard alokasi lokal di klien/server |
+| Struk Bayar | `src/server/services/payment-ledger.ts` | `buildReceiptDraft`, `receiptWriteQueries`, `listPaymentRows`, `creditParts` | `.insert(paymentReceipts|paymentAllocations)` di file lain |
+| Kelayakan order | `src/server/services/student-eligibility.ts` | `evaluateStudentEligibility` | cek `status` murid ad-hoc |
+| Stok seragam | `src/server/services/uniform/stock.ts` | `adjustVariantStockQuery`, `adjustPackageStockQuery`, `setVariantStockQuery` | `.insert/.update(uniformStock|uniformPackageStock)` di file lain |
+| Tab staf | `src/components/layout/staff-tab-views.tsx` | `STAFF_TAB_RENDERERS` | JSX `activeTab === ...` di `App.tsx` |
+| Draf portal | `src/components/portal/useOrderDraft.ts` | `{ draft, actions }` | belasan prop nilai/setter di step |
+
+`src/server/seed.ts` dikecualikan dari aturan baris tabel: ia menyemai data demo,
+bukan mutasi runtime.
+
+**Batas perubahan perilaku.** Refactor murni tidak mengubah status code, aturan
+terima, field respons, atau efek samping. Perubahan yang disengaja wajib: (a)
+dipisah dari commit refactor, (b) diisi di bagian "Perubahan perilaku" pada
+`.github/PULL_REQUEST_TEMPLATE.md`, dan (c) dikunci test skenario baru. Tanpa
+ketiganya, reviewer memperlakukannya sebagai regresi.

@@ -29,6 +29,18 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "getDefaultTabForRole", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
   { name: "getRoleBadgeLabel", owner: "src/lib/staff-roles.ts", module: "lib/staff-roles" },
   { name: "getVisibleTabsForRole", owner: "src/components/layout/staff-tabs.ts", module: "components/layout/staff-tabs" },
+  { name: "invoiceTotal", owner: "src/lib/order-money.ts", module: "lib/order-money" },
+  { name: "dueOf", owner: "src/lib/order-money.ts", module: "lib/order-money" },
+  { name: "buildReceiptDraft", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
+  { name: "receiptWriteQueries", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
+  { name: "creditParts", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
+  { name: "listPaymentRows", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
+  { name: "paymentRowStatus", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
+  { name: "allocationViolation", owner: "src/lib/order-allocation.ts", module: "lib/order-allocation" },
+  { name: "evaluateStudentEligibility", owner: "src/server/services/student-eligibility.ts", module: "services/student-eligibility" },
+  { name: "adjustVariantStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
+  { name: "adjustPackageStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
+  { name: "setVariantStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
