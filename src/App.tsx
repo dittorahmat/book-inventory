@@ -8,7 +8,7 @@ import { AppTabsNavigation, AppMobileNavigation } from "./components/layout/AppT
 import { TAB_IDS, getVisibleTabsForRole, type ActiveTab } from "./components/layout/staff-tabs";
 import { STAFF_TAB_RENDERERS } from "./components/layout/staff-tab-views";
 import { useSession, signOut } from "./lib/auth-client";
-import { isCentralRole, getDefaultTabForRole, type StaffRole } from "./lib/staff-roles";
+import { isCentralRole, isLogisticsRole, getDefaultTabForRole, type StaffRole } from "./lib/staff-roles";
 import { getJson, postJson } from "./lib/api";
 import { resolvePublicEntryTab } from "./lib/public-portal-url";
 import { Loader2 } from "lucide-react";
@@ -67,12 +67,18 @@ export function App() {
     loadSchools();
   }, [loadSchools]);
 
-  // Lock active location to the account assignment (no location switching)
+  // Lock active location to the account assignment for school/branch roles,
+  // while central/logistics defaults to assigned or all schools with selection freedom.
   useEffect(() => {
     if (session?.user && schools.length > 0) {
-      const user = session.user as unknown as { schoolId?: string | null };
+      const user = session.user as unknown as { schoolId?: string | null; role?: StaffRole };
+      const isSuper = isCentralRole(user.role) || isLogisticsRole(user.role);
       const assigned = user.schoolId ? schools.find((s) => s.id === user.schoolId) : undefined;
-      if (assigned && assigned.id !== selectedSchool?.id) setSelectedSchool(assigned);
+      if (!isSuper && assigned && assigned.id !== selectedSchool?.id) {
+        setSelectedSchool(assigned);
+      } else if (isSuper && !selectedSchool && assigned) {
+        setSelectedSchool(assigned);
+      }
     }
   }, [session, schools, selectedSchool]);
 
@@ -145,6 +151,7 @@ export function App() {
   const userRole = currentUser.role;
   const userSchoolId = currentUser.schoolId ?? null;
   const isCentralAdmin = isCentralRole(userRole);
+  const canSelectBranch = isCentralAdmin || isLogisticsRole(userRole);
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#050505] flex flex-col font-sans antialiased">
@@ -152,7 +159,10 @@ export function App() {
       <header className="sticky top-0 z-40 shadow-xs">
         <AppHeader
           selectedSchool={selectedSchool}
+          schools={schools}
+          onSelectSchool={setSelectedSchool}
           isCentralAdmin={isCentralAdmin}
+          canSelectBranch={canSelectBranch}
           userRole={userRole}
           userName={currentUser.name}
           onOpenPublicPortal={() => setIsPublicMode(true)}
