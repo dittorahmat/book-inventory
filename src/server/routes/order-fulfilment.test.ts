@@ -11,7 +11,7 @@ import {
   studentBookOrders,
   students,
 } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import { reportReturn, resolveReturn } from "../services/return";
@@ -601,6 +601,7 @@ describe("T3 return state machine (report/resolve share guard, double-resolve id
     const schoolId = await seedSchool("t3orphan");
     const studentId = await seedStudent(schoolId);
     const bookId = await seedBook("t3orphan");
+    const otherBookId = await seedBook("t3orphan-second");
     const orderId = `ord-t3-orphan-${stamp()}`;
     const returnId = `ret-t3-orphan-${stamp()}`;
     const storage = new TrackingStorage();
@@ -617,7 +618,9 @@ describe("T3 return state machine (report/resolve share guard, double-resolve id
       const first = await reportReturn(db, input, { storage, generateId: () => returnId });
       expect(first.ok).toBe(true);
 
-      const second = await reportReturn(db, input, { storage, generateId: () => returnId });
+      // Laporan kedua memakai buku lain (guard retur ganda tidak berlaku) tetapi id
+      // retur dipaksa sama, sehingga batch gagal setelah upload → foto wajib dikompensasi.
+      const second = await reportReturn(db, { ...input, defectiveBookId: otherBookId }, { storage, generateId: () => returnId });
       expect(second.ok).toBe(false);
       if (second.ok) return;
       expect(second.status).toBe(400);
@@ -630,7 +633,7 @@ describe("T3 return state machine (report/resolve share guard, double-resolve id
       await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
-      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(books).where(inArray(books.id, [bookId, otherBookId]));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
