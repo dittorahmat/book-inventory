@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
 import { bookPackageItems, bookReturns, studentBookOrders } from "../../../db/schema";
@@ -6,7 +6,7 @@ import { defaultStorage, type StorageService } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import { detectImageMime } from "../../../lib/book-return";
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
-import { isOrderReportable } from "./flow";
+import { isOrderReportable, RETURN_OPEN_STATUSES } from "./flow";
 
 export type ReturnSource = "staff" | "public";
 
@@ -36,6 +36,8 @@ export interface ReportReturnDeps {
  * yang boleh dilaporkan; seluruh tulis DB satu batch atomik (§10 D1).
  * Sumber publik diperketat: satu pengajuan per pesanan (hanya `picked_up`),
  * buku wajib bagian dari BOM paket, dan foto diverifikasi dari magic bytes.
+ * Kedua sumber menolak laporan terbuka ganda untuk buku yang sama (anti double
+ * refund) lewat validasi pra-tulis yang mengembalikan 400 (§10.3).
  * Storage diterima di seam (default produksi) agar test memakai in-memory;
  * upload gagal-tulis dikompensasi (best-effort delete) supaya tak orphan.
  */
@@ -75,6 +77,28 @@ export async function reportReturn(
       ok: false,
       status: 400,
       message: `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
+    };
+  }
+  // Satu buku tidak boleh punya dua laporan terbuka sekaligus: staf masih boleh
+  // menambah buku lain dari pesanan yang sama, tetapi buku yang sudah dilaporkan
+  // dan belum selesai ditolak agar refund tidak dibayar dua kali. Validasi
+  // pra-tulis (§10.3) sebelum upload supaya tidak ada foto yatim.
+  const [openDuplicate] = await database
+    .select({ id: bookReturns.id, status: bookReturns.status })
+    .from(bookReturns)
+    .where(
+      and(
+        eq(bookReturns.orderId, input.orderId),
+        eq(bookReturns.defectiveBookId, input.defectiveBookId),
+        inArray(bookReturns.status, [...RETURN_OPEN_STATUSES])
+      )
+    )
+    .limit(1);
+  if (openDuplicate) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Buku ini sudah dilaporkan dan sedang diproses (status ${openDuplicate.status}). Selesaikan laporan itu sebelum mengajukan retur baru untuk buku yang sama.`,
     };
   }
   // Buku yang direfund harus benar-benar bagian dari paket pesanan, bukan judul

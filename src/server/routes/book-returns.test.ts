@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { eq, inArray } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 import { bookReturnsRouter } from "./book-returns";
 import { db } from "../../db";
@@ -86,5 +87,106 @@ describe("Book Returns & Refund API", () => {
     expect(csv).toContain("No Order,Sekolah,Nama Siswa");
     expect(csv).toContain("ORD-R-");
     expect(csv).toContain("50000");
+  });
+
+  it("menolak retur ganda untuk buku yang sama dan tetap mengizinkan buku lain di pesanan yang sama", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `school-ret-dup-${stamp}`;
+    const studentId = `stu-ret-dup-${stamp}`;
+    const bookAId = `book-ret-dup-a-${stamp}`;
+    const bookBId = `book-ret-dup-b-${stamp}`;
+    const orderId = `ord-ret-dup-${stamp}`;
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Cabang Retur Ganda Test",
+      code: `CRD-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `NIS-RD-${stamp}`,
+      name: "Siswa Retur Ganda",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(books).values([
+      {
+        id: bookAId,
+        isbn: `ISBN-RD-A-${stamp}`,
+        title: "Buku Rusak A",
+        author: "Penulis Test",
+        publisher: "Penerbit Test",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: bookBId,
+        isbn: `ISBN-RD-B-${stamp}`,
+        title: "Buku Rusak B",
+        author: "Penulis Test",
+        publisher: "Penerbit Test",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-RD-${stamp}`,
+      studentId,
+      schoolId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "picked_up",
+      totalAmount: 180000,
+      paidAmount: 180000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const postReturn = (defectiveBookId: string) =>
+      bookReturnsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, studentId, defectiveBookId, reason: "Halaman sobek" }),
+      });
+
+    try {
+      // Laporan pertama untuk buku A tersimpan.
+      const first = await postReturn(bookAId);
+      expect(first.status).toBe(201);
+
+      // Buku A dilaporkan lagi selama laporan pertama masih terbuka: ditolak.
+      const duplicate = await postReturn(bookAId);
+      expect(duplicate.status).toBe(400);
+      expect((await duplicate.json()).message).toContain("sedang diproses");
+
+      // Buku lain dari pesanan yang sama tetap boleh (multi-buku, bukan satu per pesanan).
+      const sibling = await postReturn(bookBId);
+      expect(sibling.status).toBe(201);
+
+      const rows = await db.select().from(bookReturns).where(eq(bookReturns.orderId, orderId));
+      expect(rows).toHaveLength(2);
+      expect(new Set(rows.map((r) => r.defectiveBookId))).toEqual(new Set([bookAId, bookBId]));
+
+      const [order] = await db
+        .select()
+        .from(studentBookOrders)
+        .where(eq(studentBookOrders.id, orderId));
+      expect(order.fulfillmentStatus).toBe("return_in_progress");
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(books).where(inArray(books.id, [bookAId, bookBId]));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 });
