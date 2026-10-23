@@ -292,6 +292,8 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         wprFee,
         orderType,
         scholarshipProofBase64,
+        financeProofBase64: draft.financeProofBase64,
+        parentPhoneManual: draft.parentPhoneManual,
         transferAmount,
         bookAllocationAmount,
         bankName,

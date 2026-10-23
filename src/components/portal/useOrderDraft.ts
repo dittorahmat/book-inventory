@@ -14,6 +14,8 @@ export interface OrderDraft {
   bankName: string;
   referenceNumber: string;
   paymentProofBase64: string;
+  financeProofBase64: string;
+  parentPhoneManual: string;
   notes: string;
   homeAddress: string;
   paketKirim: boolean;
@@ -30,6 +32,8 @@ export interface OrderDraftActions {
   setBankName: (value: string) => void;
   setReferenceNumber: (value: string) => void;
   setPaymentProofBase64: (value: string) => void;
+  setFinanceProofBase64: (value: string) => void;
+  setParentPhoneManual: (value: string) => void;
   setNotes: (value: string) => void;
   setHomeAddress: (value: string) => void;
   setPaketKirim: (value: boolean) => void;
@@ -48,6 +52,8 @@ const EMPTY_DRAFT: OrderDraft = {
   bankName: "BCA",
   referenceNumber: "",
   paymentProofBase64: "",
+  financeProofBase64: "",
+  parentPhoneManual: "",
   notes: "",
   homeAddress: "",
   paketKirim: false,
@@ -73,6 +79,8 @@ export function useOrderDraft(initialWprPrice: number) {
       setBankName: set("bankName"),
       setReferenceNumber: set("referenceNumber"),
       setPaymentProofBase64: set("paymentProofBase64"),
+      setFinanceProofBase64: set("financeProofBase64"),
+      setParentPhoneManual: set("parentPhoneManual"),
       setNotes: set("notes"),
       setHomeAddress: set("homeAddress"),
       setPaketKirim: set("paketKirim"),

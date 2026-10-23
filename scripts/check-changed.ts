@@ -56,6 +56,7 @@ if (has(/^src\//)) {
   runBun("check:dead");
   runBun("check:doc-numbers");
   runBun("check:single-writer");
+  runBun("check:string-packing");
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {

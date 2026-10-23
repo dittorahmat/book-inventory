@@ -4,6 +4,18 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Bukti Pengambilan**:
+Dokumen / tanda terima resmi dengan kode konfirmasi unik (digenerate instan saat submit form publik konfirmasi pembayaran dan dikirim ke nomor WhatsApp manual inputan wali murid) yang wajib ditunjukkan ke admin cabang untuk serah-terima buku/paket fisik. Menggantikan terminologi invoice di sisi wali murid.
+_Avoid_: Invoice wali, bukti bayar manual
+
+**Surat Keterangan Finance**:
+Dokumen otorisasi dari bagian Finance (diunggah bersama/sebagai ganti bukti transfer) yang memicu flag khusus admin (cicilan parsial atau pembayaran ditunda) sehingga Bukti Pengambilan buku tetap dapat terbit dan buku dapat diserahkan ke siswa.
+_Avoid_: Disposisi lisan, memo finance informal
+
+**Inventory Paket Cabang**:
+Saldo fisik paket buku/seragam terkemas (bundle unit) yang disimpan dan dilacak di tingkat cabang (hasil kiriman Gudang Pusat via IPO/Transfer), siap diserahkan utuh ke siswa tanpa proses perakitan di cabang.
+_Avoid_: Rakit cabang, stok bayangan
+
 **Book**:
 Buku katalog (judul + harga dasar), bukan eksemplar fisik.
 _Avoid_: Item, copy

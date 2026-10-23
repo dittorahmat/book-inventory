@@ -226,13 +226,16 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     return { poId, shipmentId, lineIds: shipment.items.map((i: any) => i.id as string) };
   }
 
-  it("menerima semua-baik menjadi delivered dengan tanggal terima", async () => {
+  it("menerima semua-baik menjadi delivered dengan tanggal terima dan upload bukti surat jalan", async () => {
     const stamp = Date.now();
     const { shipmentId, lineIds, poId } = await seedPoWithShipment(stamp, 2);
     const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })) }),
+      body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed.pdf",
+        items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })),
+      }),
     });
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -242,8 +245,23 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     const history = (await (await internalOrdersRouter.request(`/${poId}/shipments`, { method: "GET" })).json()).data;
     const received = history.find((s: any) => s.id === shipmentId);
     expect(received.status).toBe("delivered");
+    expect(received.deliveryProofUrl).toBe("https://storage.example.com/sj-signed.pdf");
     expect(received.receivedDate).toBeDefined();
     expect(received.items.every((i: any) => i.receivedCondition === "good")).toBe(true);
+  });
+
+  it("menolak konfirmasi terima tanpa bukti dokumen surat jalan bertanda tangan", async () => {
+    const stamp = Date.now() + 50;
+    const { shipmentId, lineIds } = await seedPoWithShipment(stamp, 2);
+    const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })),
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).success).toBe(false);
   });
 
   it("menandai discrepancy saat ada baris rusak dan menolak baris asing tanpa tulis", async () => {
@@ -252,7 +270,10 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     const foreign = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: [{ shipmentItemId: "baris-asing", condition: "good" }] }),
+      body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed.pdf",
+        items: [{ shipmentItemId: "baris-asing", condition: "good" }],
+      }),
     });
     expect(foreign.status).toBe(400);
     expect((await foreign.json()).success).toBe(false);
@@ -261,6 +282,7 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed.pdf",
         items: [
           { shipmentItemId: lineIds[0], condition: "good" },
           { shipmentItemId: lineIds[1], condition: "damaged", notes: "Dus penyok" },
@@ -278,7 +300,10 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     const res = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })) }),
+      body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed.pdf",
+        items: lineIds.map((id: string) => ({ shipmentItemId: id, condition: "good" })),
+      }),
     });
     expect(res.status).toBe(200);
     expect((await res.json()).data.status).toBe("delivered");

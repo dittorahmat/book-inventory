@@ -15,7 +15,7 @@ export interface PortalTabItem {
  * dilakukan saat tab ditulis langsung di dalam view.
  */
 export const PUBLIC_TABS: readonly PortalTabItem[] = [
-  { id: "order", label: "Formulir Pesan Buku", icon: BookOpen },
+  { id: "order", label: "Konfirmasi Pembayaran Buku", icon: BookOpen },
   { id: "uniform", label: "Pesan Seragam", icon: Shirt },
   { id: "uniform_return", label: "Retur Seragam", icon: ArrowLeftRight },
   { id: "book_return", label: "Refund Buku", icon: RotateCcw },

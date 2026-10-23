@@ -25,12 +25,16 @@ describe("resolveLocationScope (pure isolation contract)", () => {
     expect(resolveLocationScope(schoolA, undefined, LOCS)).toEqual(["school-alw-1"]);
     expect(resolveLocationScope(schoolA, "school-alw-1", LOCS)).toEqual(["school-alw-1"]);
     expect(resolveLocationScope(branchA, undefined, LOCS)).toEqual(["school-alw-1"]);
-    expect(resolveLocationScope(warehouse, undefined, LOCS)).toEqual(["school-warehouse"]);
+  });
+
+  it("lets warehouse roles roam like central admin", () => {
+    expect(resolveLocationScope(warehouse, undefined, LOCS).length).toBe(3);
+    expect(resolveLocationScope(warehouse, "school-alw-1", LOCS)).toEqual(["school-alw-1"]);
   });
 
   it("rejects scoped access to other locations", () => {
     expect(() => resolveLocationScope(schoolA, "school-alw-2", LOCS)).toThrow(AccessHttpError);
-    expect(() => resolveLocationScope(warehouse, "school-alw-1", LOCS)).toThrow(AccessHttpError);
+    expect(() => resolveLocationScope(branchA, "school-warehouse", LOCS)).toThrow(AccessHttpError);
   });
 
   it("rejects scoped actors without assignment", () => {

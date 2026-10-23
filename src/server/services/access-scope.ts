@@ -69,8 +69,8 @@ const mustExist = (ids: string[], id: string): void => {
 };
 
 /**
- * Pure location-scope resolution. Central admin sees all (or one requested);
- * scoped roles (warehouse/school/branch) are locked to their own location.
+ * Pure location-scope resolution. Central admin & warehouse roles see all (or one requested);
+ * school/branch roles are locked to their own school location.
  * Null actor preserves legacy open access for unauthenticated callers.
  */
 export function resolveLocationScope(
@@ -79,7 +79,8 @@ export function resolveLocationScope(
   allSchools: Array<{ id: string }>
 ): string[] {
   const ids = allSchools.map((s) => s.id);
-  if (!actor || actor.role === "central_admin") {
+  const isGlobal = !actor || actor.role === "central_admin" || LOGISTICS_ROLES.includes(actor.role);
+  if (isGlobal) {
     if (requestedSchoolId) {
       mustExist(ids, requestedSchoolId);
       return [requestedSchoolId];
@@ -95,14 +96,14 @@ export function resolveLocationScope(
   return [actor.schoolId];
 }
 
-/** Throw unless the actor may act on the given location. Null actor = legacy allow. */
+/** Throw unless the actor may act on the given location. Null actor = legacy allow. Central & warehouse can roam. */
 export function assertLocationAllowed(
   actor: AccessActor | null,
   locationId: string,
   allSchools: Array<{ id: string }>
 ): void {
   mustExist(allSchools.map((s) => s.id), locationId);
-  if (!actor || actor.role === "central_admin") return;
+  if (!actor || actor.role === "central_admin" || LOGISTICS_ROLES.includes(actor.role)) return;
   if (!actor.schoolId) {
     throw new AccessHttpError(403, "Admin terisolasi belum memiliki penugasan sekolah/gudang");
   }

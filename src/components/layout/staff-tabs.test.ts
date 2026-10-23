@@ -38,9 +38,9 @@ describe("staff-tabs", () => {
     expect(getVisibleTabsForRole("central_admin")).toEqual(DESKTOP_TABS.map((tab) => tab.id));
   });
 
-  test("cabang hanya melihat pesan ke gudang dan data siswa", () => {
-    expect(getVisibleTabsForRole("branch_admin")).toEqual(["internal_orders", "students"]);
-    expect(getVisibleTabsForRole("school_admin")).toEqual(["internal_orders", "students"]);
+  test("cabang melihat pesan ke gudang, data siswa, dan pesanan siswa", () => {
+    expect(getVisibleTabsForRole("branch_admin")).toEqual(["internal_orders", "students", "student_orders"]);
+    expect(getVisibleTabsForRole("school_admin")).toEqual(["internal_orders", "students", "student_orders"]);
   });
 
   test("admin gudang terpisah per unit", () => {

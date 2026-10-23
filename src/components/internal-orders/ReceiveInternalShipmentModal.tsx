@@ -19,16 +19,34 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [transferShipmentId, setTransferShipmentId] = useState("");
+  const [deliveryProofUrl, setDeliveryProofUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDeliveryProofUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!deliveryProofUrl.trim()) {
+      alert("Wajib mengunggah atau menyertakan URL/bukti dokumen Surat Jalan yang sudah ditandatangani dan dicap.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const result = await postJson<{ shipmentId: string; status: string }>(
         `/api/internal-orders/shipments/${encodeURIComponent(shipment.id)}/receive`,
         {
           transferShipmentId: transferShipmentId.trim() || undefined,
+          deliveryProofUrl: deliveryProofUrl.trim(),
           items: shipment.items.map((i) => ({
             shipmentItemId: i.id,
             condition: conditions[i.id] ?? "good",
@@ -64,6 +82,27 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 p-6 text-xs">
+          <div>
+            <label className="mb-1 block font-semibold text-[#050505]">
+              Upload Dokumen Surat Jalan Bertanda Tangan & Cap <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              required
+              onChange={handleFileUpload}
+              className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
+            />
+            {deliveryProofUrl ? (
+              <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+                ✓ Berkas Surat Jalan bertanda tangan telah siap diunggah
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-[#65676B]">
+                Wajib unggah scan/foto dokumen Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.
+              </p>
+            )}
+          </div>
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">ID Transfer Fisik Tertaut (Opsional)</label>
             <input

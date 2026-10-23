@@ -307,6 +307,8 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
   invoiceSentAt: text("invoice_sent_at"),
   paymentToken: text("payment_token"),
   scholarshipProofUrl: text("scholarship_proof_url"),
+  financeProofUrl: text("finance_proof_url"),
+  parentPhoneManual: text("parent_phone_manual"),
   financeHandoverApproved: integer("finance_handover_approved", { mode: "boolean" }).notNull().default(false),
   discountAmount: integer("discount_amount").notNull().default(0),
   discretionType: text("discretion_type", { 

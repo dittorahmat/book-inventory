@@ -61,6 +61,8 @@ const submitOrderSchema = z
     homeAddress: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
     scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
+    financeProofBase64: z.string().optional(), // Surat Keterangan Finance
+    parentPhoneManual: z.string().min(6, "Nomor WhatsApp pembayar wajib diisi minimal 6 karakter").optional(),
     // Optional payment info submitted immediately
     payment: z
       .object({
@@ -184,10 +186,11 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   // pesanan yang sudah terbentuk — hanya tercatat di respons.
   const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
   let notification: SendWhatsAppResult | null = null;
-  if (st?.parentPhone) {
-    const waText = `Halo Bapak/Ibu ${st.parentName || "Wali Murid"},\n\nPesanan buku untuk ananda ${st.name} telah berhasil dibuat dengan No. Order: ${result.data.order.orderNumber}.\nTotal: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu / Parsial"}\n\nTerima kasih,\nAl Wildan Logistics`;
+  const recipientPhone = body.parentPhoneManual?.trim() || st?.parentPhone;
+  if (recipientPhone) {
+    const waText = `Halo Bapak/Ibu ${st?.parentName || "Wali Murid"},\n\nKonfirmasi Pembayaran Buku untuk ananda ${st?.name || "Siswa"} telah berhasil diterima!\n\nNo. Order / Bukti Pengambilan: *${result.data.order.orderNumber}*\nTotal Tagihan: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu Verifikasi / Parsial"}\n\n*PENTING:* Wajib menunjukkan Bukti Pengambilan dan No. Order ini kepada petugas Admin Cabang untuk serah terima paket buku fisik.\n\nTerima kasih,\nAl Wildan Logistics`;
     try {
-      notification = await new MetaWhatsAppSender(db).send({ to: st.parentPhone, text: waText });
+      notification = await new MetaWhatsAppSender(db).send({ to: recipientPhone, text: waText });
     } catch (e: unknown) {
       notification = { success: false, error: e instanceof Error ? e.message : "Gagal mengirim notifikasi WhatsApp" };
     }
@@ -195,7 +198,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
 
   return c.json({
     success: true,
-    message: "Pesanan buku berhasil dibuat!",
+    message: "Konfirmasi pembayaran buku berhasil diterima! Simpan No. Order sebagai Bukti Pengambilan.",
     data: { ...result.data, notification },
   }, 201);
 });

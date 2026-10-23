@@ -40,7 +40,7 @@ export function AppHeader({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Assigned location badge (no switching: locked to account assignment) */}
+          {/* Assigned location badge (read-only invariant per AGENTS.md §3.4) */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
             <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
             <span className="truncate max-w-[110px] sm:max-w-none">

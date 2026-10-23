@@ -67,7 +67,7 @@ export function App() {
     loadSchools();
   }, [loadSchools]);
 
-  // Lock active location to the account assignment (no location switching)
+  // Lock active location to the account assignment (no location switching in header)
   useEffect(() => {
     if (session?.user && schools.length > 0) {
       const user = session.user as unknown as { schoolId?: string | null };

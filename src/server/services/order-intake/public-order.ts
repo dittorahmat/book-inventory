@@ -52,6 +52,8 @@ export interface SubmitPublicOrderInput {
   homeAddress?: string;
   orderType: "regular" | "scholarship";
   scholarshipProofBase64?: string;
+  financeProofBase64?: string;
+  parentPhoneManual?: string;
   payment?: PaymentSubmissionInput;
   notes?: string;
 }
@@ -248,6 +250,17 @@ export async function submitPublicOrder(
       );
       uploadedKeys.push(key);
     }
+
+    let financeProofUrl: string | null = null;
+    if (input.financeProofBase64) {
+      const key = `finance_letters/${orderId}_${Date.now()}.jpg`;
+      financeProofUrl = await storage.upload(
+        key,
+        decodeBase64ToBytes(input.financeProofBase64),
+        "image/jpeg"
+      );
+      uploadedKeys.push(key);
+    }
     if (receiptDraft?.ok) receiptDraft.draft.receipt.proofUrl = paymentProofUrl;
 
     const itemRows = looseLines.map((line) => ({
@@ -274,6 +287,8 @@ export async function submitPublicOrder(
         homeAddressSnapshot: input.homeAddress?.trim() ? input.homeAddress.trim() : null,
         satuanShipmentStatus: "belum_dikirim",
         scholarshipProofUrl,
+        financeProofUrl,
+        parentPhoneManual: input.parentPhoneManual?.trim() || null,
         notes: input.notes || null,
         createdAt: now,
         updatedAt: now,

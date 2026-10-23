@@ -44,6 +44,8 @@ export function PaymentStep({
     bankName,
     referenceNumber,
     paymentProofBase64,
+    financeProofBase64,
+    parentPhoneManual,
     notes,
     homeAddress,
     hasTakenPackage,
@@ -57,6 +59,8 @@ export function PaymentStep({
     setBankName,
     setReferenceNumber,
     setPaymentProofBase64,
+    setFinanceProofBase64,
+    setParentPhoneManual,
     setNotes,
     setHomeAddress,
     setHasTakenPackage,
@@ -261,23 +265,57 @@ export function PaymentStep({
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Foto / Screenshot Bukti Transfer <span className="text-red-500 font-bold">*Wajib</span>
+                Nomor WhatsApp Wali Murid (Penerima Bukti Pengambilan) <span className="text-red-500 font-bold">*Wajib</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={parentPhoneManual}
+                onChange={(e) => setParentPhoneManual(e.target.value)}
+                placeholder="Contoh: 081234567890 (Bukti Pengambilan & Kode Unik dikirim ke nomor ini)"
+                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+              />
+              <span className="text-[10px] text-[#65676B] block mt-0.5">
+                *Wajib diisi nomor WhatsApp aktif yang akan membawa siswa/mengambil buku di cabang.
+              </span>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#050505] mb-1">
+                Foto / Screenshot Bukti Transfer <span className="text-[#65676B] font-normal">(Wajib jika bayar transfer)</span>
               </label>
               <input
                 type="file"
                 accept="image/*"
-                required
                 data-testid="payment-proof-input"
                 onChange={(e) => onFileUpload(e, setPaymentProofBase64)}
                 className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
               />
-              {paymentProofBase64 ? (
+              {paymentProofBase64 && (
                 <p className="mt-1 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
                   ✓ Bukti transfer telah terunggah
                 </p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#050505] mb-1">
+                Surat Keterangan dari Finance Al Wildan <span className="text-[#65676B] font-normal">(Opsional / Jika ada dispensasi finance)</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                data-testid="finance-proof-input"
+                onChange={(e) => onFileUpload(e, setFinanceProofBase64)}
+                className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-800"
+              />
+              {financeProofBase64 ? (
+                <p className="mt-1 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                  ✓ Surat Keterangan Finance telah terunggah
+                </p>
               ) : (
-                <p className="mt-1 text-[11px] font-semibold text-amber-600">
-                  *Wajib unggah bukti transfer sebelum pesanan dapat dikirimkan.
+                <p className="mt-1 text-[10px] text-[#65676B]">
+                  *Unggah surat rekomendasi/keterangan dari bagian Finance apabila pembayaran dicicil atau ditunda.
                 </p>
               )}
             </div>
