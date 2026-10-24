@@ -15,6 +15,8 @@ const DEMO_ACCOUNTS = [
   { email: "admin.pusat@alwildan.sch.id", label: "School Admin 1", tag: "Al Wildan 1", Icon: School },
   { email: "admin.cabang2@alwildan.sch.id", label: "Branch Admin 2", tag: "Al Wildan 2", Icon: School },
   { email: "admin.cabang3@alwildan.sch.id", label: "Branch Admin 3", tag: "Al Wildan 3", Icon: School },
+  { email: "admin.cabang4@alwildan.sch.id", label: "Branch Admin 4", tag: "Al Wildan 4", Icon: School },
+  { email: "admin.logistik@alwildan.sch.id", label: "Admin Logistik", tag: "Gudang Buku + Seragam", Icon: Shield },
 ];
 
 export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginViewProps) {

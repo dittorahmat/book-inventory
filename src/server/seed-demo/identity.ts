@@ -96,6 +96,13 @@ export const DEMO_USERS = [
     role: "warehouse_uniforms_admin" as const,
     schoolId: "school-warehouse",
   },
+  {
+    id: "usr-admin-logistik",
+    name: "Admin Logistik Al Wildan",
+    email: "admin.logistik@alwildan.sch.id",
+    role: "warehouse_admin" as const,
+    schoolId: "school-warehouse",
+  },
 ];
 
 export async function seedIdentity({ db: targetDb, now }: SeedContext) {
