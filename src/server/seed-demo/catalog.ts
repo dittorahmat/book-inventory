@@ -139,40 +139,35 @@ export async function seedCatalog({ db: targetDb, now }: SeedContext) {
       .where(eq(bookPackages.id, packageId));
   }
 
-  // Stok satuan lepas di gudang pusat/kampus 1.
-  const existingItems = await targetDb.select().from(bookItems);
-  if (existingItems.length === 0) {
-    for (const b of BOOK_LIST) {
-      for (let i = 0; i < 20; i++) {
-        await targetDb.insert(bookItems).values({
-          id: `bi-loose-${b.id}-${i}`,
-          bookId: b.id,
-          currentSchoolId: "school-alw-1",
-          barcode: `LSE-${b.isbn.slice(-4)}-${(i + 1).toString().padStart(3, "0")}`,
-          condition: "new",
-          status: "in_stock",
-          notes: "Loose stock inventory",
-          createdAt: now,
-          updatedAt: now,
-        }).onConflictDoNothing();
-      }
-    }
-  }
-
-  // Stok bundel siap serah.
-  const existingBundles = await targetDb.select().from(packageItems);
-  if (existingBundles.length === 0) {
-    for (let i = 0; i < 15; i++) {
-      await targetDb.insert(packageItems).values({
-        id: `pki-sd1int-${i}`,
-        packageId: "pkg-sd1-int",
+  // Stok satuan lepas di gudang pusat/kampus 1. Insert per baris agar re-seed
+  // mengisi kembali baris demo yang hilang di database lama.
+  for (const b of BOOK_LIST) {
+    for (let i = 0; i < 20; i++) {
+      await targetDb.insert(bookItems).values({
+        id: `bi-loose-${b.id}-${i}`,
+        bookId: b.id,
         currentSchoolId: "school-alw-1",
-        barcode: `PKG-ALW1-2026-${(i + 1).toString().padStart(4, "0")}`,
+        barcode: `LSE-${b.isbn.slice(-4)}-${(i + 1).toString().padStart(3, "0")}`,
+        condition: "new",
         status: "in_stock",
-        notes: "Pre-assembled ready bundle",
+        notes: "Loose stock inventory",
         createdAt: now,
         updatedAt: now,
       }).onConflictDoNothing();
     }
+  }
+
+  // Stok bundel siap serah.
+  for (let i = 0; i < 15; i++) {
+    await targetDb.insert(packageItems).values({
+      id: `pki-sd1int-${i}`,
+      packageId: "pkg-sd1-int",
+      currentSchoolId: "school-alw-1",
+      barcode: `PKG-ALW1-2026-${(i + 1).toString().padStart(4, "0")}`,
+      status: "in_stock",
+      notes: "Pre-assembled ready bundle",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
   }
 }

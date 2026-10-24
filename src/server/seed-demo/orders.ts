@@ -7,8 +7,7 @@ import {
 import type { SeedContext } from "./context";
 
 export async function seedOrders({ db: targetDb, now }: SeedContext) {
-  const existingOrders = await targetDb.select().from(studentBookOrders);
-  if (existingOrders.length > 0) return;
+  // Insert per baris agar re-seed mengisi kembali order demo yang hilang.
 
   // Skenario 1: Aisyah (Lunas & Sudah Ambil dengan Surat Jalan)
   await targetDb.insert(studentBookOrders).values({

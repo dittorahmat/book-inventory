@@ -8,6 +8,7 @@ afterEach(() => {
 import { demoRouter } from "./demo";
 import { db } from "../../db";
 import {
+  bookItems,
   books,
   bookPackages,
   bookPackageItems,
@@ -35,6 +36,7 @@ describe("Revamped Demo Seeding API", () => {
     expect(json.data.booksSeeded).toBe(12);
     expect(json.data.packagesSeeded).toBe(4);
     expect(json.data.studentsSeeded).toBe(8);
+    expect(json.data.demoPack).toBe(true);
 
     // 1. Verify Al Wildan HQ
     const [hq] = await db.select().from(schools).where(eq(schools.id, "school-alw-1"));
@@ -135,5 +137,21 @@ describe("Revamped Demo Seeding API", () => {
       expect(row.accountId).toBe(row.userId);
       expect(row.providerId).toBe("credential");
     }
+  });
+
+  it("seed demo idempoten: pemanggilan kedua tidak menambah baris", async () => {
+    const countRows = async () => ({
+      schools: (await db.select().from(schools)).length,
+      students: (await db.select().from(students)).length,
+      orders: (await db.select().from(studentBookOrders)).length,
+      loose: (await db.select().from(bookItems)).length,
+      suppliers: (await db.select().from(suppliers)).length,
+    });
+
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
+    const before = await countRows();
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
+    const after = await countRows();
+    expect(after).toEqual(before);
   });
 });
