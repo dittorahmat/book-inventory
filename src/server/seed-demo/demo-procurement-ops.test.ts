@@ -26,7 +26,10 @@ describe("seed demo: pengadaan lanjutan", () => {
     expect(receiptItems).toHaveLength(2);
     const receivedTotal = receiptItems.reduce((sum, row) => sum + row.quantityReceived, 0);
 
-    const poLines = await db.select().from(purchaseOrderItems);
+    const poLines = await db
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.purchaseOrderId, "po-demo-001"));
     const poTotal = poLines.reduce((sum, row) => sum + row.quantityReceived, 0);
     expect(receivedTotal).toBe(poTotal);
 

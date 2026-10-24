@@ -320,6 +320,252 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
+## 15. Skenario 10 — Katalog, paket, dan rakit/bongkar bundel
+
+**Tujuan:** membuktikan master buku, BOM paket, dan stok dua lapis (satuan vs bundel).
+
+1. Login `admin.gudang@alwildan.sch.id` → tab **Katalog**.
+   - 12 judul + buku WPR tampil; coba tambah satu judul baru, unggah cover, lalu hapus.
+   - Judul publik yang diisi seed dipakai portal (bukan “Buku Paket”).
+2. Buka **Paket & Rakit**.
+   - Empat paket dengan harga mengikuti BOM + WPR (Bab 4.2).
+   - Paket Kelas 1 Internasional: **sisa 14 bundel siap** (15 awal − 1 untuk Aisyah).
+   - Komponen satuan dan “potensi rakit” dihitung dari stok terkecil.
+3. **Rakit Bundling** Paket Kelas 1 Internasional sebanyak **1 paket** → stok satuan berkurang, stok bundel bertambah.
+4. **Bongkar Paket** 1 bundel dengan alasan wajib (mis. “penggantian buku rusak”) → kembali menjadi stok satuan.
+5. Coba rakit melebihi potensi → tombol ditolak/validasi merah.
+
+**Verifikasi:** buku WPR tidak mengurangi stok fisik saat rakit; alasan wajib saat bongkar.
+
 ---
 
-> Bab staf lanjutan (katalog, rakit, stok, PO, IPO, seragam, rekonsiliasi, audit periode, laporan, pengaturan, isolasi peran) ditulis pada bagian kedua dokumen ini.
+## 16. Skenario 11 — Stok satuan, transfer antar sekolah, penjualan langsung
+
+1. Login gudang → **Stok Satuan**.
+   - Ringkasan per judul: stok satuan, bundel siap, nilai stok.
+2. **Buat Transfer** ke Al Wildan 2:
+   - Pilih 1 judul (mis. Cambridge Mathematics 1) qty 1 → simpan.
+   - Sistem membuat `TRF-*` berstatus `draft`; stok belum berpindah.
+3. Status transfer siap pakai:
+   - `TRF-202610-0001` draft, `TRF-202610-0002` in transit (1 eksemplar Bahasa Arab), `TRF-202610-0003` selesai (1 eksemplar Tahfidz pindah ke Al Wildan 2).
+4. Karena layar dispatch/receive transfer belum ada, selesaikan lewat API:
+   ```bash
+   curl -X POST http://localhost:3000/api/shipments/trf-demo-01/dispatch \
+     -H "Authorization: Bearer <token>"
+   curl -X POST http://localhost:3000/api/shipments/trf-demo-01/receive \
+     -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+     -d '{"itemReceipts":[{"bookItemId":"bi-loose-b-pai-1-19","condition":"good"}],"packageReceipts":[]}'
+   ```
+5. **Jual ke Ortu** (hanya saat lokasi gudang): pilih Cambridge Mathematics 1 ×1 dan Cambridge Global English 1 ×1.
+   - Nama pembeli + WA wajib; pembayaran tunai.
+   - Order `DIR-*` dibuat, stok langsung berkurang. Riwayat `DIR-202610-001` adalah contohnya.
+
+**Verifikasi:** stok kampus asal berkurang setelah terima; penjualan langsung muncul di laporan kanal “langsung”.
+
+---
+
+## 17. Skenario 12 — PO supplier dan retur vendor (API)
+
+1. Tab **PO Supplier**.
+   - `PO-202609-0088` berstatus **diterima sebagian**, dengan riwayat penerimaan `SJ-SUP-202609-001` (40 Mathematics + 40 Science).
+   - Ringkasan kuantitas diterima = total baris penerimaan.
+2. **Buat PO Baru** → pilih supplier, buku, kuantitas, estimasi tiba → simpan (`draft`).
+3. Alur dokumen: **Tandai Dicetak** → unggah bukti tanda tangan (gambar/PDF) → **Terima Barang** dengan nomor surat jalan supplier.
+   - Penerimaan menambah eksemplar fisik + stok; status menjadi `partially_received` atau `received`.
+4. Retur vendor belum punya layar; data demo bisa dibaca/ditambah lewat API:
+   ```bash
+   curl http://localhost:3000/api/vendor-returns -H "Authorization: Bearer <token>"
+   ```
+   - `RTV-202610-0001` selesai, credit note Rp 285.000, 3 eksemplar Mathematics berstatus disposed.
+5. Coba terima melebihi sisa pesanan → ditolak.
+
+**Verifikasi:** PO yang sudah diterima penuh tidak menawarkan penerimaan lagi; bukti TTD tersimpan.
+
+---
+
+## 18. Skenario 13 — Pesanan internal, surat jalan, selisih, dan push distribution
+
+1. Login `admin.cabang2@alwildan.sch.id` → tab **Pesan ke Gudang**.
+   - `IPO-202610-0001` berstatus **Diajukan**: 2 paket Kelas 2 Internasional, terpenuhi 0.
+2. Login gudang → **Pesanan dari Cabang**.
+   - `IPO-202610-0002` (Al Wildan 1) berstatus **Sebagian**: 4 dipesan, 2 terpenuhi.
+   - Riwayat surat jalan menampilkan `SJ-INT-202610-0001` (transit), `SJ-INT-202610-0003` (10 bundel diterima).
+3. Buat surat jalan baru untuk IPO yang belum terpenuhi → pilih paket + kuantitas → cetak.
+4. Login cabang → **Terima Surat Jalan**:
+   - Unggah bukti tanda tangan wajib.
+   - Tandai satu baris `damaged`/`missing` → status menjadi **Selisih** (`SJ-INT-202610-0004` adalah contohnya).
+5. **Push Distribution Awal Tahun** (gudang):
+   - Pilih cabang dengan siswa aktif → kuota > 0 (Al Wildan 3 memenuhi syarat).
+   - Kirim paket tanpa PO internal → tercatat `SJ-PUSH-202610-0001`.
+
+**Verifikasi:** penerimaan tanpa bukti ditolak; surat jalan selisih tetap menyimpan kondisi per baris.
+
+---
+
+## 19. Skenario 14 — Operasi gudang seragam
+
+1. Login `admin.seragam@alwildan.sch.id` → tab **Gudang Seragam**.
+2. **Pengiriman**:
+   - `USO-DEMO-01` tahap **konfirmasi** (dibayar Rp 100.000 dari Rp 230.000).
+   - `USO-DEMO-02` **lunas** dan sudah dikirim.
+   - `USO-DEMO-03` **tagihan** (invoice terkirim, belum dibayar).
+   - `USO-DEMO-04` **pemesanan** (belum invoice).
+   - `USO-DEMO-05` milik Al Wildan 2, lunas + ongkir Rp 18.000.
+3. Input ongkir + resi pada order yang belum final, lalu **Kirim Invoice** dan **Tandai Terkirim**.
+4. **Katalog & PO**:
+   - Terima sisa `UPO-DEMO-2026-02` (kain SD Laki-laki 5 dari 20; olahraga M 0 dari 20).
+   - Catat reject varian olahraga SD Perempuan ukuran M qty 2 (`ur-demo-01`).
+   - Rakit paket seragam dan cek stok paket (SD L/P 4, SMP L 5).
+5. **Tukar & Refund**:
+   - Tukar `ex-demo-01` (Kayla, S→M) masih `requested`; `ex-demo-02` sudah selesai.
+   - Refund `rf-demo-01` masih `requested`; `rf-demo-02` sudah `refunded`.
+6. **Laporan**: unduh CSV penjualan seragam; stok dan klaim tampil.
+
+**Verifikasi:** penerimaan PO menambah stok varian+ukuran yang benar; menyelesaikan tukar memindahkan stok ukuran.
+
+---
+
+## 20. Skenario 15 — Portal seragam, tukar ukuran, dan refund
+
+1. Buka `/seragam` → pilih **Al Wildan 1**.
+2. Cari `Kayla` (sudah punya order seragam, boleh beli satuan):
+   - Pilih olahraga SD Perempuan ukuran **M** ×1 → Rp 110.000, atau paket SD Perempuan Rp 230.000.
+   - Sistem meminta ukuran untuk paket dan alamat rumah (RT/RW/kode pos).
+   - Submit → order `USO-*` baru, status kirim `belum dikirim`, pembayaran belum lunas.
+3. Aturan paket pertama: cari murid yang **belum pernah** pesan seragam (mis. `Fauzan` di Al Wildan 2). Coba hanya satuan → ditolak `Murid baru/pindahan wajib membeli paket seragam terlebih dahulu`.
+4. Tab **Retur Seragam**:
+   - Cari `Kayla` → pilih `USO-DEMO-04` → mode **Tukar Ukuran** → olahraga S → M → alasan → submit.
+   - Cari `Farhan` → pilih `USO-DEMO-03` atau `-02` → **Refund Dana** (kosong = refund penuh) → alasan → submit.
+5. Staf memproses di **Tukar & Refund**: setujui → selesaikan tukar; setujui → refund.
+
+**Verifikasi:** tukar hanya untuk olahraga, bukan kain harian; pengajuan di luar 14 hari ditolak.
+
+---
+
+## 21. Skenario 16 — Rekonsiliasi finansial dan klaim cabang
+
+1. Login gudang → tab **Rekonsiliasi** → sub-tab **Finansial & Klaim**.
+2. Pilih Al Wildan 1 dan periode berjalan → **Muat**.
+   - Uang masuk dari orang tua, alokasi ke order, sisa belum teralokasi.
+   - Tagihan `open` (mis. Al Wildan 4) dan tagihan `final`.
+   - Klaim `CLM-DEMO-<periode>` **draft Rp 1.920.000** (barang Rp 1.880.000 + ongkir Rp 40.000).
+3. Bandingkan dengan Al Wildan 2:
+   - Klaim `CLM-DEMO2-<periode>` **locked Rp 1.638.000**.
+   - Drift harus **0** karena total klaim = jumlah tagihan final.
+4. **Kunci** klaim Al Wildan 1 → status `locked`; tagihan baru setelah itu masuk periode berikutnya.
+5. Buka detail tagihan: `TGH-DEMO-0006` masih `open` karena ongkir belum masuk.
+
+**Verifikasi:** tidak ada klaim yatim; nominal klaim tidak bisa berubah setelah lock.
+
+---
+
+## 22. Skenario 17 — Audit akhir periode dan Berita Acara
+
+1. Masih di **Rekonsiliasi** → sub-tab **Audit Akhir Periode & Tagihan Hilang**.
+2. Pilih Al Wildan 1, tahun ajaran `2026/2027`, term `Ganjil` → **Compile**.
+   - Paket Kelas 1 Internasional: masuk **10**, tersalur **1**, sisa sistem **9**.
+3. Isi sisa fisik **7** → selisih **2**; harga satuan Rp 1.420.000 → kerugian **Rp 2.840.000**.
+4. **Finalisasi & Cetak Berita Acara** → tersimpan `BA-RECON-DEMO-0001` (sudah ada sebagai contoh final).
+5. **Tarik Sisa** 7 paket → membuat surat jalan manual ke gudang; stok fisik cabang berkurang.
+6. Riwayat BA tampil di daftar dengan total kerugian yang sama.
+
+**Verifikasi:** finalisasi tanpa baris ditolak; angka compile = angka BA.
+
+---
+
+## 23. Skenario 18 — Laporan penjualan dan dashboard
+
+1. Tab **Laporan** → rentang default bulan berjalan.
+   - Total omzet, terbayar, piutang, jumlah order, beasiswa, ongkir, invoice terkirim, serah-terima.
+   - Rincian per kanal: paket, satuan, penjualan langsung.
+   - Rincian per kampus, program (kurikulum × kelas), kategori.
+2. Unduh **CSV** dan cetak laporan.
+3. Tab **Dashboard**:
+   - Perbandingan 4 kampus + gudang tidak nol.
+   - Donut kondisi: new/good/fair/damaged/lost.
+   - Perhatian: 1 transfer `in_transit`, retur terbuka, PO diterima sebagian.
+
+**Verifikasi:** filter kampus mengubah angka; CSV identik dengan tabel.
+
+---
+
+## 24. Skenario 19 — Pengaturan
+
+1. Login `admin.gudang@alwildan.sch.id` → tab **Pengaturan**.
+2. **Cabang Sekolah**: 5 lokasi (4 kampus + gudang). Tambah cabang baru → muncul di dropdown.
+3. **Akun Staf**: 8 akun demo. Tambah akun `school_admin`; password awal `password123`.
+4. **Email SMTP**: host/port/username/from terisi; password kosong. **Uji Kirim** berstatus simulasi (bukan error 502).
+5. **WhatsApp Meta**: nomor terisi, token kosong, nonaktif → uji bersifat simulasi.
+6. **Cut-off Satuan**: `2026/2027` terbuka sejak `2026-07-01`; coba override `closed` → mode satuan portal hilang, lalu kembalikan `open`.
+7. **Seragam**: prefix `USO`/`CLM`; toggle seragam satuan aktif.
+
+**Verifikasi:** perubahan cut-off langsung memengaruhi portal; hanya central admin melihat tab ini.
+
+---
+
+## 25. Skenario 20 — Isolasi peran dan checklist akhir
+
+Login bergantian dan pastikan:
+
+| Akun | Tab pertama | Tidak boleh terlihat |
+|---|---|---|
+| Central Admin | Dashboard | — |
+| Admin Logistik | Dashboard | Pengaturan |
+| Admin Gudang Buku | Pesan ke Gudang | Gudang Seragam, Pengaturan |
+| Admin Gudang Seragam | Gudang Seragam | Tab buku, Pengaturan |
+| School Admin 1 / Branch 2–4 | Pesan ke Gudang | Tab gudang pusat, Pengaturan |
+
+Uji data:
+
+1. `admin.cabang2` hanya melihat siswa/order Al Wildan 2 (3 siswa).
+2. `admin.cabang3` tidak bisa membuka order Al Wildan 1 lewat URL/aksi.
+3. Central admin tetap melihat semua kampus.
+
+**Checklist demo sukses:**
+
+- [ ] Portal menampilkan paket terkunci sesuai kelas + kurikulum.
+- [ ] Satuan + WPR muncul dan totalnya Rp 1.000.000.
+- [ ] Murid baru tidak bisa memesan sebelum NIS disetujui.
+- [ ] Beasiswa butuh bukti dan persetujuan staf.
+- [ ] Klaim portal menjadi struk pending; verifikasi staf mengubah status.
+- [ ] Halaman `/bayar` menghitung total + ongkir.
+- [ ] Serah-terima menerbitkan `SJ-SERAH-*` dan mengikat bundel.
+- [ ] Refund buku bisa ganti/tolak/refund.
+- [ ] Rakit dan bongkar mengubah stok dua lapis.
+- [ ] PO supplier punya riwayat penerimaan.
+- [ ] IPO, surat jalan, selisih, dan push berfungsi.
+- [ ] Seragam: PO parsial, reject, tukar, refund.
+- [ ] Rekonsiliasi menampilkan klaim tanpa drift.
+- [ ] Audit periode menghasilkan BA + tagihan hilang.
+- [ ] Laporan dan dashboard terisi.
+- [ ] Pengaturan memengaruhi portal.
+- [ ] Semua akun terisolasi sesuai perannya.
+
+---
+
+## 26. Troubleshooting
+
+| Gejala | Penyebab | Tindakan |
+|---|---|---|
+| Mode satuan tidak muncul | Cut-off `2026/2027` tertutup | Pengaturan → Cut-off → override `open` |
+| `/bayar/...` 404 | Token tidak ada / order belum invoice | Kirim invoice dari Pesanan Siswa atau Gudang Seragam |
+| Kuota push 0 | Cabang belum punya siswa aktif | Gunakan Al Wildan 2/3/4 (sudah diisi seed) |
+| Order seragam satuan ditolak | Murid belum pernah membeli paket | Pilih paket pada order pertama |
+| Data demo tidak muncul setelah re-seed | Baseline vs pack | Pastikan memanggil `/api/demo/seed` (pack), bukan seed baseline |
+| Bukti foto tidak terbuka | Seed lama menyimpan URL storage | Jalankan ulang seed demo (bukti diganti data URL) |
+| Harga paket berbeda dengan order | Seed lama sebelum penyelarasan | Jalankan ulang seed demo |
+| Test berjalan di DB salah | Preload isolasi dimatikan | Jangan hapus `bunfig.toml` preload; jalankan `bun test` biasa |
+
+### Reset cepat
+
+```bash
+# lokal: hapus DB demo lalu bangun ulang
+Remove-Item ./data/inventory.db
+bun run db:push
+# lalu login central → seed demo (atau POST /api/demo/seed)
+
+# D1: ekspor seed idempoten
+bun run db:d1:seed:export
+bun run db:d1:seed
+```
+
