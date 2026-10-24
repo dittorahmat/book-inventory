@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import {
   bookItems,
   purchaseOrderItems,
@@ -68,20 +68,14 @@ export async function seedDemoProcurementOps({ db: targetDb, now }: SeedContext)
     })
     .onConflictDoNothing();
 
-  for (const itemId of ["bi-loose-b-math-1-16", "bi-loose-b-math-1-17", "bi-loose-b-math-1-18"]) {
-    await targetDb
-      .update(bookItems)
-      .set({ status: "disposed", notes: "Retur ke vendor RTV-202610-0001", updatedAt: now })
-      .where(eq(bookItems.id, itemId));
-  }
+  await targetDb
+    .update(bookItems)
+    .set({ status: "disposed", notes: "Retur ke vendor RTV-202610-0001", updatedAt: now })
+    .where(inArray(bookItems.id, ["bi-loose-b-math-1-16", "bi-loose-b-math-1-17", "bi-loose-b-math-1-18"]));
 
   // Pastikan PO tetap konsisten dengan total penerimaan.
   await targetDb
     .update(purchaseOrderItems)
     .set({ quantityReceived: 40 })
-    .where(eq(purchaseOrderItems.id, "poi-demo-1"));
-  await targetDb
-    .update(purchaseOrderItems)
-    .set({ quantityReceived: 40 })
-    .where(eq(purchaseOrderItems.id, "poi-demo-2"));
+    .where(inArray(purchaseOrderItems.id, ["poi-demo-1", "poi-demo-2"]));
 }

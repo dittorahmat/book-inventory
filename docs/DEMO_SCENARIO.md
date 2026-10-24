@@ -78,6 +78,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Zaidan Faris | `REG-DEMO-ZAIDAN` | Al Wildan 1 | 1 | Internasional | **murid baru** | Antrean verifikasi NIS |
 | Rania Putri | 2026202001 | Al Wildan 2 | 2 | Internasional | aktif | Order lunas + sudah ambil |
 | Naura Zahira | 2026203001 | Al Wildan 3 | 1 | Internasional | aktif | Order cicilan Rp 700.000 |
+| Alya Safira | 2026203003 | Al Wildan 3 | 1 | Nasional | **naik kelas** | Portal menawarkan paket Kelas 2 |
 | Rizky Pratama | 2026204001 | Al Wildan 4 | 2 | Nasional | aktif | Order belum bayar |
 
 ### 4.2 Harga paket
@@ -101,10 +102,10 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Order satuan + WPR | `ORD-202610-102` | Salsabila, Rp 1.000.000 (Rp 130.000 + Rp 120.000 + WPR) |
 | Order cabang | `ORD-202610-201/202/203` | Lunas, cicilan, belum bayar |
 | Penjualan langsung | `DIR-202610-001` | Rp 250.000, tunai gudang |
-| Token bayar buku | `demo-token-buku-nathan` | Sisa Rp 990.000 + ongkir Rp 25.000 |
+| Token bayar buku | `demo-token-buku-nathan` | Total Rp 990.000 (paket diambil di sekolah, tanpa ongkir) |
 | Token bayar satuan | `demo-token-buku-satuan` | Rp 1.000.000 + ongkir Rp 25.000 |
 | Token bayar seragam | `demo-token-seragam-01` / `-03` | Rp 230.000 + ongkir 15.000 / 18.000 |
-| Struk pending | `BCA-NTH-0002` / `MND-SRG-0002` | Rp 490.000 / Rp 230.000 |
+| Struk pending | `BCA-NTH-0002` / `MND-SRG-0002` | Rp 490.000 / Rp 248.000 |
 | Retur buku | `ret-demo-1` | Aisyah, Cambridge Mathematics 1, `reported` |
 | Order seragam | `USO-DEMO-01..05` | partial / paid / unpaid / unpaid / paid cabang 2 |
 | PO seragam | `UPO-DEMO-2026-02` | diterima sebagian |
@@ -224,12 +225,12 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 **Tujuan:** membuktikan klaim orang tua tidak langsung melunasi order; staf tetap verifikator.
 
 1. Buka `http://localhost:5173/bayar/buku/demo-token-buku-nathan`.
-   - Tampil: Nathaniel, total Rp 990.000, ongkir Rp 25.000, **sisa Rp 1.015.000**.
+   - Tampil: Nathaniel, total Rp 990.000, tanpa ongkir; sudah dibayar Rp 500.000, sisa **Rp 490.000**.
 2. Isi transfer **Rp 490.000**, alokasi buku **Rp 490.000**, bank **BCA**, referensi `BCA-NTH-0002`, unggah bukti → submit.
    - Muncul pesan **“Konfirmasi tercatat. Status akan diverifikasi admin.”**
 3. Ulangi pola yang sama untuk:
    - `demo-token-buku-satuan` → sisa Rp 1.025.000.
-   - `demo-token-seragam-01` → sisa Rp 245.000.
+   - `demo-token-seragam-01` → tagihan Rp 245.000; sudah dibayar Rp 100.000, sisa Rp 145.000.
    - `demo-token-seragam-03` → sisa Rp 248.000.
 4. Coba kirim alokasi melebihi sisa tagihan → server menolak `Nominal alokasi melebihi total tagihan order`.
 5. Coba bank + nomor referensi yang sama dua kali → `409 Bukti transfer ... sudah pernah dicatat`.
@@ -246,7 +247,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 2. Pada **Nathaniel** (`ORD-202609-002`) klik **Verifikasi Bukti**:
    - struk `BCA-NTH-0002` Rp 490.000 pending → **Verifikasi**.
    - Total terverifikasi menjadi Rp 500.000 + Rp 490.000 = **Rp 990.000** → order **lunas**.
-3. Demo tolak: pada order seragam **USO-DEMO-03** buka verifikasi struk `MND-SRG-0002` → **Tolak** dengan alasan.
+3. Demo tolak: pada order seragam **USO-DEMO-03** buka verifikasi struk `MND-SRG-0002` (Rp 248.000) → **Tolak** dengan alasan.
    - Sistem mengirim ulang tautan bayar yang sama; orang tua bisa unggah ulang.
 4. Demo kasir: pada **Hendra** (`ORD-202609-004`, Rp 1.350.000) klik **Catat Pembayaran**:
    - total transfer Rp 1.350.000, alokasi buku Rp 1.350.000, bank BCA, referensi baru → order lunas.
@@ -269,7 +270,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
    - `demo-token-buku-satuan` → kirim termin bebas, mis. Rp 500.000.
 4. Untuk seragam: buka **Gudang Seragam → Pengiriman**, order `USO-DEMO-01`.
    - Ongkir Rp 15.000, resi `JNE-SRG-0001`; kirim invoice; buka `demo-token-seragam-01`.
-5. `USO-DEMO-03` sudah punya struk pending Rp 230.000; verifikasi → order seragam **lunas**.
+5. `USO-DEMO-03` sudah punya struk pending Rp 248.000 (barang + ongkir); verifikasi → order seragam **lunas**.
 
 **Verifikasi:** token tidak valid → `404 Link konfirmasi tidak valid`; order lunas menolak klaim baru.
 
@@ -329,7 +330,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
    - Judul publik yang diisi seed dipakai portal (bukan “Buku Paket”).
 2. Buka **Paket & Rakit**.
    - Empat paket dengan harga mengikuti BOM + WPR (Bab 4.2).
-   - Paket Kelas 1 Internasional: **sisa 14 bundel siap** (15 awal − 1 untuk Aisyah).
+   - Paket Kelas 1 Internasional: **sisa 4 bundel siap** (15 awal − 1 untuk Aisyah − 10 distribusi awal tahun ke Al Wildan 1).
    - Komponen satuan dan “potensi rakit” dihitung dari stok terkecil.
 3. **Rakit Bundling** Paket Kelas 1 Internasional sebanyak **1 paket** → stok satuan berkurang, stok bundel bertambah.
 4. **Bongkar Paket** 1 bundel dengan alasan wajib (mis. “penggantian buku rusak”) → kembali menjadi stok satuan.
@@ -406,7 +407,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 1. Login `admin.seragam@alwildan.sch.id` → tab **Gudang Seragam**.
 2. **Pengiriman**:
-   - `USO-DEMO-01` tahap **konfirmasi** (dibayar Rp 100.000 dari Rp 230.000).
+   - `USO-DEMO-01` tahap **konfirmasi** (dibayar Rp 100.000 dari tagihan Rp 245.000).
    - `USO-DEMO-02` **lunas** dan sudah dikirim.
    - `USO-DEMO-03` **tagihan** (invoice terkirim, belum dibayar).
    - `USO-DEMO-04` **pemesanan** (belum invoice).
@@ -453,7 +454,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
    - Klaim `CLM-DEMO2-<periode>` **locked Rp 1.638.000**.
    - Drift harus **0** karena total klaim = jumlah tagihan final.
 4. **Kunci** klaim Al Wildan 1 → status `locked`; tagihan baru setelah itu masuk periode berikutnya.
-5. Buka detail tagihan: `TGH-DEMO-0006` masih `open` karena ongkir belum masuk.
+5. Buka detail tagihan: `TGH-DEMO-0006` masih `open` karena order belum diserahkan.
 
 **Verifikasi:** tidak ada klaim yatim; nominal klaim tidak bisa berubah setelah lock.
 
@@ -465,7 +466,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 2. Pilih Al Wildan 1, tahun ajaran `2026/2027`, term `Ganjil` → **Compile**.
    - Paket Kelas 1 Internasional: masuk **10**, tersalur **1**, sisa sistem **9**.
 3. Isi sisa fisik **7** → selisih **2**; harga satuan Rp 1.420.000 → kerugian **Rp 2.840.000**.
-4. **Finalisasi & Cetak Berita Acara** → tersimpan `BA-RECON-DEMO-0001` (sudah ada sebagai contoh final).
+4. **Finalisasi & Cetak Berita Acara** → service menerbitkan nomor BA baru (contoh yang sudah final: `BA-RECON-DEMO-0001`).
 5. **Tarik Sisa** 7 paket → membuat surat jalan manual ke gudang; stok fisik cabang berkurang.
 6. Riwayat BA tampil di daftar dengan total kerugian yang sama.
 

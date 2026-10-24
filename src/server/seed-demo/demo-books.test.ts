@@ -34,7 +34,10 @@ describe("seed demo: fondasi order buku", () => {
 
     const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-aisyah-1"));
     expect(receipt.amount).toBe(price.get("pkg-sd1-int") ?? 0);
-    const [allocation] = await db.select().from(paymentAllocations).where(eq(paymentAllocations.id, "alc-aisyah-1"));
+    const [allocation] = await db
+      .select()
+      .from(paymentAllocations)
+      .where(eq(paymentAllocations.id, "rcp-aisyah-1-buku-ord-aisyah-done"));
     expect(allocation.amount).toBe(price.get("pkg-sd1-int") ?? 0);
 
     const [bundle] = await db.select().from(packageItems).where(eq(packageItems.id, "pki-sd1int-0"));

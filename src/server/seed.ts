@@ -40,12 +40,13 @@ export async function runIdempotentSeed(customDb: AppDatabase = db) {
 export async function runDemoSeed(customDb: AppDatabase = db) {
   const ctx: SeedContext = { db: customDb, now: new Date().toISOString() };
   const baseline = await seedBaseline(ctx);
-  await seedDemoPack(ctx);
+  const pack = await seedDemoPack(ctx);
   return {
     success: true,
     data: {
       ...baseline.data,
       demoPack: true,
+      pack,
     },
   };
 }

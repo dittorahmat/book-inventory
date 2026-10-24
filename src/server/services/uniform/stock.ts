@@ -80,6 +80,10 @@ export const adjustPackageStockQuery = (
     .where(eq(uniformPackageStock.packageId, change.packageId));
 };
 
+/** Seed/opname: baris sentinel kain lama ("—") dibuang agar tidak dobel. */
+export const deleteLegacyKainStockQuery = (database: AppDatabase, variantId: string) =>
+  database.delete(uniformStock).where(and(eq(uniformStock.variantId, variantId), eq(uniformStock.size, "—")));
+
 /** Stok manual mode "set": upsert nilai absolut (bukan delta). */
 export const setVariantStockQuery = (
   database: AppDatabase,
@@ -98,6 +102,27 @@ export const setVariantStockQuery = (
     })
     .onConflictDoUpdate({
       target: [uniformStock.variantId, uniformStock.size],
+      set: { quantity: input.quantity, updatedAt: now },
+    });
+};
+
+/** Stok paket mode "set": upsert nilai absolut (bukan delta). */
+export const setPackageStockQuery = (
+  database: AppDatabase,
+  input: { packageId: string; quantity: number },
+  deps?: WriteDeps
+) => {
+  const now = writeNow(deps);
+  return database
+    .insert(uniformPackageStock)
+    .values({
+      id: newWriteId(deps),
+      packageId: input.packageId,
+      quantity: input.quantity,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: uniformPackageStock.packageId,
       set: { quantity: input.quantity, updatedAt: now },
     });
 };

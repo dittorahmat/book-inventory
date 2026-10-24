@@ -2,14 +2,13 @@ import { eq } from "drizzle-orm";
 import {
   bookItems,
   packageItems,
-  paymentAllocations,
-  paymentReceipts,
   studentBookOrders,
   studentOrderItems,
   students,
 } from "../../db/schema";
 import { demoPackagePrice } from "./demo-books";
 import type { SeedContext } from "./context";
+import { seedReceipt } from "./receipt";
 
 const BRANCH_STUDENTS = [
   { id: "std-alw2-01", schoolId: "school-alw-2", nis: "2026202001", name: "Rania Putri", gender: "female" as const, gradeLevel: "2", curriculumType: "international" as const, parentName: "Ibu Rania", parentEmail: "rani.parent@gmail.com", parentPhone: "+6281200000201" },
@@ -73,8 +72,26 @@ export async function seedDemoBranches({ db: targetDb, now }: SeedContext) {
         createdAt: now,
         updatedAt: now,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: students.id,
+        set: {
+          name: student.name,
+          nis: student.nis,
+          schoolId: student.schoolId,
+          gradeLevel: student.gradeLevel,
+          curriculumType: student.curriculumType,
+          academicYear: "2026/2027",
+          status: "active",
+          updatedAt: now,
+        },
+      });
   }
+
+  // Satu siswa cabang berstatus naik kelas (portal memakai grade + 1).
+  await targetDb
+    .update(students)
+    .set({ status: "promoted", gradeLevel: "1", academicYear: "2025/2026", updatedAt: now })
+    .where(eq(students.id, "std-alw3-03"));
 
   // Siswa walk-in untuk riwayat penjualan langsung gudang.
   await targetDb
@@ -145,6 +162,16 @@ export async function seedDemoBranches({ db: targetDb, now }: SeedContext) {
       target: studentBookOrders.id,
       set: { totalAmount: prices.sd2Int, paidAmount: prices.sd2Int, updatedAt: now },
     });
+  await seedReceipt({ db: targetDb, now }, "rcp-alw2-1", {
+    studentId: "std-alw2-01",
+    schoolId: "school-alw-2",
+    amount: prices.sd2Int,
+    allocations: [{ kind: "buku", orderId: "ord-alw2-paid", amount: prices.sd2Int }],
+    bankName: "BCA",
+    referenceNumber: "BCA-ALW2-0001",
+    autoVerify: true,
+    notes: "Pelunasan paket Kelas 2 Internasional cabang 2.",
+  });
   await targetDb
     .update(packageItems)
     .set({ status: "delivered", updatedAt: now })
@@ -176,33 +203,16 @@ export async function seedDemoBranches({ db: targetDb, now }: SeedContext) {
       target: studentBookOrders.id,
       set: { totalAmount: prices.sd1Int, updatedAt: now },
     });
-  await targetDb
-    .insert(paymentReceipts)
-    .values({
-      id: "rcp-alw3-1",
-      studentId: "std-alw3-01",
-      schoolId: "school-alw-3",
-      amount: 700000,
-      bankName: "BNI",
-      referenceNumber: "BNI-ALW3-0001",
-      receivedAt: now,
-      verifiedAt: now,
-      notes: "Cicilan pertama buku paket.",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await targetDb
-    .insert(paymentAllocations)
-    .values({
-      id: "alc-alw3-1",
-      receiptId: "rcp-alw3-1",
-      orderId: "ord-alw3-partial",
-      kind: "buku",
-      amount: 700000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
+  await seedReceipt({ db: targetDb, now }, "rcp-alw3-1", {
+    studentId: "std-alw3-01",
+    schoolId: "school-alw-3",
+    amount: 700000,
+    allocations: [{ kind: "buku", orderId: "ord-alw3-partial", amount: 700000 }],
+    bankName: "BNI",
+    referenceNumber: "BNI-ALW3-0001",
+    autoVerify: true,
+    notes: "Cicilan pertama buku paket.",
+  });
 
   // Order belum bayar (Al Wildan 4).
   await targetDb
@@ -261,33 +271,16 @@ export async function seedDemoBranches({ db: targetDb, now }: SeedContext) {
       .values({ ...item, orderId: "ord-direct-demo-1", quantity: 1, createdAt: now })
       .onConflictDoNothing();
   }
-  await targetDb
-    .insert(paymentReceipts)
-    .values({
-      id: "rcp-direct-demo-1",
-      studentId: "walk-in-direct-school-warehouse",
-      schoolId: "school-warehouse",
-      amount: 250000,
-      bankName: "KAS TUNAI",
-      referenceNumber: "DIR-202610-001",
-      receivedAt: now,
-      verifiedAt: now,
-      notes: "Pembayaran tunai di kasir gudang.",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await targetDb
-    .insert(paymentAllocations)
-    .values({
-      id: "alc-direct-demo-1",
-      receiptId: "rcp-direct-demo-1",
-      orderId: "ord-direct-demo-1",
-      kind: "buku",
-      amount: 250000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
+  await seedReceipt({ db: targetDb, now }, "rcp-direct-demo-1", {
+    studentId: "walk-in-direct-school-warehouse",
+    schoolId: "school-warehouse",
+    amount: 250000,
+    allocations: [{ kind: "buku", orderId: "ord-direct-demo-1", amount: 250000 }],
+    bankName: "KAS TUNAI",
+    referenceNumber: "DIR-202610-001",
+    autoVerify: true,
+    notes: "Pembayaran tunai di kasir gudang.",
+  });
   await targetDb
     .update(bookItems)
     .set({ status: "sold", updatedAt: now })

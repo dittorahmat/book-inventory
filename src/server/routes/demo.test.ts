@@ -12,6 +12,9 @@ import {
   books,
   bookPackages,
   bookPackageItems,
+  branchCharges,
+  internalShipments,
+  paymentReceipts,
   students,
   studentBookOrders,
   suppliers,
@@ -37,6 +40,16 @@ describe("Revamped Demo Seeding API", () => {
     expect(json.data.packagesSeeded).toBe(4);
     expect(json.data.studentsSeeded).toBe(8);
     expect(json.data.demoPack).toBe(true);
+    expect(json.data.pack).toEqual({
+      internalPurchaseOrders: 2,
+      internalShipments: 5,
+      transferShipments: 3,
+      vendorReturns: 1,
+      branchCharges: 6,
+      branchClaims: 2,
+      termReconciliations: 1,
+      uniformRejects: 1,
+    });
 
     // 1. Verify Al Wildan HQ
     const [hq] = await db.select().from(schools).where(eq(schools.id, "school-alw-1"));
@@ -146,6 +159,9 @@ describe("Revamped Demo Seeding API", () => {
       orders: (await db.select().from(studentBookOrders)).length,
       loose: (await db.select().from(bookItems)).length,
       suppliers: (await db.select().from(suppliers)).length,
+      shipments: (await db.select().from(internalShipments)).length,
+      charges: (await db.select().from(branchCharges)).length,
+      receipts: (await db.select().from(paymentReceipts)).length,
     });
 
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
@@ -153,5 +169,19 @@ describe("Revamped Demo Seeding API", () => {
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
     const after = await countRows();
     expect(after).toEqual(before);
+  });
+
+  it("re-seed mengembalikan state demo yang diubah operator", async () => {
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
+    const stamp = new Date().toISOString();
+    await db.update(paymentReceipts).set({ verifiedAt: stamp }).where(eq(paymentReceipts.id, "rcp-nathan-02"));
+    await db.update(students).set({ status: "active" }).where(eq(students.id, "std-alw3-03"));
+
+    expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
+
+    const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-nathan-02"));
+    expect(receipt.verifiedAt).toBeNull();
+    const [promoted] = await db.select().from(students).where(eq(students.id, "std-alw3-03"));
+    expect(promoted.status).toBe("promoted");
   });
 });

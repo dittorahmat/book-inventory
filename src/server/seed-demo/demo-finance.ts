@@ -3,55 +3,13 @@ import {
   branchClaims,
   termReconciliationItems,
   termReconciliations,
-  uniformOrderItems,
-  uniformOrders,
 } from "../../db/schema";
 import { demoPackagePrice } from "./demo-books";
 import type { SeedContext } from "./context";
 
 export async function seedDemoFinance({ db: targetDb, now }: SeedContext) {
   const sd1Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-int");
-  const sd1Nas = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-nas");
   const sd2Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd2-int");
-
-  // Order seragam cabang 2 agar klaim punya komponen seragam.
-  await targetDb
-    .insert(uniformOrders)
-    .values({
-      id: "ord-demo-uso-05",
-      orderNumber: "USO-DEMO-05",
-      studentId: "std-alw2-01",
-      schoolId: "school-alw-2",
-      academicYear: "2026/2027",
-      homeAddressSnapshot: "Jl. Pendidikan Barat No. 12, RT 01 RW 02, Bekasi 17111",
-      shipmentStatus: "belum_dikirim",
-      shippingCost: 18000,
-      shippingResi: "JNE-SRG-0005",
-      invoiceSentAt: now,
-      paymentStatus: "paid",
-      orderType: "regular",
-      totalAmount: 230000,
-      paidAmount: 230000,
-      notes: "Order seragam cabang 2 (demo klaim).",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: uniformOrders.id,
-      set: { paymentStatus: "paid", totalAmount: 230000, paidAmount: 230000, updatedAt: now },
-    });
-  await targetDb
-    .insert(uniformOrderItems)
-    .values({
-      id: "uoi-demo-05-1",
-      orderId: "ord-demo-uso-05",
-      packageId: "upk-demo-sd-f",
-      size: "M",
-      quantity: 1,
-      unitPriceSnapshot: 230000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
 
   const period = now.slice(0, 7);
   const chargeDefs = [
@@ -60,7 +18,7 @@ export async function seedDemoFinance({ db: targetDb, now }: SeedContext) {
     { id: "chg-demo-03", number: "TGH-DEMO-0003", schoolId: "school-alw-1", sourceType: "uniform_order" as const, sourceId: "ord-demo-uso-02", trigger: "order_created" as const, goods: 230000, shipping: 25000, claimId: "clm-demo-01" },
     { id: "chg-demo-04", number: "TGH-DEMO-0004", schoolId: "school-alw-2", sourceType: "book_order" as const, sourceId: "ord-alw2-paid", trigger: "handover" as const, goods: sd2Int, shipping: 40000, claimId: "clm-demo-02" },
     { id: "chg-demo-05", number: "TGH-DEMO-0005", schoolId: "school-alw-2", sourceType: "uniform_order" as const, sourceId: "ord-demo-uso-05", trigger: "order_created" as const, goods: 230000, shipping: 18000, claimId: "clm-demo-02" },
-    { id: "chg-demo-06", number: "TGH-DEMO-0006", schoolId: "school-alw-4", sourceType: "book_order" as const, sourceId: "ord-alw4-unpaid", trigger: "order_created" as const, goods: sd1Nas, shipping: 0, claimId: null },
+    { id: "chg-demo-06", number: "TGH-DEMO-0006", schoolId: "school-alw-1", sourceType: "book_order" as const, sourceId: "ord-hendra-unpaid", trigger: "order_created" as const, goods: sd2Int, shipping: 0, claimId: null },
   ];
   for (const charge of chargeDefs) {
     const isFinal = charge.claimId !== null;

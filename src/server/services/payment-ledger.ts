@@ -208,6 +208,47 @@ export const receiptWriteQueries = (database: AppDatabase, draft: ReceiptDraft) 
 ];
 
 /** Duplikat identitas struk (bank + nomor referensi) = 409, bukan 400 generik. */
+/**
+ * Varian idempoten untuk seed demo: baris struk dipulihkan tanpa menghapus
+ * struk lain. Tetap di modul ini supaya seed tidak merakit baris sendiri.
+ */
+export const upsertReceiptQueries = (database: AppDatabase, draft: ReceiptDraft) => [
+  database
+    .insert(paymentReceipts)
+    .values(draft.receipt)
+    .onConflictDoUpdate({
+      target: paymentReceipts.id,
+      set: {
+        studentId: draft.receipt.studentId,
+        schoolId: draft.receipt.schoolId,
+        amount: draft.receipt.amount,
+        bankName: draft.receipt.bankName,
+        referenceNumber: draft.receipt.referenceNumber,
+        proofUrl: draft.receipt.proofUrl,
+        receivedAt: draft.receipt.receivedAt,
+        verifiedByUserId: draft.receipt.verifiedByUserId,
+        verifiedAt: draft.receipt.verifiedAt,
+        notes: draft.receipt.notes,
+        createdByUserId: draft.receipt.createdByUserId,
+        updatedAt: draft.receipt.updatedAt,
+      },
+    }),
+  ...draft.allocations.map((allocation) =>
+    database
+      .insert(paymentAllocations)
+      .values(allocation)
+      .onConflictDoUpdate({
+        target: paymentAllocations.id,
+        set: {
+          receiptId: allocation.receiptId,
+          orderId: allocation.orderId,
+          kind: allocation.kind,
+          amount: allocation.amount,
+        },
+      })
+  ),
+];
+
 export const receiptNumberConflict = (err: unknown): boolean => {
   const message = err instanceof Error ? err.message : String(err);
   return /UNIQUE/i.test(message) && /payment_receipts/i.test(message);

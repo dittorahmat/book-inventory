@@ -1,14 +1,15 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   uniformExchanges,
+  uniformOrderItems,
   uniformOrders,
   uniformPoItems,
   uniformPos,
   uniformRefunds,
   uniformRejects,
-  uniformStock,
   students,
 } from "../../db/schema";
+import { setVariantStockQuery } from "../services/uniform/stock";
 import type { SeedContext } from "./context";
 
 export async function seedDemoUniform({ db: targetDb, now }: SeedContext) {
@@ -28,7 +29,7 @@ export async function seedDemoUniform({ db: targetDb, now }: SeedContext) {
     .update(uniformOrders)
     .set({
       paymentStatus: "paid",
-      paidAmount: 230000,
+      paidAmount: 255000,
       shippingCost: 25000,
       shippingResi: "JNE-SRG-0002",
       invoiceSentAt: now,
@@ -58,6 +59,45 @@ export async function seedDemoUniform({ db: targetDb, now }: SeedContext) {
     .update(uniformOrders)
     .set({ paymentStatus: "unpaid", paidAmount: 0, updatedAt: now })
     .where(eq(uniformOrders.id, "ord-demo-uso-04"));
+
+  // Order seragam cabang 2 (bahan klaim finance), sudah lunas termasuk ongkir.
+  await targetDb
+    .insert(uniformOrders)
+    .values({
+      id: "ord-demo-uso-05",
+      orderNumber: "USO-DEMO-05",
+      studentId: "std-alw2-01",
+      schoolId: "school-alw-2",
+      academicYear: "2026/2027",
+      homeAddressSnapshot: "Jl. Pendidikan Barat No. 12, RT 01 RW 02, Bekasi 17111",
+      shipmentStatus: "belum_dikirim",
+      shippingCost: 18000,
+      shippingResi: "JNE-SRG-0005",
+      invoiceSentAt: now,
+      paymentStatus: "paid",
+      orderType: "regular",
+      totalAmount: 230000,
+      paidAmount: 248000,
+      notes: "Order seragam cabang 2 (demo klaim).",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: uniformOrders.id,
+      set: { paymentStatus: "paid", totalAmount: 230000, paidAmount: 248000, updatedAt: now },
+    });
+  await targetDb
+    .insert(uniformOrderItems)
+    .values({
+      id: "uoi-demo-05-1",
+      orderId: "ord-demo-uso-05",
+      packageId: "upk-demo-sd-f",
+      size: "M",
+      quantity: 1,
+      unitPriceSnapshot: 230000,
+      createdAt: now,
+    })
+    .onConflictDoNothing();
 
   // PO seragam yang masih bisa diterima bertahap.
   await targetDb
@@ -134,21 +174,15 @@ export async function seedDemoUniform({ db: targetDb, now }: SeedContext) {
       target: uniformExchanges.id,
       set: { status: "completed", resolvedAt: now, updatedAt: now },
     });
-  await targetDb
-    .update(uniformStock)
-    .set({ quantity: 16, updatedAt: now })
-    .where(and(eq(uniformStock.variantId, "uv-demo-ol-sd-m"), eq(uniformStock.size, "M")));
-  await targetDb
-    .update(uniformStock)
-    .set({ quantity: 14, updatedAt: now })
-    .where(and(eq(uniformStock.variantId, "uv-demo-ol-sd-m"), eq(uniformStock.size, "L")));
+  await setVariantStockQuery(targetDb, { variantId: "uv-demo-ol-sd-m", size: "M", quantity: 16 });
+  await setVariantStockQuery(targetDb, { variantId: "uv-demo-ol-sd-m", size: "L", quantity: 14 });
 
   await targetDb
     .insert(uniformRefunds)
     .values({
       id: "rf-demo-02",
       refundNumber: "RFD-U-DEMO-02",
-      orderId: "ord-demo-uso-03",
+      orderId: "ord-demo-uso-02",
       studentId: "std-farhan-3",
       amount: 50000,
       reason: "Potongan kain tidak rapi.",

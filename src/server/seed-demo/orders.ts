@@ -1,13 +1,20 @@
 import {
+  bookPackages,
   bookReturns,
-  paymentAllocations,
-  paymentReceipts,
   studentBookOrders,
 } from "../../db/schema";
 import type { SeedContext } from "./context";
+import { seedReceipt } from "./receipt";
 
 export async function seedOrders({ db: targetDb, now }: SeedContext) {
-  // Insert per baris agar re-seed mengisi kembali order demo yang hilang.
+  const prices = new Map(
+    (await targetDb.select({ id: bookPackages.id, price: bookPackages.price }).from(bookPackages)).map(
+      (row) => [row.id, row.price]
+    )
+  );
+  const sd1Int = prices.get("pkg-sd1-int") ?? 0;
+  const sd1Nas = prices.get("pkg-sd1-nas") ?? 0;
+  const sd2Int = prices.get("pkg-sd2-int") ?? 0;
 
   // Skenario 1: Aisyah (Lunas & Sudah Ambil dengan Surat Jalan)
   await targetDb.insert(studentBookOrders).values({
@@ -19,37 +26,29 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
     orderType: "regular",
     paymentStatus: "paid",
     fulfillmentStatus: "picked_up",
-    totalAmount: 1850000,
-    paidAmount: 1850000,
+    totalAmount: sd1Int,
+    paidAmount: sd1Int,
     handoverDeliveryNumber: "SJ-SERAH-202609-0012",
     handoverDate: now,
     handoverRecipient: "Ir. Bambang Trihatmojo (Ayah)",
     notes: "Lunas transfer BCA, diserahkan di loket logistik sekolah",
     createdAt: now,
     updatedAt: now,
-  }).onConflictDoNothing();
+  }).onConflictDoUpdate({
+    target: studentBookOrders.id,
+    set: { totalAmount: sd1Int, paidAmount: sd1Int, updatedAt: now },
+  });
 
-  await targetDb.insert(paymentReceipts).values({
-    id: "rcp-aisyah-1",
+  await seedReceipt({ db: targetDb, now }, "rcp-aisyah-1", {
     studentId: "std-aisyah-2",
     schoolId: "school-alw-1",
-    amount: 1850000,
+    amount: sd1Int,
+    allocations: [{ kind: "buku", orderId: "ord-aisyah-done", amount: sd1Int }],
     bankName: "BCA",
     referenceNumber: "BCA-TRX-881920",
-    receivedAt: now,
-    verifiedAt: now,
+    autoVerify: true,
     notes: "Pembayaran lunas buku",
-    createdAt: now,
-    updatedAt: now,
-  }).onConflictDoNothing();
-  await targetDb.insert(paymentAllocations).values({
-    id: "alc-aisyah-1",
-    receiptId: "rcp-aisyah-1",
-    orderId: "ord-aisyah-done",
-    kind: "buku",
-    amount: 1850000,
-    createdAt: now,
-  }).onConflictDoNothing();
+  });
 
   // Skenario 2: Nathaniel (Cicilan / Partial Payment)
   await targetDb.insert(studentBookOrders).values({
@@ -61,34 +60,26 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
     orderType: "regular",
     paymentStatus: "partial",
     fulfillmentStatus: "waiting_preparation",
-    totalAmount: 950000,
+    totalAmount: sd1Nas,
     paidAmount: 500000,
-    notes: "Ortu transfer gabungan SPP Rp 2.500.000 + Buku Rp 500.000 (Sisa Rp 450.000)",
+    notes: "Ortu transfer gabungan SPP Rp 2.500.000 + Buku Rp 500.000 (Sisa Rp 490.000)",
     createdAt: now,
     updatedAt: now,
-  }).onConflictDoNothing();
+  }).onConflictDoUpdate({
+    target: studentBookOrders.id,
+    set: { totalAmount: sd1Nas, updatedAt: now },
+  });
 
-  await targetDb.insert(paymentReceipts).values({
-    id: "rcp-nathan-1",
+  await seedReceipt({ db: targetDb, now }, "rcp-nathan-1", {
     studentId: "std-nathan-4",
     schoolId: "school-alw-1",
     amount: 3000000,
+    allocations: [{ kind: "buku", orderId: "ord-nathan-partial", amount: 500000 }],
     bankName: "Mandiri",
     referenceNumber: "MND-TRX-551299",
-    receivedAt: now,
-    verifiedAt: now,
+    autoVerify: true,
     notes: "Transfer gabungan SPP bulan Juli dan cicilan ke-1 buku paket",
-    createdAt: now,
-    updatedAt: now,
-  }).onConflictDoNothing();
-  await targetDb.insert(paymentAllocations).values({
-    id: "alc-nathan-1",
-    receiptId: "rcp-nathan-1",
-    orderId: "ord-nathan-partial",
-    kind: "buku",
-    amount: 500000,
-    createdAt: now,
-  }).onConflictDoNothing();
+  });
 
   // Skenario 3: Farhan (Beasiswa 100%)
   await targetDb.insert(studentBookOrders).values({
@@ -118,12 +109,15 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
     orderType: "regular",
     paymentStatus: "unpaid",
     fulfillmentStatus: "waiting_preparation",
-    totalAmount: 1950000,
+    totalAmount: sd2Int,
     paidAmount: 0,
     notes: "Siswa naik kelas, menunggu konfirmasi pembayaran orang tua",
     createdAt: now,
     updatedAt: now,
-  }).onConflictDoNothing();
+  }).onConflictDoUpdate({
+    target: studentBookOrders.id,
+    set: { totalAmount: sd2Int, updatedAt: now },
+  });
 
   // Skenario 5: Retur Buku Cacat
   await targetDb.insert(bookReturns).values({

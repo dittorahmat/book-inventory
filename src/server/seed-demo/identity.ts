@@ -119,56 +119,59 @@ export async function seedIdentity({ db: targetDb, now }: SeedContext) {
   // Hash scrypt asli untuk 'password123' (stub base64 lama tak pernah lolos
   // verifikasi Better-Auth → login demo selalu 401; lihat insiden Okt 2026).
   const demoPasswordHash = await hashPassword("password123");
+  const userStamp = new Date(now);
   for (const u of DEMO_USERS) {
-    try {
-      await targetDb.insert(users).values({
+    await targetDb
+      .insert(users)
+      .values({
         id: u.id,
         name: u.name,
         email: u.email,
         emailVerified: true,
         role: u.role,
         schoolId: u.schoolId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).onConflictDoNothing();
+        createdAt: userStamp,
+        updatedAt: userStamp,
+      })
+      .onConflictDoNothing();
 
-      // For Better-Auth credential accounts: accountId WAJIB user id —
-      // sign-in mencocokkan accountId === user.id (bukan email); baris
-      // ber-accountId email tak pernah ketemu → 401 permanen (Okt 2026).
-      await targetDb.insert(accounts).values({
+    // For Better-Auth credential accounts: accountId WAJIB user id —
+    // sign-in mencocokkan accountId === user.id (bukan email); baris
+    // ber-accountId email tak pernah ketemu → 401 permanen (Okt 2026).
+    await targetDb
+      .insert(accounts)
+      .values({
         id: `acc-${u.id}`,
         userId: u.id,
         accountId: u.id,
         providerId: "credential",
         password: demoPasswordHash,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).onConflictDoNothing();
+        createdAt: userStamp,
+        updatedAt: userStamp,
+      })
+      .onConflictDoNothing();
 
-      // Self-healing: stub warisan (tak terverifikasi) diganti hash asli,
-      // dan accountId email warisan dipetakan ke user id.
-      const [existing] = await targetDb
-        .select({ accountId: accounts.accountId, password: accounts.password })
-        .from(accounts)
-        .where(eq(accounts.id, `acc-${u.id}`));
-      if (existing) {
-        let valid = false;
-        try {
-          valid = existing.password
-            ? await verifyPassword({ hash: existing.password, password: "password123" })
-            : false;
-        } catch {
-          valid = false;
-        }
-        if (!valid || existing.accountId !== u.id) {
-          await targetDb
-            .update(accounts)
-            .set({ accountId: u.id, password: demoPasswordHash, updatedAt: new Date() })
-            .where(eq(accounts.id, `acc-${u.id}`));
-        }
-      }
+    // Self-healing: stub warisan (tak terverifikasi) diganti hash asli,
+    // dan accountId email warisan dipetakan ke user id.
+    const [existing] = await targetDb
+      .select({ accountId: accounts.accountId, password: accounts.password })
+      .from(accounts)
+      .where(eq(accounts.id, `acc-${u.id}`));
+    if (!existing) continue;
+    let valid = false;
+    try {
+      valid = existing.password
+        ? await verifyPassword({ hash: existing.password, password: "password123" })
+        : false;
     } catch {
-      // Ignored if user already exists
+      // Hash stub lama memang tak bisa diparse; dianggap tidak valid.
+      valid = false;
+    }
+    if (!valid || existing.accountId !== u.id) {
+      await targetDb
+        .update(accounts)
+        .set({ accountId: u.id, password: demoPasswordHash, updatedAt: userStamp })
+        .where(eq(accounts.id, `acc-${u.id}`));
     }
   }
 }

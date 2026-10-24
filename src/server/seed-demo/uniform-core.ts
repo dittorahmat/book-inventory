@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import {
   branchClaims,
   suppliers,
@@ -6,15 +5,19 @@ import {
   uniformOrderItems,
   uniformOrders,
   uniformPackageBom,
-  uniformPackageStock,
   uniformPackages,
   uniformPoItems,
   uniformPos,
   uniformRefunds,
   uniformSizes,
-  uniformStock,
   uniformVariants,
 } from "../../db/schema";
+import { KAIN_SIZE } from "../services/uniform/catalog";
+import {
+  deleteLegacyKainStockQuery,
+  setPackageStockQuery,
+  setVariantStockQuery,
+} from "../services/uniform/stock";
 import type { SeedContext } from "./context";
 
 export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
@@ -60,15 +63,8 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
         createdAt: now,
         updatedAt: now,
       }).onConflictDoNothing();
-      await targetDb.insert(uniformStock).values({
-        id: `ust-demo-kain-${j}-${g === "male" ? "m" : "f"}`,
-        variantId: id,
-        size: "—",
-        quantity: 40,
-        updatedAt: now,
-      }).onConflictDoNothing();
-      await targetDb.update(uniformStock).set({ quantity: 40, updatedAt: now })
-        .where(and(eq(uniformStock.variantId, id), eq(uniformStock.size, "—")));
+      await deleteLegacyKainStockQuery(targetDb, id);
+      await setVariantStockQuery(targetDb, { variantId: id, size: KAIN_SIZE, quantity: 40 });
     }
   }
 
@@ -98,13 +94,7 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
           sortOrder: i,
           createdAt: now,
         }).onConflictDoNothing();
-        await targetDb.insert(uniformStock).values({
-          id: `ust-demo-ol-${j}-${s}-${size}`,
-          variantId: id,
-          size,
-          quantity: 15,
-          updatedAt: now,
-        }).onConflictDoNothing();
+        await setVariantStockQuery(targetDb, { variantId: id, size, quantity: 15 });
       }
     }
   }
@@ -129,29 +119,28 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
       id: `ubom-demo-${p.id}-kain`,
       packageId: p.id,
       variantId: p.kain,
-      size: "—",
+      size: KAIN_SIZE,
       quantity: 1,
       createdAt: now,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: uniformPackageBom.id,
+      set: { size: KAIN_SIZE, quantity: 1 },
+    });
     await targetDb.insert(uniformPackageBom).values({
       id: `ubom-demo-${p.id}-ol`,
       packageId: p.id,
       variantId: p.ol,
-      size: "—",
+      size: KAIN_SIZE,
       quantity: 1,
       createdAt: now,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: uniformPackageBom.id,
+      set: { size: KAIN_SIZE, quantity: 1 },
+    });
   }
   const pkgReady: Record<string, number> = { "upk-demo-sd-m": 4, "upk-demo-sd-f": 4, "upk-demo-smp-m": 5 };
   for (const p of pkgDefs) {
-    await targetDb.insert(uniformPackageStock).values({
-      id: `upst-demo-${p.id}`,
-      packageId: p.id,
-      quantity: pkgReady[p.id] ?? 4,
-      updatedAt: now,
-    }).onConflictDoNothing();
-    await targetDb.update(uniformPackageStock).set({ quantity: pkgReady[p.id] ?? 4, updatedAt: now })
-      .where(eq(uniformPackageStock.packageId, p.id));
+    await setPackageStockQuery(targetDb, { packageId: p.id, quantity: pkgReady[p.id] ?? 4 });
   }
 
   await targetDb.insert(uniformPos).values({
@@ -166,8 +155,8 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
     updatedAt: now,
   }).onConflictDoNothing();
   const poLines = [
-    { id: "upoi-demo-01-1", variantId: "uv-demo-kain-sd-m", size: "—", qty: 20, price: 120000 },
-    { id: "upoi-demo-01-2", variantId: "uv-demo-kain-sd-f", size: "—", qty: 20, price: 120000 },
+    { id: "upoi-demo-01-1", variantId: "uv-demo-kain-sd-m", size: KAIN_SIZE, qty: 20, price: 120000 },
+    { id: "upoi-demo-01-2", variantId: "uv-demo-kain-sd-f", size: KAIN_SIZE, qty: 20, price: 120000 },
     { id: "upoi-demo-01-3", variantId: "uv-demo-ol-sd-m", size: "M", qty: 20, price: 110000 },
     { id: "upoi-demo-01-4", variantId: "uv-demo-ol-sd-m", size: "L", qty: 20, price: 110000 },
     { id: "upoi-demo-01-5", variantId: "uv-demo-ol-sd-f", size: "S", qty: 20, price: 110000 },
@@ -183,7 +172,10 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
       quantityReceived: l.qty,
       unitPrice: l.price,
       createdAt: now,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: uniformPoItems.id,
+      set: { size: l.size, quantityOrdered: l.qty, quantityReceived: l.qty, unitPrice: l.price },
+    });
   }
 
   const addr = "Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418";
@@ -212,7 +204,7 @@ export async function seedUniformCore({ db: targetDb, now }: SeedContext) {
   }
   const itemDefs = [
     { id: "uoi-demo-01-1", orderId: "ord-demo-uso-01", packageId: "upk-demo-sd-f", variantId: null as string | null, size: "M", qty: 1, price: 230000 },
-    { id: "uoi-demo-02-1", orderId: "ord-demo-uso-02", packageId: null as string | null, variantId: "uv-demo-kain-sd-m", size: "—", qty: 1, price: 120000 },
+    { id: "uoi-demo-02-1", orderId: "ord-demo-uso-02", packageId: null as string | null, variantId: "uv-demo-kain-sd-m", size: KAIN_SIZE, qty: 1, price: 120000 },
     { id: "uoi-demo-02-2", orderId: "ord-demo-uso-02", packageId: null as string | null, variantId: "uv-demo-ol-sd-m", size: "M", qty: 1, price: 110000 },
     { id: "uoi-demo-03-1", orderId: "ord-demo-uso-03", packageId: "upk-demo-sd-m", variantId: null as string | null, size: "M", qty: 1, price: 230000 },
     { id: "uoi-demo-04-1", orderId: "ord-demo-uso-04", packageId: null as string | null, variantId: "uv-demo-ol-sd-f", size: "S", qty: 1, price: 110000 },

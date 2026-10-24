@@ -5,6 +5,7 @@ import {
   internalPurchaseOrders,
   internalShipmentItems,
   internalShipments,
+  packageItems,
   transferShipmentItems,
   transferShipments,
 } from "../../db/schema";
@@ -14,39 +15,37 @@ export async function seedDemoLogistics({ db: targetDb, now }: SeedContext) {
   const shippedDate = now.slice(0, 10);
 
   // Pesanan internal cabang → gudang.
-  await targetDb
-    .insert(internalPurchaseOrders)
-    .values([
-      {
-        id: "ipo-demo-01",
-        poNumber: "IPO-202610-0001",
-        schoolId: "school-alw-2",
-        status: "submitted",
-        notes: "Permintaan awal tahun untuk Kelas 2 Internasional.",
-        createdByUserId: "usr-admin-cabang2",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "ipo-demo-02",
-        poNumber: "IPO-202610-0002",
-        schoolId: "school-alw-1",
-        status: "partial_fulfilled",
-        notes: "Sebagian sudah dikirim lewat SJ-INT-202610-0001.",
-        createdByUserId: "usr-admin-pusat",
-        createdAt: now,
-        updatedAt: now,
-      },
-    ])
-    .onConflictDoUpdate({
-      target: internalPurchaseOrders.id,
-      set: { status: "submitted", updatedAt: now },
-    });
-  // Status per baris ditetapkan eksplisit agar re-seed mengembalikan skenario.
-  await targetDb
-    .update(internalPurchaseOrders)
-    .set({ status: "partial_fulfilled", updatedAt: now })
-    .where(eq(internalPurchaseOrders.id, "ipo-demo-02"));
+  const ipoDefs = [
+    {
+      id: "ipo-demo-01",
+      poNumber: "IPO-202610-0001",
+      schoolId: "school-alw-2",
+      status: "submitted" as const,
+      notes: "Permintaan awal tahun untuk Kelas 2 Internasional.",
+      createdByUserId: "usr-admin-cabang2",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "ipo-demo-02",
+      poNumber: "IPO-202610-0002",
+      schoolId: "school-alw-1",
+      status: "partial_fulfilled" as const,
+      notes: "Sebagian sudah dikirim lewat SJ-INT-202610-0001.",
+      createdByUserId: "usr-admin-pusat",
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+  for (const po of ipoDefs) {
+    await targetDb
+      .insert(internalPurchaseOrders)
+      .values(po)
+      .onConflictDoUpdate({
+        target: internalPurchaseOrders.id,
+        set: { status: po.status, notes: po.notes, updatedAt: now },
+      });
+  }
 
   const ipoLines = [
     { id: "ipoi-demo-01-1", internalPoId: "ipo-demo-01", packageId: "pkg-sd2-int", quantityOrdered: 2, quantityFulfilled: 0 },
@@ -117,6 +116,14 @@ export async function seedDemoLogistics({ db: targetDb, now }: SeedContext) {
         target: internalShipmentItems.id,
         set: { quantity: item.quantity, receivedCondition: item.condition },
       });
+  }
+
+  // 10 bundel push distribution benar-benar keluar dari stok gudang.
+  for (let i = 1; i <= 10; i++) {
+    await targetDb
+      .update(packageItems)
+      .set({ currentSchoolId: "school-alw-1", status: "delivered", updatedAt: now })
+      .where(eq(packageItems.id, `pki-sd1int-${i}`));
   }
 
   // Transfer antar sekolah: draft, transit, selesai.

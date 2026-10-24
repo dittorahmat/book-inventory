@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { WPR_BOOK_ID, WPR_TITLE } from "../../lib/wpr";
 import { books, systemSettings } from "../../db/schema";
 import { BOOK_LIST } from "./catalog";
@@ -35,11 +35,15 @@ export async function seedDemoSettings({ db: targetDb, now }: SeedContext) {
       });
   }
 
+  // Judul publik hanya diisi saat kosong: edit manual katalog tidak ditimpa.
   for (const book of BOOK_LIST) {
-    await targetDb.update(books).set({ publicTitle: book.title, updatedAt: now }).where(eq(books.id, book.id));
+    await targetDb
+      .update(books)
+      .set({ publicTitle: book.title, updatedAt: now })
+      .where(and(eq(books.id, book.id), or(isNull(books.publicTitle), eq(books.publicTitle, ""))));
   }
   await targetDb
     .update(books)
     .set({ publicTitle: WPR_TITLE, updatedAt: now })
-    .where(eq(books.id, WPR_BOOK_ID));
+    .where(and(eq(books.id, WPR_BOOK_ID), or(isNull(books.publicTitle), eq(books.publicTitle, ""))));
 }

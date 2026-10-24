@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import {
   bookItems,
@@ -35,7 +35,10 @@ describe("seed demo: multi-kampus", () => {
 
     const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-alw3-1"));
     expect(receipt.verifiedAt).not.toBeNull();
-    const [allocation] = await db.select().from(paymentAllocations).where(eq(paymentAllocations.id, "alc-alw3-1"));
+    const [allocation] = await db
+      .select()
+      .from(paymentAllocations)
+      .where(eq(paymentAllocations.id, "rcp-alw3-1-buku-ord-alw3-partial"));
     expect(allocation.amount).toBe(700000);
 
     const [directOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, "ord-direct-demo-1"));
@@ -43,12 +46,37 @@ describe("seed demo: multi-kampus", () => {
     const [directReceipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-direct-demo-1"));
     expect(directReceipt.bankName).toBe("KAS TUNAI");
 
-    const damaged = await db.select().from(bookItems).where(eq(bookItems.condition, "damaged"));
-    const lost = await db.select().from(bookItems).where(eq(bookItems.status, "lost"));
-    expect(damaged.length).toBeGreaterThanOrEqual(3);
-    expect(lost.length).toBeGreaterThanOrEqual(2);
+    const damaged = await db
+      .select()
+      .from(bookItems)
+      .where(inArray(bookItems.id, ["bi-alw2-eng-02", "bi-alw2-sci-02", "bi-alw3-eng-01", "bi-alw4-bindo-02"]));
+    const lost = await db
+      .select()
+      .from(bookItems)
+      .where(inArray(bookItems.id, ["bi-alw2-sci-01", "bi-alw3-sci-01"]));
+    expect(damaged).toHaveLength(4);
+    expect(damaged.every((item) => item.condition === "damaged")).toBe(true);
+    expect(lost).toHaveLength(2);
+    expect(lost.every((item) => item.status === "lost")).toBe(true);
 
-    const branchStock = await db.select().from(bookItems).where(eq(bookItems.currentSchoolId, "school-alw-2"));
+    const branchStock = await db
+      .select()
+      .from(bookItems)
+      .where(
+        inArray(bookItems.id, [
+          "bi-alw2-math-01",
+          "bi-alw2-math-02",
+          "bi-alw2-eng-01",
+          "bi-alw2-eng-02",
+          "bi-alw2-sci-01",
+          "bi-alw2-sci-02",
+        ])
+      );
+    expect(branchStock).toHaveLength(6);
     expect(branchStock.every((item) => item.currentSchoolId === "school-alw-2")).toBe(true);
+
+    const [promoted] = await db.select().from(students).where(eq(students.id, "std-alw3-03"));
+    expect(promoted.status).toBe("promoted");
+    expect(promoted.academicYear).toBe("2025/2026");
   });
 });

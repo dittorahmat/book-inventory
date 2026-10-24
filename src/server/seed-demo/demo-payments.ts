@@ -1,21 +1,21 @@
 import { eq } from "drizzle-orm";
 import {
   bookReturns,
-  paymentAllocations,
-  paymentReceipts,
   studentBookOrders,
   uniformOrders,
 } from "../../db/schema";
 import { demoProofUrl, type SeedContext } from "./context";
+import { seedReceipt } from "./receipt";
 
 export async function seedDemoPayments({ db: targetDb, now }: SeedContext) {
-  // Token halaman bayar + ongkir untuk order buku.
+  // Token halaman bayar. Paket buku diambil di sekolah → tanpa ongkir; order
+  // satuan dikirim ke rumah → ongkir ikut menjadi bagian tagihan (ADR-0011).
   await targetDb
     .update(studentBookOrders)
     .set({
       paymentToken: "demo-token-buku-nathan",
-      shippingCost: 25000,
-      shippingResi: "JNE-BKU-0001",
+      shippingCost: 0,
+      shippingResi: null,
       invoiceSentAt: now,
       updatedAt: now,
     })
@@ -43,92 +43,66 @@ export async function seedDemoPayments({ db: targetDb, now }: SeedContext) {
     .where(eq(uniformOrders.id, "ord-demo-uso-03"));
 
   // Struk pending: diverifikasi staf → Nathaniel lunas (500rb + 490rb = 990rb).
-  await targetDb
-    .insert(paymentReceipts)
-    .values({
-      id: "rcp-nathan-02",
-      studentId: "std-nathan-4",
-      schoolId: "school-alw-1",
-      amount: 490000,
-      bankName: "BCA",
-      referenceNumber: "BCA-NTH-0002",
-      proofUrl: demoProofUrl("Struk BCA Nathaniel"),
-      receivedAt: now,
-      notes: "Pelunasan sisa cicilan buku.",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await targetDb
-    .insert(paymentAllocations)
-    .values({
-      id: "alc-nathan-02",
-      receiptId: "rcp-nathan-02",
-      orderId: "ord-nathan-partial",
-      kind: "buku",
-      amount: 490000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
+  await seedReceipt({ db: targetDb, now }, "rcp-nathan-02", {
+    studentId: "std-nathan-4",
+    schoolId: "school-alw-1",
+    amount: 490000,
+    allocations: [{ kind: "buku", orderId: "ord-nathan-partial", amount: 490000 }],
+    bankName: "BCA",
+    referenceNumber: "BCA-NTH-0002",
+    proofUrl: demoProofUrl("Struk BCA Nathaniel"),
+    notes: "Pelunasan sisa cicilan buku.",
+  });
 
   // Struk verified seragam (USO-01 partial 100rb).
-  await targetDb
-    .insert(paymentReceipts)
-    .values({
-      id: "rcp-seragam-01",
-      studentId: "std-aisyah-2",
-      schoolId: "school-alw-1",
-      amount: 100000,
-      bankName: "BCA",
-      referenceNumber: "BCA-SRG-0001",
-      proofUrl: demoProofUrl("Struk BCA Seragam Aisyah"),
-      receivedAt: now,
-      verifiedAt: now,
-      notes: "Cicilan pertama seragam.",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await targetDb
-    .insert(paymentAllocations)
-    .values({
-      id: "alc-seragam-01",
-      receiptId: "rcp-seragam-01",
-      orderId: "ord-demo-uso-01",
-      kind: "seragam",
-      amount: 100000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
+  await seedReceipt({ db: targetDb, now }, "rcp-seragam-01", {
+    studentId: "std-aisyah-2",
+    schoolId: "school-alw-1",
+    amount: 100000,
+    allocations: [{ kind: "seragam", orderId: "ord-demo-uso-01", amount: 100000 }],
+    bankName: "BCA",
+    referenceNumber: "BCA-SRG-0001",
+    proofUrl: demoProofUrl("Struk BCA Seragam Aisyah"),
+    autoVerify: true,
+    notes: "Cicilan pertama seragam.",
+  });
 
   // Struk pending seragam (USO-03) untuk demo tolak/verifikasi.
-  await targetDb
-    .insert(paymentReceipts)
-    .values({
-      id: "rcp-seragam-02",
-      studentId: "std-farhan-3",
-      schoolId: "school-alw-1",
-      amount: 230000,
-      bankName: "Mandiri",
-      referenceNumber: "MND-SRG-0002",
-      proofUrl: demoProofUrl("Struk Mandiri Seragam Farhan"),
-      receivedAt: now,
-      notes: "Klaim pelunasan seragam.",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await targetDb
-    .insert(paymentAllocations)
-    .values({
-      id: "alc-seragam-02",
-      receiptId: "rcp-seragam-02",
-      orderId: "ord-demo-uso-03",
-      kind: "seragam",
-      amount: 230000,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
+  await seedReceipt({ db: targetDb, now }, "rcp-seragam-02", {
+    studentId: "std-farhan-3",
+    schoolId: "school-alw-1",
+    amount: 248000,
+    allocations: [{ kind: "seragam", orderId: "ord-demo-uso-03", amount: 248000 }],
+    bankName: "Mandiri",
+    referenceNumber: "MND-SRG-0002",
+    proofUrl: demoProofUrl("Struk Mandiri Seragam Farhan"),
+    notes: "Klaim pelunasan seragam + ongkir.",
+  });
+
+  // Order seragam yang sudah dinyatakan lunas di fixture juga punya struk
+  // terverifikasi, supaya total ledger = total order (bukan angka karangan).
+  await seedReceipt({ db: targetDb, now }, "rcp-seragam-03", {
+    studentId: "std-farhan-3",
+    schoolId: "school-alw-1",
+    amount: 255000,
+    allocations: [{ kind: "seragam", orderId: "ord-demo-uso-02", amount: 255000 }],
+    bankName: "BCA",
+    referenceNumber: "BCA-SRG-0002",
+    proofUrl: demoProofUrl("Struk BCA Seragam Farhan"),
+    autoVerify: true,
+    notes: "Pelunasan seragam + ongkir.",
+  });
+  await seedReceipt({ db: targetDb, now }, "rcp-seragam-04", {
+    studentId: "std-alw2-01",
+    schoolId: "school-alw-2",
+    amount: 248000,
+    allocations: [{ kind: "seragam", orderId: "ord-demo-uso-05", amount: 248000 }],
+    bankName: "BNI",
+    referenceNumber: "BNI-SRG-0004",
+    proofUrl: demoProofUrl("Struk BNI Seragam Rania"),
+    autoVerify: true,
+    notes: "Pelunasan seragam cabang 2 + ongkir.",
+  });
 
   // Bukti beasiswa & foto retur yang benar-benar bisa dibuka.
   await targetDb

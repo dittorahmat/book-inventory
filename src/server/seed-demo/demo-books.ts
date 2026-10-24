@@ -3,13 +3,12 @@ import { WPR_BOOK_ID, WPR_PRICE } from "../../lib/wpr";
 import {
   bookPackages,
   packageItems,
-  paymentAllocations,
-  paymentReceipts,
   studentBookOrders,
   studentOrderItems,
   students,
 } from "../../db/schema";
 import type { SeedContext } from "./context";
+import { seedReceipt } from "./receipt";
 
 /** Harga paket tersimpan (BOM + WPR) — dipakai lintas fixture demo. */
 export async function demoPackagePrice(ctx: SeedContext, packageId: string): Promise<number> {
@@ -21,36 +20,11 @@ export async function demoPackagePrice(ctx: SeedContext, packageId: string): Pro
 }
 
 /**
- * Fondasi order buku: nominal mengikuti harga paket, dan penyerahan Aisyah
- * konsisten secara fisik (bundel ter-assign + status siswa).
+ * Fondasi order buku: penyerahan Aisyah konsisten secara fisik (bundel
+ * ter-assign + status siswa). Nominal baseline sudah dihitung dari harga paket.
  */
 export async function seedDemoBooks({ db: targetDb, now }: SeedContext) {
-  const sd1Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-int");
-  const sd1Nas = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-nas");
   const sd2Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd2-int");
-
-  await targetDb
-    .update(studentBookOrders)
-    .set({ totalAmount: sd1Int, paidAmount: sd1Int, updatedAt: now })
-    .where(eq(studentBookOrders.id, "ord-aisyah-done"));
-  await targetDb
-    .update(paymentReceipts)
-    .set({ amount: sd1Int, updatedAt: now })
-    .where(eq(paymentReceipts.id, "rcp-aisyah-1"));
-  await targetDb
-    .update(paymentAllocations)
-    .set({ amount: sd1Int })
-    .where(eq(paymentAllocations.id, "alc-aisyah-1"));
-
-  await targetDb
-    .update(studentBookOrders)
-    .set({ totalAmount: sd1Nas, updatedAt: now })
-    .where(eq(studentBookOrders.id, "ord-nathan-partial"));
-
-  await targetDb
-    .update(studentBookOrders)
-    .set({ totalAmount: sd2Int, updatedAt: now })
-    .where(eq(studentBookOrders.id, "ord-hendra-unpaid"));
 
   await targetDb
     .update(packageItems)
@@ -112,9 +86,24 @@ export async function seedDemoBooks({ db: targetDb, now }: SeedContext) {
       target: studentBookOrders.id,
       set: { totalAmount: sd2Int, paidAmount: sd2Int, paymentStatus: "paid", updatedAt: now },
     });
+  await seedReceipt({ db: targetDb, now }, "rcp-kayla-1", {
+    studentId: "std-kayla-5",
+    schoolId: "school-alw-1",
+    amount: sd2Int,
+    allocations: [{ kind: "buku", orderId: "ord-kayla-paid", amount: sd2Int }],
+    bankName: "BCA",
+    referenceNumber: "BCA-KYL-0001",
+    autoVerify: true,
+    notes: "Pelunasan paket Kelas 2 Internasional.",
+  });
 
   // Order satuan + WPR (Salsabila belum punya order paket).
-  const looseTotal = 130000 + 120000 + WPR_PRICE;
+  const looseItems = [
+    { id: "soi-demo-loose-1", bookId: "b-eng-1", quantity: 1, unitPriceSnapshot: 130000 },
+    { id: "soi-demo-loose-2", bookId: "b-math-1", quantity: 1, unitPriceSnapshot: 120000 },
+    { id: "soi-demo-loose-3", bookId: WPR_BOOK_ID, quantity: 1, unitPriceSnapshot: WPR_PRICE },
+  ];
+  const looseTotal = looseItems.reduce((sum, item) => sum + item.unitPriceSnapshot * item.quantity, 0);
   await targetDb
     .insert(studentBookOrders)
     .values({
@@ -139,11 +128,6 @@ export async function seedDemoBooks({ db: targetDb, now }: SeedContext) {
       set: { totalAmount: looseTotal, updatedAt: now },
     });
 
-  const looseItems = [
-    { id: "soi-demo-loose-1", bookId: "b-eng-1", quantity: 1, unitPriceSnapshot: 130000 },
-    { id: "soi-demo-loose-2", bookId: "b-math-1", quantity: 1, unitPriceSnapshot: 120000 },
-    { id: "soi-demo-loose-3", bookId: WPR_BOOK_ID, quantity: 1, unitPriceSnapshot: WPR_PRICE },
-  ];
   for (const item of looseItems) {
     await targetDb
       .insert(studentOrderItems)
