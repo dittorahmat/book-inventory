@@ -7,6 +7,7 @@ import {
   paymentAllocations,
   paymentReceipts,
   studentBookOrders,
+  studentOrderItems,
   students,
 } from "../../db/schema";
 import { seedDemoBooks } from "./demo-books";
@@ -43,5 +44,20 @@ describe("seed demo: fondasi order buku", () => {
     const [aisyah] = await db.select().from(students).where(eq(students.id, "std-aisyah-2"));
     expect(aisyah.hasTakenPackage).toBe(true);
     expect(aisyah.packageReceivedAt).not.toBeNull();
+
+    const [zaidan] = await db.select().from(students).where(eq(students.id, "std-zaidan-pending"));
+    expect(zaidan.status).toBe("new_pending");
+
+    expect(byId.get("ord-kayla-paid")?.totalAmount).toBe(price.get("pkg-sd2-int") ?? 0);
+    expect(byId.get("ord-kayla-paid")?.paymentStatus).toBe("paid");
+    expect(byId.get("ord-salsa-loose")?.totalAmount).toBe(1000000);
+    expect(byId.get("ord-salsa-loose")?.homeAddressSnapshot).toContain("RT 03 RW 04");
+
+    const items = await db
+      .select()
+      .from(studentOrderItems)
+      .where(eq(studentOrderItems.orderId, "ord-salsa-loose"));
+    expect(items).toHaveLength(3);
+    expect(items.reduce((sum, item) => sum + item.unitPriceSnapshot * item.quantity, 0)).toBe(1000000);
   });
 });
