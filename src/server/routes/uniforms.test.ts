@@ -730,7 +730,8 @@ describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () =>
     expect(fresh.message).toMatch(/wajib membeli paket/i);
 
     await seedPriorUniformOrder(schoolId, studentId, `rule-${stamp}`);
-    await db.insert(systemSettings).values({ key: "uniform_satuan_enabled", value: "false", updatedAt: now });
+    await db.insert(systemSettings).values({ key: "uniform_satuan_enabled", value: "false", updatedAt: now })
+      .onConflictDoUpdate({ target: systemSettings.key, set: { value: "false", updatedAt: now } });
     try {
       const closed = await submitUniformOrder(db, {
         studentId, academicYear: "2026/2027", homeAddress: addr, items: [{ variantId: kainId, quantity: 1 }],

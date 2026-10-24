@@ -30,7 +30,7 @@ Aplikasi ini dirancang dengan **arsitektur runtime-agnostik**, memungkinkan depl
 - **Pengadaan Purchase Order (PO) ke Supplier / Penerbit**:
   - Pengadaan buku dari distributor resmi (seperti Cambridge / Erlangga) dengan pencatatan penerimaan bertahap (*partially received*) yang langsung menambah stok gudang.
 - **Transfer Antar Sekolah**:
-  - Pengiriman draf mutasi antar cabang, penguncian status `in_transit`, dan verifikasi penerimaan dengan pencatatan *discrepancy* (selisih barang hilang/rusak di jalan).
+  - Pembuatan draf mutasi antar cabang dari layar Stok Satuan; penguncian status `in_transit` dan penerimaan dengan pencatatan *discrepancy* tersedia lewat API (layar dispatch/receive belum ada).
 - **Pengaturan Notifikasi Email & SMTP**:
   - Konfigurasi server SMTP internal untuk pengiriman notifikasi status pesanan kepada orang tua secara otomatis.
 
@@ -43,12 +43,15 @@ Tersedia akun demonstrasi lengkap dengan data realistis di 4 kampus Al Wildan:
 | Peran (Role) | Email | Password | Unit / Kampus |
 |---|---|---|---|
 | **Central Admin (Gudang)** | `admin.gudang@alwildan.sch.id` | `password123` | Gudang Logistik (semua lokasi) |
+| **Admin Logistik** | `admin.logistik@alwildan.sch.id` | `password123` | Gudang Logistik (buku + seragam) |
+| **Admin Gudang Buku** | `admin.buku@alwildan.sch.id` | `password123` | Gudang Logistik |
+| **Admin Gudang Seragam** | `admin.seragam@alwildan.sch.id` | `password123` | Gudang Logistik |
 | **School Admin 1** | `admin.pusat@alwildan.sch.id` | `password123` | Al Wildan 1 |
 | **Branch Admin 2** | `admin.cabang2@alwildan.sch.id` | `password123` | Al Wildan 2 |
 | **Branch Admin 3** | `admin.cabang3@alwildan.sch.id` | `password123` | Al Wildan 3 |
 | **Branch Admin 4** | `admin.cabang4@alwildan.sch.id` | `password123` | Al Wildan 4 |
 
-📖 **Panduan Skenario Demo Lengkap**: Silakan baca dokumen [**`docs/DEMO_SCENARIO.md`**](file:///D:/development/book-inventory/docs/DEMO_SCENARIO.md) untuk panduan langkah demi langkah 7 skenario simulasi bisnis proses.
+📖 **Studi Kasus Demo End-to-End**: [**`docs/DEMO_SCENARIO.md`**](docs/DEMO_SCENARIO.md) berisi 20 skenario yang menutup seluruh modul: portal buku + satuan/WPR + beasiswa, pembayaran & invoice `/bayar/:token`, serah-terima, refund buku, katalog/paket/rakit, stok & penjualan langsung, PO supplier, IPO + surat jalan + push distribution, seragam, rekonsiliasi finansial, audit periode, laporan, dashboard, dan isolasi peran.
 
 ---
 
@@ -148,5 +151,5 @@ npm run test
 
 ## 📖 Dokumentasi Terkait
 
-- 🎯 **[Panduan Skenario Demo (docs/DEMO_SCENARIO.md)](file:///D:/development/book-inventory/docs/DEMO_SCENARIO.md)**: Panduan simulasi 7 skenario operasional mulai dari pemesanan murid baru/naik kelas, cicilan, beasiswa, perakitan bundling, surat jalan, hingga retur buku rusak.
+- 🎯 **[Studi Kasus Demo End-to-End (docs/DEMO_SCENARIO.md)](docs/DEMO_SCENARIO.md)**: 20 skenario operasional — portal buku/satuan/WPR/beasiswa, pembayaran & invoice, serah-terima, refund, katalog & rakit, stok & transfer, PO supplier, IPO/push distribution, seragam, rekonsiliasi, audit periode, laporan, pengaturan, dan isolasi peran.
 - 📄 **[Buku Panduan Pengguna (docs/USER_MANUAL.pdf)](file:///D:/development/book-inventory/docs/USER_MANUAL.pdf)**: Dokumentasi operasional manual format PDF untuk staf sekolah.

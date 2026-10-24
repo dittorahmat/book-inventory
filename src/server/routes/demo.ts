@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { runIdempotentSeed } from "../seed";
+import { runDemoSeed } from "../seed";
 import { accessErrorResponse, requireCentralAdmin, resolveRequestActor } from "../services/access-scope";
 
 export const demoRouter = new Hono();
@@ -7,7 +7,7 @@ export const demoRouter = new Hono();
 demoRouter.post("/seed", async (c) => {
   try {
     requireCentralAdmin(await resolveRequestActor(c));
-    const result = await runIdempotentSeed();
+    const result = await runDemoSeed();
     return c.json({
       success: true,
       message: "Data demo operasional Al Wildan berhasil dirombak total dan diperbarui secara komprehensif!",

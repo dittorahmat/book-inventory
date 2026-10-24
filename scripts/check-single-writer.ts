@@ -51,7 +51,8 @@ const walk = (dir: string, out: string[] = []): string[] => {
       !/\.d\.ts$/.test(entry.name)
     ) {
       const normalized = full.replace(/\\/g, "/");
-      // Seed demo mengisi baris awal langsung; itu data, bukan mutasi runtime.
+      // Seed baseline mengisi baris awal langsung; itu data, bukan mutasi
+      // runtime. Modul demo memakai modul pemilik (payment-ledger/uniform stock).
       if (normalized === "src/server/seed.ts") continue;
       out.push(normalized);
     }
