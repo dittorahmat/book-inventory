@@ -1,6 +1,217 @@
+import {
+  branchCharges,
+  branchClaims,
+  termReconciliationItems,
+  termReconciliations,
+  uniformOrderItems,
+  uniformOrders,
+} from "../../db/schema";
+import { demoPackagePrice } from "./demo-books";
 import type { SeedContext } from "./context";
 
-/** Diisi pada tiket rekonsiliasi & audit periode (tagihan, klaim, berita acara). */
-export async function seedDemoFinance(_ctx: SeedContext): Promise<void> {
-  // Menunggu fixture rekonsiliasi & audit periode.
+export async function seedDemoFinance({ db: targetDb, now }: SeedContext) {
+  const sd1Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-int");
+  const sd1Nas = await demoPackagePrice({ db: targetDb, now }, "pkg-sd1-nas");
+  const sd2Int = await demoPackagePrice({ db: targetDb, now }, "pkg-sd2-int");
+
+  // Order seragam cabang 2 agar klaim punya komponen seragam.
+  await targetDb
+    .insert(uniformOrders)
+    .values({
+      id: "ord-demo-uso-05",
+      orderNumber: "USO-DEMO-05",
+      studentId: "std-alw2-01",
+      schoolId: "school-alw-2",
+      academicYear: "2026/2027",
+      homeAddressSnapshot: "Jl. Pendidikan Barat No. 12, RT 01 RW 02, Bekasi 17111",
+      shipmentStatus: "belum_dikirim",
+      shippingCost: 18000,
+      shippingResi: "JNE-SRG-0005",
+      invoiceSentAt: now,
+      paymentStatus: "paid",
+      orderType: "regular",
+      totalAmount: 230000,
+      paidAmount: 230000,
+      notes: "Order seragam cabang 2 (demo klaim).",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: uniformOrders.id,
+      set: { paymentStatus: "paid", totalAmount: 230000, paidAmount: 230000, updatedAt: now },
+    });
+  await targetDb
+    .insert(uniformOrderItems)
+    .values({
+      id: "uoi-demo-05-1",
+      orderId: "ord-demo-uso-05",
+      packageId: "upk-demo-sd-f",
+      size: "M",
+      quantity: 1,
+      unitPriceSnapshot: 230000,
+      createdAt: now,
+    })
+    .onConflictDoNothing();
+
+  const period = now.slice(0, 7);
+  const chargeDefs = [
+    { id: "chg-demo-01", number: "TGH-DEMO-0001", schoolId: "school-alw-1", sourceType: "book_order" as const, sourceId: "ord-aisyah-done", trigger: "handover" as const, goods: sd1Int, shipping: 0, claimId: "clm-demo-01" },
+    { id: "chg-demo-02", number: "TGH-DEMO-0002", schoolId: "school-alw-1", sourceType: "uniform_order" as const, sourceId: "ord-demo-uso-01", trigger: "order_created" as const, goods: 230000, shipping: 15000, claimId: "clm-demo-01" },
+    { id: "chg-demo-03", number: "TGH-DEMO-0003", schoolId: "school-alw-1", sourceType: "uniform_order" as const, sourceId: "ord-demo-uso-02", trigger: "order_created" as const, goods: 230000, shipping: 25000, claimId: "clm-demo-01" },
+    { id: "chg-demo-04", number: "TGH-DEMO-0004", schoolId: "school-alw-2", sourceType: "book_order" as const, sourceId: "ord-alw2-paid", trigger: "handover" as const, goods: sd2Int, shipping: 40000, claimId: "clm-demo-02" },
+    { id: "chg-demo-05", number: "TGH-DEMO-0005", schoolId: "school-alw-2", sourceType: "uniform_order" as const, sourceId: "ord-demo-uso-05", trigger: "order_created" as const, goods: 230000, shipping: 18000, claimId: "clm-demo-02" },
+    { id: "chg-demo-06", number: "TGH-DEMO-0006", schoolId: "school-alw-4", sourceType: "book_order" as const, sourceId: "ord-alw4-unpaid", trigger: "order_created" as const, goods: sd1Nas, shipping: 0, claimId: null },
+  ];
+  for (const charge of chargeDefs) {
+    const isFinal = charge.claimId !== null;
+    await targetDb
+      .insert(branchCharges)
+      .values({
+        id: charge.id,
+        chargeNumber: charge.number,
+        schoolId: charge.schoolId,
+        sourceType: charge.sourceType,
+        sourceId: charge.sourceId,
+        triggerEvent: charge.trigger,
+        chargeableAt: now,
+        finalizedAt: isFinal ? now : null,
+        goodsAmount: charge.goods,
+        shippingAmount: charge.shipping,
+        status: isFinal ? "final" : "open",
+        claimId: charge.claimId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: branchCharges.id,
+        set: {
+          goodsAmount: charge.goods,
+          shippingAmount: charge.shipping,
+          status: isFinal ? "final" : "open",
+          finalizedAt: isFinal ? now : null,
+          claimId: charge.claimId,
+          updatedAt: now,
+        },
+      });
+  }
+
+  const claim1Goods = sd1Int + 230000 + 230000;
+  const claim1Shipping = 40000;
+  await targetDb
+    .insert(branchClaims)
+    .values({
+      id: "clm-demo-01",
+      claimNumber: `CLM-DEMO-${period}`,
+      schoolId: "school-alw-1",
+      period,
+      status: "draft",
+      totalQty: 3,
+      goodsAmount: claim1Goods,
+      shippingAmount: claim1Shipping,
+      totalAmount: claim1Goods + claim1Shipping,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: branchClaims.id,
+      set: { totalQty: 3, goodsAmount: claim1Goods, shippingAmount: claim1Shipping, totalAmount: claim1Goods + claim1Shipping, updatedAt: now },
+    });
+
+  const claim2Goods = sd2Int + 230000;
+  const claim2Shipping = 58000;
+  await targetDb
+    .insert(branchClaims)
+    .values({
+      id: "clm-demo-02",
+      claimNumber: `CLM-DEMO2-${period}`,
+      schoolId: "school-alw-2",
+      period,
+      status: "locked",
+      totalQty: 2,
+      goodsAmount: claim2Goods,
+      shippingAmount: claim2Shipping,
+      totalAmount: claim2Goods + claim2Shipping,
+      lockedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: branchClaims.id,
+      set: { status: "locked", lockedAt: now, totalQty: 2, goodsAmount: claim2Goods, shippingAmount: claim2Shipping, totalAmount: claim2Goods + claim2Shipping, updatedAt: now },
+    });
+
+  // Audit akhir periode: inbound 10, tersalur 1, sisa sistem 9, fisik 7 → loss 2 paket.
+  const physicalRemaining = 7;
+  const totalInbound = 10;
+  const totalDistributed = 1;
+  const systemRemaining = totalInbound - totalDistributed;
+  const discrepancy = systemRemaining - physicalRemaining;
+  const lossAmount = discrepancy * sd1Int;
+  await targetDb
+    .insert(termReconciliations)
+    .values({
+      id: "trm-demo-01",
+      reconciliationNumber: "BA-RECON-DEMO-0001",
+      schoolId: "school-alw-1",
+      academicYear: "2026/2027",
+      term: "Ganjil",
+      status: "finalized",
+      notes: "Audit fisik akhir semester Ganjil — 2 paket tidak ditemukan.",
+      totalInbound,
+      totalDistributed,
+      totalSystemRemaining: systemRemaining,
+      totalPhysicalRemaining: physicalRemaining,
+      totalDiscrepancy: discrepancy,
+      totalLossAmount: lossAmount,
+      createdByUserId: "usr-admin-gudang",
+      finalizedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: termReconciliations.id,
+      set: {
+        status: "finalized",
+        totalInbound,
+        totalDistributed,
+        totalSystemRemaining: systemRemaining,
+        totalPhysicalRemaining: physicalRemaining,
+        totalDiscrepancy: discrepancy,
+        totalLossAmount: lossAmount,
+        finalizedAt: now,
+        updatedAt: now,
+      },
+    });
+  await targetDb
+    .insert(termReconciliationItems)
+    .values({
+      id: "tri-demo-01",
+      reconciliationId: "trm-demo-01",
+      itemType: "package",
+      packageId: "pkg-sd1-int",
+      totalInbound,
+      totalDistributed,
+      systemRemaining,
+      physicalRemaining,
+      discrepancyQuantity: discrepancy,
+      unitPrice: sd1Int,
+      totalLossAmount: lossAmount,
+      notes: "Selisih 2 paket Kelas 1 Internasional.",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: termReconciliationItems.id,
+      set: {
+        totalInbound,
+        totalDistributed,
+        systemRemaining,
+        physicalRemaining,
+        discrepancyQuantity: discrepancy,
+        unitPrice: sd1Int,
+        totalLossAmount: lossAmount,
+        updatedAt: now,
+      },
+    });
+
 }
