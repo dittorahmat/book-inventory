@@ -52,7 +52,9 @@ const walk = (dir: string, out: string[] = []): string[] => {
     ) {
       const normalized = full.replace(/\\/g, "/");
       // Seed demo mengisi baris awal langsung; itu data, bukan mutasi runtime.
-      if (normalized === "src/server/seed.ts") continue;
+      // Modul seed dipecah ke `seed-demo/` (batas 400 baris) dengan alasan yang
+      // sama: baris awal demo, bukan jalur tulis aplikasi.
+      if (normalized === "src/server/seed.ts" || normalized.startsWith("src/server/seed-demo/")) continue;
       out.push(normalized);
     }
   }
