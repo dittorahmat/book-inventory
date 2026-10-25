@@ -2,6 +2,8 @@ export type { FailedReservation, IntakeError, IntakeLooseItem, IntakeLooseLine }
 export { reserveLooseLines, resolveLooseLines } from "./intake";
 export type { PaymentDerivation, ValidationError } from "./validation";
 export {
+  MAX_ORDER_BOOK_QTY,
+  MIN_ORDER_BOOK_QTY,
   derivePaymentStatus,
   grossOrderAmount,
   validateLooseBooks,

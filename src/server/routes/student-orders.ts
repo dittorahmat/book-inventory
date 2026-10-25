@@ -20,6 +20,7 @@ import {
 import { guardScopedOrderMutation } from "../services/order-operations";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { pendingPaymentCounts } from "../services/order-payment-review";
+import { deriveStatus } from "../services/payment-ledger";
 import { formatRupiah } from "../../lib/transfer-pricing";
 
 import { bookReturnsRouter } from "./book-returns";
@@ -272,6 +273,8 @@ studentOrdersRouter.post("/:id/scholarship-discount", zValidator("json", scholar
     // Hitung potongan nominal dari totalAmount
     const discountAmount = Math.round((order.totalAmount * discountPct) / 100);
     const finalAmount = Math.max(0, order.totalAmount - discountAmount);
+    const due = finalAmount + (order.shippingCost ?? 0);
+    const paymentStatus = deriveStatus(order.orderType, order.paidAmount, due) ?? order.paymentStatus;
 
     await db
       .update(studentBookOrders)
@@ -279,6 +282,8 @@ studentOrdersRouter.post("/:id/scholarship-discount", zValidator("json", scholar
         scholarshipDiscountPct: discountPct,
         scholarshipDiscountApprovedAt: now,
         discountAmount,
+        totalAmount: finalAmount,
+        paymentStatus,
         notes: `${order.notes ? order.notes + " | " : ""}Diskon beasiswa logistik ${discountPct}% (-${formatRupiah(discountAmount)})`,
         updatedAt: now,
       })

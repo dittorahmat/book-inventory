@@ -44,6 +44,9 @@ export function derivePaymentStatus(input: {
     : { totalAmount: input.grossAmount, paidAmount: 0, paymentStatus: "unpaid" };
 }
 
+export const MIN_ORDER_BOOK_QTY = 1;
+export const MAX_ORDER_BOOK_QTY = 50;
+
 /** Order harus memuat paket atau minimal satu judul satuan dengan jumlah valid. Murni: tanpa DB. */
 export function validateOrderLines(
   packageId: string | undefined,
@@ -52,8 +55,8 @@ export function validateOrderLines(
   const lines = looseItems ?? [];
   return !packageId && lines.length === 0
     ? { ok: false, status: 400, message: "Pilih paket atau minimal satu judul buku satuan" }
-    : lines.some((l) => !l.bookId || !Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > 50)
-      ? { ok: false, status: 400, message: "Jumlah minimal 1 dan maksimal 50 per judul buku" }
+    : lines.some((l) => !l.bookId || !Number.isInteger(l.quantity) || l.quantity < MIN_ORDER_BOOK_QTY || l.quantity > MAX_ORDER_BOOK_QTY)
+      ? { ok: false, status: 400, message: `Jumlah minimal ${MIN_ORDER_BOOK_QTY} dan maksimal ${MAX_ORDER_BOOK_QTY} per judul buku` }
       : { ok: true };
 }
 

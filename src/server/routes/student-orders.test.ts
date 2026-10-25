@@ -367,6 +367,34 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     expect(allowedHandover.status).toBe(200);
     const allowedJson = await allowedHandover.json();
     expect(allowedJson.data.fulfillmentStatus).toBe("picked_up");
+
+    // 4. Logistics scholarship-discount updating discountAmount and totalAmount consistently
+    const discOrder = `ord-disc-pct-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: discOrder,
+      orderNumber: `ORD-DISC-PCT-${String(stamp).slice(-6)}`,
+      studentId,
+      schoolId,
+      packageId: pkgId,
+      orderType: "regular",
+      paymentStatus: "unpaid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 500000,
+      paidAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const discRes = await studentOrdersRouter.request(`/${discOrder}/scholarship-discount`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ discountPct: 20 }),
+    });
+    expect(discRes.status).toBe(200);
+    const [persisted] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, discOrder));
+    expect(persisted.discountAmount).toBe(100000);
+    expect(persisted.totalAmount).toBe(400000);
+    expect(persisted.paymentStatus).toBe("unpaid");
   });
 });
 

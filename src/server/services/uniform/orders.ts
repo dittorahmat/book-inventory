@@ -4,10 +4,8 @@ import {
   students,
   uniformVariants,
   uniformSizes,
-  uniformStock,
   uniformPackages,
   uniformPackageBom,
-  uniformPackageStock,
   uniformOrders,
   uniformOrderItems,
 } from "../../../db/schema";
@@ -26,7 +24,7 @@ import { defaultStorage } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import { emitChargeQuery } from "../branch-charges";
 import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligibility";
-import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
+import { adjustPackageStockQuery, adjustVariantStockQuery, checkUniformAvailability, type UniformStockLine } from "./stock";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 
@@ -158,27 +156,22 @@ export async function submitUniformOrder(
     );
   }
 
-  // Kecukupan stok: paket (ready) + satuan (per varian-size).
-  const ready: Array<typeof uniformPackageStock.$inferSelect> = packageIds.length > 0
-    ? await database.select().from(uniformPackageStock).where(inArray(uniformPackageStock.packageId, packageIds))
-    : [];
-  const readyByPkg = new Map(ready.map((r) => [r.packageId, r.quantity]));
-  const stocks: Array<typeof uniformStock.$inferSelect> = await database.select().from(uniformStock);
-  const stockByKey = new Map(stocks.map((s) => [`${s.variantId}::${s.size}`, s]));
-  const needSatuan = new Map<string, { variantId: string; size: string; qty: number }>();
-  for (const item of payload.items) {
+  // Kecukupan stok: paket (ready) + satuan (per varian-size) lewat interface kanonik checkUniformAvailability.
+  const stockLines: UniformStockLine[] = payload.items.map((item) => {
     const qty = item.quantity ?? 1;
     if (item.packageId) {
-      if ((readyByPkg.get(item.packageId) ?? 0) < qty) return invalid("Stok paket rakitan belum cukup — hubungi admin gudang.");
-    } else if (item.variantId) {
-      const size = item.size?.trim() || KAIN_SIZE;
-      const key = `${item.variantId}::${size}`;
-      const current = needSatuan.get(key);
-      needSatuan.set(key, { variantId: item.variantId, size, qty: (current?.qty ?? 0) + qty });
+      return { kind: "package", id: item.packageId, quantity: qty };
     }
-  }
-  for (const [key, need] of needSatuan) {
-    if ((stockByKey.get(key)?.quantity ?? 0) < need.qty) return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
+    return { kind: "variant", id: item.variantId!, size: item.size?.trim() || KAIN_SIZE, quantity: qty };
+  });
+
+  const availability = await checkUniformAvailability(database, stockLines);
+  if (!availability.ok) {
+    const pkgShortfall = availability.shortfalls.find((s) => s.kind === "package");
+    if (pkgShortfall) {
+      return invalid("Stok paket rakitan belum cukup — hubungi admin gudang.");
+    }
+    return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
   }
 
   // Total + baris order (beasiswa/free: total 0 menunggu verifikasi).
@@ -247,8 +240,18 @@ export async function submitUniformOrder(
         }, deps)
       );
       const needPaket = new Map<string, number>();
+      const needSatuan = new Map<string, { variantId: string; size: string; qty: number }>();
       for (const item of payload.items) {
-        if (item.packageId) needPaket.set(item.packageId, (needPaket.get(item.packageId) ?? 0) + (item.quantity ?? 1));
+        const qty = item.quantity ?? 1;
+        if (item.packageId) {
+          needPaket.set(item.packageId, (needPaket.get(item.packageId) ?? 0) + qty);
+        } else if (item.variantId) {
+          const size = item.size?.trim() || KAIN_SIZE;
+          const key = `${item.variantId}::${size}`;
+          const cur = needSatuan.get(key) ?? { variantId: item.variantId, size, qty: 0 };
+          cur.qty += qty;
+          needSatuan.set(key, cur);
+        }
       }
       for (const [packageId, qty] of needPaket) {
         queries.push(adjustPackageStockQuery(database, { packageId, delta: -qty }, "require", { now }));

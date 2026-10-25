@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { resolveLockedPackage } from "../../lib/resolve-package";
 import { calcLooseOrderTotal } from "../../lib/book-pricing";
 import {
-  searchStudents,
-  registerStudent,
   submitFinalOrder,
   fetchWprEligibility,
 } from "./portal-api";
@@ -11,24 +9,21 @@ import { WPR_PRICE } from "../../lib/wpr";
 import { buildFinalOrderPayload } from "./order-payload";
 import { usePortalCatalog } from "./usePortalCatalog";
 import { useOrderDraft } from "./useOrderDraft";
+import {
+  useStudentSearch,
+  PORTAL_STUDENT_SEARCH_INPUT_ID,
+  getPendingNoResultQuery,
+} from "./useStudentSearch";
 import type { LooseSelection } from "./OrderItemStep";
 import type {
   StudentSearchResult,
-  NewStudentForm,
   FileUploadHandler,
 } from "../../lib/portal-types";
 
 export type OrderStep = 1 | 2 | 3 | 4;
 export type PortalTab = "order" | "uniform" | "uniform_return" | "book_return";
 
-export const PORTAL_STUDENT_SEARCH_INPUT_ID = "portal-student-search-input";
-
-// Keputusan murni hasil-kosong -> dialog (bukan auto-form), agar bisa di-test tanpa DOM.
-export function getPendingNoResultQuery(searchQuery: string, resultsLength: number): string | null {
-  const trimmed = searchQuery.trim();
-  if (trimmed.length < 2 || resultsLength > 0) return null;
-  return trimmed;
-}
+export { PORTAL_STUDENT_SEARCH_INPUT_ID, getPendingNoResultQuery };
 
 function focusStudentSearchInput() {
   if (typeof document === "undefined") return;
@@ -36,18 +31,6 @@ function focusStudentSearchInput() {
   if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(() => focus());
   else focus();
 }
-
-const EMPTY_NEW_STUDENT: NewStudentForm = {
-  schoolId: "",
-  name: "",
-  gender: "male",
-  gradeLevel: "1",
-  curriculumType: "international",
-  academicYear: "2026/2027",
-  parentName: "",
-  parentEmail: "",
-  parentPhone: "",
-};
 
 export function usePublicOrder(initialTab: PortalTab = "order") {
   const [activePortalTab, setActivePortalTab] = useState<PortalTab>(initialTab);
@@ -59,20 +42,36 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   // Step wizard: 1 = Student Selection, 2 = Locked Package Detail,
   // 3 = Payment / Scholarship, 4 = Success
   const [step, setStep] = useState<OrderStep>(1);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Search state for student ordering (selalu terpartisi per sekolah, §11)
-  const [searchSchoolId, setSearchSchoolId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<StudentSearchResult | null>(null);
-  const [isNewStudentMode, setIsNewStudentMode] = useState(false);
+  const search = useStudentSearch({
+    schools,
+    onSelectStudent: (st) => {
+      if (st.canOrder === false) {
+        setErrorMessage(st.orderBlockedReason ?? "Data siswa masih menunggu verifikasi admin sekolah.");
+        return;
+      }
+      setErrorMessage(null);
+      applyLockedPackage(st);
+      setStep(2);
+    },
+    onError: setErrorMessage,
+  });
 
-  // Dialog konfirmasi saat hasil kosong: menunda masuk form sampai user memilih.
-  const [pendingNoResult, setPendingNoResult] = useState<string | null>(null);
-
-  // New Student form
-  const [newStudent, setNewStudent] = useState<NewStudentForm>(EMPTY_NEW_STUDENT);
+  const {
+    searchSchoolId, setSearchSchoolId,
+    searchQuery, setSearchQuery,
+    isSearching, searchResults,
+    selectedStudent, setSelectedStudent,
+    isNewStudentMode, setIsNewStudentMode,
+    pendingNoResult,
+    newStudent, setNewStudent,
+    verificationPending, setVerificationPending,
+    handleSearch, handleSelectStudent,
+    confirmNoResult: confirmCreateNewStudent,
+    cancelNoResult,
+    handleRegisterNewStudent,
+  } = search;
 
   // Package & Order State
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
@@ -106,11 +105,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const wprFee = !packageMode && hasTakenPackage === false ? wprPrice : 0;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedOrder, setSubmittedOrder] = useState<any>(null);
-
-  // Menunggu verifikasi admin: pendaftar baru terkunci total di sini
-  const [verificationPending, setVerificationPending] = useState<{ name: string } | null>(null);
 
   // Pindah step selalu menghapus error lama agar banner tidak bocor antar step
   const goToStep = (next: OrderStep) => {
@@ -143,14 +138,6 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
       setSelectedPackageId("");
     }
   };
-
-  // Default sekolah form murid baru + dropdown pencarian + cermin error katalog ke banner.
-  useEffect(() => {
-    if (schools.length > 0) {
-      setNewStudent((prev) => (prev.schoolId ? prev : { ...prev, schoolId: schools[0].id }));
-      setSearchSchoolId((prev) => prev || schools[0].id);
-    }
-  }, [schools]);
 
   useEffect(() => {
     if (!satuanOpen) {
@@ -185,80 +172,9 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
 
   const resetLooseSelection = () => setLooseSelections([]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim().length < 2) return;
-    if (!searchSchoolId) {
-      setErrorMessage("Pilih sekolah/unit terlebih dahulu sebelum mencari.");
-      return;
-    }
-    setIsSearching(true);
-    setErrorMessage(null);
-    try {
-      const results = await searchStudents(searchQuery, searchSchoolId);
-      setSearchResults(results);
-      setIsNewStudentMode(false);
-      setPendingNoResult(getPendingNoResultQuery(searchQuery, results.length));
-    } catch (err: any) {
-      setErrorMessage(err.message || "Gagal melakukan pencarian siswa. Silakan coba lagi.");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const confirmCreateNewStudent = () => {
-    if (!pendingNoResult) return;
-    const name = pendingNoResult;
-    setPendingNoResult(null);
-    setIsNewStudentMode(true);
-    setNewStudent((prev) => ({ ...prev, name }));
-  };
-
-  const cancelNoResult = () => {
-    setPendingNoResult(null);
-  };
-
   const editNoResultKeyword = () => {
-    setPendingNoResult(null);
+    cancelNoResult();
     focusStudentSearchInput();
-  };
-
-  const handleSelectStudent = (st: StudentSearchResult) => {
-    // Kelayakan milik server: hook me-render flag search verbatim, bukan
-    // menebak ulang aturan status. Submit tetap ditegakkan di backend.
-    if (st.canOrder === false) {
-      setErrorMessage(st.orderBlockedReason ?? "Data siswa masih menunggu verifikasi admin sekolah.");
-      return;
-    }
-    setErrorMessage(null);
-    setSelectedStudent(st);
-    setIsNewStudentMode(false);
-
-    // Lock the single matching package (no manual package choice)
-    applyLockedPackage(st);
-    setStep(2);
-  };
-
-  const handleRegisterNewStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStudent.schoolId) {
-      setErrorMessage("Pilih sekolah/unit terlebih dahulu sebelum mendaftar.");
-      return;
-    }
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    try {
-      const created = await registerStudent(newStudent);
-
-      // Kunci total: tidak langsung jadi selectedStudent, melainkan
-      // layar tunggu sampai admin memverifikasi (status new_pending).
-      setVerificationPending({ name: created.name });
-      setIsNewStudentMode(false);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Terjadi kesalahan pendaftaran");
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleFileUpload: FileUploadHandler = (e, setter) => {
@@ -319,9 +235,8 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     setSelectedStudent(null);
     setVerificationPending(null);
     setIsNewStudentMode(false);
-    setPendingNoResult(null);
+    cancelNoResult();
     setSearchQuery("");
-    setSearchResults([]);
     setPackageMode(true);
     resetLooseSelection();
     setHasTakenPackage(null);

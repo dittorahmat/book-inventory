@@ -4,21 +4,20 @@ import type { AppDatabase } from "../../../db";
 import {
   students,
   studentBookOrders,
-  studentOrderItems,
   bookPackages,
 } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import type { SatuanStatus } from "../../../lib/portal-types";
 import { getCurrentSatuanStatus } from "./cutoff";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { validateHomeAddress } from "../../../lib/home-address";
 import { WPR_BOOK_ID, WPR_TITLE } from "../../../lib/wpr";
 import { ensureWprBook } from "../wpr";
-import { emitChargeQuery } from "../branch-charges";
+import { buildBookOrderWriteQueries } from "./book-order-write";
 import { wprFeeForStudent } from "../pricing";
-import { buildReceiptDraft, receiptNumberConflict, receiptWriteQueries } from "../payment-ledger";
+import { buildReceiptDraft, receiptNumberConflict } from "../payment-ledger";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
@@ -263,17 +262,9 @@ export async function submitPublicOrder(
     }
     if (receiptDraft?.ok) receiptDraft.draft.receipt.proofUrl = paymentProofUrl;
 
-    const itemRows = looseLines.map((line) => ({
-      id: genItemId(),
-      orderId,
-      bookId: line.bookId,
-      quantity: line.quantity,
-      unitPriceSnapshot: line.unitPrice,
-      createdAt: now,
-    }));
-
-    await runWriteBatch(database, [
-      database.insert(studentBookOrders).values({
+    const orderQueries = buildBookOrderWriteQueries({
+      database,
+      order: {
         id: orderId,
         orderNumber,
         studentId: student.id,
@@ -292,23 +283,16 @@ export async function submitPublicOrder(
         notes: input.notes || null,
         createdAt: now,
         updatedAt: now,
-      }),
-      ...chunkRows(itemRows).map((rows) => database.insert(studentOrderItems).values(rows)),
-      ...(receiptDraft?.ok ? receiptWriteQueries(database, receiptDraft.draft) : []),
+      },
+      lines: looseLines,
+      generateItemId: genItemId,
+      receiptDraft: receiptDraft?.ok ? receiptDraft.draft : null,
       // Buku satuan dikirim dari gudang → ditagihkan ke cabang sejak order dibuat.
       // Paket murni baru ditagih saat serah-terima (lihat order-handover).
-      ...(looseLines.length > 0
-        ? [
-            emitChargeQuery(database, {
-              schoolId: student.schoolId,
-              sourceType: "book_order",
-              sourceId: orderId,
-              triggerEvent: "order_created",
-              goodsAmount: totalAmount,
-            }),
-          ]
-        : []),
-    ]);
+      emitWprCharge: looseLines.length > 0,
+    });
+
+    await runWriteBatch(database, orderQueries);
   } catch (err) {
     await compensateUploads();
     if (receiptNumberConflict(err)) {
