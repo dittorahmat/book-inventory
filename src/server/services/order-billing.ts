@@ -72,18 +72,20 @@ const ADAPTERS = {
   }
 >;
 
-export const sendInvoice = (
+export const sendInvoice = async (
   database: AppDatabase,
   orderId: string,
   opts: BillingInvoiceOpts
 ): Promise<
   | { ok: true; data: { order: { id: string }; confirmUrl: string; notification: unknown } }
-  | { ok: false; status: 400 | 404; message: string }
-> =>
-  ADAPTERS[opts.kind].sendInvoice(database, orderId, opts) as Promise<
-    | { ok: true; data: { order: { id: string }; confirmUrl: string; notification: unknown } }
-    | { ok: false; status: 400 | 404; message: string }
-  >;
+  | { ok: false; status: 400 | 404 | 409; message: string }
+> => {
+  const adapter = ADAPTERS[opts.kind];
+  if (opts.kind === "buku") {
+    return adapter.sendInvoice(database, orderId, opts);
+  }
+  return adapter.sendInvoice(database, orderId, opts);
+};
 
 export const setShipping = (
   database: AppDatabase,

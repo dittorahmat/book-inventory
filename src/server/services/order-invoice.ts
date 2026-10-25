@@ -132,7 +132,8 @@ export async function sendBookInvoice(
   deps?: SendInvoiceDeps
 ): Promise<{ ok: true; data: { order: typeof studentBookOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError> {
   const res = await sendInvoiceCore(database, studentBookOrders, orderId, BOOK_INVOICE, deps);
-  return res as { ok: true; data: { order: typeof studentBookOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError;
+  if (!res.ok) return res;
+  return { ok: true, data: { order: res.data.order as typeof studentBookOrders.$inferSelect, confirmUrl: res.data.confirmUrl, notification: res.data.notification } };
 }
 
 export async function sendUniformInvoice(
@@ -141,7 +142,8 @@ export async function sendUniformInvoice(
   deps?: SendInvoiceDeps
 ): Promise<{ ok: true; data: { order: typeof uniformOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError> {
   const res = await sendInvoiceCore(database, uniformOrders, orderId, UNIFORM_INVOICE, deps);
-  return res as { ok: true; data: { order: typeof uniformOrders.$inferSelect; confirmUrl: string; notification: unknown } } | InvoiceError;
+  if (!res.ok) return res;
+  return { ok: true, data: { order: res.data.order as typeof uniformOrders.$inferSelect, confirmUrl: res.data.confirmUrl, notification: res.data.notification } };
 }
 
 export interface ConfirmPaymentInput {

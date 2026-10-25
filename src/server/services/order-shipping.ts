@@ -100,9 +100,11 @@ export async function setBookShipping(
   input: { shippingCost: number; shippingResi?: string },
   deps?: WriteDeps
 ): Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect } | ShippingError> {
-  return setShippingCore(database, studentBookOrders, orderId, input, {
+  const res = await setShippingCore(database, studentBookOrders, orderId, input, {
     notFound: "Pesanan tidak ditemukan.", errorContext: "input ongkir buku", paymentKind: "buku",
-  }, deps) as Promise<{ ok: true; data: typeof studentBookOrders.$inferSelect } | ShippingError>;
+  }, deps);
+  if (!res.ok) return res;
+  return { ok: true, data: res.data as typeof studentBookOrders.$inferSelect };
 }
 
 /** Input ongkir manual gudang untuk order seragam. */
@@ -112,7 +114,9 @@ export async function setUniformShipping(
   input: { shippingCost: number; shippingResi?: string },
   deps?: WriteDeps
 ): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | ShippingError> {
-  return setShippingCore(database, uniformOrders, orderId, input, {
+  const res = await setShippingCore(database, uniformOrders, orderId, input, {
     notFound: "Order seragam tidak ditemukan.", errorContext: "input ongkir seragam", paymentKind: "seragam",
-  }, deps) as Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | ShippingError>;
+  }, deps);
+  if (!res.ok) return res;
+  return { ok: true, data: res.data as typeof uniformOrders.$inferSelect };
 }
