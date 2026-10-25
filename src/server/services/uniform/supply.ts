@@ -3,7 +3,6 @@ import type { AppDatabase } from "../../../db";
 import {
   suppliers,
   uniformVariants,
-  uniformSizes,
   uniformStock,
   uniformPackages,
   uniformPackageBom,
@@ -20,7 +19,7 @@ import {
 } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { KAIN_SIZE, type UniformError } from "./catalog";
-import { adjustPackageStockQuery, adjustVariantStockQuery, setVariantStockQuery } from "./stock";
+import { adjustPackageStockQuery, adjustVariantStockQuery, assertSizeAllowed, assertSizesAllowed, checkUniformAvailability, setVariantStockQuery } from "./stock";
 
 export interface UniformSupplyDeps extends WriteDeps {
   generatePoNumber?: (nowIso: string) => string;
@@ -56,25 +55,8 @@ async function assertLinesAllowed(
     .from(uniformVariants)
     .where(inArray(uniformVariants.id, variantIds));
   if (variants.length !== variantIds.length) return invalid("Ada varian yang tidak dikenal.");
-  const kindById = new Map<string, string>(variants.map((v) => [v.id, v.kind]));
-  const olahragaIds = variants.filter((v) => v.kind === "olahraga").map((v) => v.id);
-  const allowed: Array<typeof uniformSizes.$inferSelect> =
-    olahragaIds.length > 0
-      ? await database.select().from(uniformSizes).where(inArray(uniformSizes.variantId, olahragaIds))
-      : [];
-  const allowedByVariant = new Map<string, Set<string>>();
-  for (const s of allowed) {
-    if (!allowedByVariant.has(s.variantId)) allowedByVariant.set(s.variantId, new Set());
-    allowedByVariant.get(s.variantId)?.add(s.size);
-  }
-  for (const line of lines) {
-    const kind = kindById.get(line.variantId);
-    const size = line.size?.trim() || KAIN_SIZE;
-    if (kind === "kain_harian" && size !== KAIN_SIZE) return invalid("Kain harian tanpa ukuran.");
-    if (kind === "olahraga" && !allowedByVariant.get(line.variantId)?.has(size)) {
-      return invalid(`Size ${size} tidak terdaftar untuk varian olahraga tersebut.`);
-    }
-  }
+  const sizeCheck = await assertSizesAllowed(database, lines);
+  if (!sizeCheck.ok) return invalid(sizeCheck.message);
   return null;
 }
 
@@ -194,14 +176,8 @@ export async function adjustManualStock(
   const [variant] = await database.select().from(uniformVariants).where(eq(uniformVariants.id, input.variantId));
   if (!variant) return { ok: false, status: 404, message: "Varian seragam tidak ditemukan." };
   const size = input.size?.trim() || KAIN_SIZE;
-  if (variant.kind === "kain_harian" && size !== KAIN_SIZE) return invalid("Kain harian tanpa ukuran.");
-  if (variant.kind === "olahraga") {
-    const allowed = await database
-      .select({ size: uniformSizes.size })
-      .from(uniformSizes)
-      .where(and(eq(uniformSizes.variantId, variant.id), eq(uniformSizes.size, size)));
-    if (allowed.length === 0) return invalid(`Size ${size} tidak terdaftar untuk varian tersebut.`);
-  }
+  const sizeCheck = await assertSizeAllowed(database, variant, size);
+  if (!sizeCheck.ok) return invalid(sizeCheck.message);
   try {
     if (input.mode === "add") {
       await adjustVariantStockQuery(
@@ -259,13 +235,16 @@ export async function assembleUniformPackages(
       qty: (need.get(key)?.qty ?? 0) + line.quantity * quantity,
     });
   }
-  const stocks: Array<typeof uniformStock.$inferSelect> = await database.select().from(uniformStock);
-  const qtyByKey = new Map<string, typeof uniformStock.$inferSelect>(
-    stocks.map((s) => [`${s.variantId}::${s.size}`, s])
+  const availability = await checkUniformAvailability(
+    database,
+    Array.from(need.values()).map((n) => ({
+      kind: "variant",
+      id: n.variantId,
+      size: n.size,
+      quantity: n.qty,
+    }))
   );
-  for (const [key, n] of need) {
-    if ((qtyByKey.get(key)?.quantity ?? 0) < n.qty) return invalid("Stok komponen tidak cukup untuk merakit.");
-  }
+  if (!availability.ok) return invalid("Stok komponen tidak cukup untuk merakit.");
   // Tulis sekuensial (§10): kurangi komponen lalu tambah stok paket.
   for (const n of need.values()) {
     await adjustVariantStockQuery(
