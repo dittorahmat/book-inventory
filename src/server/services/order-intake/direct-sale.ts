@@ -4,16 +4,15 @@ import type { AppDatabase } from "../../../db";
 import {
   bookItems,
   schools,
-  studentBookOrders,
-  studentOrderItems,
   students,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
-import { buildReceiptDraft, receiptWriteQueries } from "../payment-ledger";
+import { buildReceiptDraft } from "../payment-ledger";
 import { validateOrderLines } from "./validation";
 import { reserveLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
+import { buildBookOrderWriteQueries } from "./book-order-write";
 
 export interface DirectSaleItemInput {
   bookId: string;
@@ -102,15 +101,6 @@ export async function sellDirect(
   const genItemId = deps.generateId ?? (() => crypto.randomUUID());
   const paymentMethod = input.paymentMethod ?? "cash";
 
-  const orderItemRows = saleLines.map((line) => ({
-    id: genItemId(),
-    orderId,
-    bookId: line.bookId,
-    quantity: line.quantity,
-    unitPrice: line.unitPrice,
-    createdAt: now,
-  }));
-
   // student_id NOT NULL + FK sejak migrasi awal: bila NIS murid terdaftar
   // diberikan, order menunjuk ke murid tersebut (NIS dinormalisasi kanonik);
   // bila tidak, walk-in tanpa murid terdaftar menunjuk ke placeholder per
@@ -143,6 +133,31 @@ export async function sellDirect(
   );
   if (!receiptDraft.ok) return receiptDraft;
 
+  const orderQueries = buildBookOrderWriteQueries({
+    database,
+    order: {
+      id: orderId,
+      orderNumber,
+      schoolId: input.schoolId,
+      studentId: orderStudentId,
+      packageId: null,
+      orderType: "regular",
+      totalAmount,
+      paidAmount: totalAmount,
+      paymentStatus: "paid",
+      fulfillmentStatus: "picked_up",
+      handoverDate: now,
+      handoverRecipient: input.buyerName,
+      notes: `Direct Sale: ${input.buyerName} (${input.buyerPhone})${input.notes ? " - " + input.notes : ""}`,
+      createdAt: now,
+      updatedAt: now,
+    },
+    lines: saleLines,
+    generateItemId: genItemId,
+    receiptDraft: receiptDraft.draft,
+    emitWprCharge: false,
+  });
+
   try {
     await runWriteBatch(database, [
       database
@@ -161,24 +176,7 @@ export async function sellDirect(
           updatedAt: now,
         })
         .onConflictDoNothing(),
-      database.insert(studentBookOrders).values({
-        id: orderId,
-        orderNumber,
-        schoolId: input.schoolId,
-        studentId: orderStudentId,
-        packageId: null,
-        totalAmount,
-        paidAmount: totalAmount,
-        paymentStatus: "paid",
-        fulfillmentStatus: "picked_up",
-        handoverDate: now,
-        handoverRecipient: input.buyerName,
-        notes: `Direct Sale: ${input.buyerName} (${input.buyerPhone})${input.notes ? " - " + input.notes : ""}`,
-        orderType: "regular",
-        createdAt: now,
-        updatedAt: now,
-      }),
-      ...chunkRows(orderItemRows).map((chunk) => database.insert(studentOrderItems).values(chunk)),
+      ...orderQueries,
       // Guard status di WHERE: flip hanya menyentuh eksemplar yang masih
       // tersedia — balapan dua kasir tidak bisa menjual ulang baris yang sama.
       ...chunkRows(allocatedIds).map((chunk) =>
@@ -187,7 +185,6 @@ export async function sellDirect(
           .set({ status: "sold", updatedAt: now })
           .where(and(inArray(bookItems.id, chunk), eq(bookItems.status, "in_stock")))
       ),
-      ...receiptWriteQueries(database, receiptDraft.draft),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penjualan langsung");

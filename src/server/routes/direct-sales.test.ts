@@ -74,6 +74,15 @@ describe("Direct Sales API", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.totalAmount).toBe(50000 * 3 + 60000 * 2);
+
+    const savedItems = await db
+      .select()
+      .from(studentOrderItems)
+      .where(eq(studentOrderItems.orderId, json.data.id));
+    expect(savedItems.length).toBe(2);
+    const priceMap = new Map(savedItems.map((item) => [item.bookId, item.unitPriceSnapshot]));
+    expect(priceMap.get(bookIds[0])).toBe(50000);
+    expect(priceMap.get(bookIds[1])).toBe(60000);
   });
 
   it("returns 400 with available-vs-requested counts when stock is short", async () => {
