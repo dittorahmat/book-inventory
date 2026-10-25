@@ -11,6 +11,8 @@ import {
   getSatuanCatalogIfOpen,
   getSatuanStatus,
   submitPublicOrder,
+  MIN_ORDER_BOOK_QTY,
+  MAX_ORDER_BOOK_QTY,
 } from "../services/order-intake";
 import { MetaWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { needsWprForStudent } from "../services/pricing";
@@ -50,7 +52,11 @@ const createNewStudentSchema = z.object({
 // Schema for book order submission
 const looseOrderItemSchema = z.object({
   bookId: z.string().min(1, "Judul buku wajib dipilih"),
-  quantity: z.number().int().min(1, "Jumlah minimal 1").max(50),
+  quantity: z
+    .number()
+    .int()
+    .min(MIN_ORDER_BOOK_QTY, `Jumlah minimal ${MIN_ORDER_BOOK_QTY} per judul buku`)
+    .max(MAX_ORDER_BOOK_QTY, `Jumlah maksimal ${MAX_ORDER_BOOK_QTY} per judul buku`),
 });
 
 const submitOrderSchema = z
