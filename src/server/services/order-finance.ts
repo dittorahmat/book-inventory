@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { bookReturns, packageItems, studentBookOrders } from "../../db/schema";
+import { deriveStatus } from "./payment-ledger";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 
 export type FinanceError = { ok: false; status: ContentfulStatusCode; message: string };
@@ -60,7 +61,9 @@ export async function applyDiscretion(
     Object.assign(patch, { orderType: "scholarship", totalAmount: 0, paymentStatus: "scholarship_approved", financeHandoverApproved: true });
   } else if (input.discretionType === "discount") {
     const newTotal = Math.max(0, order.totalAmount - (input.discountAmount ?? 0));
-    Object.assign(patch, { discountAmount: input.discountAmount ?? 0, totalAmount: newTotal, paymentStatus: order.paidAmount >= newTotal ? "paid" : "partial" });
+    const newDue = newTotal + (order.shippingCost ?? 0);
+    const newStatus = deriveStatus(order.orderType, order.paidAmount, newDue) ?? "unpaid";
+    Object.assign(patch, { discountAmount: input.discountAmount ?? 0, totalAmount: newTotal, paymentStatus: newStatus });
   } else {
     Object.assign(patch, { financeHandoverApproved: true });
   }
