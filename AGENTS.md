@@ -145,7 +145,8 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
    beberapa menit, bukan polling panjang yang memblokir.
 7. **4.8 Dilarang commit ke `main`/`master`**: mendarat lewat branch + PR,
    ditegakkan branch guard di `scripts/githooks/pre-commit` (bypass sengaja:
-   `ALLOW_MAIN_COMMIT=1`).
+   `ALLOW_MAIN_COMMIT=1`). Verifikasi branch aktif (`git branch --show-current`)
+   sebelum git commit pertama di sesi kerja.
 
 ---
 
@@ -199,7 +200,9 @@ Verifikasi: `check:file-size` (diff-scoped; `--all` di CI).
   `lib/book-return.ts` (batas foto + status refund). Daftar pemilik modul baru +
   pola tulis terlarang: `CODING_STANDARDS.md` §10; penegak mekanisnya
   `check:canonical-helpers` + `check:single-writer`.
-- Kode mati dihapus beserta test-nya, bukan dikomentari (`check:dead`).
+- Kode mati dihapus beserta test-nya, bukan dikomentari (`check:dead`). Ekspor
+  baru wajib segera dihubungkan ke pemanggil (call-site) atau diuji agar tidak
+  mematahkan gate `check:dead` saat refactor bertahap.
 - Prefer one-liner: guard/loop verbose yang setara `map`/`filter`/`reduce`/`??`/
   ternary satu baris bila perilakunya sama.
 - **Pengecualian D1**: `Promise.all` hanya untuk query BACA independen; TULIS
@@ -289,5 +292,6 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
   `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
   scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam
-  tinggal di direktori (`services/return/index.ts`), bukan file datar — bila
-  `<nama>.ts` tak ada, coba `<nama>/index.ts` sebelum grep luas.
+  tinggal di direktori (misal `services/return/index.ts`, `services/order-intake/index.ts`,
+  `services/uniform/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba
+  `<nama>/index.ts` sebelum grep luas.
