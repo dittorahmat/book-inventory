@@ -4,7 +4,13 @@ import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { School } from "../../types";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
-import type { TransferLinePreview } from "./QuantityTransferModal";
+
+export interface TransferLinePreview {
+  key: string;
+  label: string;
+  quantity: number;
+  unitPrice: number;
+}
 
 interface DirectSaleModalProps {
   open: boolean;
