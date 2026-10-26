@@ -73,7 +73,7 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 17. **Disiplin Artefak Bersih & Anti-Blob Liar** — dilarang melakukan commit atas
     file biner liar atau dokumen presentasi/ekspor PDF/DOCX (`*.pdf`, `*.docx`, dsb.)
     ke dalam tree git; dokumentasi spesifikasi dan skenario sistem wajib berformat teks
-    markdown murni (`.md`).
+    markdown murni (`.md`). Ditegakkan mekanis oleh `check:clean-artifacts`.
 18. **Integritas Test E2E & Validasi Alur Mutasi Aktif** — integration test E2E
     skenario bisnis dilarang hanya membaca data pasif (`GET` assertions belaka); setiap
     skenario operasional (seperti PO pengadaan, transfer shipment kirim-terima,
@@ -83,6 +83,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     maupun `seed-demo/*.ts`) wajib mematuhi batas chunking D1 (maksimal 10 baris per
     statement `INSERT ... VALUES` via `chunkRows` atau `runWriteBatch`), dilarang
     melakukan perulangan insert satu per satu (`insert().values({ ... })` tunggal).
+20. **Kontrak Status & Skema Transfer Logistics** — status seragam kanonik pada
+    level backend adalah `sudah_dikirim` (bilingual guard: hindari inferensi enum bahasa
+    Inggris `shipped` pada seragam); transfer buku internal (`/api/shipments`)
+    menghasilkan nomor dokumen berprefix `TRF-*` (`shipmentNumber`), dan payload draft
+    items wajib menyertakan discriminator `{ itemType: "loose" | "package", ... }`.
 
 ---
 
