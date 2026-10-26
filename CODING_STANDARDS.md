@@ -138,6 +138,7 @@ dijalankan serial oleh agent utama.
 | `});` menghapus blok salah | §12 `AGENTS.md` + §7 di sini |
 | Dua commit nyasar ke `main` | §4.8 `AGENTS.md` + branch guard pre-commit |
 | Empat penulis struk + lima salinan stok menyimpang (id alokasi, default bank, 400 vs 409) | §10 + `check:single-writer` |
+| Pencarian murid portal publik gagal total akibat parameter `query` dan `schoolId` tertukar | §0.12 `AGENTS.md` (object params untuk multi-argumen klien + unit test hook `use*.test.ts`) |
 
 ## 10. Kepemilikan modul & perubahan perilaku
 

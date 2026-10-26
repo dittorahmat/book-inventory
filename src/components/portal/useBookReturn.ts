@@ -65,7 +65,7 @@ export function useBookReturn(packages: BookPackageOption[] = []) {
     }
     setSearching(true);
     try {
-      setOrders(await lookupReturnableOrders(query, schoolId));
+      setOrders(await lookupReturnableOrders({ query, schoolId }));
       setSearched(true);
     } catch (err) {
       setOrders([]);

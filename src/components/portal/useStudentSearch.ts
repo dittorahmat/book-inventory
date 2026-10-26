@@ -67,7 +67,7 @@ export function useStudentSearch({ schools, onSelectStudent, onError }: UseStude
     setPendingNoResult(null);
 
     try {
-      const data = await searchStudents(trimmed, searchSchoolId);
+      const data = await searchStudents({ query: trimmed, schoolId: searchSchoolId });
       setSearchResults(data);
       setPendingNoResult(getPendingNoResultQuery(trimmed, data.length));
     } catch (err: unknown) {

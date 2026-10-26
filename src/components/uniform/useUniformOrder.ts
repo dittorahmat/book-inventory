@@ -93,7 +93,7 @@ export function useUniformOrder() {
     setSearching(true);
     setError(null);
     try {
-      setResults(await searchUniformStudents(query, schoolId));
+      setResults(await searchUniformStudents({ query, schoolId }));
       setSearched(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal melakukan pencarian siswa.");

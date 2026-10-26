@@ -48,6 +48,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     atau surat rekomendasi) wajib menyediakan alur upload file (data-URL/blob/storage)
     dan penambahan validasi wajib tidak boleh merusak pemanggil lama tanpa migrasi
     lengkap di diff yang sama.
+12. **Anti Parameter Inversion pada API Client** — endpoint klien dengan 2+ parameter
+    primitif (terutama kombinasi string `query` dan `schoolId`) wajib menerima objek
+    parameter terstruktur (misal `{ query, schoolId }`). Setiap custom hook data-fetching
+    portal wajib memiliki unit regression test (`use*.test.ts`) yang memverifikasi query
+    string URL terkirim dengan parameter yang tepat.
+13. **Disiplin PowerShell & Shell Tools** — saat menjalankan perintah CLI yang menulis
+    teks multibaris / markdown bertanda backtick (misal `gh pr create --body`), hindari
+    interpolasi string inline langsung di PowerShell pwsh karena karakter backtick `
+    dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`)
+    atau single-quoted here-string (`@' ... '@`).
 
 ---
 
