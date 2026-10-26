@@ -111,7 +111,6 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | PO seragam | `UPO-DEMO-2026-02` | diterima sebagian |
 | IPO | `IPO-202610-0001/0002` | submitted / partial_fulfilled |
 | Surat jalan internal | `SJ-INT-202610-0001..0004`, `SJ-PUSH-202610-0001` | transit / diterima / diterima 10 bundel / selisih / push |
-| Transfer | `TRF-202610-0001..0003` | draft / transit / selesai |
 | Retur vendor | `RTV-202610-0001` | selesai, credit note Rp 285.000 |
 | Tagihan cabang | `TGH-DEMO-0001..0006` | lima final, satu open |
 | Klaim cabang | `CLM-DEMO-<periode>` / `CLM-DEMO2-<periode>` | draft Rp 1.920.000 / locked Rp 1.638.000 |
@@ -131,7 +130,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Katalog | 10 |
 | Paket & Rakit | 10 |
 | Stok Satuan | 11 |
-| PO Supplier | 12 |
+| PO Supplier & Retur Vendor | 12 |
 | Refund Buku (staf) | 9 |
 | Pesan ke Gudang / Pesanan dari Cabang | 13 |
 | Gudang Seragam | 14 |
@@ -141,7 +140,6 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Dashboard | 18 |
 | Pengaturan | 19 |
 | Isolasi peran (semua akun) | 20 |
-| API-only: transfer dispatch/receive, retur vendor | 11, 12 |
 
 ---
 
@@ -258,9 +256,9 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
-## 12. Skenario 7 — Invoice, ongkir, dan halaman bayar
+## 12. Skenario 7 — Invoice WhatsApp, ongkir, dan halaman bayar
 
-**Tujuan:** membuktikan invoice hanya terkirim setelah ongkir/resi (untuk satuan/seragam) dan tautan bayar bekerja.
+**Tujuan:** membuktikan Invoice WhatsApp hanya terkirim setelah ongkir/resi (untuk satuan/seragam) dan tautan bayar bekerja.
 
 1. Di **Pesanan Siswa**, pilih order satuan Salsabila (`ORD-202610-102`).
    - Sudah ada ongkir Rp 25.000 + resi `JNE-BKU-0002` dan `invoiceSentAt`.
@@ -269,16 +267,16 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
    - `demo-token-buku-nathan` (Bab 10) → kirim Rp 490.000 → verifikasi (Bab 11) → lunas.
    - `demo-token-buku-satuan` → kirim termin bebas, mis. Rp 500.000.
 4. Untuk seragam: buka **Gudang Seragam → Pengiriman**, order `USO-DEMO-01`.
-   - Ongkir Rp 15.000, resi `JNE-SRG-0001`; kirim invoice; buka `demo-token-seragam-01`.
+   - Ongkir Rp 15.000, resi `JNE-SRG-0001`; kirim Invoice WhatsApp; buka `demo-token-seragam-01`.
 5. `USO-DEMO-03` sudah punya struk pending Rp 248.000 (barang + ongkir); verifikasi → order seragam **lunas**.
 
 **Verifikasi:** token tidak valid → `404 Link konfirmasi tidak valid`; order lunas menolak klaim baru.
 
 ---
 
-## 13. Skenario 8 — Serah terima buku dan Surat Jalan
+## 13. Skenario 8 — Serah terima buku dan Bukti Pengambilan / Surat Jalan
 
-**Tujuan:** membuktikan serah-terima membuat nomor `SJ-SERAH-*` dan mengikat bundel fisik.
+**Tujuan:** membuktikan serah-terima membuat nomor `SJ-SERAH-*` dan mengikat bundel fisik berdasarkan Bukti Pengambilan wali murid.
 
 1. Login `admin.pusat@alwildan.sch.id` → **Pesanan Siswa**.
 2. Cari **Kayla** (`ORD-202610-101`, lunas, `waiting_preparation`).
@@ -340,47 +338,46 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
-## 16. Skenario 11 — Stok satuan, transfer antar sekolah, penjualan langsung
+## 16. Skenario 11 — Stok satuan dan penjualan langsung di gudang pusat
+
+**Tujuan:** membuktikan pergerakan stok satuan hanya melalui PO baru, rakit/bongkar paket, atau penjualan langsung ad-hoc ke orang tua. Tidak ada transfer buku satuan antar sekolah.
 
 1. Login gudang → **Stok Satuan**.
    - Ringkasan per judul: stok satuan, bundel siap, nilai stok.
-2. **Buat Transfer** ke Al Wildan 2:
-   - Pilih 1 judul (mis. Cambridge Mathematics 1) qty 1 → simpan.
-   - Sistem membuat `TRF-*` berstatus `draft`; stok belum berpindah.
-3. Status transfer siap pakai:
-   - `TRF-202610-0001` draft, `TRF-202610-0002` in transit (1 eksemplar Bahasa Arab), `TRF-202610-0003` selesai (1 eksemplar Tahfidz pindah ke Al Wildan 2).
-4. Karena layar dispatch/receive transfer belum ada, selesaikan lewat API:
-   ```bash
-   curl -X POST http://localhost:3000/api/shipments/trf-demo-01/dispatch \
-     -H "Authorization: Bearer <token>"
-   curl -X POST http://localhost:3000/api/shipments/trf-demo-01/receive \
-     -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
-     -d '{"itemReceipts":[{"bookItemId":"bi-loose-b-pai-1-19","condition":"good"}],"packageReceipts":[]}'
-   ```
-5. **Jual ke Ortu** (hanya saat lokasi gudang): pilih Cambridge Mathematics 1 ×1 dan Cambridge Global English 1 ×1.
-   - Nama pembeli + WA wajib; pembayaran tunai.
-   - Order `DIR-*` dibuat, stok langsung berkurang. Riwayat `DIR-202610-001` adalah contohnya.
+2. Pilih judul buku untuk simulasi penjualan langsung:
+   - Pilih Cambridge Mathematics 1 ×1 dan Cambridge Global English 1 ×1.
+   - Baris yang dipilih menampilkan total kuantitas dan nilai estimasi.
+3. Klik **Jual ke Ortu** (hanya aktif saat lokasi akun berada di Gudang Logistik Pusat).
+4. Isi data pembeli:
+   - Nama pembeli (mis. `Ibu Ratna Dewi`) dan nomor WhatsApp aktif (`081298765432`).
+   - Pembayaran tunai kasir gudang.
+   - Konfirmasi penjualan langsung.
+5. Order `DIR-*` berhasil dibuat, stok satuan di gudang pusat langsung berkurang saat itu juga. Riwayat `DIR-202610-001` adalah contoh hasil penjualan langsung yang sudah ada di database demo.
 
-**Verifikasi:** stok kampus asal berkurang setelah terima; penjualan langsung muncul di laporan kanal “langsung”.
+**Verifikasi:** stok satuan langsung terpotong; transaksi penjualan langsung masuk ke laporan keuangan kanal “langsung”.
 
 ---
 
-## 17. Skenario 12 — PO supplier dan retur vendor (API)
+## 17. Skenario 12 — PO supplier dan Retur Vendor (RTV)
+
+**Tujuan:** membuktikan alur pengadaan dari penerbit/vendor, riwayat penerimaan barang, serta pencatatan retur vendor dan nota kredit langsung via antarmuka web.
 
 1. Tab **PO Supplier**.
    - `PO-202609-0088` berstatus **diterima sebagian**, dengan riwayat penerimaan `SJ-SUP-202609-001` (40 Mathematics + 40 Science).
    - Ringkasan kuantitas diterima = total baris penerimaan.
 2. **Buat PO Baru** → pilih supplier, buku, kuantitas, estimasi tiba → simpan (`draft`).
-3. Alur dokumen: **Tandai Dicetak** → unggah bukti tanda tangan (gambar/PDF) → **Terima Barang** dengan nomor surat jalan supplier.
+3. Alur dokumen PO: **Tandai Dicetak** → unggah bukti tanda tangan (gambar/PDF) → **Terima Barang** dengan nomor surat jalan supplier.
    - Penerimaan menambah eksemplar fisik + stok; status menjadi `partially_received` atau `received`.
-4. Retur vendor belum punya layar; data demo bisa dibaca/ditambah lewat API:
-   ```bash
-   curl http://localhost:3000/api/vendor-returns -H "Authorization: Bearer <token>"
-   ```
-   - `RTV-202610-0001` selesai, credit note Rp 285.000, 3 eksemplar Mathematics berstatus disposed.
-5. Coba terima melebihi sisa pesanan → ditolak.
+4. Di bagian bawah tab PO Supplier, lihat tabel **Retur ke Supplier (Vendor Returns)**:
+   - Dokumen demo `RTV-202610-0001` tampil dengan supplier Penerbit Erlangga, alasan cacat cetak, credit note Rp 285.000, status **Selesai**, dan 3 eksemplar Mathematics berstatus disposed.
+   - Klik **Detail** untuk melihat rincian buku yang diretur.
+5. Klik tombol **Buat Retur Vendor**:
+   - Pilih Supplier (mis. Penerbit Erlangga).
+   - Pilih PO terkait (atau umum), isi alasan retur (mis. "Halaman terbalik & jilid rusak"), dan nominal nota kredit (mis. Rp 150.000).
+   - Tambahkan judul buku dan kuantitas yang diretur → **Simpan Retur**.
+   - Sistem menerbitkan nomor `RTV-*` baru, mencatat nota kredit, dan menandai unit buku terkait menjadi disposed.
 
-**Verifikasi:** PO yang sudah diterima penuh tidak menawarkan penerimaan lagi; bukti TTD tersimpan.
+**Verifikasi:** PO yang sudah diterima penuh tidak menawarkan penerimaan lagi; retur vendor berhasil dicatat dan mengurangi stok cacat via UI tanpa CLI.
 
 ---
 
@@ -529,11 +526,12 @@ Uji data:
 - [ ] Murid baru tidak bisa memesan sebelum NIS disetujui.
 - [ ] Beasiswa butuh bukti dan persetujuan staf.
 - [ ] Klaim portal menjadi struk pending; verifikasi staf mengubah status.
-- [ ] Halaman `/bayar` menghitung total + ongkir.
-- [ ] Serah-terima menerbitkan `SJ-SERAH-*` dan mengikat bundel.
+- [ ] Halaman `/bayar` menghitung total + ongkir dan menerima Invoice WhatsApp.
+- [ ] Serah-terima menerbitkan `SJ-SERAH-*` dan mengikat bundel dengan Bukti Pengambilan.
 - [ ] Refund buku bisa ganti/tolak/refund.
 - [ ] Rakit dan bongkar mengubah stok dua lapis.
-- [ ] PO supplier punya riwayat penerimaan.
+- [ ] Stok satuan di gudang pusat dapat dijual langsung (ad-hoc) ke orang tua.
+- [ ] PO supplier punya riwayat penerimaan dan Retur Vendor (RTV) dapat dicatat via UI.
 - [ ] IPO, surat jalan, selisih, dan push berfungsi.
 - [ ] Seragam: PO parsial, reject, tukar, refund.
 - [ ] Rekonsiliasi menampilkan klaim tanpa drift.
