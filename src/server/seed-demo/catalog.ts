@@ -157,6 +157,23 @@ export async function seedCatalog({ db: targetDb, now }: SeedContext) {
     }
   }
 
+  // Stok komponen satuan di Gudang Pusat untuk simulasi kitting / rakit paket
+  for (const b of BOOK_LIST) {
+    for (let i = 0; i < 10; i++) {
+      await targetDb.insert(bookItems).values({
+        id: `bi-wh-loose-${b.id}-${i}`,
+        bookId: b.id,
+        currentSchoolId: "school-warehouse",
+        barcode: `WH-LSE-${b.isbn.slice(-4)}-${(i + 1).toString().padStart(3, "0")}`,
+        condition: "new",
+        status: "in_stock",
+        notes: "Warehouse loose component stock",
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing();
+    }
+  }
+
   // Stok bundel siap serah.
   for (let i = 0; i < 15; i++) {
     await targetDb.insert(packageItems).values({
@@ -166,6 +183,20 @@ export async function seedCatalog({ db: targetDb, now }: SeedContext) {
       barcode: `PKG-ALW1-2026-${(i + 1).toString().padStart(4, "0")}`,
       status: "in_stock",
       notes: "Pre-assembled ready bundle",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+  }
+
+  // Stok bundel Kelas 2 Internasional Al Wildan 1 untuk bahan demo serah-terima Kayla
+  for (let i = 0; i < 5; i++) {
+    await targetDb.insert(packageItems).values({
+      id: `pki-alw1-sd2-${i + 1}`,
+      packageId: "pkg-sd2-int",
+      currentSchoolId: "school-alw-1",
+      barcode: `PKG-ALW1-SD2-${(i + 1).toString().padStart(4, "0")}`,
+      status: "in_stock",
+      notes: "Pre-assembled ready bundle SD 2 Int",
       createdAt: now,
       updatedAt: now,
     }).onConflictDoNothing();

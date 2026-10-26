@@ -279,15 +279,15 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 **Tujuan:** membuktikan serah-terima membuat nomor `SJ-SERAH-*` dan mengikat bundel fisik berdasarkan Bukti Pengambilan wali murid.
 
 1. Login `admin.pusat@alwildan.sch.id` → **Pesanan Siswa**.
-2. Cari **Kayla** (`ORD-202610-101`, lunas, `waiting_preparation`).
+2. Cari **Kayla** (`ORD-202610-101`, lunas, `waiting_preparation`), minta wali murid menunjukkan **Bukti Pengambilan** (dokumen tanda terima resmi dengan kode konfirmasi unik).
 3. Klik **Serahkan Buku**:
    - Nama pengambil: `Hj. Ramadhani (Ibu)`.
-   - Konfirmasi.
+   - Konfirmasi serah-terima.
 4. Hasil:
    - Status pemenuhan menjadi `picked_up`.
-   - Nomor surat jalan `SJ-SERAH-*` terbit.
+   - Nomor surat jalan serah-terima `SJ-SERAH-*` terbit sebagai arsip sekolah.
    - Siswa ditandai sudah menerima paket; satu bundel berstatus terkirim.
-5. Cetak **Surat Jalan Serah-Terima** dari modal.
+5. Cetak atau tinjau dokumen serah-terima dari modal konfirmasi.
 6. Pembanding: Aisyah sudah `picked_up` dengan `SJ-SERAH-202609-0012` dan bundel `PKG-ALW1-2026-0001`.
 
 **Verifikasi:** stok siap paket berkurang satu; serah-terima tidak bisa memakai bundel paket yang salah.
@@ -509,7 +509,7 @@ Login bergantian dan pastikan:
 |---|---|---|
 | Central Admin | Dashboard | — |
 | Admin Logistik | Dashboard | Pengaturan |
-| Admin Gudang Buku | Pesan ke Gudang | Gudang Seragam, Pengaturan |
+| Admin Gudang Buku | Pesanan dari Cabang | Gudang Seragam, Pengaturan |
 | Admin Gudang Seragam | Gudang Seragam | Tab buku, Pengaturan |
 | School Admin 1 / Branch 2–4 | Pesan ke Gudang | Tab gudang pusat, Pengaturan |
 
