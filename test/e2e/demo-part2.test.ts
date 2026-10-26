@@ -1,11 +1,29 @@
-import { describe, expect, it, beforeAll } from "bun:test";
+import { describe, expect, it, beforeAll, afterAll } from "bun:test";
+import { eq } from "drizzle-orm";
 import { app } from "../../src/server/index";
+import { db } from "../../src/db";
+import { studentBookOrders, paymentReceipts, paymentAllocations } from "../../src/db/schema";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
 import { DUMMY_PROOF_IMAGE, seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoice, Handover & Refund)", () => {
   beforeAll(async () => {
     await seedDemoDatabase();
+  });
+
+  afterAll(async () => {
+    // Restore state Nathaniel agar test unit seed-demo/demo-books.test.ts tetap konsisten saat run penuh
+    await db
+      .update(studentBookOrders)
+      .set({ paymentStatus: "partial", paidAmount: 500000 })
+      .where(eq(studentBookOrders.id, "ord-nathan-partial"));
+    await db
+      .update(paymentReceipts)
+      .set({ status: "pending", verifiedAt: null, verifiedByUserId: null })
+      .where(eq(paymentReceipts.id, "rcp-nathan-02"));
+    await db
+      .delete(paymentAllocations)
+      .where(eq(paymentAllocations.id, "rcp-nathan-02-buku-ord-nathan-partial"));
   });
 
   it("Skenario 6: Verifikasi bukti transfer staf, kasir, dan diskresi finance", async () => {
