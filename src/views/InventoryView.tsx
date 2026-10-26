@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, RefreshCw, Search, Truck, ShoppingBag } from "lucide-react";
+import { Boxes, RefreshCw, Search, ShoppingBag } from "lucide-react";
 import { School } from "../types";
 import type { StockOverviewPayload } from "../types/stock-summary";
 import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
-import { QuantityTransferModal, type TransferLinePreview } from "../components/inventory/QuantityTransferModal";
-import { DirectSaleModal } from "../components/inventory/DirectSaleModal";
+import { DirectSaleModal, type TransferLinePreview } from "../components/inventory/DirectSaleModal";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
 
@@ -14,12 +13,10 @@ interface InventoryViewProps {
 
 export function InventoryView({ activeSchool }: InventoryViewProps) {
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
-  const [allSchools, setAllSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
 
   const loadOverview = useCallback(async () => {
@@ -56,12 +53,6 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
     loadOverview();
     setQuantities({});
   }, [loadOverview]);
-
-  useEffect(() => {
-    getJson<School[]>("/api/schools", "Gagal memuat daftar sekolah.")
-      .then(setAllSchools)
-      .catch(() => setAllSchools([]));
-  }, []);
 
   const looseRows = useMemo(() => {
     const rows = overview?.loose ?? [];
@@ -142,7 +133,7 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
         <div className="sticky top-2 z-20 flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-white rounded-2xl shadow-lg border border-[#CED0D4]">
           <div className="text-xs text-[#050505]">
             <span className="font-bold">{totalTransferQty} unit</span> dari {transferLines.length} baris
-            dipindahkan &bull; nilai estimasi{" "}
+            dipilih &bull; nilai estimasi{" "}
             <span className="font-bold text-[#1877F2]">{formatRupiah(totalTransferValue)}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -163,14 +154,6 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
                 <span>Jual ke Ortu</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setIsTransferOpen(true)}
-              className="px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-xs transition-colors flex items-center gap-1.5 active:scale-[0.98]"
-            >
-              <Truck className="w-3.5 h-3.5" />
-              <span>Buat Transfer</span>
-            </button>
           </div>
         </div>
       )}
@@ -180,18 +163,6 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
         packageRows={packageRows}
         quantities={quantities}
         onQuantityChange={(key, value) => setQuantities((prev) => ({ ...prev, [key]: value }))}
-      />
-
-      <QuantityTransferModal
-        open={isTransferOpen}
-        fromSchool={activeSchool}
-        destinations={allSchools}
-        lines={transferLines}
-        onClose={() => setIsTransferOpen(false)}
-        onCreated={() => {
-          setQuantities({});
-          loadOverview();
-        }}
       />
 
       <DirectSaleModal
