@@ -4,7 +4,11 @@ import type { AppDatabase } from "../../../db";
 import { bookItems, books, bookPackages, packageItems } from "../../../db/schema";
 import { effectiveSellPrice } from "../../../lib/book-pricing";
 import { calcHeaderTotal } from "../../../lib/transfer-pricing";
-import { allocateLooseStock, allocatePackages, isAvailableLoose, isReadyBundle } from "../stock";
+import {
+  allocateInventoryStock,
+  isAvailableLoose,
+  isReadyBundle,
+} from "../stock";
 
 export interface ShipmentLineInput {
   itemType: "loose" | "package";
@@ -144,28 +148,31 @@ const resolveQuantityLines = async (
   const bundleIds: string[] = [];
 
   for (const line of lines) {
-    if (line.itemType === "loose") {
-      if (!line.bookId) {
-        return { ok: false, status: 400, message: "Baris buku satuan harus menyertakan bookId." };
-      }
-      const result = await allocateLooseStock(
-        { bookId: line.bookId, schoolId: fromSchoolId, quantity: line.quantity },
-        database
-      );
-      if (!result.ok) return { ok: false, status: result.status, message: result.message };
-      looseIds.push(...result.items.map((i) => i.id));
-      continue;
+    const isLoose = line.itemType === "loose";
+    const targetId = isLoose ? line.bookId : line.packageId;
+    if (!targetId) {
+      return {
+        ok: false,
+        status: 400,
+        message: isLoose
+          ? "Baris buku satuan harus menyertakan bookId."
+          : "Baris paket harus menyertakan packageId.",
+      };
     }
 
-    if (!line.packageId) {
-      return { ok: false, status: 400, message: "Baris paket harus menyertakan packageId." };
-    }
-    const result = await allocatePackages(
-      { packageId: line.packageId, schoolId: fromSchoolId, quantity: line.quantity },
+    const result = await allocateInventoryStock(
+      isLoose
+        ? { kind: "loose", targetId, schoolId: fromSchoolId, quantity: line.quantity }
+        : { kind: "package", targetId, schoolId: fromSchoolId, quantity: line.quantity },
       database
     );
     if (!result.ok) return { ok: false, status: result.status, message: result.message };
-    bundleIds.push(...result.items.map((i) => i.id));
+
+    if (isLoose) {
+      looseIds.push(...result.items.map((i) => i.id));
+    } else {
+      bundleIds.push(...result.items.map((i) => i.id));
+    }
   }
 
   return { ok: true, looseIds, bundleIds };

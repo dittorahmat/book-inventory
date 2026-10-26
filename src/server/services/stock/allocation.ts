@@ -26,6 +26,79 @@ interface PackageCandidate {
   status: string;
 }
 
+export interface AllocatedItem {
+  id: string;
+  barcode: string;
+  kind: "loose" | "package";
+  condition?: string;
+  packageId?: string;
+}
+
+export type InventoryAllocationInput =
+  | {
+      kind: "loose";
+      targetId: string; // bookId
+      schoolId: string;
+      quantity: number;
+      conditions?: readonly AllocatableCondition[];
+    }
+  | {
+      kind: "package";
+      targetId: string; // packageId
+      schoolId: string;
+      quantity: number;
+    };
+
+/**
+ * Seam terpadu alokasi FIFO inventaris fisik (satuan atau paket).
+ * Mengabstraksi pemilihan tabel, kueri count kekurangan stok, dan format hasil.
+ */
+export async function allocateInventoryStock(
+  input: InventoryAllocationInput,
+  database: AppDatabase
+): Promise<AllocationResult<AllocatedItem>> {
+  if (input.kind === "loose") {
+    const res = await allocateLooseStock(
+      {
+        bookId: input.targetId,
+        schoolId: input.schoolId,
+        quantity: input.quantity,
+        conditions: input.conditions,
+      },
+      database
+    );
+    if (!res.ok) return res;
+    return {
+      ok: true,
+      items: res.items.map((i) => ({
+        id: i.id,
+        barcode: i.barcode,
+        kind: "loose",
+        condition: i.condition,
+      })),
+    };
+  }
+
+  const res = await allocatePackages(
+    {
+      packageId: input.targetId,
+      schoolId: input.schoolId,
+      quantity: input.quantity,
+    },
+    database
+  );
+  if (!res.ok) return res;
+  return {
+    ok: true,
+    items: res.items.map((i) => ({
+      id: i.id,
+      barcode: i.barcode,
+      kind: "package",
+      packageId: i.packageId,
+    })),
+  };
+}
+
 /**
  * Alokasi FIFO eksemplar satuan: pilih N eksemplar tertua yang tersedia
  * di lokasi asal tanpa pengguna memilih barcode (spec: inventory-summary).

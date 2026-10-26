@@ -9,16 +9,12 @@ import {
   submitUniformOrder,
 } from "./uniform-portal-api";
 import { validateHomeAddress } from "../../lib/home-address";
+import { useStudentSearch } from "../portal/useStudentSearch";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
 export function useUniformOrder() {
   const [schools, setSchools] = useState<SchoolOption[]>([]);
-  const [schoolId, setSchoolId] = useState("");
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<UniformStudent[]>([]);
-  const [searched, setSearched] = useState(false);
   const [student, setStudent] = useState<UniformStudent | null>(null);
   const [catalog, setCatalog] = useState<UniformCatalog | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
@@ -34,6 +30,25 @@ export function useUniformOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ orderNumber: string; total: number } | null>(null);
+
+  const search = useStudentSearch<UniformStudent>({
+    schools,
+    onSelectStudent: (s) => selectStudent(s),
+    onError: setError,
+    searchFn: searchUniformStudents,
+  });
+
+  const {
+    searchSchoolId: schoolId,
+    setSearchSchoolId: setSchoolId,
+    searchQuery: query,
+    setSearchQuery: setQuery,
+    isSearching: searching,
+    searchResults: results,
+    handleSearch,
+  } = search;
+
+  const searched = results.length > 0 || (!searching && query.trim().length >= 2);
 
   const jenjang = useMemo(() => (student ? gradeToJenjang(student.gradeLevel) : null), [student]);
   const gender = student?.gender ?? null;
@@ -82,23 +97,6 @@ export function useUniformOrder() {
       setSchools(await fetchUniformSchools());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat daftar sekolah.");
-    }
-  };
-
-  const handleSearch = async () => {
-    if (query.trim().length < 2 || !schoolId) {
-      setError("Pilih sekolah dan ketik minimal 2 karakter nama/NIS.");
-      return;
-    }
-    setSearching(true);
-    setError(null);
-    try {
-      setResults(await searchUniformStudents({ query, schoolId }));
-      setSearched(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal melakukan pencarian siswa.");
-    } finally {
-      setSearching(false);
     }
   };
 

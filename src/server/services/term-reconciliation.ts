@@ -40,8 +40,8 @@ export interface SaveReconciliationItemInput {
   itemType?: "package" | "book";
   packageId?: string;
   bookId?: string;
-  totalInbound: number;
-  totalDistributed: number;
+  totalInbound?: number;
+  totalDistributed?: number;
   physicalRemaining: number;
   unitPrice?: number;
   notes?: string;
@@ -173,13 +173,28 @@ export async function saveTermReconciliation(
   let totalDiscrepancy = 0;
   let totalLossAmount = 0;
 
+  // Jika item tidak membawa totalInbound atau totalDistributed, kompilasi data sistem otomatis
+  let autoAuditMap: Map<string, TermAuditPackageRow> | null = null;
+  const needsAutoAudit = input.items.some(
+    (it) => it.totalInbound === undefined || it.totalDistributed === undefined || it.unitPrice === undefined
+  );
+  if (needsAutoAudit) {
+    const compiled = await compileTermAuditData(database, {
+      schoolId: input.schoolId,
+      academicYear: input.academicYear,
+      term: input.term,
+    });
+    autoAuditMap = new Map(compiled.packages.map((p) => [p.packageId, p]));
+  }
+
   const itemRows = input.items.map((it) => {
-    const inbound = Math.max(0, it.totalInbound);
-    const distributed = Math.max(0, it.totalDistributed);
+    const auto = it.packageId && autoAuditMap ? autoAuditMap.get(it.packageId) : undefined;
+    const inbound = Math.max(0, it.totalInbound ?? auto?.totalInbound ?? 0);
+    const distributed = Math.max(0, it.totalDistributed ?? auto?.totalDistributed ?? 0);
     const systemRemaining = Math.max(0, inbound - distributed);
     const physical = Math.max(0, it.physicalRemaining);
     const discrepancy = Math.max(0, systemRemaining - physical);
-    const unitPrice = Math.max(0, it.unitPrice ?? 0);
+    const unitPrice = Math.max(0, it.unitPrice ?? auto?.unitPrice ?? 0);
     const lossAmount = discrepancy * unitPrice;
 
     totalInbound += inbound;
