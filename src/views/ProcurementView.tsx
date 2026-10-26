@@ -9,6 +9,8 @@ import { CreateSupplierModal } from "../components/procurement/CreateSupplierMod
 import { ReceivingModal } from "../components/procurement/ReceivingModal";
 import { PODetailModal } from "../components/procurement/PODetailModal";
 import { PurchaseOrdersTable } from "../components/procurement/PurchaseOrdersTable";
+import { VendorReturnsSection } from "../components/procurement/VendorReturnsSection";
+import { CreateVendorReturnModal } from "../components/procurement/CreateVendorReturnModal";
 import { toPrintablePo, type PurchaseOrder } from "../components/procurement/procurement-types";
 import { useProcurementData } from "../components/procurement/useProcurementData";
 import {
@@ -27,6 +29,7 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
   const {
     purchaseOrders,
     suppliers,
+    vendorReturns,
     catalogBooks,
     isLoading,
     loadError,
@@ -34,6 +37,7 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
     loadData,
     loadSuppliers,
     loadPurchaseOrders,
+    loadVendorReturns,
   } = useProcurementData();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +46,7 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
   // Modal orchestration (data holder; isi + logika tinggal di sub-modul)
   const [isCreatePOModalOpen, setIsCreatePOModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isCreateReturnModalOpen, setIsCreateReturnModalOpen] = useState(false);
   const [activeReceivingPO, setActiveReceivingPO] = useState<PurchaseOrder | null>(null);
   const [detailPo, setDetailPo] = useState<PurchaseOrder | null>(null);
   const [printPo, setPrintPo] = useState<PrintablePo | null>(null);
@@ -217,6 +222,13 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
         onChanged={refreshAfterWorkflow}
       />
 
+      {/* Retur ke Supplier (Vendor Returns) */}
+      <VendorReturnsSection
+        returns={vendorReturns}
+        isLoading={isLoading}
+        onOpenCreate={() => setIsCreateReturnModalOpen(true)}
+      />
+
       {isCreatePOModalOpen && (
         <CreatePOModal
           suppliers={suppliers}
@@ -234,6 +246,19 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
           onCreated={async () => {
             await loadSuppliers();
             setIsSupplierModalOpen(false);
+          }}
+        />
+      )}
+
+      {isCreateReturnModalOpen && (
+        <CreateVendorReturnModal
+          suppliers={suppliers}
+          purchaseOrders={purchaseOrders}
+          catalogBooks={catalogBooks}
+          onClose={() => setIsCreateReturnModalOpen(false)}
+          onCreated={async () => {
+            await loadVendorReturns();
+            setIsCreateReturnModalOpen(false);
           }}
         />
       )}
