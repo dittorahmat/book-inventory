@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeAll } from "bun:test";
 import { app } from "../../src/server/index";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
+import { seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 5 - Skenario 18 s.d. 20 (Laporan, Dashboard, Pengaturan & Isolasi Peran)", () => {
   beforeAll(async () => {
-    mockActor("central_admin", null);
-    const seedRes = await app.request("/api/demo/seed", { method: "POST" });
-    expect(seedRes.status).toBe(200);
-    restoreActor();
+    await seedDemoDatabase();
   });
 
   it("Skenario 18: Laporan penjualan, unduh CSV dan ringkasan Dashboard", async () => {

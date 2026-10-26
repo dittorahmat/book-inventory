@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeAll } from "bun:test";
 import { app } from "../../src/server/index";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
+import { DUMMY_PROOF_IMAGE, seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoice, Handover & Refund)", () => {
   beforeAll(async () => {
-    mockActor("central_admin", null);
-    const seedRes = await app.request("/api/demo/seed", { method: "POST" });
-    expect(seedRes.status).toBe(200);
-    restoreActor();
+    await seedDemoDatabase();
   });
 
   it("Skenario 6: Verifikasi bukti transfer staf, kasir, dan diskresi finance", async () => {
@@ -58,6 +56,47 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
 
     const hendraUpdatedRes = await app.request(`/api/student-orders?search=ORD-202609-004`);
     expect((await hendraUpdatedRes.json()).data[0].paymentStatus).toBe("paid");
+
+    // 3. Demo tolak bukti bayar (reject) & pembatalan order (cancel)
+    // Skenario 6: Staf tolak bukti transfer (misal nominal kurang Rp 50.000) dan batalkan pesanan
+    const dummyCancelOrderRes = await app.request("/api/public/orders/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId: "std-bimo-6",
+        orderType: "regular",
+        packageId: "pkg-sd1-nas",
+        payment: {
+          transferAmount: 50000,
+          bookAllocationAmount: 50000,
+          bankName: "BCA",
+          referenceNumber: "REF-LESS-E2E-001",
+          paymentProofBase64: DUMMY_PROOF_IMAGE,
+        },
+      }),
+    });
+    expect(dummyCancelOrderRes.status).toBe(201);
+    const cancelOrderData = (await dummyCancelOrderRes.json()).data;
+    const cancelOrderId = cancelOrderData.order.id;
+
+    // Ambil receipt pending
+    const cancelOrderPayments = await (await app.request(`/api/payments/orders/${cancelOrderId}`)).json();
+    const rejectTargetReceipt = cancelOrderPayments.data.payments.find((p: { status: string }) => p.status === "pending");
+    expect(rejectTargetReceipt).toBeDefined();
+
+    // Staf tolak bukti bayar: alasan nominal kurang
+    const rejectRes = await app.request(`/api/payments/orders/${cancelOrderId}/payments/${rejectTargetReceipt.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Nominal transfer kurang Rp 50.000" }),
+    });
+    expect(rejectRes.status).toBe(200);
+
+    // Staf batalkan transaksi order (DELETE /api/student-orders/:id)
+    const deleteOrderRes = await app.request(`/api/student-orders/${cancelOrderId}`, {
+      method: "DELETE",
+    });
+    expect(deleteOrderRes.status).toBe(200);
 
     restoreActor();
   });
@@ -133,7 +172,6 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
   it("Skenario 9: Refund & Komplain Buku (Lapor, Ganti Buku, atau Tolak)", async () => {
     // 1. Publik lapor komplain buku rusak via portal publik POST /api/public/orders/submit-return
     // Pada demo, Aisyah (ORD-202609-001) sudah diambil, lapor buku Science (b-sci-1)
-    const dummyPhoto = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
     const reportRes = await app.request("/api/public/orders/submit-return", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,7 +180,7 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
         studentId: "std-aisyah-2",
         defectiveBookId: "b-sci-1",
         reason: "Halaman 10-15 sobek dari penerbit",
-        photoProofBase64: dummyPhoto,
+        photoProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });
     expect(reportRes.status).toBe(201);
@@ -159,7 +197,7 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
         studentId: "std-aisyah-2",
         defectiveBookId: "b-sci-1",
         reason: "Lapor ulang buku yang sama",
-        photoProofBase64: dummyPhoto,
+        photoProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });
     expect(dupReportRes.status).toBe(400);
@@ -167,12 +205,12 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
     // 2. Staf memeriksa dan memutuskan komplain di dashboard
     mockActor("central_admin", null);
 
-    // Putuskan laporan retur baru -> tolak komplain
+    // Putuskan laporan retur: Opsi 1 - Ganti Buku (replace)
     const resolveRes = await app.request(`/api/student-orders/returns/${returnId}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "reject",
+        action: "replace",
       }),
     });
     expect(resolveRes.status).toBe(200);

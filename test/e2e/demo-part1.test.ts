@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeAll } from "bun:test";
 import { app } from "../../src/server/index";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
+import { DUMMY_PROOF_IMAGE, seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifikasi Intake)", () => {
   beforeAll(async () => {
-    mockActor("central_admin", null);
-    const seedRes = await app.request("/api/demo/seed", { method: "POST" });
-    expect(seedRes.status).toBe(200);
-    restoreActor();
+    await seedDemoDatabase();
   });
 
   it("Skenario 1: Paket terkunci, kenaikan kelas, dan empty state", async () => {
@@ -175,7 +173,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
         allocationAmount: 500000,
         bankName: "BCA",
         referenceNumber: "BCA-E2E-TEST-001",
-        paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        paymentProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });
     expect(submitRes.status).toBe(201);
@@ -191,7 +189,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
         allocationAmount: 500000,
         bankName: "BCA",
         referenceNumber: "BCA-E2E-TEST-001",
-        paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        paymentProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });
     expect(dupRes.status).toBe(409);

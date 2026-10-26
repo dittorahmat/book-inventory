@@ -70,6 +70,19 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     akhir periode (`term-reconciliation`) wajib server-authoritative; input fisik
     dapat disubmit mandiri tanpa mewajibkan kalkulasi delta atau penarikan ulang angka
     inbound di sisi klien.
+17. **Disiplin Artefak Bersih & Anti-Blob Liar** — dilarang melakukan commit atas
+    file biner liar atau dokumen presentasi/ekspor PDF/DOCX (`*.pdf`, `*.docx`, dsb.)
+    ke dalam tree git; dokumentasi spesifikasi dan skenario sistem wajib berformat teks
+    markdown murni (`.md`).
+18. **Integritas Test E2E & Validasi Alur Mutasi Aktif** — integration test E2E
+    skenario bisnis dilarang hanya membaca data pasif (`GET` assertions belaka); setiap
+    skenario operasional (seperti PO pengadaan, transfer shipment kirim-terima,
+    tukar seragam, penolakan bukti bayar, dan pembatalan pesanan) wajib menguji
+    mutasi alur (`POST`/`DELETE`/`PATCH`) hingga status akhir dokumen tervalidasi.
+19. **Disiplin Batching D1 pada Seeder** — seluruh penambahan data di seeder (`seed.ts`
+    maupun `seed-demo/*.ts`) wajib mematuhi batas chunking D1 (maksimal 10 baris per
+    statement `INSERT ... VALUES` via `chunkRows` atau `runWriteBatch`), dilarang
+    melakukan perulangan insert satu per satu (`insert().values({ ... })` tunggal).
 
 ---
 

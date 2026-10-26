@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeAll } from "bun:test";
 import { app } from "../../src/server/index";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
+import { seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 3 - Skenario 10 s.d. 13 (Katalog, Rakit/Bongkar, Jual Langsung, PO & Internal Logistics)", () => {
   beforeAll(async () => {
-    mockActor("central_admin", null);
-    const seedRes = await app.request("/api/demo/seed", { method: "POST" });
-    expect(seedRes.status).toBe(200);
-    restoreActor();
+    await seedDemoDatabase();
   });
 
   it("Skenario 10: Master katalog, perakitan dan pembongkaran bundel paket di Gudang Pusat", async () => {
@@ -110,7 +108,23 @@ describe("E2E Demo Scenario: Part 3 - Skenario 10 s.d. 13 (Katalog, Rakit/Bongka
     });
     expect(createPoRes.status).toBe(201);
 
-    // 3. Cek Retur Vendor RTV-202610-0001
+    // 3. Buat dan catat dokumen Retur Vendor (RTV) baru atas buku cacat
+    const createRtvRes = await app.request("/api/vendor-returns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: "sup-cambridge-mentari",
+        reason: "Halaman terbalik dari percetakan pada kiriman baru",
+        creditNoteAmount: 140000,
+        items: [{ bookId: "b-math-1", quantity: 2, reason: "Cacat fisik halaman terbalik" }],
+      }),
+    });
+    expect(createRtvRes.status).toBe(201);
+    const createRtvJson = await createRtvRes.json();
+    expect(createRtvJson.success).toBe(true);
+    expect(createRtvJson.data.returnNumber).toMatch(/^RTV-/);
+
+    // Verifikasi daftar Retur Vendor mencakup RTV demo lama dan RTV baru
     const rtvRes = await app.request("/api/vendor-returns");
     expect(rtvRes.status).toBe(200);
     const rtvJson = await rtvRes.json();
@@ -131,12 +145,58 @@ describe("E2E Demo Scenario: Part 3 - Skenario 10 s.d. 13 (Katalog, Rakit/Bongka
     expect(ipo1).toBeDefined();
     expect(ipo1.status).toBe("submitted");
 
-    // 2. Gudang Pusat melihat riwayat transfer shipments
+    // 2. Alur Transfer Shipment: Gudang membuat draft shipment, dispatch dengan Surat Jalan (SJ-TRF-*), lalu cabang terima (receive)
     mockActor("central_admin", null);
-    const shipmentsRes = await app.request("/api/shipments");
-    expect(shipmentsRes.status).toBe(200);
-    const shipmentsJson = await shipmentsRes.json();
-    expect(shipmentsJson.data.length).toBeGreaterThan(0);
+
+    // a. Buat draft shipment transfer dari gudang ke Cabang 2 (2 buku loose b-math-1)
+    const draftRes = await app.request("/api/shipments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromSchoolId: "school-warehouse",
+        toSchoolId: "school-alw-2",
+        items: [{ itemType: "loose", bookId: "b-math-1", quantity: 2 }],
+        notes: "Pengiriman pemenuhan IPO Cabang 2",
+        reason: "Pemenuhan IPO Cabang 2",
+      }),
+    });
+    expect(draftRes.status).toBe(201);
+    const draftJson = await draftRes.json();
+    expect(draftJson.success).toBe(true);
+    const shipmentId = draftJson.data.id;
+    expect(draftJson.data.shipmentNumber).toMatch(/^TRF-/);
+
+    // b. Gudang dispatch shipment (status -> in_transit)
+    const dispatchRes = await app.request(`/api/shipments/${shipmentId}/dispatch`, {
+      method: "POST",
+    });
+    expect(dispatchRes.status).toBe(200);
+
+    // Ambil detail shipment untuk item IDs
+    const detailRes = await app.request(`/api/shipments/${shipmentId}`);
+    expect(detailRes.status).toBe(200);
+    const detailJson = await detailRes.json();
+    expect(detailJson.data.status).toBe("in_transit");
+
+    // c. Cabang 2 menerima shipment transfer (receive)
+    mockActor("branch_admin", "school-alw-2");
+    const receiveRes = await app.request(`/api/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        itemReceipts: detailJson.data.items.map((it: { bookItemId: string }) => ({
+          bookItemId: it.bookItemId,
+          condition: "good",
+        })),
+      }),
+    });
+    expect(receiveRes.status).toBe(200);
+
+    // d. Pastikan shipment berstatus completed
+    const finalDetailRes = await app.request(`/api/shipments/${shipmentId}`);
+    expect(finalDetailRes.status).toBe(200);
+    const finalDetailJson = await finalDetailRes.json();
+    expect(finalDetailJson.data.status).toBe("completed");
 
     restoreActor();
   });

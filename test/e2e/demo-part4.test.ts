@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeAll } from "bun:test";
 import { app } from "../../src/server/index";
 import { mockActor, restoreActor } from "../../src/server/routes/test-actor";
+import { seedDemoDatabase } from "./helpers";
 
 describe("E2E Demo Scenario: Part 4 - Skenario 14 s.d. 17 (Gudang Seragam, Portal Seragam, Rekonsiliasi & BA)", () => {
   beforeAll(async () => {
-    mockActor("central_admin", null);
-    const seedRes = await app.request("/api/demo/seed", { method: "POST" });
-    expect(seedRes.status).toBe(200);
-    restoreActor();
+    await seedDemoDatabase();
   });
 
   it("Skenario 14: Operasi gudang seragam (pengiriman, katalog, PO & tukar ukuran)", async () => {
@@ -22,18 +20,37 @@ describe("E2E Demo Scenario: Part 4 - Skenario 14 s.d. 17 (Gudang Seragam, Porta
     const uso1 = listJson.data.find((o: { orderNumber: string }) => o.orderNumber === "USO-DEMO-01");
     expect(uso1).toBeDefined();
 
+    // Mutasi status pengiriman seragam: markUniformShipped (/ship)
+    const shipRes = await app.request(`/api/uniforms/orders/${uso1.id}/ship`, {
+      method: "POST",
+    });
+    expect(shipRes.status).toBe(200);
+    const shipJson = await shipRes.json();
+    expect(shipJson.success).toBe(true);
+    expect(shipJson.data.shipmentStatus).toBe("sudah_dikirim");
+
     // 2. Cek varian & paket seragam
     const variantsRes = await app.request("/api/uniforms/variants");
     expect(variantsRes.status).toBe(200);
     const variantsJson = await variantsRes.json();
     expect(variantsJson.data.length).toBeGreaterThan(0);
 
-    // 3. Cek pengajuan tukar seragam demo (ex-demo-01)
+    // 3. Cek pengajuan tukar seragam demo (ex-demo-01) & verifikasi persetujuan (approve)
     const exchangesRes = await app.request("/api/uniforms/exchanges");
     expect(exchangesRes.status).toBe(200);
     const exchangesJson = await exchangesRes.json();
     const ex1 = exchangesJson.data.find((e: { id: string }) => e.id === "ex-demo-01");
     expect(ex1).toBeDefined();
+
+    const resolveExRes = await app.request(`/api/uniforms/exchanges/${ex1.id}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve" }),
+    });
+    expect(resolveExRes.status).toBe(200);
+    const resolveExJson = await resolveExRes.json();
+    expect(resolveExJson.success).toBe(true);
+    expect(resolveExJson.data.status).toBe("approved");
 
     restoreActor();
   });
