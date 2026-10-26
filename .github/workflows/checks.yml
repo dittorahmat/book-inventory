@@ -38,6 +38,9 @@ jobs:
       - name: Code linting
         run: bun run lint
 
+      - name: Clean artifacts gate
+        run: bun run check:clean-artifacts
+
       - name: File-size gate
         # --all = full-tree: pada checkout CI `git status` kosong sehingga mode
         # file-yang-diubah (pre-commit) akan selalu lolos tanpa memeriksa apa pun.

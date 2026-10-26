@@ -50,6 +50,7 @@ runBun("check:api-contract");
 runBun("check:lanes");
 
 if (has(/^src\//)) {
+  runBun("check:clean-artifacts");
   runBun("check:file-size");
   runBun("check:no-any");
   runBun("check:canonical-helpers");

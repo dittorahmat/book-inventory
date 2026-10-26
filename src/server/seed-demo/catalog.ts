@@ -7,6 +7,7 @@ import {
   books,
   packageItems,
 } from "../../db/schema";
+import { chunkRows } from "../lib/d1-write";
 import { ensurePackageHasWpr } from "../services/wpr";
 import type { SeedContext } from "./context";
 
@@ -157,9 +158,31 @@ export async function seedCatalog({ db: targetDb, now }: SeedContext) {
     }
   }
 
-  // Stok bundel siap serah.
+  // Stok komponen satuan di Gudang Pusat untuk simulasi kitting / rakit paket (chunked <= 10)
+  const whLooseRows: (typeof bookItems.$inferInsert)[] = [];
+  for (const b of BOOK_LIST) {
+    for (let i = 0; i < 10; i++) {
+      whLooseRows.push({
+        id: `bi-wh-loose-${b.id}-${i}`,
+        bookId: b.id,
+        currentSchoolId: "school-warehouse",
+        barcode: `WH-LSE-${b.isbn.slice(-4)}-${(i + 1).toString().padStart(3, "0")}`,
+        condition: "new",
+        status: "in_stock",
+        notes: "Warehouse loose component stock",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  for (const chunk of chunkRows(whLooseRows)) {
+    await targetDb.insert(bookItems).values(chunk).onConflictDoNothing();
+  }
+
+  // Stok bundel siap serah (chunked <= 10).
+  const readyBundleRows: (typeof packageItems.$inferInsert)[] = [];
   for (let i = 0; i < 15; i++) {
-    await targetDb.insert(packageItems).values({
+    readyBundleRows.push({
       id: `pki-sd1int-${i}`,
       packageId: "pkg-sd1-int",
       currentSchoolId: "school-alw-1",
@@ -168,6 +191,27 @@ export async function seedCatalog({ db: targetDb, now }: SeedContext) {
       notes: "Pre-assembled ready bundle",
       createdAt: now,
       updatedAt: now,
-    }).onConflictDoNothing();
+    });
+  }
+  for (const chunk of chunkRows(readyBundleRows)) {
+    await targetDb.insert(packageItems).values(chunk).onConflictDoNothing();
+  }
+
+  // Stok bundel Kelas 2 Internasional Al Wildan 1 untuk bahan demo serah-terima Kayla (chunked <= 10)
+  const kaylaBundleRows: (typeof packageItems.$inferInsert)[] = [];
+  for (let i = 0; i < 5; i++) {
+    kaylaBundleRows.push({
+      id: `pki-alw1-sd2-${i + 1}`,
+      packageId: "pkg-sd2-int",
+      currentSchoolId: "school-alw-1",
+      barcode: `PKG-ALW1-SD2-${(i + 1).toString().padStart(4, "0")}`,
+      status: "in_stock",
+      notes: "Pre-assembled ready bundle SD 2 Int",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  for (const chunk of chunkRows(kaylaBundleRows)) {
+    await targetDb.insert(packageItems).values(chunk).onConflictDoNothing();
   }
 }
