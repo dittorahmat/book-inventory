@@ -12,7 +12,7 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
   });
 
   afterAll(async () => {
-    // Restore state Nathaniel agar test unit seed-demo/demo-books.test.ts tetap konsisten saat run penuh
+    // Restore state Nathaniel & Aisyah agar test unit seed-demo/demo-books.test.ts dan demo-finance.test.ts tetap konsisten saat run penuh
     await db
       .update(studentBookOrders)
       .set({ paymentStatus: "partial", paidAmount: 500000 })
@@ -24,6 +24,11 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
     await db
       .delete(paymentAllocations)
       .where(eq(paymentAllocations.id, "rcp-nathan-02-buku-ord-nathan-partial"));
+
+    await db
+      .update(studentBookOrders)
+      .set({ fulfillmentStatus: "picked_up" })
+      .where(eq(studentBookOrders.id, "ord-aisyah-done"));
   });
 
   it("Skenario 6: Verifikasi bukti transfer staf, kasir, dan diskresi finance", async () => {
