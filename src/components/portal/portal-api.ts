@@ -32,13 +32,30 @@ const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
 export const fetchPackages = (): Promise<BookPackageOption[]> =>
   getJson<BookPackageOption[]>("/api/public/orders/packages", "Gagal memuat daftar paket buku.");
 
-export const searchStudents = (query: string, schoolId: string): Promise<StudentSearchResult[]> =>
-  timed("search-students", () =>
+export interface StudentSearchParams {
+  query: string;
+  schoolId: string;
+}
+
+export const searchStudents = (
+  paramsOrQuery: StudentSearchParams | string,
+  legacySchoolId?: string
+): Promise<StudentSearchResult[]> => {
+  const params: StudentSearchParams =
+    typeof paramsOrQuery === "string"
+      ? { query: paramsOrQuery, schoolId: legacySchoolId ?? "" }
+      : paramsOrQuery;
+
+  return timed("search-students", () =>
     getJson<StudentSearchResult[]>(
-      buildQuery("/api/public/orders/search-students", { query: query.trim(), schoolId }),
+      buildQuery("/api/public/orders/search-students", {
+        query: params.query.trim(),
+        schoolId: params.schoolId,
+      }),
       "Gagal melakukan pencarian siswa."
     )
   );
+};
 
 export const registerStudent = (payload: NewStudentForm): Promise<any> =>
   postJson("/api/public/orders/register-student", payload, "Gagal mendaftarkan siswa baru");
@@ -93,13 +110,26 @@ export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> 
  * yang cocok; itu keadaan normal (empty state), bukan kegagalan, jadi
  * dikembalikan sebagai daftar kosong alih-alih melempar banner galat.
  */
+export interface LookupReturnableOrdersParams {
+  query: string;
+  schoolId: string;
+}
+
 export const lookupReturnableOrders = async (
-  query: string,
-  schoolId: string
+  paramsOrQuery: LookupReturnableOrdersParams | string,
+  legacySchoolId?: string
 ): Promise<PortalOrderLookup[]> => {
+  const params: LookupReturnableOrdersParams =
+    typeof paramsOrQuery === "string"
+      ? { query: paramsOrQuery, schoolId: legacySchoolId ?? "" }
+      : paramsOrQuery;
+
   try {
     return await getJson<PortalOrderLookup[]>(
-      buildQuery("/api/public/orders/lookup-order", { query: query.trim(), schoolId }),
+      buildQuery("/api/public/orders/lookup-order", {
+        query: params.query.trim(),
+        schoolId: params.schoolId,
+      }),
       "Gagal mencari pesanan."
     );
   } catch (err) {
