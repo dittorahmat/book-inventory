@@ -87,6 +87,27 @@ describe("Term Reconciliation Routes", () => {
     expect(saveJson.success).toBe(true);
     const reconId = saveJson.data.id;
 
+    // Skenario server-authoritative audit: kirim hanya physicalRemaining, totalInbound/distributed/price di-derive
+    const autoAuditRes = await app.request("/api/term-reconciliation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schoolId,
+        academicYear: "2026/2027",
+        term: "Ganjil",
+        items: [
+          {
+            itemType: "package",
+            packageId: pkgId,
+            physicalRemaining: 0,
+          },
+        ],
+      }),
+    });
+    expect(autoAuditRes.status).toBe(201);
+
     // 2. Ambil detail rekonsiliasi
     const detailRes = await app.request(`/api/term-reconciliation/${reconId}`);
     expect(detailRes.status).toBe(200);

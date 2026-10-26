@@ -25,18 +25,24 @@ export const EMPTY_NEW_STUDENT: NewStudentForm = {
   parentPhone: "",
 };
 
-export interface UseStudentSearchOptions {
+export interface UseStudentSearchOptions<T extends StudentSearchResult = StudentSearchResult> {
   schools: SchoolOption[];
-  onSelectStudent: (st: StudentSearchResult) => void;
+  onSelectStudent: (st: T) => void;
   onError: (msg: string | null) => void;
+  searchFn?: (params: { query: string; schoolId: string }) => Promise<T[]>;
 }
 
-export function useStudentSearch({ schools, onSelectStudent, onError }: UseStudentSearchOptions) {
+export function useStudentSearch<T extends StudentSearchResult = StudentSearchResult>({
+  schools,
+  onSelectStudent,
+  onError,
+  searchFn = searchStudents as unknown as (params: { query: string; schoolId: string }) => Promise<T[]>,
+}: UseStudentSearchOptions<T>) {
   const [searchSchoolId, setSearchSchoolId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<StudentSearchResult | null>(null);
+  const [searchResults, setSearchResults] = useState<T[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<T | null>(null);
   const [isNewStudentMode, setIsNewStudentMode] = useState(false);
   const [pendingNoResult, setPendingNoResult] = useState<string | null>(null);
   const [newStudent, setNewStudent] = useState<NewStudentForm>(EMPTY_NEW_STUDENT);
@@ -50,8 +56,8 @@ export function useStudentSearch({ schools, onSelectStudent, onError }: UseStude
     }
   }, [schools]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!searchSchoolId) {
       onError("Pilih sekolah terlebih dahulu.");
       return;
@@ -67,7 +73,7 @@ export function useStudentSearch({ schools, onSelectStudent, onError }: UseStude
     setPendingNoResult(null);
 
     try {
-      const data = await searchStudents({ query: trimmed, schoolId: searchSchoolId });
+      const data = await searchFn({ query: trimmed, schoolId: searchSchoolId });
       setSearchResults(data);
       setPendingNoResult(getPendingNoResultQuery(trimmed, data.length));
     } catch (err: unknown) {
@@ -78,7 +84,7 @@ export function useStudentSearch({ schools, onSelectStudent, onError }: UseStude
     }
   };
 
-  const handleSelectStudent = (st: StudentSearchResult) => {
+  const handleSelectStudent = (st: T) => {
     setSelectedStudent(st);
     onSelectStudent(st);
   };

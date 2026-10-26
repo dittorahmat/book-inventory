@@ -58,6 +58,18 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     interpolasi string inline langsung di PowerShell pwsh karena karakter backtick `
     dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`)
     atau single-quoted here-string (`@' ... '@`).
+14. **Intake Seam Portal Tunggal** — seluruh alur pencarian dan identifikasi murid
+    portal (buku, seragam, dsb.) wajib memakai modul hook intake kanonik
+    `useStudentSearch` (`src/components/portal/useStudentSearch.ts`), dilarang
+    membuat state search/debouncing inline di view atau menduplikasi modal murid baru.
+15. **Seam Alokasi Stok Terpadu** — alokasi fisik berbasis FIFO (`allocateInventoryStock`
+    di `src/server/services/stock/allocation.ts`) adalah titik masuk tunggal untuk
+    unit satuan maupun bundel paket; hindari percabangan pemanggil langsung ke implementasi
+    tabel terpisah.
+16. **Otoritas Server pada Audit Rekonsiliasi** — alur Berita Acara / Rekonsiliasi
+    akhir periode (`term-reconciliation`) wajib server-authoritative; input fisik
+    dapat disubmit mandiri tanpa mewajibkan kalkulasi delta atau penarikan ulang angka
+    inbound di sisi klien.
 
 ---
 

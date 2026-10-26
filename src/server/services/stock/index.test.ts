@@ -9,6 +9,7 @@ describe("stock seam", () => {
       "outstandingOf",
       "tallyLooseByKey",
       "tallyPackagesByKey",
+      "allocateInventoryStock",
       "allocateLooseStock",
       "allocatePackages",
       "getLooseStockSummary",

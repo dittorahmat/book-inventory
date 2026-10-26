@@ -42,8 +42,13 @@ export {
   tallyPackages,
   tallyPackagesByKey,
 } from "./kernel";
-export type { AllocationError, AllocationResult } from "./allocation";
-export { allocateLooseStock, allocatePackages } from "./allocation";
+export type {
+  AllocatedItem,
+  AllocationError,
+  AllocationResult,
+  InventoryAllocationInput,
+} from "./allocation";
+export { allocateInventoryStock, allocateLooseStock, allocatePackages } from "./allocation";
 export type { LooseStockSummaryRow, PackageStockSummaryRow } from "./summary";
 export { getLooseStockSummary, getPackageStockSummary } from "./summary";
 export type { VendorReturnDisposeCandidate } from "./vendor-return";
