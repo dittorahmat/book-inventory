@@ -98,6 +98,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     pendaftaran siswa (`new_pending` → `active`/`rejected`) dan penegakan keunikan NIS
     resmi wajib tinggal di balik modul layanan `student-lifecycle` (`src/server/services/student-lifecycle.ts`),
     dilarang melakukan query mutasi SQL langsung (`UPDATE students`) dari handler router.
+23. **Disiplin Kompilasi Inkremental & Timeout Pre-Commit** — `tsconfig.json` wajib
+    mengaktifkan `"incremental": true` dengan `tsBuildInfoFile` terabaikan git
+    (`tsconfig.tsbuildinfo`). Pada Windows pwsh, tipe-checking dan pre-commit hook
+    harus memanfaatkan cache inkremental agar tidak melampaui ambang batas timeout eksekusi tools CLI.
+24. **Disiplin Regression Test Delegasi Router-ke-Seam** — setiap ekstraksi logika bisnis
+    dari router Hono ke modul domain/seam (`services/*`) wajib mempertahankan atau menambahkan
+    test di level route (`*.test.ts`) yang memverifikasi pemetaan status HTTP dan payload
+    respons secara eksplisit (termasuk kasus error 400/404/409 dan delegasi parameter alias).
 
 ---
 
