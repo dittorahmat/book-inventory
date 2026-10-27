@@ -32,6 +32,7 @@ export interface FulfillInternalPoInput {
   deliveryNoteNumber: string;
   shippedDate?: string;
   notes?: string;
+  transferShipmentId?: string;
   items: InternalShipmentItemInput[];
 }
 

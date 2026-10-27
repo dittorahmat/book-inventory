@@ -181,6 +181,53 @@ export async function registerPublicStudent(
   return { ok: true, data: created };
 }
 
+export interface VerifyStudentInput {
+  action: "approve" | "reject";
+  nis?: string;
+}
+
+export type VerifyStudentResult =
+  | { ok: true; message: string; data: typeof students.$inferSelect }
+  | LifecycleError;
+
+/**
+ * Satu-satunya pemilik verifikasi siswa: validasi NIS resmi unik saat disetujui,
+ * atau tolak pendaftaran, mengembalikan row ter-update secara atomik.
+ */
+export async function verifyStudentRegistration(
+  database: AppDatabase,
+  studentId: string,
+  input: VerifyStudentInput,
+  deps?: LifecycleDeps
+): Promise<VerifyStudentResult> {
+  const [existing] = await database.select().from(students).where(eq(students.id, studentId));
+  if (!existing) {
+    return { ok: false, status: 404, message: "Data siswa tidak ditemukan" };
+  }
+
+  const now = writeNow(deps);
+
+  if (input.action === "approve") {
+    if (!input.nis?.trim()) {
+      return { ok: false, status: 400, message: "NIS resmi wajib diisi saat menyetujui" };
+    }
+    const officialNis = input.nis.trim();
+    if (officialNis !== existing.nis && (await checkNisTaken(database, officialNis, studentId))) {
+      return { ok: false, status: 400, message: "NIS sudah dipakai siswa lain" };
+    }
+    await database
+      .update(students)
+      .set({ nis: officialNis, status: "active", updatedAt: now })
+      .where(eq(students.id, studentId));
+    const [updated] = await database.select().from(students).where(eq(students.id, studentId));
+    return { ok: true, message: "Siswa disetujui dan aktif", data: updated };
+  }
+
+  await database.update(students).set({ status: "rejected", updatedAt: now }).where(eq(students.id, studentId));
+  const [updated] = await database.select().from(students).where(eq(students.id, studentId));
+  return { ok: true, message: "Pendaftaran siswa ditolak", data: updated };
+}
+
 /** Target kelas: promosi naik satu tingkat bila numerik, selain itu tetap. */
 export const resolveTargetGradeLevel = (gradeLevel: string, status: string): string => {
   const current = parseInt(gradeLevel, 10);

@@ -36,6 +36,7 @@ export interface CreateManualShipmentInput {
   deliveryNoteNumber: string;
   shippedDate?: string;
   notes?: string;
+  transferShipmentId?: string;
   items: InternalShipmentItemInput[];
 }
 
@@ -164,6 +165,7 @@ export async function createManualShipment(
         internalPoId: null,
         destinationSchoolId: input.destinationSchoolId,
         deliveryNoteNumber: input.deliveryNoteNumber.trim(),
+        transferShipmentId: input.transferShipmentId || null,
         shippedDate: input.shippedDate || now.split("T")[0],
         status: "in_transit",
         notes: input.notes || null,
