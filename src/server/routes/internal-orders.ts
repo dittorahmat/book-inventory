@@ -43,6 +43,7 @@ const createShipmentSchema = z.object({
   deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
+  transferShipmentId: idSchema.optional(),
   items: z.array(
     z.object({
       packageId: z.string().optional(),
@@ -111,6 +112,7 @@ const createManualShipmentSchema = z.object({
   deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
+  transferShipmentId: idSchema.optional(),
   items: z.array(
     z.object({
       packageId: idSchema.optional(),

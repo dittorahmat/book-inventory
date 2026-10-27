@@ -321,6 +321,7 @@ export async function fulfillInternalPo(
         internalPoId: poId,
         destinationSchoolId: po.schoolId,
         deliveryNoteNumber: input.deliveryNoteNumber.trim(),
+        transferShipmentId: input.transferShipmentId || null,
         shippedDate: input.shippedDate || now.split("T")[0],
         status: "in_transit",
         notes: input.notes || null,
