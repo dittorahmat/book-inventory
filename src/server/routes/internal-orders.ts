@@ -39,11 +39,14 @@ const createInternalPoSchema = z.object({
   ).min(1, "Minimal 1 paket yang dipesan"),
 });
 
-const createShipmentSchema = z.object({
+const baseShipmentHeaderSchema = z.object({
   deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
   transferShipmentId: idSchema.optional(),
+});
+
+const createShipmentSchema = baseShipmentHeaderSchema.extend({
   items: z.array(
     z.object({
       packageId: z.string().optional(),
@@ -107,12 +110,8 @@ internalOrdersRouter.post("/", zValidator("json", createInternalPoSchema), async
   }
 });
 
-const createManualShipmentSchema = z.object({
+const createManualShipmentSchema = baseShipmentHeaderSchema.extend({
   destinationSchoolId: idSchema,
-  deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
-  shippedDate: z.string().optional(),
-  notes: z.string().optional(),
-  transferShipmentId: idSchema.optional(),
   items: z.array(
     z.object({
       packageId: idSchema.optional(),

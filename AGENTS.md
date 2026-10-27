@@ -88,6 +88,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     Inggris `shipped` pada seragam); transfer buku internal (`/api/shipments`)
     menghasilkan nomor dokumen berprefix `TRF-*` (`shipmentNumber`), dan payload draft
     items wajib menyertakan discriminator `{ itemType: "loose" | "package", ... }`.
+21. **Disiplin Seam Tinjau Pembayaran & Kasir** — seluruh mutasi pembayaran kasir
+    manual dan verifikasi klaim bukti transfer (buku maupun seragam) wajib memusat
+    ke `order-payment-review` (`src/server/services/order-payment-review.ts`). Parameter
+    alokasi kanonik pada level service adalah `allocationAmount` (alias backward-compatible
+    `bookAllocationAmount` dinormalisasi di pintu masuk schema validator tanpa membiarkan
+    primitive obsession merembes ke domain internal).
+22. **Integritas Seam Siklus Hidup Murid & Verifikasi** — seluruh transisi status
+    pendaftaran siswa (`new_pending` → `active`/`rejected`) dan penegakan keunikan NIS
+    resmi wajib tinggal di balik modul layanan `student-lifecycle` (`src/server/services/student-lifecycle.ts`),
+    dilarang melakukan query mutasi SQL langsung (`UPDATE students`) dari handler router.
 
 ---
 
