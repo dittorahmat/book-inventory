@@ -38,14 +38,20 @@ export const rejectReasonSchema = z.object({
   reason: z.string().trim().min(1, "Alasan penolakan wajib diisi."),
 });
 
-export const cashierPaymentSchema = z.object({
-  transferAmount: z.number().int().min(1, "Nominal transfer wajib diisi"),
-  allocationAmount: z.number().int().min(1, "Nominal alokasi wajib diisi"),
-  bankName: z.string().optional(),
-  referenceNumber: z.string().optional(),
-  verifiedByUserId: z.string().optional(),
-  notes: z.string().optional(),
-});
+export const cashierPaymentSchema = z
+  .object({
+    transferAmount: z.number().int().min(1, "Nominal transfer wajib diisi"),
+    allocationAmount: z.number().int().min(1).optional(),
+    bookAllocationAmount: z.number().int().min(1).optional(),
+    bankName: z.string().optional(),
+    referenceNumber: z.string().optional(),
+    verifiedByUserId: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine(
+    (v) => (v.allocationAmount !== undefined && v.allocationAmount >= 1) || (v.bookAllocationAmount !== undefined && v.bookAllocationAmount >= 1),
+    { message: "Nominal alokasi wajib diisi" }
+  );
 
 type OrderRow = typeof studentBookOrders.$inferSelect | typeof uniformOrders.$inferSelect;
 
@@ -276,7 +282,8 @@ export const rejectPayment = async (
 
 export interface CashierPaymentInput {
   transferAmount: number;
-  allocationAmount: number;
+  allocationAmount?: number;
+  bookAllocationAmount?: number;
   bankName?: string;
   referenceNumber?: string;
   verifiedByUserId?: string | null;
@@ -299,8 +306,10 @@ export const recordCashierPayment = async (
   const now = writeNow(deps);
   const order = await findOrder(database, kind, orderId);
   if (!order) return notFound("Pesanan tidak ditemukan.");
+  const effectiveAllocation = input.allocationAmount ?? input.bookAllocationAmount ?? 0;
+  if (effectiveAllocation < 1) return invalid("Nominal alokasi wajib diisi");
   const alreadyPaid = await verifiedAllocationSum(database, kind, orderId);
-  const paidAmount = alreadyPaid + input.allocationAmount;
+  const paidAmount = alreadyPaid + effectiveAllocation;
   const { due, paymentStatus } = creditParts(order, paidAmount);
   const receiptId = newWriteId(deps);
   const built = buildReceiptDraft(
@@ -308,7 +317,7 @@ export const recordCashierPayment = async (
       studentId: order.studentId,
       schoolId: order.schoolId,
       amount: input.transferAmount,
-      allocations: [{ orderId, kind, amount: input.allocationAmount, billAmount: due }],
+      allocations: [{ orderId, kind, amount: effectiveAllocation, billAmount: due }],
       bankName: input.bankName,
       referenceNumber: input.referenceNumber,
       verifiedByUserId: input.verifiedByUserId ?? null,

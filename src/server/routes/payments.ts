@@ -14,6 +14,7 @@ import {
   resolveRequestActor,
 } from "../services/access-scope";
 import {
+  cashierPaymentSchema,
   listPaymentsWithStatus,
   recordCashierPayment,
   rejectPayment,
@@ -22,16 +23,6 @@ import {
 } from "../services/order-payment-review";
 
 export const paymentsRouter = new Hono();
-
-// Schema for manual cashier payment entry
-const cashierPaymentSchema = z.object({
-  transferAmount: z.number().int().min(1, "Nominal transfer wajib diisi"),
-  bookAllocationAmount: z.number().int().min(1, "Nominal alokasi buku wajib diisi"),
-  bankName: z.string().optional(),
-  referenceNumber: z.string().optional(),
-  verifiedByUserId: z.string().optional(),
-  notes: z.string().optional(),
-});
 
 // Schema for scholarship approval/rejection
 const scholarshipActionSchema = z.object({
@@ -104,14 +95,7 @@ paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSch
     const scoped = await loadScopedOrder(db, actor, locations, orderId);
     if (!scoped.ok) return c.json({ success: false, message: scoped.message }, scoped.status);
 
-    const result = await recordCashierPayment(db, "buku", orderId, {
-      transferAmount: body.transferAmount,
-      allocationAmount: body.bookAllocationAmount,
-      bankName: body.bankName,
-      referenceNumber: body.referenceNumber,
-      verifiedByUserId: body.verifiedByUserId ?? null,
-      notes: body.notes,
-    });
+    const result = await recordCashierPayment(db, "buku", orderId, body);
     if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
 
     return c.json({
