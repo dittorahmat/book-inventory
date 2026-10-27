@@ -10,7 +10,12 @@ import {
   assertLocationAllowed,
   requireScopedActor,
 } from "../services/access-scope";
-import { checkNisTaken, importStudents, removeStudent } from "../services/student-lifecycle";
+import {
+  checkNisTaken,
+  importStudents,
+  removeStudent,
+  verifyStudentRegistration,
+} from "../services/student-lifecycle";
 import { idSchema } from "../lib/validators";
 
 export const studentsRouter = new Hono();
@@ -199,33 +204,18 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
     const { actor, locations } = await requireScopedActor(db, c);
     const id = c.req.param("id");
     const body = c.req.valid("json");
-  const now = new Date().toISOString();
 
-  const [existing] = await db.select().from(students).where(eq(students.id, id));
-  if (!existing) {
-    return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
-  }
-  assertLocationAllowed(actor, existing.schoolId, locations);
-
-  if (body.action === "approve") {
-    if (!body.nis) {
-      return c.json({ success: false, message: "NIS resmi wajib diisi saat menyetujui" }, 400);
+    const [existing] = await db.select({ schoolId: students.schoolId }).from(students).where(eq(students.id, id));
+    if (!existing) {
+      return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
     }
-    const officialNis = body.nis.trim();
-    if (officialNis !== existing.nis && (await checkNisTaken(db, officialNis, id))) {
-      return c.json({ success: false, message: "NIS sudah dipakai siswa lain" }, 400);
-    }
-    await db
-      .update(students)
-      .set({ nis: officialNis, status: "active", updatedAt: now })
-      .where(eq(students.id, id));
-    const [updated] = await db.select().from(students).where(eq(students.id, id));
-    return c.json({ success: true, message: "Siswa disetujui dan aktif", data: updated });
-  }
+    assertLocationAllowed(actor, existing.schoolId, locations);
 
-  await db.update(students).set({ status: "rejected", updatedAt: now }).where(eq(students.id, id));
-  const [updated] = await db.select().from(students).where(eq(students.id, id));
-  return c.json({ success: true, message: "Pendaftaran siswa ditolak", data: updated });
+    const result = await verifyStudentRegistration(db, id, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: result.message, data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
