@@ -1,68 +1,47 @@
 import { chromium } from "playwright";
+import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
+import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
+import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
 
 /**
- * Demo Automation Runner
- * Menjalankan skenario demo terpilih di portal publik dan dashboard staf.
- * Target default: https://book-inventory.tech1solusi.workers.dev
+ * Full End-to-End Demo Automation Suite
+ * Menjalankan seluruh bab skenario di DEMO_SCENARIO.md
  */
 
 const BASE_URL = process.env.DEMO_BASE_URL || "https://book-inventory.tech1solusi.workers.dev";
 const HEADLESS = process.env.HEADLESS !== "false";
 
-async function runDemo() {
-  console.log(`\n🚀 Memulai Demo Automation di target: ${BASE_URL}`);
-  console.log(`   Mode Headless: ${HEADLESS}\n`);
+async function main() {
+  console.log(`\n=======================================================`);
+  console.log(`🎭 MENJALANKAN FULL SUITE OTOMASI DEMO AL WILDAN`);
+  console.log(`   Target URL : ${BASE_URL}`);
+  console.log(`   Headless   : ${HEADLESS}`);
+  console.log(`=======================================================`);
 
   const browser = await chromium.launch({ headless: HEADLESS });
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
+    viewport: { width: 1366, height: 768 },
   });
   const page = await context.newPage();
 
   try {
-    // 1. Skenario 1: Portal Publik - Kenaikan Kelas & Paket Terkunci
-    console.log("▶ Skenario 1: Cek Kenaikan Kelas Hendra (Al Wildan 1)");
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
+    // 1. Eksekusi Modul Portal Publik (Bab 6–10, 15)
+    await runPublicPortalScenarios(page, BASE_URL);
 
-    // Tunggu input pencarian siswa muncul
-    const searchInput = page.locator('input[placeholder*="nama"], input[placeholder*="Cari"]');
-    if (await searchInput.count() > 0) {
-      await searchInput.first().fill("Hendra");
-      const searchBtn = page.locator('button:has-text("Cari")');
-      if (await searchBtn.count() > 0) {
-        await searchBtn.first().click();
-        await page.waitForTimeout(1000);
-      }
-      console.log("  ✓ Pencarian murid berhasil dijalankan.");
-    }
+    // 2. Eksekusi Modul Admin Sekolah & Finance (Bab 8, 9, 11, 13)
+    await runSchoolAdminScenarios(page, BASE_URL);
 
-    // 2. Skenario 5 & 7: Halaman Konfirmasi Bayar Mandiri (Token Ahmad Zaki Pratama)
-    console.log("\n▶ Skenario 5 & 7: Halaman Bayar Mandiri Siswa (Ahmad Zaki Pratama)");
-    const payUrl = `${BASE_URL.replace(/\/$/, "")}/bayar/buku/demo-token-buku-zaki`;
-    await page.goto(payUrl, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1000);
+    // 3. Eksekusi Modul Gudang Pusat, Seragam, & Audit (Bab 10, 12, 14, 16–20)
+    await runCentralWarehouseScenarios(page, BASE_URL);
 
-    const bodyText = await page.textContent("body");
-    if (bodyText?.includes("Zaki") || bodyText?.includes("Ahmad") || bodyText?.includes("Konfirmasi") || bodyText?.includes("990.000")) {
-      console.log("  ✓ Halaman bayar mandiri Ahmad Zaki Pratama berhasil diakses.");
-    } else {
-      console.log("  ℹ Halaman bayar dimuat (status code 200).");
-    }
-
-    // 3. Skenario Staf: Layar Login & Akses Cepat Demo
-    console.log("\n▶ Skenario Staf: Halaman Login & Akses Cepat Demo");
-    await page.goto(`${BASE_URL.replace(/\/$/, "")}/login`, { waitUntil: "networkidle" });
-    const staffText = await page.textContent("body");
-    if (staffText?.includes("Al Wildan") || staffText?.includes("Demo") || staffText?.includes("Masuk")) {
-      console.log("  ✓ Akses halaman login staf berhasil diakses.");
-    }
-
-    console.log("\n✨ Demo automation suite selesai dieksekusi dengan sukses!");
-  } catch (err) {
-    console.error("❌ Error saat eksekusi otomasi demo:", err);
+    console.log("\n=======================================================");
+    console.log("🎉 SELURUH SKENARIO DEMO E2E BERHASIL DIEKSEKUSI PENUH!");
+    console.log("=======================================================\n");
+  } catch (error) {
+    console.error("\n❌ Terjadi kegagalan pada saat eksekusi otomasi demo:", error);
   } finally {
     await browser.close();
   }
 }
 
-runDemo();
+main();
