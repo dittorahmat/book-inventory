@@ -9,16 +9,22 @@ import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse
  */
 
 const BASE_URL = process.env.DEMO_BASE_URL || "https://book-inventory.tech1solusi.workers.dev";
-const HEADLESS = process.env.HEADLESS !== "false";
+// Default headed (membuka browser visual) kecuali di-set HEADLESS=true (misal di CI)
+const HEADLESS = process.env.HEADLESS === "true";
+const SLOW_MO = Number(process.env.SLOW_MO ?? (HEADLESS ? 0 : 700));
 
 async function main() {
   console.log(`\n=======================================================`);
   console.log(`🎭 MENJALANKAN FULL SUITE OTOMASI DEMO AL WILDAN`);
   console.log(`   Target URL : ${BASE_URL}`);
-  console.log(`   Headless   : ${HEADLESS}`);
+  console.log(`   Headless   : ${HEADLESS} (Browser ${HEADLESS ? "sembunyi" : "terbuka di layar"})`);
+  console.log(`   SlowMo     : ${SLOW_MO}ms per aksi (kecepatan presentasi)`);
   console.log(`=======================================================`);
 
-  const browser = await chromium.launch({ headless: HEADLESS });
+  const browser = await chromium.launch({
+    headless: HEADLESS,
+    slowMo: SLOW_MO,
+  });
   const context = await browser.newContext({
     viewport: { width: 1366, height: 768 },
   });
