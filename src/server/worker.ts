@@ -41,10 +41,17 @@ worker.use("*", async (c, next) => {
 // Mount the agnostic API routes
 worker.route("/", app);
 
-// Serve static assets or fallback
+// Serve static assets or fallback (SPA routing support)
 worker.all("*", async (c) => {
   if (c.env.ASSETS) {
-    return c.env.ASSETS.fetch(c.req.raw);
+    const res = await c.env.ASSETS.fetch(c.req.raw);
+    if (res.status === 404 && !c.req.path.startsWith("/api/")) {
+      // SPA Fallback: route browser yang bukan /api/* dikembalikan ke index.html
+      const url = new URL(c.req.url);
+      url.pathname = "/index.html";
+      return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
+    }
+    return res;
   }
   return c.text("Book Inventory API running on Cloudflare Workers", 200);
 });
