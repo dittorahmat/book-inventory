@@ -115,7 +115,8 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 26. **Integritas Penamaan Entitas & Anti-Residual Identifier** — saat melakukan perubahan identitas
     nama data demo/domain (seperti nama siswa, kode akun, atau nomor referensi), lakukan penyelarasan
     menyeluruh hingga ke ID slug seeded (`id`, `orderId`, `receiptId`) untuk mencegah bau kode
-    leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database.
+    leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database. Ditegakkan
+    mekanis oleh gate `check:seed-integrity`.
 
 ---
 
