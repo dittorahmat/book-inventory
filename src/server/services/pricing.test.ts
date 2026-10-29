@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { bookPackages, schools, studentBookOrders, students } from "../../db/schema";
 import { WPR_BOOK_ID, WPR_PRICE } from "../../lib/wpr";
-import { kitBomWithoutWpr, needsWprForStudent, wprFeeForStudent } from "./pricing";
+import { kitBomWithoutWpr, needsWprForStudent, recalcAllPackagePrices, wprFeeForStudent } from "./pricing";
 
 describe("Pricing seam", () => {
   it("kitBomWithoutWpr strips WPR and keeps priced components", () => {
@@ -44,6 +44,10 @@ describe("Pricing seam", () => {
       });
       expect(await needsWprForStudent(db, studentId)).toBe(false);
       expect(await wprFeeForStudent(db, studentId)).toBe(0);
+
+      // recalcAllPackagePrices memperbarui harga paket dari BOM
+      const count = await recalcAllPackagePrices(db);
+      expect(count).toBeGreaterThan(0);
     } finally {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.schoolId, schoolId));
       await db.delete(students).where(eq(students.id, studentId));

@@ -46,6 +46,15 @@ export async function recalcPackagePrice(database: AppDatabase, packageId: strin
   return total;
 }
 
+/** Hitung ulang harga semua paket yang ada di database. Mengembalikan jumlah paket yang diperbarui. */
+export async function recalcAllPackagePrices(database: AppDatabase, deps?: WriteDeps): Promise<number> {
+  const rows: Array<{ id: string }> = await database
+    .select({ id: bookPackages.id })
+    .from(bookPackages);
+  for (const pkg of rows) await recalcPackagePrice(database, pkg.id, deps);
+  return rows.length;
+}
+
 /** Hitung ulang harga semua paket yang memakai buku tertentu. Mengembalikan jumlah paket yang diperbarui. */
 export async function recalcPackagesUsingBook(database: AppDatabase, bookId: string, deps?: WriteDeps): Promise<number> {
   const rows: Array<{ packageId: string }> = await database

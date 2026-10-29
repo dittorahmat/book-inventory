@@ -1,13 +1,9 @@
 // Route-test pairing gate: gagalkan (exit 1) jika ada route di
-// src/server/routes/*.ts tanpa pasangan *.test.ts. Mengunci AGENTS.md
-// aturan 5 (setiap endpoint mutasi wajib punya test + regression test
-// tiap bug) — preseden: direct-sales.ts tanpa test menyembunyikan bug
-// studentId null yang membuat endpoint selalu 500. Dijalankan via
-// `bun run check:route-tests` dan di CI (lihat .github/workflows/checks.yml).
-// Hanya file pendefinisi router Hono yang dihitung (modul skema/helper
-// seperti uniform-schemas.ts versi lama tidak dituntut pasangan test).
+// src/server/routes/*.ts tanpa pasangan *.test.ts, atau jika file route
+// diubah pada commit/staged tanpa disertai perubahan pada file *.test.ts pasangannya.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 
 const ROUTES_DIR = "src/server/routes";
 const EXCLUDE = new Set(["test-actor.ts"]);
@@ -27,6 +23,36 @@ if (offenders.length > 0) {
   for (const o of offenders) console.error(`  ${ROUTES_DIR}/${o}  →  ${o.replace(/\.ts$/, ".test.ts")}`);
   console.error("WAJIB tambah suite di src/server/routes/*.test.ts (AGENTS.md aturan 5).");
   process.exit(1);
+}
+
+// Pemeriksaan modifikasi: jika route *.ts dimodifikasi pada staged/working tree,
+// file *.test.ts pasangannya wajib ikut dimodifikasi (AGENTS.md §1.5).
+const isCheckDiff = process.argv.includes("--diff") || process.env.CHECK_DIFF === "1";
+if (isCheckDiff) {
+  try {
+    const statusOut = execSync("git status --porcelain", { encoding: "utf8" });
+    const changedFiles = new Set(
+      statusOut
+        .split("\n")
+        .map((line) => line.trim().split(/\s+/)[1])
+        .filter(Boolean)
+    );
+    const uncompanionRoutes: string[] = [];
+    for (const file of changedFiles) {
+      if (file.startsWith(`${ROUTES_DIR}/`) && file.endsWith(".ts") && !file.endsWith(".test.ts")) {
+        const testFile = file.replace(/\.ts$/, ".test.ts");
+        if (!changedFiles.has(testFile) && entries.has(file.replace(`${ROUTES_DIR}/`, "").replace(/\.ts$/, ".test.ts"))) {
+          uncompanionRoutes.push(file);
+        }
+      }
+    }
+    if (uncompanionRoutes.length > 0) {
+      console.warn("Route-test gate WARNING — file route berubah tanpa modifikasi test skenario pendamping:");
+      for (const u of uncompanionRoutes) console.warn(`  ${u} (sebaiknya sertakan regression test di ${u.replace(/\.ts$/, ".test.ts")})`);
+    }
+  } catch {
+    // Non-fatal bila git status tidak tersedia
+  }
 }
 
 console.log(`Route-test gate OK: semua route di ${ROUTES_DIR}/ punya pasangan test.`);

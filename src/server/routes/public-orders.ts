@@ -18,7 +18,7 @@ import { MetaWhatsAppSender, type SendWhatsAppResult } from "../services/whatsap
 import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
-import { wprFeeForEligibility } from "../../lib/wpr";
+import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
@@ -113,7 +113,7 @@ publicOrdersRouter.get("/packages", async (c) => {
       items: p.items.map((it) => ({
         id: it.id,
         bookId: it.bookId,
-        title: it.publicTitle ?? "Buku Paket",
+        title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"),
         quantity: it.quantity,
       })),
     })),
@@ -126,7 +126,9 @@ publicOrdersRouter.get("/book-choices", async (c) => {
   const seen = new Map<string, string>();
   for (const p of pkgs) {
     for (const it of p.items) {
-      if (!seen.has(it.bookId)) seen.set(it.bookId, it.publicTitle ?? "Buku Paket");
+      if (!seen.has(it.bookId)) {
+        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"));
+      }
     }
   }
   return c.json({

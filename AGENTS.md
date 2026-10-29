@@ -122,6 +122,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     wajib mengelompokkan ID target ke dalam chunk aman D1 (`chunkRows` dari `src/server/lib/d1-write.ts`)
     dan menggunakan predikat set `inArray(table.id, chunk)` atau `db.batch()`, dilarang mengeksekusi
     perulangan `database.update().where(eq(id))` satu per satu.
+28. **Integritas Sinkronisasi Harga Paket & WPR BOM** — setiap paket buku yang mengandung WPR
+    di BOM (`book-wpr-weekly-report`) wajib menghitung total harga paket (`book_packages.price`)
+    secara all-in melalui seam `recalcPackagePrice` (SUM seluruh harga jual komponen termasuk WPR);
+    pada penyajian publik (portal murid/wali), item WPR wajib menyajikan judul resmi
+    `Weekly Progress Report (WPR)` dan dilarang disamarkan menjadi teks generik (`Buku Paket`).
+    Penyedia baris buku wajib (`ensureWprBook`) wajib idempoten dengan `onConflictDoUpdate` agar
+    kolom `publicTitle` dan harga selalu tersinkronkan pada database lama maupun baru. Setiap
+    perubahan mapping DTO katalog publik wajib disertai unit regression test di `public-orders.test.ts`.
 
 ---
 
@@ -363,7 +371,8 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
 - **Portal publik**: URL→tab di `src/lib/public-portal-url.ts`; daftar tab di
   `src/components/portal/portal-tabs.ts`; state alur di
   `src/components/portal/use*.ts`; adapter HTTP tunggal
-  `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`.
+  `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`
+  (semua route publik memusat di `/api/public/orders/*` dan `/api/public/uniforms/*`).
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
   `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
   scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam

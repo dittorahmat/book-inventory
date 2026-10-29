@@ -62,6 +62,9 @@ if (has(/^src\//)) {
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
   runBun("check:route-tests");
+  if (has(/^src\/server\/routes\//)) {
+    run(["bun", "scripts/check-route-tests.ts", "--diff"]);
+  }
   runBun("check:validators");
   runBun("check:d1-writes");
   runBun("check:d1-error-mapping");
