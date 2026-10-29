@@ -542,4 +542,59 @@ describe("spec-57 T3 student NIS-guard consistency", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("batch-promotes students to next grade and graduates top grade", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-promote-${stamp}`;
+    await seedSchool(schoolId, `ALW-PROM-${stamp}`);
+    try {
+      const items = [
+        { nis: `P1-${stamp}`, name: "Siswa Kelas 1", gradeLevel: "1", academicYear: "2025/2026" },
+        { nis: `P2-${stamp}`, name: "Siswa Tinggal Kelas", gradeLevel: "2", academicYear: "2025/2026" },
+        { nis: `P6-${stamp}`, name: "Siswa Kelas 6 Lulus", gradeLevel: "6", academicYear: "2025/2026" },
+      ];
+      const importRes = await studentsRouter.request("/bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, students: items }),
+      });
+      expect(importRes.status).toBe(200);
+
+      const all = await db.select().from(students).where(eq(students.schoolId, schoolId));
+      const s2 = all.find((s) => s.nis === `P2-${stamp}`)!;
+
+      const promoteRes = await studentsRouter.request("/batch-promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schoolId,
+          targetAcademicYear: "2026/2027",
+          excludeStudentIds: [s2.id],
+          maxGradeLevel: 6,
+        }),
+      });
+      expect(promoteRes.status).toBe(200);
+      const promoteJson = await promoteRes.json();
+      expect(promoteJson.data.promotedCount).toBe(1);
+      expect(promoteJson.data.graduatedCount).toBe(1);
+      expect(promoteJson.data.skippedCount).toBe(1);
+
+      const after = await db.select().from(students).where(eq(students.schoolId, schoolId));
+      const p1 = after.find((s) => s.nis === `P1-${stamp}`)!;
+      expect(p1.gradeLevel).toBe("2");
+      expect(p1.status).toBe("promoted");
+      expect(p1.academicYear).toBe("2026/2027");
+
+      const p2 = after.find((s) => s.nis === `P2-${stamp}`)!;
+      expect(p2.gradeLevel).toBe("2");
+      expect(p2.academicYear).toBe("2025/2026");
+
+      const p6 = after.find((s) => s.nis === `P6-${stamp}`)!;
+      expect(p6.status).toBe("graduated");
+      expect(p6.academicYear).toBe("2026/2027");
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

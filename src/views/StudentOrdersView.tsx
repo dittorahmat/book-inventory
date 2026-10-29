@@ -68,7 +68,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama murid, NIS, atau nomor order..."
+            placeholder="Cari Kode Bukti Pengambilan / No. Order, nama murid, atau NIS..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
           />
         </div>

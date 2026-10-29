@@ -117,6 +117,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     menyeluruh hingga ke ID slug seeded (`id`, `orderId`, `receiptId`) untuk mencegah bau kode
     leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database. Ditegakkan
     mekanis oleh gate `check:seed-integrity`.
+27. **Disiplin Batch Updates Mutasi Masal D1** — seluruh operasi pembaruan masal multi-baris
+    (seperti kenaikan kelas murid `batchPromoteStudents`, mutasi status katalog, atau pengalihan lokasi)
+    wajib mengelompokkan ID target ke dalam chunk aman D1 (`chunkRows` dari `src/server/lib/d1-write.ts`)
+    dan menggunakan predikat set `inArray(table.id, chunk)` atau `db.batch()`, dilarang mengeksekusi
+    perulangan `database.update().where(eq(id))` satu per satu.
 
 ---
 
@@ -168,10 +173,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
   **DB**: Drizzle ORM di atas SQLite — D1 di Cloudflare, SQLite file untuk
   produksi mandiri. **Frontend**: React + Vite. **Storage**: R2/S3-compatible.
 - **Shell**: PowerShell 7+ (`pwsh`). Tanpa `head`/`awk`/`wc`/`printf`/`cat`/`grep`/
-  `tail`/`rm`; pakai `Select-String`/`Select-Object`/`Measure-Object`, `Remove-Item`,
-  dan tool `Grep`/`Read`. `mkdir` satu direktori per perintah; glob tidak
-  mengembang di argumen skrip — tulis path eksplisit. Skrip sekali-pakai ditulis
-  via tool `Write` lalu `bun <file>`, bukan `bun -e` berkutip bersarang.
+  `tail`/`rm`; untuk pencarian teks cepat pakai `rg` (ripgrep) atau `Select-String`,
+  `Select-Object`/`Measure-Object`, `Remove-Item`, dan tool `Grep`/`Read`. `mkdir`
+  satu direktori per perintah; glob tidak mengembang di argumen skrip — tulis path
+  eksplisit. Skrip sekali-pakai ditulis via tool `Write` lalu `bun <file>`, bukan `bun -e`
+  berkutip bersarang.
 
 ---
 
