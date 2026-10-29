@@ -10,15 +10,7 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   console.log("=======================================================");
 
   // Login sebagai Central Admin (admin.gudang@alwildan.sch.id)
-  console.log("\n▶ Login Central Admin (Gudang Logistik Pusat)");
-  // Logout terlebih dahulu jika ada session aktif
-  const logoutBtn = page.locator('button:has-text("Keluar"), button:has-text("Logout")');
-  if (await logoutBtn.count() > 0) {
-    await logoutBtn.first().click();
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(500);
-  }
-
+  console.log("\n▶ Login Central Admin (Gudang Logistik Pusat - admin.gudang@alwildan.sch.id)");
   await page.goto(`${baseUrl.replace(/\/$/, "")}/admin`, { waitUntil: "networkidle" });
   await performLogin(page, "Central Admin", "admin.gudang@alwildan.sch.id");
   await captureScreenshot(page, "10-login-central-admin.png");

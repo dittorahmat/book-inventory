@@ -34,11 +34,11 @@ async function main() {
     // 1. Eksekusi Modul Portal Publik (Bab 6–10, 15)
     await runPublicPortalScenarios(page, BASE_URL);
 
-    // 2. Eksekusi Modul Admin Sekolah & Finance (Bab 8, 9, 11, 13)
-    await runSchoolAdminScenarios(page, BASE_URL);
-
-    // 3. Eksekusi Modul Gudang Pusat, Seragam, & Audit (Bab 10, 12, 14, 16–20)
+    // 2. Eksekusi Modul Central Admin (Gudang Logistik Pusat) - Master Akun Demo (§2, §3 di DEMO_SCENARIO.md)
     await runCentralWarehouseScenarios(page, BASE_URL);
+
+    // 3. Eksekusi Modul Admin Sekolah & Finance (Al Wildan 1)
+    await runSchoolAdminScenarios(page, BASE_URL);
 
     console.log("\n=======================================================");
     console.log("🎉 SELURUH SKENARIO DEMO E2E BERHASIL DIEKSEKUSI PENUH!");
