@@ -50,8 +50,11 @@ export function StudentOrdersTable({
               </tr>
             ) : (
               orders.map((o) => {
-                const isPaidOrScholarship =
-                  o.paymentStatus === "paid" || o.paymentStatus === "scholarship_approved";
+                const canHandoverDirect =
+                  o.paymentStatus === "paid" ||
+                  o.paymentStatus === "partial" ||
+                  o.paymentStatus === "scholarship_approved" ||
+                  o.financeHandoverApproved;
                 const isPickedUp = o.fulfillmentStatus === "picked_up";
 
                 return (
@@ -150,7 +153,7 @@ export function StudentOrdersTable({
                             BELUM DIAMBIL
                           </span>
                           <div className="text-[10px] text-[#65676B] mt-0.5">
-                            {isPaidOrScholarship ? "Siap diserahkan" : "Menunggu pelunasan / diskresi"}
+                            {canHandoverDirect ? "Siap diserahkan" : "Menunggu bukti bayar / diskresi"}
                           </div>
                         </div>
                       )}

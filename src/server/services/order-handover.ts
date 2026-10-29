@@ -64,13 +64,20 @@ export async function handoverPackage(
     return { ok: false, status: 404, message: "Pesanan tidak ditemukan" };
   }
 
-  const isPaidOrApproved = order.paymentStatus === "paid" || order.paymentStatus === "scholarship_approved";
-  if (!isPaidOrApproved && !order.financeHandoverApproved) {
+  // Sesuai ADR-0018: Buku dapat diambil oleh pemegang Bukti Pengambilan resmi
+  // baik yang sudah lunas (paid), cicilan (partial), maupun beasiswa (scholarship_approved).
+  // Status unpaid murni (tanpa bukti & tanpa diskresi) tetap ditahan.
+  const canHandover =
+    order.paymentStatus === "paid" ||
+    order.paymentStatus === "partial" ||
+    order.paymentStatus === "scholarship_approved" ||
+    order.financeHandoverApproved;
+  if (!canHandover) {
     return {
       ok: false,
       status: 400,
       message:
-        "Buku belum dapat diserahkan karena pembayaran belum lunas dan belum ada diskresi persetujuan dari Finance.",
+        "Buku belum dapat diserahkan karena belum ada konfirmasi pembayaran/cicilan atau diskresi persetujuan dari Finance.",
     };
   }
 
