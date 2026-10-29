@@ -11,6 +11,7 @@ export const ensureWprBook = async (database: AppDatabase, deps?: WriteDeps): Pr
     .insert(books)
     .values({
       id: WPR_BOOK_ID, isbn: WPR_ISBN, title: WPR_TITLE,
+      publicTitle: WPR_TITLE,
       author: "Al Wildan", publisher: "Al Wildan",
       price: WPR_PRICE, buyPrice: 0, sellPrice: WPR_PRICE,
       createdAt: now, updatedAt: now,
