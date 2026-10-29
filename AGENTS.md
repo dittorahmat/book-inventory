@@ -117,6 +117,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     menyeluruh hingga ke ID slug seeded (`id`, `orderId`, `receiptId`) untuk mencegah bau kode
     leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database. Ditegakkan
     mekanis oleh gate `check:seed-integrity`.
+27. **Disiplin Batch Updates Mutasi Masal D1** — seluruh operasi pembaruan masal multi-baris
+    (seperti kenaikan kelas murid `batchPromoteStudents`, mutasi status katalog, atau pengalihan lokasi)
+    wajib mengelompokkan ID target ke dalam chunk aman D1 (`chunkRows` dari `src/server/lib/d1-write.ts`)
+    dan menggunakan predikat set `inArray(table.id, chunk)` atau `db.batch()`, dilarang mengeksekusi
+    perulangan `database.update().where(eq(id))` satu per satu.
 
 ---
 

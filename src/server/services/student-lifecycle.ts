@@ -325,6 +325,9 @@ export async function batchPromoteStudents(
   let graduatedCount = 0;
   let skippedCount = 0;
 
+  const toGraduateIds: string[] = [];
+  const toPromoteByGrade = new Map<string, string[]>();
+
   for (const st of eligibleStudents) {
     if (excluded.has(st.id)) {
       skippedCount++;
@@ -338,6 +341,20 @@ export async function batchPromoteStudents(
     }
 
     if (currentGrade >= maxGrade) {
+      toGraduateIds.push(st.id);
+      graduatedCount++;
+    } else {
+      const nextGrade = (currentGrade + 1).toString();
+      const list = toPromoteByGrade.get(nextGrade) ?? [];
+      list.push(st.id);
+      toPromoteByGrade.set(nextGrade, list);
+      promotedCount++;
+    }
+  }
+
+  // Batch updates chunked to meet Cloudflare D1 discipline
+  if (toGraduateIds.length > 0) {
+    for (const chunk of chunkRows(toGraduateIds)) {
       await database
         .update(students)
         .set({
@@ -345,10 +362,12 @@ export async function batchPromoteStudents(
           academicYear: input.targetAcademicYear,
           updatedAt: now,
         })
-        .where(eq(students.id, st.id));
-      graduatedCount++;
-    } else {
-      const nextGrade = (currentGrade + 1).toString();
+        .where(inArray(students.id, chunk));
+    }
+  }
+
+  for (const [nextGrade, ids] of toPromoteByGrade.entries()) {
+    for (const chunk of chunkRows(ids)) {
       await database
         .update(students)
         .set({
@@ -357,8 +376,7 @@ export async function batchPromoteStudents(
           academicYear: input.targetAcademicYear,
           updatedAt: now,
         })
-        .where(eq(students.id, st.id));
-      promotedCount++;
+        .where(inArray(students.id, chunk));
     }
   }
 

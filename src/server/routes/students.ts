@@ -270,9 +270,9 @@ studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema),
 
 // 7. POST batch-promote (promosi kenaikan kelas masal per sekolah)
 const batchPromoteSchema = z.object({
-  schoolId: z.string().min(1, "Sekolah wajib dipilih"),
+  schoolId: idSchema,
   targetAcademicYear: z.string().min(1, "Tahun ajaran baru wajib diisi"),
-  excludeStudentIds: z.array(z.string()).default([]),
+  excludeStudentIds: z.array(idSchema).default([]),
   maxGradeLevel: z.number().int().min(1).default(6),
 });
 
