@@ -19,6 +19,7 @@ import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
 import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
+import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
@@ -115,6 +116,7 @@ publicOrdersRouter.get("/packages", async (c) => {
         bookId: it.bookId,
         title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"),
         quantity: it.quantity,
+        unitPrice: effectiveSellPrice(it),
       })),
     })),
   });

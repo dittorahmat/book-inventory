@@ -22,6 +22,8 @@ export interface PackageBomItem {
   author: string;
   category: string | null;
   quantity: number;
+  price: number;
+  sellPrice: number | null;
 }
 
 /** Batas baris daftar paket (§11 anti Pindai Penuh). */
@@ -48,6 +50,8 @@ export async function listPackagesWithBom(
       author: books.author,
       category: books.category,
       quantity: bookPackageItems.quantity,
+      price: books.price,
+      sellPrice: books.sellPrice,
     })
     .from(bookPackageItems)
     .innerJoin(books, eq(bookPackageItems.bookId, books.id))
@@ -64,6 +68,8 @@ export async function listPackagesWithBom(
       author: row.author,
       category: row.category,
       quantity: row.quantity,
+      price: row.price,
+      sellPrice: row.sellPrice,
     });
     bomByPkg.set(row.packageId, list);
   }

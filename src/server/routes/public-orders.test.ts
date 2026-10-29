@@ -1416,7 +1416,7 @@ describe("Public catalog tanpa login (#143)", () => {
       expect(pkgRes.status).toBe(200);
       const pkgJson = await pkgRes.json();
       expect(pkgJson.success).toBe(true);
-      interface PublicPkgItem { id: string; bookId: string; title: string; quantity: number }
+      interface PublicPkgItem { id: string; bookId: string; title: string; quantity: number; unitPrice?: number }
       interface PublicPkg { id: string; price: number; items: PublicPkgItem[] }
       interface PublicChoice { bookId: string; title: string }
       const found = ((pkgJson.data as unknown[]) as PublicPkg[]).find((p) => p.id === pkgId);
@@ -1424,7 +1424,9 @@ describe("Public catalog tanpa login (#143)", () => {
       expect(found?.price).toBe(60000);
       expect(found?.items.length).toBe(2);
       expect(found?.items.find((i) => i.bookId === bookId)?.title).toBe(`Judul Ramah ${stamp}`);
+      expect(found?.items.find((i) => i.bookId === bookId)?.unitPrice).toBe(60000);
       expect(found?.items.find((i) => i.bookId === WPR_BOOK_ID)?.title).toBe(WPR_TITLE);
+      expect(found?.items.find((i) => i.bookId === WPR_BOOK_ID)?.unitPrice).toBe(750000);
       // Anti window-shopping: tanpa ISBN/penulis/penerbit/cover di DTO publik.
       for (const it of found?.items ?? []) {
         expect(it).not.toHaveProperty("isbn");
