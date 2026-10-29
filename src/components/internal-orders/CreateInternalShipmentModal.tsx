@@ -29,7 +29,7 @@ export function CreateInternalShipmentModal({
   onClose,
   onCreated,
 }: CreateInternalShipmentModalProps) {
-  const [mode, setMode] = useState<"with_po" | "manual">("with_po");
+  const [mode, setMode] = useState<"with_po" | "manual">("manual");
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
   const [shippedDate, setShippedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
@@ -41,7 +41,7 @@ export function CreateInternalShipmentModal({
   const [manualSchoolId, setManualSchoolId] = useState(schoolOptions[0]?.id ?? "");
   const [packageCatalog, setPackageCatalog] = useState<PackageOption[]>([]);
 
-  const [lines, setLines] = useState<ShipmentFormLine[]>([]);
+  const [lines, setLines] = useState<ShipmentFormLine[]>([{ packageId: "", quantity: 1 }]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -185,21 +185,21 @@ export function CreateInternalShipmentModal({
           <div className="flex gap-2 rounded-xl border border-[#E4E6EB] bg-[#F8F9FA] p-1 text-xs">
             <button
               type="button"
+              onClick={() => handleModeChange("manual")}
+              className={`flex-1 rounded-lg py-2 font-bold transition-colors ${
+                mode === "manual" ? "bg-white text-[#1877F2] shadow-xs" : "text-[#65676B] hover:text-[#050505]"
+              }`}
+            >
+              Pengiriman Rutin Via Surat Jalan
+            </button>
+            <button
+              type="button"
               onClick={() => handleModeChange("with_po")}
               className={`flex-1 rounded-lg py-2 font-bold transition-colors ${
                 mode === "with_po" ? "bg-white text-[#1877F2] shadow-xs" : "text-[#65676B] hover:text-[#050505]"
               }`}
             >
               Penuhi PO Cabang Terutang
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange("manual")}
-              className={`flex-1 rounded-lg py-2 font-bold transition-colors ${
-                mode === "manual" ? "bg-white text-[#1877F2] shadow-xs" : "text-[#65676B] hover:text-[#050505]"
-              }`}
-            >
-              Pengiriman Manual Bebas (Tanpa PO)
             </button>
           </div>
 

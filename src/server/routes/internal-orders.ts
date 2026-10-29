@@ -15,6 +15,7 @@ import {
   fulfillInternalPo,
   listInternalPOs,
   listInternalShipments,
+  listIncomingInternalShipments,
   listOutstandingPOs,
   createManualShipment,
   receiveInternalShipment,
@@ -79,6 +80,24 @@ internalOrdersRouter.get("/outstanding", async (c) => {
 
     const data = await listOutstandingPOs(db, schoolId);
     return c.json({ success: true, data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 2b. GET list incoming shipments for branch
+internalOrdersRouter.get("/shipments/incoming", async (c) => {
+  try {
+    const { actor, scope: scopeList } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = resolveSchoolScope(actor.role, c.req.query("schoolId"), scopeList);
+    const statusParam = c.req.query("status");
+    const status = statusParam === "in_transit" || statusParam === "delivered" || statusParam === "discrepancy" ? statusParam : undefined;
+
+    const result = await listIncomingInternalShipments(db, {
+      destinationSchoolId: schoolId,
+      status,
+    });
+    return c.json({ success: true, data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

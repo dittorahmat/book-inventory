@@ -456,4 +456,43 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     });
     expect(okRes.status).toBe(201);
   });
+
+  it("lists incoming internal shipments for branch including manual routine shipments", async () => {
+    const stamp = Date.now();
+    const branchId = `school-branch-inc-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: branchId,
+      name: "Cabang Incoming Test",
+      code: `CBG-INC-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    mockActor("warehouse_admin", "school-wh-central");
+
+    // Terbitkan surat jalan manual / rutin ke cabang
+    const manualRes = await internalOrdersRouter.request("/shipments/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        destinationSchoolId: branchId,
+        deliveryNoteNumber: `SJ-ROUTINE-${stamp}`,
+        items: [{ quantity: 5 }],
+      }),
+    });
+    expect(manualRes.status).toBe(201);
+
+    mockActor("branch_admin", branchId);
+
+    // Cabang memanggil incoming shipments
+    const incomingRes = await internalOrdersRouter.request(`/shipments/incoming?schoolId=${branchId}`);
+    expect(incomingRes.status).toBe(200);
+    const json = (await incomingRes.json()) as { success: boolean; data: Array<{ deliveryNoteNumber: string; destinationSchoolId: string }> };
+    expect(json.success).toBe(true);
+    expect(json.data.length).toBeGreaterThanOrEqual(1);
+    expect(json.data.some((s) => s.deliveryNoteNumber === `SJ-ROUTINE-${stamp}`)).toBe(true);
+  });
 });

@@ -10,6 +10,27 @@ export function useInternalOrders(schoolId?: string | null) {
   const [shipmentsByOrder, setShipmentsByOrder] = useState<Record<string, InternalShipment[]>>({});
   const [shipmentsLoading, setShipmentsLoading] = useState<Record<string, boolean>>({});
   const [shipmentsError, setShipmentsError] = useState<Record<string, string | null>>({});
+  const [incomingShipments, setIncomingShipments] = useState<InternalShipment[]>([]);
+  const [incomingLoading, setIncomingLoading] = useState(false);
+
+  const loadIncomingShipments = useCallback(async () => {
+    if (!schoolId) {
+      setIncomingShipments([]);
+      return;
+    }
+    setIncomingLoading(true);
+    try {
+      const list = await getJson<InternalShipment[]>(
+        buildQuery("/api/internal-orders/shipments/incoming", { schoolId }),
+        "Gagal memuat kiriman surat jalan dari gudang."
+      );
+      setIncomingShipments(list);
+    } catch {
+      setIncomingShipments([]);
+    } finally {
+      setIncomingLoading(false);
+    }
+  }, [schoolId]);
 
   const loadOrders = useCallback(async (): Promise<InternalOrder[]> => {
     const list = await getJson<InternalOrder[]>(
@@ -24,7 +45,7 @@ export function useInternalOrders(schoolId?: string | null) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      await loadOrders();
+      await Promise.all([loadOrders(), loadIncomingShipments()]);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Gagal memuat pesanan ke gudang.");
     } finally {
@@ -117,6 +138,9 @@ export function useInternalOrders(schoolId?: string | null) {
     submitOrder,
     submitPoShipment,
     submitManualShipment,
+    incomingShipments,
+    incomingLoading,
+    loadIncomingShipments,
     shipmentsByOrder,
     shipmentsLoading,
     shipmentsError,

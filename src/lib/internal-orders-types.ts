@@ -40,7 +40,9 @@ export interface InternalShipmentItem {
 
 export interface InternalShipment {
   id: string;
-  internalPoId: string;
+  internalPoId: string | null;
+  destinationSchoolId?: string | null;
+  schoolName?: string | null;
   deliveryNoteNumber: string;
   transferShipmentId: string | null;
   shippedDate: string | null;
