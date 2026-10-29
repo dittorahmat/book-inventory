@@ -31,6 +31,7 @@ export interface BookPackageItem {
   bookId?: string;
   title: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface BookPackageOption {
