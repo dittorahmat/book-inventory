@@ -371,7 +371,8 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
 - **Portal publik**: URL→tab di `src/lib/public-portal-url.ts`; daftar tab di
   `src/components/portal/portal-tabs.ts`; state alur di
   `src/components/portal/use*.ts`; adapter HTTP tunggal
-  `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`.
+  `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`
+  (semua route publik memusat di `/api/public/orders/*` dan `/api/public/uniforms/*`).
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
   `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
   scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam

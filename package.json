@@ -45,6 +45,7 @@
     "db:d1:migrate": "wrangler d1 migrations apply book-inventory-db --remote",
     "db:d1:seed:export": "bun scripts/export-d1-seed.ts",
     "db:d1:seed": "wrangler d1 execute book-inventory-db --remote --file=./drizzle/seed-d1.sql",
+    "db:d1:query": "wrangler d1 execute book-inventory-db --remote --command",
     "demo:automate": "bun scripts/run-demo-automation.ts"
   },
   "dependencies": {
