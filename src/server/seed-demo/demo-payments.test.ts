@@ -24,15 +24,15 @@ describe("seed demo: pembayaran dan invoice", () => {
       .from(studentBookOrders)
       .where(inArray(studentBookOrders.id, ["ord-nathan-partial", "ord-salsa-loose"]));
     const byId = new Map(bookOrders.map((order) => [order.id, order]));
-    const nathan = byId.get("ord-nathan-partial");
+    const zaki = byId.get("ord-nathan-partial");
     const salsa = byId.get("ord-salsa-loose");
-    expect(nathan?.paymentToken).toBe("demo-token-buku-nathan");
-    expect(nathan?.shippingCost).toBe(0);
+    expect(zaki?.paymentToken).toBe("demo-token-buku-zaki");
+    expect(zaki?.shippingCost).toBe(0);
     expect(salsa?.paymentToken).toBe("demo-token-buku-satuan");
     expect(salsa?.shippingCost).toBe(25000);
 
     const [pkg] = await db.select().from(bookPackages).where(eq(bookPackages.id, "pkg-sd1-nas"));
-    const due = (nathan?.totalAmount ?? 0) + (nathan?.shippingCost ?? 0);
+    const due = (zaki?.totalAmount ?? 0) + (zaki?.shippingCost ?? 0);
     expect(due).toBe(pkg?.price ?? 0);
 
     const uniformRows = await db

@@ -50,7 +50,7 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
     notes: "Pembayaran lunas buku",
   });
 
-  // Skenario 2: Nathaniel (Cicilan / Partial Payment)
+  // Skenario 2: Ahmad Zaki Pratama (Cicilan / Partial Payment)
   await targetDb.insert(studentBookOrders).values({
     id: "ord-nathan-partial",
     orderNumber: "ORD-202609-002",

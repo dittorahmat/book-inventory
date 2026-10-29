@@ -51,7 +51,7 @@ export const STUDENT_DATA = [
     id: "std-nathan-4",
     schoolId: "school-alw-1",
     nis: "2024101004",
-    name: "Nathaniel Arya",
+    name: "Ahmad Zaki Pratama",
     gender: "male" as const,
     gradeLevel: "1",
     curriculumType: "national" as const,
