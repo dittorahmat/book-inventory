@@ -181,21 +181,28 @@ out.push(
     "student_book_orders",
     q(`SELECT id, order_number, student_id, school_id, package_id, order_type,
               payment_status, fulfillment_status, total_amount, paid_amount,
+              payment_token, shipping_cost, shipping_resi, invoice_sent_at,
               notes, created_at, updated_at
          FROM (${DEMO_ORDERS}) ORDER BY order_number`)
   )
 );
 
 out.push(
-  "-- 7. Order Payments",
+  "-- 7. Payment Receipts & Allocations",
   insert(
-    "order_payments",
-    q(`SELECT p.id, p.order_id, p.transfer_amount, p.book_allocation_amount,
-              p.bank_name, p.reference_number, p.notes, p.created_at
-         FROM order_payments p
-        WHERE p.order_id IN (SELECT id FROM student_book_orders
-                              WHERE student_id IN (SELECT id FROM students WHERE nis GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'))
-        ORDER BY p.id`)
+    "payment_receipts",
+    q(`SELECT id, student_id, school_id, amount, bank_name, reference_number,
+              proof_url, received_at, verified_by_user_id, verified_at,
+              rejected_at, reject_reason, created_by_user_id, notes,
+              created_at, updated_at
+         FROM payment_receipts
+        ORDER BY id`)
+  ),
+  insert(
+    "payment_allocations",
+    q(`SELECT id, receipt_id, order_id, kind, amount, created_at
+         FROM payment_allocations
+        ORDER BY id`)
   )
 );
 
@@ -372,12 +379,12 @@ out.push(
 );
 
 out.push(
-  "-- 21. Uniform claim demo (CLM-DEMO-*)",
+  "-- 21. Branch claims demo (CLM-DEMO-*)",
   insert(
-    "uniform_claims",
-    q(`SELECT id, claim_number, school_id, period, status, total_qty, total_amount,
-              locked_at, created_at, updated_at
-         FROM uniform_claims WHERE claim_number LIKE 'CLM-DEMO-%' ORDER BY id`)
+    "branch_claims",
+    q(`SELECT id, claim_number, school_id, period, status, total_qty, goods_amount,
+              shipping_amount, total_amount, locked_at, created_at, updated_at
+         FROM branch_claims WHERE claim_number LIKE 'CLM-DEMO%' ORDER BY id`)
   )
 );
 
