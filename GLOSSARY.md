@@ -179,3 +179,15 @@ _Avoid_: Rekonsiliasi nominal saja, audit parsial
 **Berita Acara & Memo Tagihan**:
 Dokumen formal hasil audit rekonsiliasi akhir periode (`BA-RECON-*`): mencatat sisa fisik yang ditarik ke gudang pusat dan menagihkan selisih kehilangan buku ke Finance Cabang berbasis harga jual resmi paket/buku (`bookPackages.price`).
 _Avoid_: Denda informal, nota lisan
+
+**Serah-Terima Paket (Handover)**:
+Proses penyelesaian pesanan buku/paket di mana Admin Cabang menyerahkan fisik bundel paket ke siswa/wali dengan menerbitkan nomor Surat Jalan serah terima (`SJ-SERAH-*`). Pemotongan saldo fisik bundel paket (`package_items`) di cabang terjadi saat titik ini (`fulfillmentStatus = 'picked_up'`), bukan saat submit order di portal publik.
+_Avoid_: Pengurangan stok saat submit, serah terima lintas cabang tanpa transfer
+
+**Isolasi Stok Cabang**:
+Prinsip kepemilikan persediaan fisik di mana Admin Cabang hanya dapat menyerahkan paket/eksemplar yang berstatus tersedia di sekolahnya sendiri (`current_school_id = branch_id`). Pemenuhan kebutuhan paket antar cabang wajib melalui mutasi pengiriman resmi (`TRF-*`) sebelum fisik dapat diserahterimakan.
+_Avoid_: Pinjam stok lisan, handover lintas cabang langsung
+
+**Pengiriman Rutin Via Surat Jalan**:
+Pengiriman paket buku dari Gudang Pusat ke Cabang yang diterbitkan secara langsung tanpa didahului Internal PO (IPO) cabang (`internal_shipments` dengan `internalPoId: null`), berstatus awal `in_transit`, dan dikonfirmasi penerimaan fisiknya oleh staf cabang lewat checklist Surat Jalan masuk untuk menambah saldo Inventory Paket Cabang.
+_Avoid_: Pengiriman manual bebas, kiriman ad hoc tanpa surat jalan, mutasi lisan
