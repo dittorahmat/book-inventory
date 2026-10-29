@@ -174,13 +174,14 @@ export async function submitPublicOrder(
     }
   }
 
-  // 7. Hitung nominal order dan status pembayaran (aturan murni).
-  // Klaim bukti orang tua tidak menambah terbayar: `unpaid`/`scholarship_pending`
-  // sampai staf gudang memverifikasi baris pembayaran.
+  // 7. Hitung nominal order dan status pembayaran (aturan murni rekonsiliasi).
+  // Sesuai ADR-0018: Bukti transfer dengan alokasi penuh langsung dianggap lunas (`paid`),
+  // alokasi sebagian dianggap cicilan (`partial`), dan beasiswa langsung `scholarship_approved`.
   const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);
   const { totalAmount, paidAmount, paymentStatus } = derivePaymentStatus({
     isScholarship,
     grossAmount,
+    allocationAmount: input.payment?.bookAllocationAmount,
   });
 
   // 7b. Bentuk struk SEBELUM efek samping: validasi nominal + alokasi terjadi

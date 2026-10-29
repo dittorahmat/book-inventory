@@ -96,8 +96,9 @@ describe("Public Orders & Student Search API", () => {
     expect(orderRes.status).toBe(201);
     const orderJson = await orderRes.json();
     expect(orderJson.data.totalAmount).toBe(1500000);
-    expect(orderJson.data.paidAmount).toBe(0);
-    expect(orderJson.data.paymentStatus).toBe("unpaid");
+    // ADR-0018: Alokasi 800.000 dari 1.500.000 dicatat sebagai partial (cicilan)
+    expect(orderJson.data.paidAmount).toBe(800000);
+    expect(orderJson.data.paymentStatus).toBe("partial");
     // Notifikasi dilaporkan ke pemanggil, tidak fire-and-forget (simulasi di test).
     expect(orderJson.data.notification).toBeDefined();
     expect(orderJson.data.notification.success).toBe(true);
@@ -133,7 +134,8 @@ describe("Public Orders & Student Search API", () => {
     expect(schRes.status).toBe(201);
     const schJson = await schRes.json();
     expect(schJson.data.totalAmount).toBe(0); // 100% discount
-    expect(schJson.data.paymentStatus).toBe("scholarship_pending");
+    // ADR-0018: Beasiswa dengan dokumen langsung disetujui
+    expect(schJson.data.paymentStatus).toBe("scholarship_approved");
 
     // 7. Test Public Order Lookup by NIS or OrderNumber (partitioned by schoolId)
     const lookupRes = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent("20241001")}&schoolId=${schoolId}`, {
@@ -346,7 +348,8 @@ describe("Public Orders & Student Search API", () => {
     expect(accepted.status).toBe(201);
     const acceptedJson = await accepted.json();
     expect(acceptedJson.data.totalAmount).toBe(0);
-    expect(acceptedJson.data.paymentStatus).toBe("scholarship_pending");
+    // ADR-0018: Bukti beasiswa yang valid langsung disetujui (scholarship_approved)
+    expect(acceptedJson.data.paymentStatus).toBe("scholarship_approved");
   });
 
   it("locks unverified students out of search and submit", async () => {
@@ -880,8 +883,9 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
       expect(result.data.order.id).toBe(orderId);
       expect(result.data.order.orderNumber).toBe(orderNo);
       expect(result.data.totalAmount).toBe(120000 + 750000);
-      expect(result.data.paidAmount).toBe(0);
-      expect(result.data.paymentStatus).toBe("unpaid");
+      // ADR-0018: Alokasi 120.000 dari total 870.000 dicatat sebagai partial (cicilan)
+      expect(result.data.paidAmount).toBe(120000);
+      expect(result.data.paymentStatus).toBe("partial");
       expect(result.data.wprCharged).toBe(true);
 
       const items = await db
