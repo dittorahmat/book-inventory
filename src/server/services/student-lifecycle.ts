@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { studentBookOrders, students } from "../../db/schema";
@@ -286,4 +286,88 @@ export async function removeStudent(
 
   await database.delete(students).where(eq(students.id, studentId));
   return { ok: true, data: { studentId } };
+}
+
+export interface BatchPromoteInput {
+  schoolId: string;
+  targetAcademicYear: string;
+  excludeStudentIds?: string[];
+  maxGradeLevel?: number;
+}
+
+export interface BatchPromoteResult {
+  promotedCount: number;
+  graduatedCount: number;
+  skippedCount: number;
+}
+
+/**
+ * Mempromosikan siswa secara masal ke tingkat kelas berikutnya:
+ * - Siswa di kelas numerik dinaikkan 1 tingkat (misal 1 -> 2).
+ * - Siswa yang mencapai maxGradeLevel (default 6 untuk SD) ditandai graduated (lulus).
+ * - Status siswa menjadi 'promoted'.
+ * - Siswa dalam excludeStudentIds (tinggal kelas) dilewati.
+ */
+export async function batchPromoteStudents(
+  database: AppDatabase,
+  input: BatchPromoteInput,
+  now = new Date().toISOString()
+): Promise<{ ok: true; data: BatchPromoteResult } | { ok: false; status: ContentfulStatusCode; message: string }> {
+  const maxGrade = input.maxGradeLevel ?? 6;
+  const excluded = new Set(input.excludeStudentIds ?? []);
+
+  const eligibleStudents = await database
+    .select()
+    .from(students)
+    .where(and(eq(students.schoolId, input.schoolId), inArray(students.status, ["active", "promoted"])));
+
+  let promotedCount = 0;
+  let graduatedCount = 0;
+  let skippedCount = 0;
+
+  for (const st of eligibleStudents) {
+    if (excluded.has(st.id)) {
+      skippedCount++;
+      continue;
+    }
+
+    const currentGrade = parseInt(st.gradeLevel, 10);
+    if (Number.isNaN(currentGrade)) {
+      skippedCount++;
+      continue;
+    }
+
+    if (currentGrade >= maxGrade) {
+      await database
+        .update(students)
+        .set({
+          status: "graduated",
+          academicYear: input.targetAcademicYear,
+          updatedAt: now,
+        })
+        .where(eq(students.id, st.id));
+      graduatedCount++;
+    } else {
+      const nextGrade = (currentGrade + 1).toString();
+      await database
+        .update(students)
+        .set({
+          gradeLevel: nextGrade,
+          status: "promoted",
+          academicYear: input.targetAcademicYear,
+          updatedAt: now,
+        })
+        .where(eq(students.id, st.id));
+      promotedCount++;
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      promotedCount,
+      graduatedCount,
+      skippedCount,
+    },
+  };
 }

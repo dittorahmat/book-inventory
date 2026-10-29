@@ -11,6 +11,7 @@ import {
   requireScopedActor,
 } from "../services/access-scope";
 import {
+  batchPromoteStudents,
   checkNisTaken,
   importStudents,
   removeStudent,
@@ -261,6 +262,35 @@ studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema),
       success: true,
       message: `Impor berhasil: ${imported.data.insertedCount} siswa baru ditambahkan, ${imported.data.updatedCount} siswa diperbarui.`,
       data: imported.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 7. POST batch-promote (promosi kenaikan kelas masal per sekolah)
+const batchPromoteSchema = z.object({
+  schoolId: z.string().min(1, "Sekolah wajib dipilih"),
+  targetAcademicYear: z.string().min(1, "Tahun ajaran baru wajib diisi"),
+  excludeStudentIds: z.array(z.string()).default([]),
+  maxGradeLevel: z.number().int().min(1).default(6),
+});
+
+studentsRouter.post("/batch-promote", zValidator("json", batchPromoteSchema), async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const body = c.req.valid("json");
+    assertLocationAllowed(actor, body.schoolId, locations);
+
+    const result = await batchPromoteStudents(db, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `Promosi kelas berhasil: ${result.data.promotedCount} naik kelas, ${result.data.graduatedCount} lulus/alumni, ${result.data.skippedCount} dilewati/tinggal kelas.`,
+      data: result.data,
     });
   } catch (err) {
     return accessErrorResponse(c, err);

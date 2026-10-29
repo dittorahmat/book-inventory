@@ -9,7 +9,8 @@ import { StudentTable } from "../components/students/StudentTable";
 import { VerificationQueue } from "../components/students/VerificationQueue";
 import { StudentFormModal } from "../components/students/StudentFormModal";
 import { StudentBulkUploadModal } from "../components/students/StudentBulkUploadModal";
-import { Upload } from "lucide-react";
+import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
+import { Upload, GraduationCap } from "lucide-react";
 
 interface StudentsViewProps {
   activeSchool: School | null;
@@ -22,6 +23,8 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
   const s = useStudents(currentSchoolId);
   const [schools, setSchools] = useState<SchoolOption[]>(initialSchools || []);
   const [showBulkUpload, setShowBulkUpload] = useState<boolean>(false);
+  const [showBatchPromote, setShowBatchPromote] = useState<boolean>(false);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const { setError } = s;
 
   useEffect(() => {
@@ -55,6 +58,14 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowBatchPromote(true)}
+            className="px-3.5 py-2.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <GraduationCap className="w-4 h-4 text-emerald-600" />
+            <span>Kenaikan Kelas</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowBulkUpload(true)}
@@ -113,6 +124,15 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
         </div>
       </div>
 
+      {successBanner && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-800 font-semibold">
+          <span>{successBanner}</span>
+          <button type="button" onClick={() => setSuccessBanner(null)} className="text-emerald-600 hover:text-emerald-900">
+            Tutup
+          </button>
+        </div>
+      )}
+
       {s.error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-xs text-red-700">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -167,6 +187,18 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
           schoolId={activeSchool?.id ?? (schools[0]?.id || null)}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => {
+            s.load();
+          }}
+        />
+      )}
+
+      {showBatchPromote && (
+        <BatchPromoteModal
+          schools={schools}
+          defaultSchoolId={selectedSchoolId}
+          onClose={() => setShowBatchPromote(false)}
+          onSuccess={(msg) => {
+            setSuccessBanner(msg);
             s.load();
           }}
         />
