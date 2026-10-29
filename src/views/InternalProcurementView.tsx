@@ -38,6 +38,8 @@ export function InternalProcurementView({
     submitOrder,
     submitPoShipment,
     submitManualShipment,
+    incomingShipments,
+    loadIncomingShipments,
     shipmentsByOrder,
     shipmentsLoading,
     shipmentsError,
@@ -145,6 +147,50 @@ export function InternalProcurementView({
         </div>
       )}
 
+      {/* Banner Kiriman Surat Jalan Rutin / Masuk (khusus role cabang) */}
+      {!isLogistics && incomingShipments.filter((s) => s.status === "in_transit").length > 0 && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-xs">
+          <div className="flex items-center justify-between pb-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-blue-900">
+                Kiriman Surat Jalan dari Gudang ({incomingShipments.filter((s) => s.status === "in_transit").length} sedang dalam perjalanan)
+              </h2>
+            </div>
+          </div>
+          <div className="mt-2 space-y-2">
+            {incomingShipments
+              .filter((s) => s.status === "in_transit")
+              .map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-col gap-2 rounded-xl border border-blue-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-[#050505]">{s.deliveryNoteNumber}</span>
+                      <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                        {s.internalPoId ? "Berdasarkan PO" : "Pengiriman Rutin"}
+                      </span>
+                      <span className="text-[11px] text-[#65676B]">{s.shippedDate ?? s.createdAt.slice(0, 10)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[#65676B]">
+                      {s.items?.map((it) => `${it.packageName ?? it.bookTitle ?? "Paket"} × ${it.quantity}`).join(" · ") || "—"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReceiveTarget({ orderId: s.internalPoId ?? "", shipment: s })}
+                    className="shrink-0 rounded-lg bg-[#1877F2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#166FE5] active:scale-[0.98]"
+                  >
+                    Terima Barang
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       <InternalOrdersTable
         orders={orders}
         isLoading={isLoading}
@@ -163,7 +209,10 @@ export function InternalProcurementView({
           shipment={receiveTarget.shipment}
           onClose={() => setReceiveTarget(null)}
           onReceived={async () => {
-            await loadShipments(receiveTarget.orderId);
+            if (receiveTarget.orderId) {
+              await loadShipments(receiveTarget.orderId);
+            }
+            await loadIncomingShipments();
             setNotice(`SJ Internal ${receiveTarget.shipment.deliveryNoteNumber} diterima cabang.`);
           }}
         />

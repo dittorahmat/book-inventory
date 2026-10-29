@@ -23,7 +23,8 @@ export { receiveInternalShipment } from "./receipt";
 export type {
   CreateManualShipmentInput,
   CreateManualShipmentResult,
+  ListIncomingInternalShipmentsFilter,
   OutstandingPoLine,
   OutstandingPoRow,
 } from "./shipment";
-export { createManualShipment, listOutstandingPOs } from "./shipment";
+export { createManualShipment, listIncomingInternalShipments, listOutstandingPOs } from "./shipment";

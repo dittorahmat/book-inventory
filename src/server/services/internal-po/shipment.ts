@@ -1,7 +1,8 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
   bookPackages,
+  books,
   internalPurchaseOrderItems,
   internalPurchaseOrders,
   internalShipmentItems,
@@ -181,4 +182,86 @@ export async function createManualShipment(
   }
 
   return { ok: true, data: { shipmentId } };
+}
+
+export interface ListIncomingInternalShipmentsFilter {
+  destinationSchoolId?: string;
+  status?: "in_transit" | "delivered" | "discrepancy";
+  limit?: number;
+}
+
+export async function listIncomingInternalShipments(
+  database: AppDatabase,
+  filter: ListIncomingInternalShipmentsFilter = {}
+) {
+  const conditions = [];
+  if (filter.destinationSchoolId) {
+    conditions.push(eq(internalShipments.destinationSchoolId, filter.destinationSchoolId));
+  }
+  if (filter.status) {
+    conditions.push(eq(internalShipments.status, filter.status));
+  }
+
+  const query = database
+    .select({
+      id: internalShipments.id,
+      internalPoId: internalShipments.internalPoId,
+      destinationSchoolId: internalShipments.destinationSchoolId,
+      schoolName: schools.name,
+      deliveryNoteNumber: internalShipments.deliveryNoteNumber,
+      transferShipmentId: internalShipments.transferShipmentId,
+      shippedDate: internalShipments.shippedDate,
+      receivedDate: internalShipments.receivedDate,
+      status: internalShipments.status,
+      notes: internalShipments.notes,
+      createdAt: internalShipments.createdAt,
+      updatedAt: internalShipments.updatedAt,
+    })
+    .from(internalShipments)
+    .leftJoin(schools, eq(internalShipments.destinationSchoolId, schools.id))
+    .orderBy(desc(internalShipments.createdAt))
+    .limit(filter.limit ?? 100);
+
+  const whereClause =
+    conditions.length === 2
+      ? and(conditions[0], conditions[1])
+      : conditions.length === 1
+        ? conditions[0]
+        : undefined;
+
+  const shipments = whereClause ? await query.where(whereClause) : await query;
+
+  const shipmentIds = shipments.map((s) => s.id);
+  const shipmentItemsList =
+    shipmentIds.length > 0
+      ? await database
+          .select({
+            id: internalShipmentItems.id,
+            shipmentId: internalShipmentItems.shipmentId,
+            packageId: internalShipmentItems.packageId,
+            packageName: bookPackages.name,
+            bookId: internalShipmentItems.bookId,
+            bookTitle: books.title,
+            quantity: internalShipmentItems.quantity,
+            isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
+            receivedCondition: internalShipmentItems.receivedCondition,
+            receivedNotes: internalShipmentItems.receivedNotes,
+          })
+          .from(internalShipmentItems)
+          .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))
+          .leftJoin(books, eq(internalShipmentItems.bookId, books.id))
+          .where(inArray(internalShipmentItems.shipmentId, shipmentIds))
+      : [];
+
+  const itemsByShipment = new Map<string, typeof shipmentItemsList>();
+  for (const it of shipmentItemsList) {
+    const list = itemsByShipment.get(it.shipmentId) ?? [];
+    list.push(it);
+    itemsByShipment.set(it.shipmentId, list);
+  }
+
+  return {
+    ok: true as const,
+    data: shipments.map((s) => ({ ...s, items: itemsByShipment.get(s.id) ?? [] })),
+  };
 }
