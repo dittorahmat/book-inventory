@@ -69,7 +69,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Siswa | NIS | Kampus | Kelas | Kurikulum | Status | Peran dalam demo |
 |---|---|---|---|---|---|---|
 | Aisyah Nur Salsabila | 2024101002 | Al Wildan 1 | 1 | Internasional | aktif | Order lunas + sudah ambil; bahan refund buku |
-| Nathaniel Arya | 2024101004 | Al Wildan 1 | 1 | Nasional | aktif | Cicilan + struk pending Rp 490.000 |
+| Ahmad Zaki Pratama | 2024101004 | Al Wildan 1 | 1 | Nasional | aktif | Cicilan + struk pending Rp 490.000 |
 | Muhammad Farhan Al-Ghifari | 2024101003 | Al Wildan 1 | 1 | Internasional | aktif | Beasiswa 100% menunggu persetujuan |
 | Hendra Wahyudi | 2024101001 | Al Wildan 1 | 1 | Internasional | **naik kelas** | Paket Kelas 2 Internasional belum dibayar |
 | Kayla Putri Ramadhani | 2024101005 | Al Wildan 1 | 2 | Internasional | aktif | Order lunas menunggu serah-terima |
@@ -95,17 +95,17 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 | Dokumen | Nomor | Isi |
 |---|---|---|
 | Order buku lunas | `ORD-202609-001` | Aisyah, Rp 1.420.000, sudah diambil, `SJ-SERAH-202609-0012` |
-| Order cicilan | `ORD-202609-002` | Nathaniel, Rp 990.000, dibayar Rp 500.000 |
+| Order cicilan | `ORD-202609-002` | Ahmad Zaki Pratama, Rp 990.000, dibayar Rp 500.000 |
 | Order beasiswa | `ORD-202609-003` | Farhan, total Rp 0, `scholarship_pending` |
 | Order belum bayar | `ORD-202609-004` | Hendra, Rp 1.350.000 |
 | Order lunas menunggu serah | `ORD-202610-101` | Kayla, Rp 1.350.000 |
 | Order satuan + WPR | `ORD-202610-102` | Salsabila, Rp 1.000.000 (Rp 130.000 + Rp 120.000 + WPR) |
 | Order cabang | `ORD-202610-201/202/203` | Lunas, cicilan, belum bayar |
 | Penjualan langsung | `DIR-202610-001` | Rp 250.000, tunai gudang |
-| Token bayar buku | `demo-token-buku-nathan` | Total Rp 990.000 (paket diambil di sekolah, tanpa ongkir) |
+| Token bayar buku | `demo-token-buku-zaki` | Total Rp 990.000 (paket diambil di sekolah, tanpa ongkir) |
 | Token bayar satuan | `demo-token-buku-satuan` | Rp 1.000.000 + ongkir Rp 25.000 |
 | Token bayar seragam | `demo-token-seragam-01` / `-03` | Rp 230.000 + ongkir 15.000 / 18.000 |
-| Struk pending | `BCA-NTH-0002` / `MND-SRG-0002` | Rp 490.000 / Rp 248.000 |
+| Struk pending | `BCA-ZKI-0002` / `MND-SRG-0002` | Rp 490.000 / Rp 248.000 |
 | Retur buku | `ret-demo-1` | Aisyah, Cambridge Mathematics 1, `reported` |
 | Order seragam | `USO-DEMO-01..05` | partial / paid / unpaid / unpaid / paid cabang 2 |
 | PO seragam | `UPO-DEMO-2026-02` | diterima sebagian |
@@ -168,8 +168,11 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 **Tujuan:** membuktikan cut-off satuan, katalog satuan dengan judul publik, dan biaya WPR wajib.
 
+> **Cara Mengaktifkan Mode Satuan (Admin):**
+> Mode satuan dikendalikan oleh Central Admin dari menu **Pengaturan → Cut-off Satuan** (`/settings`, tab Cut-off Satuan). Begitu rentang tanggal cut-off dibuka (atau tombol status diset `open`), opsi toggle **[Paket Lengkap] | [Satuan]** langsung otomatis muncul di portal pemesanan orang tua saat memilih judul buku.
+
 1. Di portal, cari `Bimo` → **Pilih**.
-2. Aktifkan mode **Satuan** (muncul karena cut-off `2026/2027` terbuka).
+2. Aktifkan mode **Satuan** via tombol toggle di atas paket (muncul karena cut-off `2026/2027` dibuka oleh Central Admin).
 3. Pilih:
    - Cambridge Global English 1 ×1 → Rp 130.000
    - Cambridge Primary Mathematics 1 ×1 → Rp 120.000
@@ -201,9 +204,13 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
-## 9. Skenario 4 — Beasiswa 100%
+## 9. Skenario 4 — Beasiswa 100% (Portal) & Beasiswa Parsial (Finance)
 
-**Tujuan:** membuktikan jalur beasiswa memerlukan bukti dan persetujuan staf.
+**Tujuan:** membuktikan jalur beasiswa penuh via portal memerlukan bukti rekomendasi, serta perbedaan kewenangan dengan diskresi beasiswa parsial (misal 50%) oleh Finance.
+
+> **Pemisahan Wewenang Beasiswa:**
+> 1. **Beasiswa Penuh (100%):** Diajukan mandiri oleh orang tua lewat portal publik dengan mengunggah surat tanda beasiswa (misal Tahfidz/SKTM). Total tagihan langsung Rp 0 dan menunggu persetujuan verifikasi dokumen oleh staf.
+> 2. **Beasiswa Parsial / Bertahap (misal 50%):** Dipesan lewat alur reguler. Penyesuaian potongan persentase merupakan wewenang mutlak Finance/Kasir lewat menu **Diskresi Finance / Scholarship Discount** di dashboard staf, yang secara resmi memotong tagihan order siswa.
 
 1. Portal, cari `Zaidan` (setelah Bab 8) → **Pilih** → paket Kelas 1 Internasional.
 2. Di langkah pembayaran pilih **Jalur Beasiswa (Diskon 100%)**.
@@ -218,13 +225,17 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
-## 10. Skenario 5 — Bukti transfer portal menjadi struk pending
+## 10. Skenario 5 — Konfirmasi pembayaran portal menjadi Bukti Pengambilan & Struk Verifikasi
 
-**Tujuan:** membuktikan klaim orang tua tidak langsung melunasi order; staf tetap verifikator.
+**Tujuan:** membuktikan konfirmasi bayar orang tua menerbitkan Bukti Pengambilan fisik (fokus logistik) dan mencatat struk pending (wewenang verifikasi finance).
 
-1. Buka `http://localhost:5173/bayar/buku/demo-token-buku-nathan`.
-   - Tampil: Nathaniel, total Rp 990.000, tanpa ongkir; sudah dibayar Rp 500.000, sisa **Rp 490.000**.
-2. Isi transfer **Rp 490.000**, alokasi buku **Rp 490.000**, bank **BCA**, referensi `BCA-NTH-0002`, unggah bukti → submit.
+> **Pemisahan Logistik vs Finance:**
+> Logistik sekolah berfokus pada serah-terima fisik berdasarkan **Bukti Pengambilan / No. Order**. Logistik tidak mengurusi verifikasi mutasi rekening. Setiap bukti transfer yang dikonfirmasi orang tua dicatat sebagai **Struk Pending** (`payment_receipts`) yang wajib diverifikasi oleh Finance/Kasir sebelum saldo order dinyatakan lunas.
+> *Catatan lingkungan demo:* Akses dapat dibuka via lokal (`http://localhost:5173/bayar/...`) maupun Cloudflare Workers live (`https://book-inventory.tech1solusi.workers.dev/bayar/...`).
+
+1. Buka `https://book-inventory.tech1solusi.workers.dev/bayar/buku/demo-token-buku-zaki` (atau `http://localhost:5173/bayar/buku/demo-token-buku-zaki`).
+   - Tampil: **Ahmad Zaki Pratama**, total Rp 990.000, tanpa ongkir; sudah dibayar Rp 500.000, sisa **Rp 490.000**.
+2. Isi transfer **Rp 490.000**, alokasi buku **Rp 490.000**, bank **BCA**, referensi `BCA-ZKI-0002`, unggah bukti → submit.
    - Muncul pesan **“Konfirmasi tercatat. Status akan diverifikasi admin.”**
 3. Ulangi pola yang sama untuk:
    - `demo-token-buku-satuan` → sisa Rp 1.025.000.
@@ -237,22 +248,24 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 
 ---
 
-## 11. Skenario 6 — Verifikasi bukti, kasir, dan diskresi finance
+## 11. Skenario 6 — Verifikasi bukti, kasir, dan diskresi beasiswa 50% oleh Finance
 
-**Tujuan:** membuktikan status pembayaran hanya berubah lewat aksi staf.
+**Tujuan:** membuktikan status pembayaran hanya berubah lewat aksi staf Finance/Kasir, termasuk diskresi potongan beasiswa parsial.
 
 1. Login `admin.pusat@alwildan.sch.id` → **Pesanan Siswa**.
-2. Pada **Nathaniel** (`ORD-202609-002`) klik **Verifikasi Bukti**:
-   - struk `BCA-NTH-0002` Rp 490.000 pending → **Verifikasi**.
+2. Pada **Ahmad Zaki Pratama** (`ORD-202609-002`) klik **Verifikasi Bukti**:
+   - struk `BCA-ZKI-0002` Rp 490.000 pending → **Verifikasi**.
    - Total terverifikasi menjadi Rp 500.000 + Rp 490.000 = **Rp 990.000** → order **lunas**.
 3. Demo tolak: pada order seragam **USO-DEMO-03** buka verifikasi struk `MND-SRG-0002` (Rp 248.000) → **Tolak** dengan alasan.
    - Sistem mengirim ulang tautan bayar yang sama; orang tua bisa unggah ulang.
 4. Demo kasir: pada **Hendra** (`ORD-202609-004`, Rp 1.350.000) klik **Catat Pembayaran**:
    - total transfer Rp 1.350.000, alokasi buku Rp 1.350.000, bank BCA, referensi baru → order lunas.
-5. Demo diskresi: pada order lain klik **Diskresi Finance** → pilih `discount`, isi nominal + catatan wajib → total tagihan turun.
-6. Demo beasiswa pada Bab 9 bila belum.
+5. Demo diskresi beasiswa 50%:
+   - Pada order reguler siswa yang mendapatkan beasiswa parsial (misal Hendra), klik tombol **Diskon / Beasiswa Finance**.
+   - Masukkan persentase diskon **50%** dan alasan/nomor surat rekomendasi.
+   - Sistem otomatis menghitung potongan 50% dari tagihan buku, memperbarui `discountAmount`, dan menyesuaikan sisa tagihan yang harus dibayar orang tua.
 
-**Verifikasi:** badge pembayaran berubah `partial` → `paid`; struk yang ditolak tidak menambah `paidAmount`.
+**Verifikasi:** badge pembayaran berubah `partial` → `paid`; diskresi finance memotong total tagihan secara proporsional.
 
 ---
 
@@ -264,7 +277,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
    - Sudah ada ongkir Rp 25.000 + resi `JNE-BKU-0002` dan `invoiceSentAt`.
 2. Ganti ongkir lewat **Input Ongkir** bila perlu; tombol **Kirim Ulang Invoice** aktif hanya saat ongkir/resi terisi.
 3. Buka tautan bayar:
-   - `demo-token-buku-nathan` (Bab 10) → kirim Rp 490.000 → verifikasi (Bab 11) → lunas.
+   - `demo-token-buku-zaki` (Bab 10) → kirim Rp 490.000 → verifikasi (Bab 11) → lunas.
    - `demo-token-buku-satuan` → kirim termin bebas, mis. Rp 500.000.
 4. Untuk seragam: buka **Gudang Seragam → Pengiriman**, order `USO-DEMO-01`.
    - Ongkir Rp 15.000, resi `JNE-SRG-0001`; kirim Invoice WhatsApp; buka `demo-token-seragam-01`.
