@@ -257,7 +257,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
                 Belum ada item buku. Klik <strong>Tambah Judul Buku</strong> untuk menambahkan.
               </div>
             ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-2 pr-1">
                 {poItems.map((item, idx) => (
                   <div
                     key={idx}

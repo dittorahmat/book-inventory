@@ -1,9 +1,11 @@
 import {
+  bookSuppliers,
   purchaseOrderItems,
   purchaseOrders,
   suppliers,
   systemSettings,
 } from "../../db/schema";
+import { chunkRows } from "../lib/d1-write";
 import type { SeedContext } from "./context";
 
 export async function seedProcurement({ db: targetDb, now }: SeedContext) {
@@ -31,6 +33,28 @@ export async function seedProcurement({ db: targetDb, now }: SeedContext) {
       updatedAt: now,
     },
   ]).onConflictDoNothing();
+
+  // Relasi resmi katalog buku ke supplier (buku Cambridge ke Mentari, buku Nasional/Diniyyah ke Erlangga)
+  const initialBookSuppliers = [
+    // Cambridge International -> Mentari Books
+    { bookId: "b-math-1", supplierId: "sup-cambridge-mentari", createdAt: now },
+    { bookId: "b-sci-1", supplierId: "sup-cambridge-mentari", createdAt: now },
+    { bookId: "b-eng-1", supplierId: "sup-cambridge-mentari", createdAt: now },
+    { bookId: "b-math-2", supplierId: "sup-cambridge-mentari", createdAt: now },
+    { bookId: "b-sci-2", supplierId: "sup-cambridge-mentari", createdAt: now },
+    { bookId: "b-eng-2", supplierId: "sup-cambridge-mentari", createdAt: now },
+
+    // Buku Nasional & Diniyyah -> Erlangga Mahameru
+    { bookId: "b-pai-1", supplierId: "sup-erlangga", createdAt: now },
+    { bookId: "b-bindo-1", supplierId: "sup-erlangga", createdAt: now },
+    { bookId: "b-ppkn-1", supplierId: "sup-erlangga", createdAt: now },
+    { bookId: "b-arab-1", supplierId: "sup-erlangga", createdAt: now },
+    { bookId: "b-tahfidz-1", supplierId: "sup-erlangga", createdAt: now },
+    { bookId: "b-pai-2", supplierId: "sup-erlangga", createdAt: now },
+  ];
+  for (const chunk of chunkRows(initialBookSuppliers)) {
+    await targetDb.insert(bookSuppliers).values(chunk).onConflictDoNothing();
+  }
 
   await targetDb.insert(purchaseOrders).values({
     id: "po-demo-001",
