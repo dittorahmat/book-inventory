@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { captureScreenshot, performLogin } from "./helpers";
 
 /**
  * Otomasi Skenario Gudang Pusat, Seragam, Rekonsiliasi, & Isolasi Role (Bab 10, 12, 14, 16–20)
@@ -11,30 +12,16 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   // Login sebagai Central Admin (admin.gudang@alwildan.sch.id)
   console.log("\n▶ Login Central Admin (Gudang Logistik Pusat)");
   await page.goto(`${baseUrl.replace(/\/$/, "")}/login`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(800);
-
-  const centralBtn = page.locator('button:has-text("Central Admin"), button:has-text("Gudang")');
-  if (await centralBtn.count() > 0) {
-    await centralBtn.first().click();
-    await page.waitForTimeout(1500);
-  } else {
-    const emailInput = page.locator('input[type="email"], input[name="email"]');
-    const pwdInput = page.locator('input[type="password"], input[name="password"]');
-    if (await emailInput.count() > 0 && await pwdInput.count() > 0) {
-      await emailInput.first().fill("admin.gudang@alwildan.sch.id");
-      await pwdInput.first().fill("password123");
-      const submitBtn = page.locator('button[type="submit"], button:has-text("Masuk")');
-      await submitBtn.first().click();
-      await page.waitForTimeout(1500);
-    }
-  }
+  await performLogin(page, "Central Admin", "admin.gudang@alwildan.sch.id");
+  await captureScreenshot(page, "10-login-central-admin.png");
 
   // Skenario 10: Tab Paket & Rakit (Bab 15)
   console.log("\n▶ [Bab 15 / Skenario 10] Master Paket & Rakit Bundling");
   const rakitTab = page.locator('button:has-text("Paket & Rakit"), a:has-text("Paket & Rakit")');
   if (await rakitTab.count() > 0) {
     await rakitTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "15-tab-paket-rakit.png");
     console.log("  ✓ Tab Paket & Rakit Bundling berhasil dimuat.");
   }
 
@@ -43,7 +30,8 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   const poTab = page.locator('button:has-text("PO Supplier"), a:has-text("PO Supplier")');
   if (await poTab.count() > 0) {
     await poTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "17-tab-po-supplier.png");
     console.log("  ✓ Tab PO Supplier & Retur Vendor (RTV) berhasil dimuat.");
   }
 
@@ -52,7 +40,8 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   const seragamTab = page.locator('button:has-text("Gudang Seragam"), a:has-text("Gudang Seragam")');
   if (await seragamTab.count() > 0) {
     await seragamTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "19-tab-gudang-seragam.png");
     console.log("  ✓ Tab Gudang Seragam dimuat (pengiriman & stok ukuran).");
   }
 
@@ -61,7 +50,8 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   const reconTab = page.locator('button:has-text("Rekonsiliasi"), a:has-text("Rekonsiliasi")');
   if (await reconTab.count() > 0) {
     await reconTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "21-tab-rekonsiliasi.png");
     console.log("  ✓ Tab Rekonsiliasi & Audit Berita Acara berhasil dimuat.");
   }
 
@@ -70,7 +60,8 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
   const settingsTab = page.locator('button:has-text("Pengaturan"), a:has-text("Pengaturan")');
   if (await settingsTab.count() > 0) {
     await settingsTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "24-tab-pengaturan.png");
     console.log("  ✓ Tab Pengaturan terverifikasi (Cut-off Satuan dapat diatur Central Admin).");
   }
 }

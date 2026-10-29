@@ -22,9 +22,9 @@ describe("seed demo: pembayaran dan invoice", () => {
     const bookOrders = await db
       .select()
       .from(studentBookOrders)
-      .where(inArray(studentBookOrders.id, ["ord-nathan-partial", "ord-salsa-loose"]));
+      .where(inArray(studentBookOrders.id, ["ord-zaki-partial", "ord-salsa-loose"]));
     const byId = new Map(bookOrders.map((order) => [order.id, order]));
-    const zaki = byId.get("ord-nathan-partial");
+    const zaki = byId.get("ord-zaki-partial");
     const salsa = byId.get("ord-salsa-loose");
     expect(zaki?.paymentToken).toBe("demo-token-buku-zaki");
     expect(zaki?.shippingCost).toBe(0);
@@ -48,7 +48,7 @@ describe("seed demo: pembayaran dan invoice", () => {
       .from(paymentReceipts)
       .where(
         inArray(paymentReceipts.id, [
-          "rcp-nathan-02",
+          "rcp-zaki-02",
           "rcp-seragam-01",
           "rcp-seragam-02",
           "rcp-seragam-03",
@@ -56,8 +56,8 @@ describe("seed demo: pembayaran dan invoice", () => {
         ])
       );
     const receiptById = new Map(receipts.map((receipt) => [receipt.id, receipt]));
-    expect(receiptById.get("rcp-nathan-02")?.verifiedAt).toBeNull();
-    expect(receiptById.get("rcp-nathan-02")?.proofUrl?.startsWith("data:image/svg+xml")).toBe(true);
+    expect(receiptById.get("rcp-zaki-02")?.verifiedAt).toBeNull();
+    expect(receiptById.get("rcp-zaki-02")?.proofUrl?.startsWith("data:image/svg+xml")).toBe(true);
     expect(receiptById.get("rcp-seragam-01")?.verifiedAt).not.toBeNull();
     expect(receiptById.get("rcp-seragam-02")?.verifiedAt).toBeNull();
     expect(receiptById.get("rcp-seragam-02")?.amount).toBe(248000);
@@ -69,7 +69,7 @@ describe("seed demo: pembayaran dan invoice", () => {
       .from(paymentAllocations)
       .where(
         inArray(paymentAllocations.receiptId, [
-          "rcp-nathan-02",
+          "rcp-zaki-02",
           "rcp-seragam-01",
           "rcp-seragam-02",
           "rcp-seragam-03",

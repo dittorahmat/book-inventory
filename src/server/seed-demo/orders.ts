@@ -52,9 +52,9 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
 
   // Skenario 2: Ahmad Zaki Pratama (Cicilan / Partial Payment)
   await targetDb.insert(studentBookOrders).values({
-    id: "ord-nathan-partial",
+    id: "ord-zaki-partial",
     orderNumber: "ORD-202609-002",
-    studentId: "std-nathan-4",
+    studentId: "std-zaki-4",
     schoolId: "school-alw-1",
     packageId: "pkg-sd1-nas",
     orderType: "regular",
@@ -70,11 +70,11 @@ export async function seedOrders({ db: targetDb, now }: SeedContext) {
     set: { totalAmount: sd1Nas, updatedAt: now },
   });
 
-  await seedReceipt({ db: targetDb, now }, "rcp-nathan-1", {
-    studentId: "std-nathan-4",
+  await seedReceipt({ db: targetDb, now }, "rcp-zaki-1", {
+    studentId: "std-zaki-4",
     schoolId: "school-alw-1",
     amount: 3000000,
-    allocations: [{ kind: "buku", orderId: "ord-nathan-partial", amount: 500000 }],
+    allocations: [{ kind: "buku", orderId: "ord-zaki-partial", amount: 500000 }],
     bankName: "Mandiri",
     referenceNumber: "MND-TRX-551299",
     autoVerify: true,

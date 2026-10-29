@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { captureScreenshot, performLogin } from "./helpers";
 
 /**
  * Otomasi Skenario Admin Sekolah, Kasir Finance, & Serah Terima Fisik (Bab 8, 9, 11, 13)
@@ -11,24 +12,8 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
   // Login sebagai School Admin 1 (admin.pusat@alwildan.sch.id)
   console.log("\n▶ Login School Admin 1 (Al Wildan 1)");
   await page.goto(`${baseUrl.replace(/\/$/, "")}/login`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(800);
-
-  // Gunakan tombol akses cepat demo jika ada, atau form login
-  const quickBtn = page.locator('button:has-text("School Admin 1"), button:has-text("Al Wildan 1")');
-  if (await quickBtn.count() > 0) {
-    await quickBtn.first().click();
-    await page.waitForTimeout(1500);
-  } else {
-    const emailInput = page.locator('input[type="email"], input[name="email"]');
-    const pwdInput = page.locator('input[type="password"], input[name="password"]');
-    if (await emailInput.count() > 0 && await pwdInput.count() > 0) {
-      await emailInput.first().fill("admin.pusat@alwildan.sch.id");
-      await pwdInput.first().fill("password123");
-      const submitBtn = page.locator('button[type="submit"], button:has-text("Masuk")');
-      await submitBtn.first().click();
-      await page.waitForTimeout(1500);
-    }
-  }
+  await performLogin(page, "School Admin 1", "admin.pusat@alwildan.sch.id");
+  await captureScreenshot(page, "08-login-school-admin.png");
 
   // Verifikasi navigasi staf terbuka
   const dashboardText = await page.textContent("body");
@@ -41,7 +26,8 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
   const dataSiswaTab = page.locator('button:has-text("Data Siswa"), a:has-text("Data Siswa")');
   if (await dataSiswaTab.count() > 0) {
     await dataSiswaTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "08-tab-data-siswa.png");
     console.log("  ✓ Tab Data Siswa dimuat (antrean murid baru Zaidan Faris terjangkau).");
   }
 
@@ -50,7 +36,8 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
   const pesananTab = page.locator('button:has-text("Pesanan Siswa"), a:has-text("Pesanan Siswa")');
   if (await pesananTab.count() > 0) {
     await pesananTab.first().click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState("networkidle");
+    await captureScreenshot(page, "11-tab-pesanan-siswa.png");
     console.log("  ✓ Tab Pesanan Siswa aktif.");
     console.log("  ✓ Verifikasi bukti bayar Ahmad Zaki Pratama dan tombol serah-terima tersedia.");
   }

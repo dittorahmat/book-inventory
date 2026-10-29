@@ -28,8 +28,8 @@ describe("seed demo: fondasi order buku", () => {
 
     expect(byId.get("ord-aisyah-done")?.totalAmount).toBe(price.get("pkg-sd1-int") ?? 0);
     expect(byId.get("ord-aisyah-done")?.paidAmount).toBe(price.get("pkg-sd1-int") ?? 0);
-    expect(byId.get("ord-nathan-partial")?.totalAmount).toBe(price.get("pkg-sd1-nas"));
-    expect(byId.get("ord-nathan-partial")?.paidAmount).toBe(500000);
+    expect(byId.get("ord-zaki-partial")?.totalAmount).toBe(price.get("pkg-sd1-nas"));
+    expect(byId.get("ord-zaki-partial")?.paidAmount).toBe(500000);
     expect(byId.get("ord-hendra-unpaid")?.totalAmount).toBe(price.get("pkg-sd2-int"));
 
     const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-aisyah-1"));
