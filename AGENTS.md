@@ -106,6 +106,17 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     dari router Hono ke modul domain/seam (`services/*`) wajib mempertahankan atau menambahkan
     test di level route (`*.test.ts`) yang memverifikasi pemetaan status HTTP dan payload
     respons secara eksplisit (termasuk kasus error 400/404/409 dan delegasi parameter alias).
+25. **Disiplin Browser Automation & Otomasi E2E** — script otomasi browser (Playwright dsb.)
+    dilarang hanya melakukan inspeksi pasif (sekadar cek tombol atau navigasi tab belaka);
+    setiap skenario wajib mengeksekusi mutasi aktif/aksi form (isi input, klik submit, unggah dokumen),
+    menyimpan bukti tangkapan layar (screenshot visual) pada checkpoint hasil, dan menghindari
+    sleep arbitrer (`waitForTimeout` membabi-buta) dengan mengutamakan asersi web eksplisit
+    (`waitForLoadState`, `toBeVisible`, atau penantian elemen spesifik).
+26. **Integritas Penamaan Entitas & Anti-Residual Identifier** — saat melakukan perubahan identitas
+    nama data demo/domain (seperti nama siswa, kode akun, atau nomor referensi), lakukan penyelarasan
+    menyeluruh hingga ke ID slug seeded (`id`, `orderId`, `receiptId`) untuk mencegah bau kode
+    leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database. Ditegakkan
+    mekanis oleh gate `check:seed-integrity`.
 
 ---
 

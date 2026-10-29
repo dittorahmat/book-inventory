@@ -44,3 +44,4 @@ docs/agents/lanes.json
 *.njsproj
 *.sln
 *.sw?
+test-results/

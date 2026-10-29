@@ -31,7 +31,8 @@
     "check:fast": "bun run check:changed",
     "fix:crlf": "bun scripts/normalize-crlf.ts",
     "check:string-packing": "bun scripts/check-string-packing.ts",
-    "check:all": "bun run type-check && bun run lint && bun run check:clean-artifacts && bun run check:file-size && bun run check:imports && bun run check:api-contract && bun run check:route-tests && bun run check:validators && bun run check:dead && bun run check:no-any && bun run check:canonical-helpers && bun run check:single-writer && bun run check:d1-writes && bun run check:d1-error-mapping && bun run check:test-isolation && bun run check:doc-numbers && bun run check:string-packing && bun run check:lanes && bun run check:plans && bun run build && bun test",
+    "check:seed-integrity": "bun scripts/check-seed-integrity.ts",
+    "check:all": "bun run type-check && bun run lint && bun run check:clean-artifacts && bun run check:file-size && bun run check:imports && bun run check:api-contract && bun run check:route-tests && bun run check:validators && bun run check:dead && bun run check:no-any && bun run check:canonical-helpers && bun run check:single-writer && bun run check:d1-writes && bun run check:d1-error-mapping && bun run check:test-isolation && bun run check:doc-numbers && bun run check:string-packing && bun run check:seed-integrity && bun run check:lanes && bun run check:plans && bun run build && bun test",
     "check:d1-drift": "bun scripts/check-d1-drift.ts",
     "check:d1-junk": "bun scripts/check-d1-junk.ts",
     "type-check": "tsc --noEmit",
@@ -43,7 +44,8 @@
     "db:generate": "drizzle-kit generate",
     "db:d1:migrate": "wrangler d1 migrations apply book-inventory-db --remote",
     "db:d1:seed:export": "bun scripts/export-d1-seed.ts",
-    "db:d1:seed": "wrangler d1 execute book-inventory-db --remote --file=./drizzle/seed-d1.sql"
+    "db:d1:seed": "wrangler d1 execute book-inventory-db --remote --file=./drizzle/seed-d1.sql",
+    "demo:automate": "bun scripts/run-demo-automation.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.3",
@@ -77,6 +79,7 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^17.12.0",
     "happy-dom": "^21.0.1",
+    "playwright": "^1.64.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",

@@ -13,13 +13,13 @@ export async function seedDemoPayments({ db: targetDb, now }: SeedContext) {
   await targetDb
     .update(studentBookOrders)
     .set({
-      paymentToken: "demo-token-buku-nathan",
+      paymentToken: "demo-token-buku-zaki",
       shippingCost: 0,
       shippingResi: null,
       invoiceSentAt: now,
       updatedAt: now,
     })
-    .where(eq(studentBookOrders.id, "ord-nathan-partial"));
+    .where(eq(studentBookOrders.id, "ord-zaki-partial"));
 
   await targetDb
     .update(studentBookOrders)
@@ -42,15 +42,15 @@ export async function seedDemoPayments({ db: targetDb, now }: SeedContext) {
     .set({ paymentToken: "demo-token-seragam-03", updatedAt: now })
     .where(eq(uniformOrders.id, "ord-demo-uso-03"));
 
-  // Struk pending: diverifikasi staf → Nathaniel lunas (500rb + 490rb = 990rb).
-  await seedReceipt({ db: targetDb, now }, "rcp-nathan-02", {
-    studentId: "std-nathan-4",
+  // Struk pending: diverifikasi staf → Ahmad Zaki Pratama lunas (500rb + 490rb = 990rb).
+  await seedReceipt({ db: targetDb, now }, "rcp-zaki-02", {
+    studentId: "std-zaki-4",
     schoolId: "school-alw-1",
     amount: 490000,
-    allocations: [{ kind: "buku", orderId: "ord-nathan-partial", amount: 490000 }],
+    allocations: [{ kind: "buku", orderId: "ord-zaki-partial", amount: 490000 }],
     bankName: "BCA",
-    referenceNumber: "BCA-NTH-0002",
-    proofUrl: demoProofUrl("Struk BCA Nathaniel"),
+    referenceNumber: "BCA-ZKI-0002",
+    proofUrl: demoProofUrl("Struk BCA Ahmad Zaki Pratama"),
     notes: "Pelunasan sisa cicilan buku.",
   });
 

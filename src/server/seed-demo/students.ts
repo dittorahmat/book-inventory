@@ -48,10 +48,10 @@ export const STUDENT_DATA = [
     isScholarship: true, // Beasiswa 100%
   },
   {
-    id: "std-nathan-4",
+    id: "std-zaki-4",
     schoolId: "school-alw-1",
     nis: "2024101004",
-    name: "Nathaniel Arya",
+    name: "Ahmad Zaki Pratama",
     gender: "male" as const,
     gradeLevel: "1",
     curriculumType: "national" as const,

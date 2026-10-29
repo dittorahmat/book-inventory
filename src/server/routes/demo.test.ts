@@ -174,12 +174,12 @@ describe("Revamped Demo Seeding API", () => {
   it("re-seed mengembalikan state demo yang diubah operator", async () => {
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
     const stamp = new Date().toISOString();
-    await db.update(paymentReceipts).set({ verifiedAt: stamp }).where(eq(paymentReceipts.id, "rcp-nathan-02"));
+    await db.update(paymentReceipts).set({ verifiedAt: stamp }).where(eq(paymentReceipts.id, "rcp-zaki-02"));
     await db.update(students).set({ status: "active" }).where(eq(students.id, "std-alw3-03"));
 
     expect((await demoRouter.request("/seed", { method: "POST" })).status).toBe(200);
 
-    const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-nathan-02"));
+    const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, "rcp-zaki-02"));
     expect(receipt.verifiedAt).toBeNull();
     const [promoted] = await db.select().from(students).where(eq(students.id, "std-alw3-03"));
     expect(promoted.status).toBe("promoted");
