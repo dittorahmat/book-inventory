@@ -4,7 +4,7 @@ import { bookPackageItems, books, studentBookOrders } from "../../db/schema";
 import { WPR_BOOK_ID, WPR_ISBN, WPR_PRICE, WPR_TITLE } from "../../lib/wpr";
 import { newWriteId, writeNow, type WriteDeps } from "../lib/d1-write";
 
-/** Pastikan baris buku WPR ada (idempoten, dipakai intake + jalan paket). */
+/** Pastikan baris buku WPR ada dan tersinkronkan atribut publiknya (idempoten). */
 export const ensureWprBook = async (database: AppDatabase, deps?: WriteDeps): Promise<void> => {
   const now = writeNow(deps);
   await database
@@ -16,7 +16,15 @@ export const ensureWprBook = async (database: AppDatabase, deps?: WriteDeps): Pr
       price: WPR_PRICE, buyPrice: 0, sellPrice: WPR_PRICE,
       createdAt: now, updatedAt: now,
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: books.id,
+      set: {
+        publicTitle: WPR_TITLE,
+        price: WPR_PRICE,
+        sellPrice: WPR_PRICE,
+        updatedAt: now,
+      },
+    });
 };
 
 /** Pastikan satu paket mengandung WPR di BOM (idempoten). */

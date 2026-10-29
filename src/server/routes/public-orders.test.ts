@@ -1389,6 +1389,9 @@ describe("Public catalog tanpa login (#143)", () => {
     const schoolId = `school-pubcat-${stamp}`;
     const bookId = `book-pubcat-${stamp}`;
     const pkgId = `pkg-pubcat-${stamp}`;
+    const { WPR_BOOK_ID, WPR_TITLE } = await import("../../lib/wpr");
+    const { ensureWprBook } = await import("../services/wpr");
+    await ensureWprBook(db);
     await db.insert(schools).values({
       id: schoolId, name: `Sekolah Publik ${stamp}`, code: `PUB-${stamp}`,
       type: "branch", createdAt: now, updatedAt: now,
@@ -1404,21 +1407,26 @@ describe("Public catalog tanpa login (#143)", () => {
       price: 60000, createdAt: now, updatedAt: now,
     }).onConflictDoNothing();
     const { bookPackageItems } = await import("../../db/schema");
-    await db.insert(bookPackageItems).values({
-      id: `bom-pub-${stamp}`, packageId: pkgId, bookId, quantity: 1, createdAt: now,
-    }).onConflictDoNothing();
+    await db.insert(bookPackageItems).values([
+      { id: `bom-pub-${stamp}`, packageId: pkgId, bookId, quantity: 1, createdAt: now },
+      { id: `bom-wpr-${stamp}`, packageId: pkgId, bookId: WPR_BOOK_ID, quantity: 1, createdAt: now },
+    ]).onConflictDoNothing();
     try {
       const pkgRes = await publicOrdersRouter.request("/packages", { method: "GET" });
       expect(pkgRes.status).toBe(200);
       const pkgJson = await pkgRes.json();
       expect(pkgJson.success).toBe(true);
-      const found = (pkgJson.data as any[]).find((p) => p.id === pkgId);
+      interface PublicPkgItem { id: string; bookId: string; title: string; quantity: number }
+      interface PublicPkg { id: string; price: number; items: PublicPkgItem[] }
+      interface PublicChoice { bookId: string; title: string }
+      const found = ((pkgJson.data as unknown[]) as PublicPkg[]).find((p) => p.id === pkgId);
       expect(found).toBeDefined();
-      expect(found.price).toBe(60000);
-      expect(found.items.length).toBeGreaterThan(0);
-      expect(found.items[0].title).toBe(`Judul Ramah ${stamp}`);
+      expect(found?.price).toBe(60000);
+      expect(found?.items.length).toBe(2);
+      expect(found?.items.find((i) => i.bookId === bookId)?.title).toBe(`Judul Ramah ${stamp}`);
+      expect(found?.items.find((i) => i.bookId === WPR_BOOK_ID)?.title).toBe(WPR_TITLE);
       // Anti window-shopping: tanpa ISBN/penulis/penerbit/cover di DTO publik.
-      for (const it of found.items) {
+      for (const it of found?.items ?? []) {
         expect(it).not.toHaveProperty("isbn");
         expect(it).not.toHaveProperty("author");
         expect(it).not.toHaveProperty("publisher");
@@ -1429,9 +1437,11 @@ describe("Public catalog tanpa login (#143)", () => {
       const choiceRes = await publicOrdersRouter.request("/book-choices", { method: "GET" });
       expect(choiceRes.status).toBe(200);
       const choiceJson = await choiceRes.json();
-      const choice = (choiceJson.data as any[]).find((b) => b.bookId === bookId);
+      const choice = ((choiceJson.data as unknown[]) as PublicChoice[]).find((b) => b.bookId === bookId);
       expect(choice?.title).toBe(`Judul Ramah ${stamp}`);
       expect(choice).not.toHaveProperty("isbn");
+      const wprChoice = ((choiceJson.data as unknown[]) as PublicChoice[]).find((b) => b.bookId === WPR_BOOK_ID);
+      expect(wprChoice?.title).toBe(WPR_TITLE);
 
       const schRes = await publicOrdersRouter.request("/schools", { method: "GET" });
       expect(schRes.status).toBe(200);
@@ -1440,7 +1450,7 @@ describe("Public catalog tanpa login (#143)", () => {
       expect(schJson.data.every((s: any) => s.id !== undefined)).toBe(true);
     } finally {
       const { bookPackageItems: bom } = await import("../../db/schema");
-      await db.delete(bom).where(eq(bom.id, `bom-pub-${stamp}`));
+      await db.delete(bom).where(inArray(bom.id, [`bom-pub-${stamp}`, `bom-wpr-${stamp}`]));
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(schools).where(eq(schools.id, schoolId));

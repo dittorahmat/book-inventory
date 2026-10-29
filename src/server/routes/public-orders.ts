@@ -126,7 +126,9 @@ publicOrdersRouter.get("/book-choices", async (c) => {
   const seen = new Map<string, string>();
   for (const p of pkgs) {
     for (const it of p.items) {
-      if (!seen.has(it.bookId)) seen.set(it.bookId, it.publicTitle ?? "Buku Paket");
+      if (!seen.has(it.bookId)) {
+        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"));
+      }
     }
   }
   return c.json({

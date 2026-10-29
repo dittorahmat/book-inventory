@@ -122,6 +122,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     wajib mengelompokkan ID target ke dalam chunk aman D1 (`chunkRows` dari `src/server/lib/d1-write.ts`)
     dan menggunakan predikat set `inArray(table.id, chunk)` atau `db.batch()`, dilarang mengeksekusi
     perulangan `database.update().where(eq(id))` satu per satu.
+28. **Integritas Sinkronisasi Harga Paket & WPR BOM** — setiap paket buku yang mengandung WPR
+    di BOM (`book-wpr-weekly-report`) wajib menghitung total harga paket (`book_packages.price`)
+    secara all-in melalui seam `recalcPackagePrice` (SUM seluruh harga jual komponen termasuk WPR);
+    pada penyajian publik (portal murid/wali), item WPR wajib menyajikan judul resmi
+    `Weekly Progress Report (WPR)` dan dilarang disamarkan menjadi teks generik (`Buku Paket`).
+    Penyedia baris buku wajib (`ensureWprBook`) wajib idempoten dengan `onConflictDoUpdate` agar
+    kolom `publicTitle` dan harga selalu tersinkronkan pada database lama maupun baru. Setiap
+    perubahan mapping DTO katalog publik wajib disertai unit regression test di `public-orders.test.ts`.
 
 ---
 
