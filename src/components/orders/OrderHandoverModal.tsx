@@ -52,13 +52,21 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
               {errorMsg}
             </div>
           )}
-          <div>
-            <span className="text-[#65676B]">Murid:</span>{" "}
-            <span className="font-bold text-[#050505]">{order.studentName}</span>
-          </div>
-          <div>
-            <span className="text-[#65676B]">Paket:</span>{" "}
-            <span className="font-semibold text-[#050505]">{order.packageName}</span>
+          <div className="bg-[#F0F2F5] p-3 rounded-xl space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[#65676B]">Kode Bukti Pengambilan:</span>
+              <span className="font-mono font-bold text-[#1877F2] text-xs bg-white px-2 py-0.5 rounded border border-[#CED0D4]">
+                {order.orderNumber}
+              </span>
+            </div>
+            <div>
+              <span className="text-[#65676B]">Murid:</span>{" "}
+              <span className="font-bold text-[#050505]">{order.studentName}</span>
+            </div>
+            <div>
+              <span className="text-[#65676B]">Paket:</span>{" "}
+              <span className="font-semibold text-[#050505]">{order.packageName}</span>
+            </div>
           </div>
           <div>
             <label className="block font-semibold mb-1">Nama Penerima Buku (Orang Tua / Siswa)</label>
