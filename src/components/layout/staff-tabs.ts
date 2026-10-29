@@ -61,7 +61,7 @@ export const DESKTOP_TABS: DesktopTabItem[] = [
   },
   {
     id: "internal_orders",
-    label: (r) => (isSchoolRole(r) ? "Pesan ke Gudang" : "Pesanan dari Cabang"),
+    label: (r) => (isSchoolRole(r) ? "Terima Paket Dari Gudang" : "Kirim Paket Ke Cabang"),
     icon: Warehouse,
     visible: (r) => isSchoolRole(r) || isBookWarehouseStaffRole(r),
   },

@@ -63,13 +63,17 @@ export function InternalProcurementView({
         <div>
           <div className="flex items-center gap-2">
             <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
-              Pesanan Cabang
+              {isLogistics ? "Pengiriman Cabang" : "Pesanan Cabang"}
             </span>
             <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name ?? "Semua cabang"}</span>
           </div>
-          <h1 className="mt-1 text-xl font-bold tracking-tight text-[#050505]">Pesan Paket ke Gudang</h1>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-[#050505]">
+            {isLogistics ? "Kirim Paket Ke Cabang" : "Terima Paket Dari Gudang"}
+          </h1>
           <p className="mt-0.5 max-w-2xl text-xs text-[#65676B]">
-            Ajukan kebutuhan paket buku ke gudang pusat, lalu pantau progres pemenuhan dan surat jalan pengirimannya di sini.
+            {isLogistics
+              ? "Kirim stok paket buku ke cabang dan pantau status surat jalan pengiriman di sini."
+              : "Ajukan kebutuhan paket buku ke gudang pusat, lalu pantau progres pemenuhan dan surat jalan pengirimannya di sini."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
