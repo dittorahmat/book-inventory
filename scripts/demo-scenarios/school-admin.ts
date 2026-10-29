@@ -11,7 +11,7 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
 
   // Login sebagai School Admin 1 (admin.pusat@alwildan.sch.id)
   console.log("\n▶ Login School Admin 1 (Al Wildan 1)");
-  await page.goto(`${baseUrl.replace(/\/$/, "")}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl.replace(/\/$/, "")}/admin`, { waitUntil: "networkidle" });
   await performLogin(page, "School Admin 1", "admin.pusat@alwildan.sch.id");
   await captureScreenshot(page, "08-login-school-admin.png");
 

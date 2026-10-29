@@ -8,10 +8,19 @@ export async function captureScreenshot(page: Page, filename: string): Promise<v
 }
 
 export async function performLogin(page: Page, roleLabel: string, email: string): Promise<void> {
+  // Jika masih di portal publik, klik tautan/tombol Login Staf jika ada
+  const staffLink = page.locator('button:has-text("Login Staf"), a:has-text("Login Staf"), button:has-text("Portal Staf")');
+  if (await staffLink.count() > 0) {
+    await staffLink.first().click();
+    await page.waitForLoadState("domcontentloaded");
+  }
+
+  // Cek tombol akses cepat demo
   const quickBtn = page.locator(`button:has-text("${roleLabel}")`);
   if (await quickBtn.count() > 0) {
     await quickBtn.first().click();
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
     return;
   }
   const emailInput = page.locator('input[type="email"], input[name="email"]');
@@ -22,5 +31,6 @@ export async function performLogin(page: Page, roleLabel: string, email: string)
     const submitBtn = page.locator('button[type="submit"], button:has-text("Masuk")');
     await submitBtn.first().click();
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
   }
 }

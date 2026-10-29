@@ -38,7 +38,11 @@ export function App() {
       ? resolvePublicEntryTab(window.location.pathname, window.location.search)
       : undefined;
   const payMatch = typeof window !== "undefined" ? window.location.pathname.match(/^\/bayar\/(buku|seragam)\/([^/]+)$/) : null;
-  const [showStaffLogin, setShowStaffLogin] = useState(!isDirectOrderUrl && typeof window !== "undefined" && window.location.pathname === "/admin");
+  const [showStaffLogin, setShowStaffLogin] = useState(
+    !isDirectOrderUrl &&
+    typeof window !== "undefined" &&
+    (window.location.pathname === "/admin" || window.location.pathname === "/login")
+  );
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
 
   const loadSchools = useCallback(async () => {
