@@ -8,6 +8,14 @@ export async function captureScreenshot(page: Page, filename: string): Promise<v
 }
 
 export async function performLogin(page: Page, roleLabel: string, email: string): Promise<void> {
+  // Cek apakah ada session aktif sebelumnya, lakukan logout jika ada tombol Sign Out
+  const signOutBtn = page.locator('button[title*="Sign Out"], button:has-text("Keluar")');
+  if (await signOutBtn.count() > 0) {
+    await signOutBtn.first().click();
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(600);
+  }
+
   // Jika masih di portal publik, klik tautan/tombol Login Staf jika ada
   const staffLink = page.locator('button:has-text("Login Staf"), a:has-text("Login Staf"), button:has-text("Portal Staf")');
   if (await staffLink.count() > 0) {
