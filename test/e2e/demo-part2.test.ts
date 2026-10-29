@@ -12,18 +12,18 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
   });
 
   afterAll(async () => {
-    // Restore state Nathaniel & Aisyah agar test unit seed-demo/demo-books.test.ts dan demo-finance.test.ts tetap konsisten saat run penuh
+    // Restore state Ahmad Zaki & Aisyah agar test unit seed-demo/demo-books.test.ts dan demo-finance.test.ts tetap konsisten saat run penuh
     await db
       .update(studentBookOrders)
       .set({ paymentStatus: "partial", paidAmount: 500000 })
-      .where(eq(studentBookOrders.id, "ord-nathan-partial"));
+      .where(eq(studentBookOrders.id, "ord-zaki-partial"));
     await db
       .update(paymentReceipts)
       .set({ status: "pending", verifiedAt: null, verifiedByUserId: null })
-      .where(eq(paymentReceipts.id, "rcp-nathan-02"));
+      .where(eq(paymentReceipts.id, "rcp-zaki-02"));
     await db
       .delete(paymentAllocations)
-      .where(eq(paymentAllocations.id, "rcp-nathan-02-buku-ord-nathan-partial"));
+      .where(eq(paymentAllocations.id, "rcp-zaki-02-buku-ord-zaki-partial"));
 
     await db
       .update(studentBookOrders)
