@@ -63,7 +63,7 @@ describe("BookReturnSearchStep", () => {
     expect(screen.getByRole("alert").textContent).toContain("Cabang wajib dipilih");
   });
 
-  it("hanya pesanan yang sudah diserahkan yang bisa diajukan refund", () => {
+  it("mengizinkan pesanan baik sebelum maupun sesudah diserahkan (karena mendukung pembatalan siswa mundur)", () => {
     const onSelect = vi.fn();
     renderStep({
       orders: [
@@ -77,14 +77,12 @@ describe("BookReturnSearchStep", () => {
     expect(buttons).toHaveLength(2);
     const readyButton = buttons.find((b) => b.closest("div")?.textContent?.includes("ORD-KIRIM"))!;
     const pickedButton = buttons.find((b) => b.closest("div")?.textContent?.includes("ORD-TERIMA"))!;
-    expect(readyButton.disabled).toBe(true);
+    expect(readyButton.disabled).toBe(false);
     expect(pickedButton.disabled).toBe(false);
-    expect(pickedButton.getAttribute("title")).toBeNull();
-    expect(readyButton.getAttribute("title")).toContain("belum diserahkan");
 
-    fireEvent.click(pickedButton);
+    fireEvent.click(readyButton);
     expect(onSelect).toHaveBeenCalledTimes(1);
-    expect((onSelect.mock.calls[0][0] as PortalOrderLookup).id).toBe("ord-terima");
+    expect((onSelect.mock.calls[0][0] as PortalOrderLookup).id).toBe("ord-kirim");
   });
 
   it("menjelaskan pesanan yang refund-nya sudah berjalan", () => {
