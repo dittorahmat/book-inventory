@@ -145,6 +145,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     (`bun run check:d1-drift` dan `wrangler d1 execute book-inventory-db --remote`) sebelum menguji endpoint
     produksi atau membuat PR. Skrip `check:fast` secara otomatis memicu alarm drift bila ada berkas migrasi
     yang berubah. Dilarang membiarkan perbedaan kolom antara schema kode TypeScript dan SQLite remote.
+31. **Integritas Alur Retur & Pembatalan Pengunduran Diri (ADR-0019)** — pembatalan pesanan akibat
+    siswa mengundurkan diri (buku maupun seragam) wajib memisahkan wewenang fisik dan finansial:
+    verifikasi bukti fisik / resi kurir / surat resmi berada di bawah wewenang Gudang, sedangkan pencairan
+    dana refund berada di bawah wewenang Finance via modul kanonik `payment-ledger` berbasis Slip Bukti
+    Pengembalian resmi (`RET-B-*` / `RET-U-*`). Metadata pelacakan retur dokumen/resi dilarang dipadatkan
+    ke string `notes` atau `reason` (patuh §0.10). Pada pembatalan buku yang belum diserahterimakan,
+    alokasi fisik (paket `package_items` maupun buku satuan `book_items`) wajib di-unassign menjadi stok
+    bebas cabang secara otomatis dalam batch transaksi yang sama. Komponen klien yang memanggil endpoint
+    alamat atau informasi gudang dilarang melakukan silent-catch (`.catch(() => {})`) dan wajib menampilkan
+    pesan error yang ramah pengguna.
 
 ---
 

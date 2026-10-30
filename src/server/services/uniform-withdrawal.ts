@@ -97,12 +97,15 @@ export async function requestUniformWithdrawal(
 
   const id = `rf-wdr-${deps.generateId?.() ?? Date.now()}`;
   const refundNumber = documentNumber("RFD-U", now.slice(0, 10).replaceAll("-", ""), randomSerial(6));
-  const fullReason = `[PENGUNDURAN DIRI] ${input.reason.trim()}${
-    letterProofUrl ? ` [DOKUMEN: ${letterProofUrl}]` : ""
-  }`;
+  const fullReason = `[PENGUNDURAN DIRI] ${input.reason.trim()}`;
 
-  // Simpan data nomor resi kurir ke record terstruktur di system_settings untuk mencegah string-packing
+  // Simpan data nomor resi kurir & bukti dokumen ke record terstruktur di system_settings untuk mencegah string-packing
   const courierResiKey = `uniform_withdrawal_resi_${id}`;
+  const proofMetadata = {
+    courierResi: input.courierResi.trim(),
+    refundId: id,
+    letterProofUrl: letterProofUrl ?? null,
+  };
 
   try {
     await database.insert(uniformRefunds).values({
@@ -118,12 +121,12 @@ export async function requestUniformWithdrawal(
     });
     await database.insert(systemSettings).values({
       key: courierResiKey,
-      value: JSON.stringify({ courierResi: input.courierResi.trim(), refundId: id }),
-      description: "Nomor resi pengiriman retur seragam fisik ke gudang pusat",
+      value: JSON.stringify(proofMetadata),
+      description: "Nomor resi pengiriman & bukti retur seragam fisik ke gudang pusat",
       updatedAt: now,
     }).onConflictDoUpdate({
       target: systemSettings.key,
-      set: { value: JSON.stringify({ courierResi: input.courierResi.trim(), refundId: id }), updatedAt: now },
+      set: { value: JSON.stringify(proofMetadata), updatedAt: now },
     });
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "pengajuan pembatalan seragam");

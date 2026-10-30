@@ -177,7 +177,7 @@ export async function disburseFinanceRefund(
       proofUrl: input.proofUrl,
       verifiedByUserId: actorUserId ?? null,
       autoVerify: true,
-      notes: `[REFUND_DISBURSED] Slip ${slip.slipNumber}. ${input.notes ?? ""}`.trim(),
+      notes: input.notes?.trim() ? input.notes.trim() : null,
     },
     now,
     receiptId
