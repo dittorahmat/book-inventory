@@ -23,6 +23,7 @@ import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
+import { getWarehouseReturnAddress } from "../services/return-address";
 import { reportReturn } from "../services/return";
 import {
   searchVerifiedStudents,
@@ -92,6 +93,12 @@ const submitOrderSchema = z
   .refine((v) => !!v.packageId || v.looseItems.length > 0, {
     message: "Pilih paket atau minimal satu judul buku satuan",
   });
+
+// 0. Alamat retur Gudang Pusat (public, tanpa login)
+publicOrdersRouter.get("/return-address", async (c) => {
+  const address = await getWarehouseReturnAddress(db);
+  return c.json({ success: true, data: address });
+});
 
 // 0. Status order satuan (public, tanpa login) + katalog satuan saat terbuka
 publicOrdersRouter.get("/satuan-status", async (c) => {

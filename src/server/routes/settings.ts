@@ -20,6 +20,11 @@ import {
   type SatuanOverride,
 } from "../services/order-intake";
 import { accessErrorResponse } from "../services/access-scope";
+import {
+  getWarehouseReturnAddress,
+  saveWarehouseReturnAddress,
+  warehouseReturnAddressSchema,
+} from "../services/return-address";
 import { assertSettingsAdmin } from "../services/settings-access";
 
 export const settingsRouter = new Hono();
@@ -257,4 +262,25 @@ settingsRouter.post("/uniform-numbering", zValidator("json", uniformNumberingSch
     return accessErrorResponse(c, err);
   }
 });
+
+// GET alamat retur Gudang Pusat (khusus admin logistik / central)
+settingsRouter.get("/return-address", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    return c.json({ success: true, data: await getWarehouseReturnAddress(db) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan alamat retur Gudang Pusat (khusus admin logistik / central)
+settingsRouter.post("/return-address", zValidator("json", warehouseReturnAddressSchema), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    return c.json({ success: true, data: await saveWarehouseReturnAddress(db, c.req.valid("json")) });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 

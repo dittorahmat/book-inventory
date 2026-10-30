@@ -1725,4 +1725,13 @@ describe("Struk bayar ganda di intake publik", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("Public return-address endpoint > terbuka tanpa login dan menyajikan alamat gudang", async () => {
+    const res = await publicOrdersRouter.request("/return-address", { method: "GET" });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: { recipientName: string; postalCode: string } };
+    expect(json.success).toBe(true);
+    expect(json.data.recipientName).toContain("Gudang");
+    expect(json.data.postalCode).toBeDefined();
+  });
 });
