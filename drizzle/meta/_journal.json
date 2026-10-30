@@ -267,6 +267,13 @@
       "when": 1792797051871,
       "tag": "0037_wealthy_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1793365448293,
+      "tag": "0038_right_paper_doll",
+      "breakpoints": true
     }
   ]
 }

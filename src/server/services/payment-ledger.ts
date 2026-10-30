@@ -36,6 +36,8 @@ export interface ReceiptInput {
   schoolId: string;
   amount: number;
   allocations: AllocationInput[];
+  /** Arah uang. Default "in" (pembayaran murid); refund wajib "out". */
+  direction?: "in" | "out";
   bankName?: string | null;
   referenceNumber?: string | null;
   proofUrl?: string | null;
@@ -83,6 +85,7 @@ export const verifiedAllocationSum = async (
       and(
         eq(paymentAllocations.kind, kind),
         eq(paymentAllocations.orderId, orderId),
+        eq(paymentReceipts.direction, "in"),
         isNotNull(paymentReceipts.verifiedAt),
         isNull(paymentReceipts.rejectedAt)
       )
@@ -174,6 +177,7 @@ export const buildReceiptDraft = (
         studentId: input.studentId,
         schoolId: input.schoolId,
         amount: input.amount,
+        direction: input.direction ?? "in",
         bankName: input.bankName?.trim() || "Tanpa Bank",
         referenceNumber: input.referenceNumber?.trim() || null,
         proofUrl: input.proofUrl ?? null,
@@ -222,6 +226,7 @@ export const upsertReceiptQueries = (database: AppDatabase, draft: ReceiptDraft)
         studentId: draft.receipt.studentId,
         schoolId: draft.receipt.schoolId,
         amount: draft.receipt.amount,
+        direction: draft.receipt.direction,
         bankName: draft.receipt.bankName,
         referenceNumber: draft.receipt.referenceNumber,
         proofUrl: draft.receipt.proofUrl,
@@ -303,7 +308,13 @@ export const listPaymentRows = async (
     })
     .from(paymentAllocations)
     .innerJoin(paymentReceipts, eq(paymentReceipts.id, paymentAllocations.receiptId))
-    .where(and(eq(paymentAllocations.kind, kind), eq(paymentAllocations.orderId, orderId)))
+    .where(
+      and(
+        eq(paymentAllocations.kind, kind),
+        eq(paymentAllocations.orderId, orderId),
+        eq(paymentReceipts.direction, "in")
+      )
+    )
     .orderBy(desc(paymentReceipts.createdAt));
   return rows.map((row) => ({ ...row, status: paymentRowStatus(row) }));
 };

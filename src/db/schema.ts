@@ -711,6 +711,9 @@ export const paymentReceipts = sqliteTable("payment_receipts", {
   studentId: text("student_id").notNull().references(() => students.id),
   schoolId: text("school_id").notNull().references(() => schools.id),
   amount: integer("amount").notNull(), // Total nominal struk, bukan hanya porsi buku
+  // Arah uang: "in" = pembayaran murid, "out" = pencairan refund (Finance).
+  // Hanya baris "in" yang boleh menambah paidAmount order.
+  direction: text("direction", { enum: ["in", "out"] }).notNull().default("in"),
   bankName: text("bank_name").notNull(),
   referenceNumber: text("reference_number"),
   proofUrl: text("proof_url"),
@@ -726,7 +729,7 @@ export const paymentReceipts = sqliteTable("payment_receipts", {
 }, (t) => [
   index("payment_receipts_student_idx").on(t.studentId),
   index("payment_receipts_school_received_idx").on(t.schoolId, t.receivedAt),
-  unique("payment_receipts_bank_ref_unq").on(t.bankName, t.referenceNumber),
+  unique("payment_receipts_bank_ref_unq").on(t.direction, t.bankName, t.referenceNumber),
 ]);
 
 /** Alokasi: porsi satu Struk Bayar yang dibebankan ke satu order. */

@@ -96,6 +96,7 @@ export const pendingPaymentCounts = async (
         and(
           eq(paymentAllocations.kind, kind),
           inArray(paymentAllocations.orderId, chunk),
+          eq(paymentReceipts.direction, "in"),
           isNull(paymentReceipts.verifiedAt),
           isNull(paymentReceipts.rejectedAt)
         )

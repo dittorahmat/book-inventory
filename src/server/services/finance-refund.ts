@@ -164,6 +164,8 @@ export async function disburseFinanceRefund(
       studentId: slip.studentId,
       schoolId: slip.schoolId,
       amount: slip.refundAmount,
+      // Uang keluar: tidak boleh dibaca verifiedAllocationSum sebagai pembayaran.
+      direction: "out",
       allocations: [
         {
           orderId: slip.orderId,
