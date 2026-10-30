@@ -37,6 +37,7 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
+import { approveUniformWithdrawal, getUniformWithdrawalSlip } from "../services/uniform-withdrawal";
 import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import {
@@ -328,6 +329,31 @@ uniformsRouter.post("/refunds/:id/resolve", zValidator("json", resolveRefundSche
     const result = await resolveUniformRefund(db, c.req.param("id"), c.req.valid("json").action);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Approval seragam murid mundur & restock gudang pusat (ADR-0019)
+uniformsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await approveUniformWithdrawal(db, c.req.param("id"));
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: result.message, data: result.slip });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const slip = await getUniformWithdrawalSlip(db, c.req.param("slipNumber"));
+    if (!slip) return c.json({ success: false, message: "Slip bukti pengembalian seragam tidak ditemukan" }, 404);
+    return c.json({ success: true, data: slip });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

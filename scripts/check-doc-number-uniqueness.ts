@@ -40,6 +40,12 @@ const GENERATED_COLUMNS: DocColumn[] = [
     column: "value",
     nonUniqueReason: "Slip pengembalian buku murid mundur disimpan terpusat sebagai slip ledger",
   },
+  {
+    prefix: "RET-U",
+    table: "systemSettings",
+    column: "value",
+    nonUniqueReason: "Slip pengembalian seragam murid mundur disimpan terpusat sebagai slip ledger",
+  },
   { prefix: "CLM", table: "branchClaims", column: "claimNumber" },
   { prefix: "TGH", table: "branchCharges", column: "chargeNumber" },
   { prefix: "BA-RECON", table: "termReconciliations", column: "reconciliationNumber" },

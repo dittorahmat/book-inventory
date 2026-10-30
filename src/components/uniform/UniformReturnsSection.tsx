@@ -6,6 +6,7 @@ import {
   fetchUniformVariants, fetchUniformPackages,
   fetchUniformExchanges, requestUniformExchange, resolveUniformExchange,
   fetchUniformRefunds, requestUniformRefund, resolveUniformRefund,
+  approveUniformWithdrawal,
   type UniformOrderRow, type UniformOrderDetail, type UniformExchangeRow, type UniformRefundRow,
 } from "./uniform-admin-api";
 
@@ -242,8 +243,24 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
               <div className="font-semibold">{r.refundNumber} · {formatRupiah(r.amount)}</div>
               <div className="text-[#65676B]">{r.reason} · {r.status}</div>
               {logistics && r.status === "requested" && (
-                <div className="flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => run(() => resolveUniformRefund(r.id, "approve"), "Refund disetujui.")} className="px-3 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]">Setujui</button>
+                <div className="flex flex-wrap gap-2">
+                  {r.reason.includes("[PENGUNDURAN DIRI]") ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        run(
+                          () => approveUniformWithdrawal(r.id),
+                          "Fisik seragam retur diterima & slip RET-U diterbitkan untuk Finance."
+                        )
+                      }
+                      className="px-3 py-1.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
+                    >
+                      Konfirmasi Terima Fisik & Terbitkan Slip
+                    </button>
+                  ) : (
+                    <button type="button" disabled={busy} onClick={() => run(() => resolveUniformRefund(r.id, "approve"), "Refund disetujui.")} className="px-3 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]">Setujui</button>
+                  )}
                   <button type="button" disabled={busy} onClick={() => run(() => resolveUniformRefund(r.id, "reject"), "Refund ditolak.")} className="px-3 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]">Tolak</button>
                 </div>
               )}

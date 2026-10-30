@@ -14,6 +14,7 @@ import {
   submitUniformOrder,
   isUniformSatuanEnabled,
 } from "../services/uniform";
+import { requestUniformWithdrawal } from "../services/uniform-withdrawal";
 import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
 import { searchVerifiedStudents, toConfirmOrderView, toUniformSearchView } from "../services/public-order";
 
@@ -197,4 +198,26 @@ publicUniformOrdersRouter.post("/refund-requests", zValidator("json", publicRefu
   const result = await requestUniformRefund(db, body);
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, data: result.data }, 201);
+});
+
+// Pengajuan pembatalan & retur fisik seragam oleh siswa mundur (ADR-0019)
+const publicWithdrawalUniformSchema = z.object({
+  orderId: idSchema,
+  studentId: idSchema,
+  courierResi: z.string().min(3, "Nomor resi pengiriman kurir retur wajib diisi"),
+  reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
+  letterProofBase64: z.string().optional(),
+});
+
+publicUniformOrdersRouter.post("/cancel-withdrawal", zValidator("json", publicWithdrawalUniformSchema), async (c) => {
+  const body = c.req.valid("json");
+  const owned = await ownershipGuard(body.orderId, body.studentId);
+  if (!owned.ok) return c.json({ success: false, message: owned.message }, owned.status);
+  const result = await requestUniformWithdrawal(db, body);
+  if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+  return c.json({
+    success: true,
+    message: "Pengajuan pembatalan & retur seragam berhasil dicatat untuk review gudang.",
+    data: result,
+  }, 201);
 });

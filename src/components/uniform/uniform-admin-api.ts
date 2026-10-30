@@ -162,6 +162,9 @@ export const requestUniformRefund = (payload: unknown): Promise<unknown> =>
 export const resolveUniformRefund = (id: string, action: "approve" | "refund" | "reject"): Promise<unknown> =>
   postJson(`/api/uniforms/refunds/${id}/resolve`, { action }, "Gagal memproses refund.");
 
+export const approveUniformWithdrawal = (id: string): Promise<{ success: boolean; data: { slipNumber: string }; message: string }> =>
+  postJson(`/api/uniforms/refunds/${id}/approve-withdrawal`, {}, "Gagal menyetujui pengembalian seragam murid mundur.");
+
 export interface UniformSalesReport {
   period: { from: string; to: string };
   totals: { orderCount: number; studentCount: number; quantity: number; revenue: number };

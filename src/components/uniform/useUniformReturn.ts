@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { UniformCatalog, UniformStudent } from "../../lib/uniform-types";
 import type { SchoolOption } from "../../lib/portal-types";
+import { postJson } from "../../lib/api";
 import {
   fetchUniformSchools,
   searchUniformStudents,
@@ -33,6 +34,9 @@ export function useUniformReturn() {
   const [exNewSize, setExNewSize] = useState("");
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState("");
+  const [isWithdrawal, setIsWithdrawal] = useState(false);
+  const [courierResi, setCourierResi] = useState("");
+  const [letterBase64, setLetterBase64] = useState("");
   const [step, setStep] = useState<UniformReturnStep>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +56,10 @@ export function useUniformReturn() {
 
   const canSubmitExchange =
     !!selectedOrder && !!selectedItem?.variantId && !!exNewVariant && !!exNewSize && reason.trim().length > 0;
-  const canSubmitRefund = !!selectedOrder && reason.trim().length > 0;
+  const canSubmitRefund =
+    !!selectedOrder &&
+    reason.trim().length > 0 &&
+    (!isWithdrawal || courierResi.trim().length >= 3);
 
   const loadSchools = async () => {
     try {
@@ -130,6 +137,20 @@ export function useUniformReturn() {
           reason: reason.trim(),
         });
         setSuccess("Pengajuan tukar ukuran terkirim — gudang akan memprosesnya.");
+      } else if (isWithdrawal) {
+        if (!canSubmitRefund) return;
+        await postJson(
+          "/api/public/uniform-orders/cancel-withdrawal",
+          {
+            orderId: selectedOrder.id,
+            studentId: student.id,
+            courierResi: courierResi.trim(),
+            reason: reason.trim(),
+            letterProofBase64: letterBase64 || undefined,
+          },
+          "Gagal mengajukan retur seragam siswa mengundurkan diri."
+        );
+        setSuccess("Pengajuan pembatalan & retur fisik seragam berhasil dikirim untuk review gudang.");
       } else {
         if (!canSubmitRefund) return;
         await requestUniformRefund({
@@ -154,6 +175,7 @@ export function useUniformReturn() {
     olahraga, variantById, itemLabel, selectedItem,
     mode, setMode, exItemId, setExItemId, exNewVariant, setExNewVariant, exNewSize, setExNewSize,
     reason, setReason, amount, setAmount, step, submitting, error, setError, success,
+    isWithdrawal, setIsWithdrawal, courierResi, setCourierResi, letterBase64, setLetterBase64,
     canSubmitExchange, canSubmitRefund,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
   };

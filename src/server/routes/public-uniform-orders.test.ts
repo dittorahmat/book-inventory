@@ -4,7 +4,7 @@ import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds, systemSettings } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -304,5 +304,28 @@ describe("Portal retur seragam mandiri", () => {
       orderId, studentId, amount: 999999999, reason: "Serakah",
     });
     expect(over.status).toBe(400);
+
+    const withdrawal = await postPublic("/cancel-withdrawal", {
+      orderId,
+      studentId,
+      courierResi: "JNE-RETI-00129",
+      reason: "Pindah sekolah ke luar kota",
+      letterProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    });
+    expect(withdrawal.status).toBe(201);
+    const wJson = (await withdrawal.json()) as { success: boolean; data: { orderId: string; refundId: string } };
+    expect(wJson.success).toBe(true);
+    expect(wJson.data.refundId).toBeDefined();
+
+    const [rfRow] = await db.select().from(uniformRefunds).where(eq(uniformRefunds.id, wJson.data.refundId));
+    expect(rfRow.reason).toContain("[PENGUNDURAN DIRI]");
+    
+    // Verifikasi resi tersimpan di system_settings (anti-string-packing)
+    const [resiRow] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, `uniform_withdrawal_resi_${wJson.data.refundId}`));
+    expect(resiRow).toBeDefined();
+    expect(resiRow.value).toContain("JNE-RETI-00129");
   });
 });
