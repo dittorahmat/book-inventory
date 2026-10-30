@@ -137,8 +137,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     Aturan kelayakan penyerahan buku fisik wajib memusat ke helper kanonik tunggal `canHandoverBookOrder`
     (`src/lib/order-handover-guard.ts`) yang dipakai bersama oleh server (`order-handover.ts`) dan klien UI
     (`StudentOrdersTable.tsx`), dilarang menduplikasi predikat status inline di view maupun handler.
+    Ditegakkan mekanis oleh `check:canonical-helpers`.
     Penyerahan fisik diizinkan bagi pemegang Bukti Pengambilan dengan status `paid`, `partial`,
     `scholarship_approved`, atau diskresi finance; status `unpaid` murni (tanpa bukti bayar/diskresi) tetap ditahan.
+30. **Disiplin Sinkronisasi Skema Remote D1 & Anti-Drift** — setiap penambahan atau modifikasi migrasi
+    SQL di folder `drizzle/*.sql` wajib diverifikasi kelengkapannya ke remote Cloudflare D1
+    (`bun run check:d1-drift` dan `wrangler d1 execute book-inventory-db --remote`) sebelum menguji endpoint
+    produksi atau membuat PR. Skrip `check:fast` secara otomatis memicu alarm drift bila ada berkas migrasi
+    yang berubah. Dilarang membiarkan perbedaan kolom antara schema kode TypeScript dan SQLite remote.
 
 ---
 

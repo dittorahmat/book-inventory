@@ -71,6 +71,14 @@ if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
   runBun("check:plans");
 }
 
+if (has(/^drizzle\/.*\.sql$/)) {
+  try {
+    runBun("check:d1-drift");
+  } catch {
+    console.warn("\n[WARNING] check:d1-drift gagal dijalankan (mungkin belum ada koneksi D1 remote). Pastikan remote D1 tersinkronisasi sebelum deploy.");
+  }
+}
+
 if (has(/^(src\/.*\.test\.tsx?$|src\/test-dom|test\/|bunfig\.toml)/)) {
   runBun("check:test-isolation");
 }
