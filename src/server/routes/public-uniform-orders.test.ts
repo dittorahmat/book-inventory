@@ -26,6 +26,19 @@ const postPublic = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+// Rute konfirmasi kini memanggil modul seragam langsung (tanpa seam dispatch
+// order-billing): token asing tetap 404, bukan 200 kosong.
+const lookupConfirmToken = (token: string) =>
+  publicUniformOrdersRouter.request(`/confirm/${encodeURIComponent(token)}`, { method: "GET" });
+
+describe("Public uniform confirm token", () => {
+  it("token asing ditolak 404", async () => {
+    const res = await lookupConfirmToken("tok-ghost-seragam");
+    expect(res.status).toBe(404);
+    expect((await res.json()).success).toBe(false);
+  });
+});
+
 async function seedSchoolStudent(stamp: string, uuidIds = false) {
   const now = new Date().toISOString();
   const schoolId = uuidIds ? crypto.randomUUID() : `sch-u-${stamp}`;

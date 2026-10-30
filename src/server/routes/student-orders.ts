@@ -9,7 +9,8 @@ import {
   bookPackages,
 } from "../../db/schema";
 import { markSatuanShipped } from "../services/order-intake";
-import { assertInvoiceGate, sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
+import { assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
+import { sendBookInvoice } from "../services/order-invoice";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
@@ -166,7 +167,7 @@ studentOrdersRouter.post("/:id/shipping", zValidator("json", shippingSchema), as
     if (!guard.ok) {
       return c.json({ success: false, message: guard.message }, guard.status);
     }
-    const result = await setBillingShipping(db, id, c.req.valid("json"), "buku");
+    const result = await setBookShipping(db, id, c.req.valid("json"));
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -184,11 +185,11 @@ studentOrdersRouter.post("/:id/send-invoice", async (c) => {
     if (!guard.ok) {
       return c.json({ success: false, message: guard.message }, guard.status);
     }
-    const gate = await assertInvoiceGate(db, guard.actor, id, "buku");
+    const gate = await assertSendInvoiceAllowed(db, guard.actor, id);
     if (gate) {
       return c.json({ success: false, message: gate.message }, gate.status);
     }
-    const result = await sendBillingInvoice(db, id, { kind: "buku", baseUrl: new URL(c.req.url).origin });
+    const result = await sendBookInvoice(db, id, { baseUrl: new URL(c.req.url).origin });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

@@ -15,7 +15,7 @@ import {
   isUniformSatuanEnabled,
 } from "../services/uniform";
 import { requestUniformWithdrawal } from "../services/uniform-withdrawal";
-import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
+import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
 import { searchVerifiedStudents, toConfirmOrderView, toUniformSearchView } from "../services/public-order";
 
 export const publicUniformOrdersRouter = new Hono();
@@ -96,7 +96,7 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
 
 // Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas).
 publicUniformOrdersRouter.get("/confirm/:token", async (c) => {
-  const found = await lookupBillingByToken(db, c.req.param("token"), "seragam");
+  const found = await lookupUniformByToken(db, c.req.param("token"));
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
   return c.json({ success: true, data: toConfirmOrderView(found) });
 });
@@ -110,7 +110,7 @@ const uniformConfirmSchema = z.object({
 });
 
 publicUniformOrdersRouter.post("/confirm/:token", zValidator("json", uniformConfirmSchema), async (c) => {
-  const result = await confirmBillingPayment(db, c.req.param("token"), c.req.valid("json"), "seragam");
+  const result = await confirmUniformPayment(db, c.req.param("token"), c.req.valid("json"));
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });
