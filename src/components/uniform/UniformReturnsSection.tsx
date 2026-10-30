@@ -6,7 +6,7 @@ import {
   fetchUniformVariants, fetchUniformPackages,
   fetchUniformExchanges, requestUniformExchange, resolveUniformExchange,
   fetchUniformRefunds, requestUniformRefund, resolveUniformRefund,
-  approveUniformWithdrawal,
+  approveUniformWithdrawal, checkSportsExchangeStock,
   type UniformOrderRow, type UniformOrderDetail, type UniformExchangeRow, type UniformRefundRow,
 } from "./uniform-admin-api";
 
@@ -224,8 +224,30 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
               <div className="font-semibold">{variantNames[x.oldVariantId] ?? x.oldVariantId} {x.oldSize} → {variantNames[x.newVariantId] ?? x.newVariantId} {x.newSize}</div>
               <div className="text-[#65676B]">{x.reason} · {x.status}</div>
               {logistics && x.status === "requested" && (
-                <div className="flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => run(() => resolveUniformExchange(x.id, "approve"), "Tukar disetujui.")} className="px-3 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]">Setujui</button>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      try {
+                        const chk = await checkSportsExchangeStock(x.id);
+                        if (chk.available) {
+                          const resi = window.prompt(`Stok ready (${chk.quantity} pcs). Masukkan No. Resi Kirim Pengganti:`);
+                          if (!resi) return;
+                          await run(() => resolveUniformExchange(x.id, "approve_ready", { replacementResi: resi.trim() }), "Tukar disetujui (Ready Stock) dengan resi pengiriman baru.");
+                        } else {
+                          const eta = window.prompt("Stok 0 (Backorder). Masukkan estimasi tanggal kirim (YYYY-MM-DD):", "2026-11-15");
+                          if (!eta) return;
+                          await run(() => resolveUniformExchange(x.id, "approve_backorder", { estimatedShipDate: eta.trim() }), "Tukar disetujui (Backorder) dengan estimasi tanggal kirim.");
+                        }
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Gagal memeriksa stok.");
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
+                  >
+                    Verifikasi Fisik & Stok
+                  </button>
                   <button type="button" disabled={busy} onClick={() => run(() => resolveUniformExchange(x.id, "reject"), "Tukar ditolak.")} className="px-3 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]">Tolak</button>
                 </div>
               )}

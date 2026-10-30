@@ -77,7 +77,9 @@ export const exchangeSchema = z.object({
 });
 
 export const resolveExchangeSchema = z.object({
-  action: z.enum(["approve", "complete", "reject"]),
+  action: z.enum(["approve", "complete", "reject", "approve_ready", "approve_backorder"]),
+  replacementResi: z.string().optional(),
+  estimatedShipDate: z.string().optional(),
 });
 
 export const refundSchema = z.object({

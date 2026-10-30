@@ -9,6 +9,7 @@ import {
   lookupUniformOrders,
   requestUniformExchange,
   requestUniformRefund,
+  getSportsExchangeTracking,
   type UniformLookupOrder,
   type UniformLookupItem,
 } from "./uniform-portal-api";
@@ -42,6 +43,10 @@ export function useUniformReturn() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [exCourierResi, setExCourierResi] = useState("");
+  const [createdExchangeId, setCreatedExchangeId] = useState<string | null>(null);
+  const [tracking, setTracking] = useState<Awaited<ReturnType<typeof getSportsExchangeTracking>> | null>(null);
+
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) ?? null;
   const selectedItems = selectedOrderId ? (itemsByOrder[selectedOrderId] ?? []) : [];
   const variantById = new Map((catalog?.variants ?? []).map((v) => [v.id, v]));
@@ -55,7 +60,12 @@ export function useUniformReturn() {
   const selectedItem = selectedItems.find((i) => i.id === exItemId) ?? null;
 
   const canSubmitExchange =
-    !!selectedOrder && !!selectedItem?.variantId && !!exNewVariant && !!exNewSize && reason.trim().length > 0;
+    !!selectedOrder &&
+    !!selectedItem?.variantId &&
+    !!exNewVariant &&
+    !!exNewSize &&
+    reason.trim().length > 0 &&
+    exCourierResi.trim().length >= 3;
   const canSubmitRefund =
     !!selectedOrder &&
     reason.trim().length > 0 &&
@@ -127,7 +137,7 @@ export function useUniformReturn() {
     try {
       if (mode === "exchange") {
         if (!canSubmitExchange || !selectedItem?.variantId) return;
-        await requestUniformExchange({
+        const resp = (await requestUniformExchange({
           orderId: selectedOrder.id,
           studentId: student.id,
           oldVariantId: selectedItem.variantId,
@@ -135,8 +145,18 @@ export function useUniformReturn() {
           newVariantId: exNewVariant,
           newSize: exNewSize,
           reason: reason.trim(),
-        });
-        setSuccess("Pengajuan tukar ukuran terkirim — gudang akan memprosesnya.");
+          courierResi: exCourierResi.trim(),
+        })) as { data?: { id?: string } };
+        if (resp?.data?.id) {
+          setCreatedExchangeId(resp.data.id);
+          try {
+            const trk = await getSportsExchangeTracking(resp.data.id);
+            setTracking(trk);
+          } catch {
+            // Abaikan jika tracking belum siap
+          }
+        }
+        setSuccess("Pengajuan tukar seragam olahraga terkirim — resi retur Anda tersimpan dan fisik seragam akan diverifikasi gudang.");
       } else if (isWithdrawal) {
         if (!canSubmitRefund) return;
         await postJson(
@@ -176,6 +196,7 @@ export function useUniformReturn() {
     mode, setMode, exItemId, setExItemId, exNewVariant, setExNewVariant, exNewSize, setExNewSize,
     reason, setReason, amount, setAmount, step, submitting, error, setError, success,
     isWithdrawal, setIsWithdrawal, courierResi, setCourierResi, letterBase64, setLetterBase64,
+    exCourierResi, setExCourierResi, createdExchangeId, tracking,
     canSubmitExchange, canSubmitRefund,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
   };

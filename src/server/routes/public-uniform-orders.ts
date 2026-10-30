@@ -163,6 +163,11 @@ const ownershipGuard = async (orderId: string, studentId: string) => {
   return { ok: true as const };
 };
 
+import {
+  saveSportsExchangeDetails,
+  getSportsExchangeDetails,
+} from "../services/uniform-sports-exchange";
+
 const publicExchangeSchema = z.object({
   orderId: idSchema,
   studentId: idSchema,
@@ -171,6 +176,7 @@ const publicExchangeSchema = z.object({
   newVariantId: idSchema,
   newSize: z.string().min(1, "Size baru wajib diisi"),
   reason: z.string().min(1, "Alasan wajib diisi"),
+  courierResi: z.string().optional(),
 });
 
 // Pengajuan tukar ukuran mandiri oleh ortu (validasi server sama dengan staf).
@@ -178,9 +184,28 @@ publicUniformOrdersRouter.post("/exchange-requests", zValidator("json", publicEx
   const body = c.req.valid("json");
   const owned = await ownershipGuard(body.orderId, body.studentId);
   if (!owned.ok) return c.json({ success: false, message: owned.message }, owned.status);
-  const result = await requestUniformExchange(db, body);
+  const result = await requestUniformExchange(db, {
+    orderId: body.orderId,
+    oldVariantId: body.oldVariantId,
+    oldSize: body.oldSize,
+    newVariantId: body.newVariantId,
+    newSize: body.newSize,
+    reason: body.reason,
+  });
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+
+  if (body.courierResi?.trim()) {
+    await saveSportsExchangeDetails(db, result.data.id, { courierResi: body.courierResi.trim() });
+  }
+
   return c.json({ success: true, data: result.data }, 201);
+});
+
+// Pelacakan status & detail penukaran seragam (resi retur, resi kirim baru, estimasi tanggal kirim)
+publicUniformOrdersRouter.get("/exchange-tracking/:id", async (c) => {
+  const id = c.req.param("id");
+  const details = await getSportsExchangeDetails(db, id);
+  return c.json({ success: true, data: details ?? {} });
 });
 
 const publicRefundSchema = z.object({

@@ -1,9 +1,8 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { uniformOrders, uniformOrderItems, uniformPos } from "../../db/schema";
+import { uniformOrders, uniformOrderItems, uniformPos, uniformExchanges } from "../../db/schema";
 import {
   assembleSchema,
   exchangeSchema,
@@ -38,19 +37,14 @@ import {
   resolveUniformRefund,
 } from "../services/uniform";
 import { approveUniformWithdrawal, getUniformWithdrawalSlip } from "../services/uniform-withdrawal";
-import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
-import {
-  cashierPaymentSchema,
-  listPaymentsWithStatus,
-  recordCashierPayment,
-  rejectPayment,
-  rejectReasonSchema,
-  verifyPayment,
-} from "../services/order-payment-review";
+import { listPaymentsWithStatus } from "../services/order-payment-review";
 import { fail } from "../lib/route-fail";
 
+import { uniformOrderActionsRouter } from "./uniform-order-actions";
+
 export const uniformsRouter = new Hono();
+uniformsRouter.route("/", uniformOrderActionsRouter);
 
 uniformsRouter.get("/variants", async (c) => {
   try {
@@ -156,18 +150,6 @@ uniformsRouter.get("/orders", async (c) => {
   }
 });
 
-// Kirim invoice WA (syarat ongkir sudah diinput).
-uniformsRouter.post("/orders/:id/send-invoice", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await sendBillingInvoice(db, c.req.param("id"), { kind: "seragam", baseUrl: new URL(c.req.url).origin });
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
 // Tandai terkirim (gudang/pusat saja).
 uniformsRouter.post("/orders/:id/ship", async (c) => {
   try {
@@ -175,68 +157,6 @@ uniformsRouter.post("/orders/:id/ship", async (c) => {
     const result = await markUniformShipped(db, c.req.param("id"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Input ongkir manual gudang (syarat tombol kirim invoice).
-uniformsRouter.post("/orders/:id/shipping", zValidator("json", z.object({
-  shippingCost: z.number().int().min(0, "Ongkir wajib angka bulat >= 0"),
-  shippingResi: z.string().optional(),
-})), async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await setBillingShipping(db, c.req.param("id"), c.req.valid("json"), "seragam");
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Kasir manual seragam (uang diterima langsung): baris auto-verified.
-uniformsRouter.post("/orders/:id/pay", zValidator("json", cashierPaymentSchema), async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await recordCashierPayment(db, "seragam", c.req.param("id"), c.req.valid("json"));
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, message: "Pembayaran kasir tercatat & terverifikasi.", data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Verifikasi klaim bukti transfer seragam (gudang).
-uniformsRouter.post("/orders/:id/payments/:paymentId/verify", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await verifyPayment(db, {
-      kind: "seragam",
-      orderId: c.req.param("id"),
-      paymentId: c.req.param("paymentId"),
-      baseUrl: new URL(c.req.url).origin,
-    });
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, message: "Pembayaran terverifikasi.", data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Tolak klaim bukti transfer seragam (gudang) + kirim tautan unggah ulang.
-uniformsRouter.post("/orders/:id/payments/:paymentId/reject", zValidator("json", rejectReasonSchema), async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await rejectPayment(db, {
-      kind: "seragam",
-      orderId: c.req.param("id"),
-      paymentId: c.req.param("paymentId"),
-      reason: c.req.valid("json").reason,
-      baseUrl: new URL(c.req.url).origin,
-    });
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, message: "Bukti pembayaran ditolak.", data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -288,12 +208,43 @@ uniformsRouter.post("/exchanges", zValidator("json", exchangeSchema), async (c) 
   }
 });
 
+import {
+  reviewSportsExchange,
+  getSportsExchangeDetails,
+  checkReplacementStock,
+} from "../services/uniform-sports-exchange";
+
 uniformsRouter.post("/exchanges/:id/resolve", zValidator("json", resolveExchangeSchema), async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await resolveUniformExchange(db, c.req.param("id"), c.req.valid("json").action);
+    const body = c.req.valid("json");
+    if (body.action === "approve_ready" || body.action === "approve_backorder") {
+      const res = await reviewSportsExchange(db, {
+        exchangeId: c.req.param("id"),
+        action: body.action,
+        replacementResi: body.replacementResi,
+        estimatedShipDate: body.estimatedShipDate,
+      });
+      if (!res.ok) return c.json({ success: false, message: res.message }, res.status);
+      return c.json({ success: true, data: res.data, details: res.details, message: res.message });
+    }
+    const result = await resolveUniformExchange(db, c.req.param("id"), body.action);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.get("/exchanges/:id/check-stock", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const exId = c.req.param("id");
+    const [ex] = await db.select().from(uniformExchanges).where(eq(uniformExchanges.id, exId));
+    if (!ex) return c.json({ success: false, message: "Pengajuan tukar tidak ditemukan" }, 404);
+    const stockInfo = await checkReplacementStock(db, ex.newVariantId, ex.newSize);
+    const details = await getSportsExchangeDetails(db, exId);
+    return c.json({ success: true, data: { ...stockInfo, details: details ?? {} } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

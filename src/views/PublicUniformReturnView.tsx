@@ -166,6 +166,18 @@ export function PublicUniformReturnView() {
 
               {ret.mode === "exchange" ? (
                 <div className="space-y-3">
+                  <WarehouseReturnAddressCard />
+                  <div>
+                    <label className={labelCls}>
+                      No. Resi Kurir Pengiriman Seragam ke Gudang Pusat <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      value={ret.exCourierResi}
+                      onChange={(e) => ret.setExCourierResi(e.target.value)}
+                      placeholder="Contoh: JNE / J&T / SiCepat - JP98765432"
+                      className={inputCls}
+                    />
+                  </div>
                   <div>
                     <SearchableSingleSelect
                       label="Item yang ditukar"
