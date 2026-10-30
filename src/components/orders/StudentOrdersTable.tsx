@@ -1,5 +1,6 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { Award, Truck, Printer, Trash2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { canHandoverBookOrder } from "../../lib/order-handover-guard";
 import type { StudentOrder } from "./order-types";
 
 interface StudentOrdersTableProps {
@@ -50,11 +51,7 @@ export function StudentOrdersTable({
               </tr>
             ) : (
               orders.map((o) => {
-                const canHandoverDirect =
-                  o.paymentStatus === "paid" ||
-                  o.paymentStatus === "partial" ||
-                  o.paymentStatus === "scholarship_approved" ||
-                  o.financeHandoverApproved;
+                const canHandoverDirect = canHandoverBookOrder(o);
                 const isPickedUp = o.fulfillmentStatus === "picked_up";
 
                 return (

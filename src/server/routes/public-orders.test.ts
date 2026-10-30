@@ -103,6 +103,29 @@ describe("Public Orders & Student Search API", () => {
     expect(orderJson.data.notification).toBeDefined();
     expect(orderJson.data.notification.success).toBe(true);
 
+    // Rule 21 & ADR-0018: Submit dengan allocationAmount kanonik langsung lunas saat nominal penuh
+    const lunasRes = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId: hendraId,
+        packageId: pkgId,
+        orderType: "regular",
+        payment: {
+          transferAmount: 1500000,
+          allocationAmount: 1500000,
+          bankName: "Mandiri",
+          referenceNumber: `TRX-MDR-${Date.now()}`,
+          paymentProofBase64: "data:image/jpeg;base64,dGVzdC1sdW5hcy1wcm9vZg==",
+        },
+      }),
+    });
+    expect(lunasRes.status).toBe(201);
+    const lunasJson = await lunasRes.json();
+    expect(lunasJson.data.totalAmount).toBe(1500000);
+    expect(lunasJson.data.paidAmount).toBe(1500000);
+    expect(lunasJson.data.paymentStatus).toBe("paid");
+
     // 6. Test Scholarship Order submission (100% discount, requires proof)
     const beasiswaStudentId = `st-beasiswa-${Date.now()}`;
     await db.insert(students).values({

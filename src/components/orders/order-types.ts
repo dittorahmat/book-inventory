@@ -30,6 +30,6 @@ export interface StudentOrder {
   notes?: string;
   /** Jumlah klaim bukti bayar ortu yang masih menunggu verifikasi staf. */
   pendingCount?: number;
-  financeHandoverApproved?: boolean | number | null;
+  financeHandoverApproved?: boolean | null;
   createdAt: string;
 }

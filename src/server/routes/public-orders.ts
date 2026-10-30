@@ -74,11 +74,18 @@ const submitOrderSchema = z
     payment: z
       .object({
         transferAmount: z.number().int().min(0),
-        bookAllocationAmount: z.number().int().min(0),
+        allocationAmount: z.number().int().min(0).optional(),
+        /** @deprecated alias backward-compatible untuk allocationAmount (Rule 21) */
+        bookAllocationAmount: z.number().int().min(0).optional(),
         bankName: z.string().optional(),
         referenceNumber: z.string().optional(),
         paymentProofBase64: z.string().optional(),
       })
+      .transform((p) => ({
+        ...p,
+        allocationAmount: p.allocationAmount ?? p.bookAllocationAmount ?? 0,
+        bookAllocationAmount: p.allocationAmount ?? p.bookAllocationAmount ?? 0,
+      }))
       .optional(),
     notes: z.string().optional(),
   })
@@ -198,7 +205,15 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
   let notification: SendWhatsAppResult | null = null;
   const recipientPhone = body.parentPhoneManual?.trim() || st?.parentPhone;
   if (recipientPhone) {
-    const waText = `Halo Bapak/Ibu ${st?.parentName || "Wali Murid"},\n\nKonfirmasi Pembayaran Buku untuk ananda ${st?.name || "Siswa"} telah berhasil diterima!\n\nNo. Order / Bukti Pengambilan: *${result.data.order.orderNumber}*\nTotal Tagihan: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${result.data.paymentStatus === "paid" ? "Lunas" : "Menunggu Verifikasi / Parsial"}\n\n*PENTING:* Wajib menunjukkan Bukti Pengambilan dan No. Order ini kepada petugas Admin Cabang untuk serah terima paket buku fisik.\n\nTerima kasih,\nAl Wildan Logistics`;
+    const paymentLabel =
+      result.data.paymentStatus === "paid"
+        ? "Lunas"
+        : result.data.paymentStatus === "partial"
+          ? `Cicilan (${formatRupiah(result.data.paidAmount)} terbayar)`
+          : result.data.paymentStatus === "scholarship_approved"
+            ? "Beasiswa (Disetujui)"
+            : "Belum Bayar / Menunggu Verifikasi";
+    const waText = `Halo Bapak/Ibu ${st?.parentName || "Wali Murid"},\n\nKonfirmasi Pembayaran Buku untuk ananda ${st?.name || "Siswa"} telah berhasil diterima!\n\nNo. Order / Bukti Pengambilan: *${result.data.order.orderNumber}*\nTotal Tagihan: ${formatRupiah(result.data.totalAmount)}\nStatus Pembayaran: ${paymentLabel}\n\n*PENTING:* Wajib menunjukkan Bukti Pengambilan dan No. Order ini kepada petugas Admin Cabang untuk serah terima paket buku fisik.\n\nTerima kasih,\nAl Wildan Logistics`;
     try {
       notification = await new MetaWhatsAppSender(db).send({ to: recipientPhone, text: waText });
     } catch (e: unknown) {

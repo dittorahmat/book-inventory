@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { packageItems, studentBookOrders, students } from "../../db/schema";
+import { canHandoverBookOrder } from "../../lib/order-handover-guard";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, isoTimeFragment } from "../lib/document-number";
@@ -67,12 +68,7 @@ export async function handoverPackage(
   // Sesuai ADR-0018: Buku dapat diambil oleh pemegang Bukti Pengambilan resmi
   // baik yang sudah lunas (paid), cicilan (partial), maupun beasiswa (scholarship_approved).
   // Status unpaid murni (tanpa bukti & tanpa diskresi) tetap ditahan.
-  const canHandover =
-    order.paymentStatus === "paid" ||
-    order.paymentStatus === "partial" ||
-    order.paymentStatus === "scholarship_approved" ||
-    order.financeHandoverApproved;
-  if (!canHandover) {
+  if (!canHandoverBookOrder(order)) {
     return {
       ok: false,
       status: 400,

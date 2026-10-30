@@ -29,14 +29,14 @@ export function validateSatuanCutoff(
 export interface PaymentDerivation {
   totalAmount: number;
   paidAmount: number;
-  paymentStatus: "unpaid" | "partial" | "paid" | "scholarship_approved" | "scholarship_pending";
+  paymentStatus: "unpaid" | "partial" | "paid" | "scholarship_approved";
 }
 
 /** Status pembayaran awal dari nominal kotor dan alokasi transfer orang tua. Murni: tanpa DB.
  * Sesuai model rekonsiliasi buku (ADR-0018):
- * - Beasiswa langsung diakui sebagai scholarship_approved.
+ * - Beasiswa langsung diakui sebagai scholarship_approved (validasi kelengkapan dokumen dijalankan oleh validateScholarshipProof).
  * - Pembayaran reguler dengan nominal transfer yang dialokasikan:
- *   - allocationAmount >= grossAmount: "paid", paidAmount = grossAmount.
+ *   - allocationAmount >= grossAmount: "paid", paidAmount mencatat nominal riil yang dialokasikan (tanpa pemotongan).
  *   - 0 < allocationAmount < grossAmount: "partial", paidAmount = allocationAmount.
  *   - allocationAmount <= 0 / tanpa bukti: "unpaid", paidAmount = 0.
  */
@@ -50,7 +50,7 @@ export function derivePaymentStatus(input: {
   }
   const allocated = Math.max(0, input.allocationAmount ?? 0);
   if (allocated >= input.grossAmount && input.grossAmount > 0) {
-    return { totalAmount: input.grossAmount, paidAmount: input.grossAmount, paymentStatus: "paid" };
+    return { totalAmount: input.grossAmount, paidAmount: allocated, paymentStatus: "paid" };
   }
   if (allocated > 0) {
     return { totalAmount: input.grossAmount, paidAmount: allocated, paymentStatus: "partial" };

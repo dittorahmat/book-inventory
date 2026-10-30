@@ -130,6 +130,15 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     Penyedia baris buku wajib (`ensureWprBook`) wajib idempoten dengan `onConflictDoUpdate` agar
     kolom `publicTitle` dan harga selalu tersinkronkan pada database lama maupun baru. Setiap
     perubahan mapping DTO katalog publik wajib disertai unit regression test di `public-orders.test.ts`.
+29. **Disiplin Rekonsiliasi Mandiri & Guard Serah Terima Buku (ADR-0018)** — intake pesanan buku portal
+    publik (`/api/public/orders/submit`) berfungsi sebagai self-service confirmation & reconciliation ledger:
+    alokasi transfer penuh langsung berstatus `paid` (dengan nominal `paidAmount` riil alokasi yang dibayar),
+    alokasi sebagian langsung berstatus `partial` (cicilan), dan beasiswa valid langsung `scholarship_approved`.
+    Aturan kelayakan penyerahan buku fisik wajib memusat ke helper kanonik tunggal `canHandoverBookOrder`
+    (`src/lib/order-handover-guard.ts`) yang dipakai bersama oleh server (`order-handover.ts`) dan klien UI
+    (`StudentOrdersTable.tsx`), dilarang menduplikasi predikat status inline di view maupun handler.
+    Penyerahan fisik diizinkan bagi pemegang Bukti Pengambilan dengan status `paid`, `partial`,
+    `scholarship_approved`, atau diskresi finance; status `unpaid` murni (tanpa bukti bayar/diskresi) tetap ditahan.
 
 ---
 

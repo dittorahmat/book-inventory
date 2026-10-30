@@ -37,7 +37,9 @@ export interface LooseOrderItemInput {
 
 export interface PaymentSubmissionInput {
   transferAmount: number;
-  bookAllocationAmount: number;
+  allocationAmount?: number;
+  /** @deprecated gunakan allocationAmount sesuai Rule 21 */
+  bookAllocationAmount?: number;
   bankName?: string;
   referenceNumber?: string;
   paymentProofBase64?: string;
@@ -178,16 +180,17 @@ export async function submitPublicOrder(
   // Sesuai ADR-0018: Bukti transfer dengan alokasi penuh langsung dianggap lunas (`paid`),
   // alokasi sebagian dianggap cicilan (`partial`), dan beasiswa langsung `scholarship_approved`.
   const grossAmount = grossOrderAmount(pkg?.price ?? 0, looseLines);
+  const normalizedAllocation = input.payment?.allocationAmount ?? input.payment?.bookAllocationAmount ?? 0;
   const { totalAmount, paidAmount, paymentStatus } = derivePaymentStatus({
     isScholarship,
     grossAmount,
-    allocationAmount: input.payment?.bookAllocationAmount,
+    allocationAmount: normalizedAllocation,
   });
 
   // 7b. Bentuk struk SEBELUM efek samping: validasi nominal + alokasi terjadi
   // sebelum upload bukti, sehingga 400 tidak meninggalkan objek yatim. Baris
   // struk tetap milik kernel ledger (ADR-0012), bukan dirakit di sini.
-  const needsPayment = !isScholarship && !!input.payment && input.payment.bookAllocationAmount > 0;
+  const needsPayment = !isScholarship && !!input.payment && normalizedAllocation > 0;
   const receiptId = needsPayment ? genPaymentId() : null;
   const receiptDraft =
     receiptId === null
@@ -201,7 +204,7 @@ export async function submitPublicOrder(
               {
                 orderId,
                 kind: "buku",
-                amount: input.payment?.bookAllocationAmount ?? 0,
+                amount: normalizedAllocation,
                 billAmount: totalAmount,
               },
             ],
