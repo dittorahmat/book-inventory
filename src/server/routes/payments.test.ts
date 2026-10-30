@@ -316,4 +316,78 @@ describe("Payments & Cashier Verification API", () => {
       await cleanup(schoolId, studentId, orderId);
     }
   });
+
+  it("mendukung antrean refund Finance dan pencairan dana berdasarkan Slip RET-B", async () => {
+    const stamp = Date.now() + 10;
+    const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 250000, null);
+    const slipNumber = `RET-B-FIN-${stamp}`;
+    const { systemSettings, bookReturns } = await import("../../db/schema");
+
+    // Seed slip di system_settings dan status approved di book_returns
+    await db.insert(bookReturns).values({
+      id: `br-fin-${stamp}`,
+      orderId,
+      studentId,
+      defectiveBookId: "book-wpr-weekly-report",
+      reason: "[PENGUNDURAN DIRI] Pindah kota",
+      status: "approved",
+      refundAmount: 250000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(systemSettings).values({
+      key: `withdrawal_slip_book_${slipNumber}`,
+      value: JSON.stringify({
+        slipNumber,
+        orderId,
+        orderNumber: `ORD-REV-${String(stamp).slice(-6)}`,
+        studentId,
+        studentName: "Budi Review",
+        nis: `NIS-REV-${stamp}`,
+        schoolId,
+        refundAmount: 250000,
+        approvedAt: now,
+      }),
+      description: "Slip pengembalian buku murid mundur",
+      updatedAt: now,
+    });
+
+    try {
+      // 1. Ambil antrean refund finance
+      const qRes = await paymentsRouter.request("/refund-queue");
+      expect(qRes.status).toBe(200);
+      const qJson = (await qRes.json()) as { success: boolean; data: Array<{ slipNumber: string; refundAmount: number; status: string }> };
+      expect(qJson.success).toBe(true);
+      const item = qJson.data.find((x) => x.slipNumber === slipNumber);
+      expect(item).toBeDefined();
+      expect(item?.refundAmount).toBe(250000);
+      expect(item?.status).toBe("approved");
+
+      // 2. Eksekusi pencairan refund oleh Finance
+      const disburseRes = await paymentsRouter.request("/disburse-refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "buku",
+          slipNumber,
+          bankName: "BCA",
+          referenceNumber: `REF-TRF-${stamp}`,
+          notes: "Transfer refund pengunduran diri via BCA",
+        }),
+      });
+      expect(disburseRes.status).toBe(200);
+      const disburseJson = (await disburseRes.json()) as { success: boolean; message: string; data: { receiptId: string } };
+      expect(disburseJson.success).toBe(true);
+      expect(disburseJson.data.receiptId).toBeDefined();
+
+      // 3. Verifikasi status book_returns menjadi refunded
+      const [updatedBr] = await db.select().from(bookReturns).where(eq(bookReturns.id, `br-fin-${stamp}`));
+      expect(updatedBr.status).toBe("refunded");
+    } finally {
+      await db.delete(systemSettings).where(eq(systemSettings.key, `withdrawal_slip_book_${slipNumber}`));
+      await db.delete(bookReturns).where(eq(bookReturns.id, `br-fin-${stamp}`));
+      await cleanup(schoolId, studentId, orderId);
+    }
+  });
 });

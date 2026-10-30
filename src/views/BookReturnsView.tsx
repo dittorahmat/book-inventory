@@ -10,6 +10,7 @@ import {
   Download,
 } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { FinanceRefundQueueSection } from "../components/orders/FinanceRefundQueueSection";
 
 type BookReturn = StaffBookReturn;
 
@@ -143,6 +144,9 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
           </button>
         </div>
       </div>
+
+      {/* Antrean Pencairan Dana Refund Finance */}
+      <FinanceRefundQueueSection />
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative w-full sm:w-72">

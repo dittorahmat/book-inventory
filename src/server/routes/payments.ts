@@ -21,8 +21,48 @@ import {
   rejectReasonSchema,
   verifyPayment,
 } from "../services/order-payment-review";
+import {
+  listFinanceRefundQueue,
+  disburseFinanceRefund,
+} from "../services/finance-refund";
 
 export const paymentsRouter = new Hono();
+
+// Antrean refund Finance dari Slip Pembatalan (RET-B-* dan RET-U-*)
+paymentsRouter.get("/refund-queue", async (c) => {
+  try {
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const schoolId = actor.schoolId ?? c.req.query("schoolId") ?? undefined;
+    const queue = await listFinanceRefundQueue(db, schoolId);
+    return c.json({ success: true, data: queue });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const disburseRefundSchema = z.object({
+  kind: z.enum(["buku", "seragam"]),
+  slipNumber: z.string().min(1, "Nomor slip wajib diisi"),
+  bankName: z.string().min(1, "Nama bank tujuan refund wajib diisi"),
+  referenceNumber: z.string().min(1, "Nomor referensi bukti transfer refund wajib diisi"),
+  proofUrl: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+// Eksekusi pencairan refund oleh Finance (terhubung ke payment-ledger)
+paymentsRouter.post("/disburse-refund", zValidator("json", disburseRefundSchema), async (c) => {
+  try {
+    await requireAuthenticatedActor(await resolveRequestActor(c));
+    const body = c.req.valid("json");
+    const result = await disburseFinanceRefund(db, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: result.message, data: { receiptId: result.receiptId } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
 
 // Schema for scholarship approval/rejection
 const scholarshipActionSchema = z.object({
