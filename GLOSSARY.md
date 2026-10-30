@@ -4,6 +4,22 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Surat Pengunduran Diri Murid**:
+Dokumen resmi pengunduran diri siswa yang wajib diunggah oleh orang tua/wali murid saat mengajukan pembatalan pesanan buku atau seragam di portal publik; menjadi syarat mutlak bagi verifikasi gudang sebelum pelepasan alokasi fisik barang.
+_Avoid_: Surat keterangan biasa, form pembatalan lisan
+
+**Slip Bukti Pengembalian Barang**:
+Dokumen tanda terima digital bernomor resmi yang digenerate otomatis oleh sistem saat gudang mengonfirmasi penerimaan fisik retur buku/seragam; menjadi instrumen bukti sah yang dibawa wali murid ke bagian Finance untuk pencairan dana refund.
+_Avoid_: Kuitansi manual, memo finance informal
+
+**Tiket Penukaran Seragam**:
+Permohonan pergantian seragam olahraga (tukar ukuran / jenis karena salah kirim) yang diajukan wali murid via portal dengan bukti resi pengiriman retur ke Gudang Pusat; diverifikasi kondisi fisiknya oleh gudang sebelum unit pengganti dikirim kembali ke siswa.
+_Avoid_: Retur bebas seragam, refund seragam dipakai
+
+**Alamat Retur Gudang Pusat**:
+Alamat resmi gudang logistik pusat yang dikonfigurasi pada pengaturan sistem (`system_settings`) dan disajikan secara publik kepada orang tua murid sebagai alamat tujuan pengiriman barang retur/penukaran.
+_Avoid_: Alamat cabang penukaran, alamat kirim manual
+
 **Bukti Pengambilan**:
 Dokumen / tanda terima resmi dengan kode konfirmasi unik (digenerate instan saat submit form publik konfirmasi pembayaran dan dikirim ke nomor WhatsApp manual inputan wali murid) yang wajib ditunjukkan ke admin cabang untuk serah-terima buku/paket fisik. Berfungsi sebagai instrumen rekonsiliasi mandiri yang mengizinkan penyerahan buku baik untuk status lunas (`paid`), cicilan (`partial`), maupun beasiswa (`scholarship_approved`).
 _Avoid_: Invoice wali, bukti bayar manual, penahanan buku cicilan
