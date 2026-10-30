@@ -58,6 +58,7 @@ if (has(/^src\//)) {
   runBun("check:doc-numbers");
   runBun("check:single-writer");
   runBun("check:string-packing");
+  runBun("check:no-silent-catch");
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
