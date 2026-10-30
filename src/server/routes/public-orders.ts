@@ -25,6 +25,7 @@ import { idSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
 import { getWarehouseReturnAddress } from "../services/return-address";
 import { reportReturn } from "../services/return";
+import { requestBookWithdrawal } from "../services/book-withdrawal";
 import {
   searchVerifiedStudents,
   toBookSearchView,
@@ -343,6 +344,31 @@ publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema)
         orderNumber: result.orderNumber,
         status: result.created.status,
       },
+    },
+    201
+  );
+});
+
+// 6. Pengajuan pembatalan buku oleh siswa mengundurkan diri (ADR-0019)
+const cancelWithdrawalSchema = z.object({
+  orderId: idSchema,
+  studentId: idSchema,
+  reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
+  letterProofBase64: z.string().optional(),
+});
+
+publicOrdersRouter.post("/cancel-withdrawal", zValidator("json", cancelWithdrawalSchema), async (c) => {
+  const body = c.req.valid("json");
+  const result = await requestBookWithdrawal(db, body);
+  if (!result.ok) {
+    return c.json({ success: false, message: result.message }, result.status);
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: "Pengajuan pembatalan buku siswa mengundurkan diri berhasil dikirim untuk review gudang.",
+      data: result,
     },
     201
   );

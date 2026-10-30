@@ -26,14 +26,15 @@ export interface BookReturnStatusView {
   text: string;
   cls: string;
   returnable: boolean;
+  withdrawable: boolean;
   blockedReason: string | null;
 }
 
 /**
  * Satu-satunya pemilik aturan status refund di portal. Sengaja lebih ketat dari
  * `ORDER_REPORTABLE_STATUSES` di sisi server: sumber publik hanya menerima
- * `picked_up`, sehingga satu pesanan tidak bisa mengirim pengajuan ganda
- * (`return_in_progress` sudah punya pengajuan aktif).
+ * `picked_up` untuk refund buku rusak, namun pembatalan siswa mundur diizinkan
+ * sebelum maupun sesudah serah terima (selama bukan `return_in_progress`).
  */
 export const bookReturnStatus = (status: string): BookReturnStatusView => {
   if (status === "picked_up") {
@@ -41,6 +42,7 @@ export const bookReturnStatus = (status: string): BookReturnStatusView => {
       text: "Sudah diserahkan",
       cls: "text-emerald-700 bg-emerald-50 border-emerald-200",
       returnable: true,
+      withdrawable: true,
       blockedReason: null,
     };
   }
@@ -49,6 +51,7 @@ export const bookReturnStatus = (status: string): BookReturnStatusView => {
       text: "Refund sedang diproses",
       cls: "text-[#1877F2] bg-[#E7F3FF] border-[#C3DFFF]",
       returnable: false,
+      withdrawable: false,
       blockedReason: "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diperiksa logistik.",
     };
   }
@@ -56,6 +59,7 @@ export const bookReturnStatus = (status: string): BookReturnStatusView => {
     text: "Belum diserahkan",
     cls: "text-amber-700 bg-amber-50 border-amber-200",
     returnable: false,
-    blockedReason: "Buku belum diserahkan ke siswa, jadi belum bisa diajukan refund.",
+    withdrawable: true,
+    blockedReason: "Buku belum diserahkan ke siswa, jadi belum bisa diajukan refund kerusakan biasa.",
   };
 };

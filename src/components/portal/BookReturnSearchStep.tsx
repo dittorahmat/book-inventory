@@ -129,7 +129,7 @@ export function BookReturnSearchStep({
                   <button
                     type="button"
                     onClick={() => onSelectOrder(order)}
-                    disabled={!status.returnable}
+                    disabled={!status.returnable && !status.withdrawable}
                     title={status.blockedReason ?? undefined}
                     className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >

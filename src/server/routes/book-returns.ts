@@ -11,6 +11,7 @@ import {
   schools,
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
+import { approveBookWithdrawal, getBookWithdrawalSlip } from "../services/book-withdrawal";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -207,6 +208,51 @@ bookReturnsRouter.post("/:id/resolve", zValidator("json", resolveReturnSchema), 
       message: result.message,
       data: result.data,
     });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 5. POST Approve Book Withdrawal & Auto Unassign Stock (ADR-0019)
+bookReturnsRouter.post("/:id/approve-withdrawal", async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const returnId = c.req.param("id");
+
+    const [ret] = await db.select().from(bookReturns).where(eq(bookReturns.id, returnId));
+    if (!ret) {
+      return c.json({ success: false, message: "Laporan retur tidak ditemukan" }, 404);
+    }
+    const scoped = await loadScopedOrder(db, actor, locations, ret.orderId);
+    if (!scoped.ok) {
+      return c.json({ success: false, message: scoped.message }, scoped.status);
+    }
+
+    const result = await approveBookWithdrawal(db, returnId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: result.message,
+      data: result.slip,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 6. GET Book Withdrawal Slip details
+bookReturnsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
+  try {
+    await requireScopedActor(db, c);
+    const slipNumber = c.req.param("slipNumber");
+    const slip = await getBookWithdrawalSlip(db, slipNumber);
+    if (!slip) {
+      return c.json({ success: false, message: "Slip bukti pengembalian buku tidak ditemukan" }, 404);
+    }
+    return c.json({ success: true, data: slip });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

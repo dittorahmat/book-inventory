@@ -48,6 +48,8 @@ const form = (overrides: Partial<BookReturnFormApi> = {}): BookReturnFormApi => 
   photoBase64: "",
   handlePhoto: () => {},
   submitting: false,
+  isWithdrawal: false,
+  setIsWithdrawal: () => {},
   ...overrides,
 });
 

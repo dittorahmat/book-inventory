@@ -57,8 +57,27 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
       );
       setActiveReturn(null);
       loadReturns();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Gagal menyetujui pembatalan buku siswa mengundurkan diri");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveWithdrawal = async () => {
+    if (!activeReturn) return;
+    setIsSubmitting(true);
+    try {
+      const res = await postJson<{ success: boolean; data: { slipNumber: string }; message: string }>(
+        `/api/student-orders/returns/${activeReturn.id}/approve-withdrawal`,
+        {},
+        "Gagal menyetujui pembatalan buku siswa mengundurkan diri"
+      );
+      alert(res.message || `Berhasil disetujui. Slip: ${res.data?.slipNumber}`);
+      setActiveReturn(null);
+      loadReturns();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Gagal menyetujui pembatalan buku siswa mengundurkan diri");
     } finally {
       setIsSubmitting(false);
     }
@@ -286,31 +305,44 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
                 >
                   Tolak
                 </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => {
-                    const input = prompt("Masukkan nominal pengembalian dana (Rp):", "50000");
-                    if (input !== null) {
-                      const amt = parseInt(input, 10);
-                      if (!isNaN(amt) && amt >= 0) {
-                        handleResolve("refund", amt);
-                      }
-                    }
-                  }}
-                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold active:scale-[0.98]"
-                >
-                  Setujui Refund Dana
-                </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleResolve("replace")}
-                  className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 flex items-center gap-1.5 active:scale-[0.98]"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Ganti Buku Fisik</span>
-                </button>
+                {activeReturn.reason.includes("[PENGUNDURAN DIRI]") ? (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleApproveWithdrawal}
+                    className="px-3.5 py-2 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-xl font-semibold active:scale-[0.98]"
+                  >
+                    Setujui Pembatalan & Unassign Stok
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        const input = prompt("Masukkan nominal pengembalian dana (Rp):", "50000");
+                        if (input !== null) {
+                          const amt = parseInt(input, 10);
+                          if (!isNaN(amt) && amt >= 0) {
+                            handleResolve("refund", amt);
+                          }
+                        }
+                      }}
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold active:scale-[0.98]"
+                    >
+                      Setujui Refund Dana
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => handleResolve("replace")}
+                      className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 flex items-center gap-1.5 active:scale-[0.98]"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Ganti Buku Fisik</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
