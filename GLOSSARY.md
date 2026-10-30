@@ -5,8 +5,12 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 ## Language
 
 **Bukti Pengambilan**:
-Dokumen / tanda terima resmi dengan kode konfirmasi unik (digenerate instan saat submit form publik konfirmasi pembayaran dan dikirim ke nomor WhatsApp manual inputan wali murid) yang wajib ditunjukkan ke admin cabang untuk serah-terima buku/paket fisik. Menggantikan terminologi invoice di sisi wali murid.
-_Avoid_: Invoice wali, bukti bayar manual
+Dokumen / tanda terima resmi dengan kode konfirmasi unik (digenerate instan saat submit form publik konfirmasi pembayaran dan dikirim ke nomor WhatsApp manual inputan wali murid) yang wajib ditunjukkan ke admin cabang untuk serah-terima buku/paket fisik. Berfungsi sebagai instrumen rekonsiliasi mandiri yang mengizinkan penyerahan buku baik untuk status lunas (`paid`), cicilan (`partial`), maupun beasiswa (`scholarship_approved`).
+_Avoid_: Invoice wali, bukti bayar manual, penahanan buku cicilan
+
+**Rekonsiliasi Gudang**:
+Pencatatan dan audit berkala atas status pembayaran buku (lunas, parsial, beasiswa, atau diskon) yang mendampingi penyerahan fisik, difasilitasi oleh nomor Surat Jalan Serah Terima (`SJ-SERAH`) tanpa memblokir hak siswa menerima bahan ajar.
+_Avoid_: Kasir verifikasi gerbang, validasi serah terima kaku
 
 **Surat Keterangan Finance**:
 Dokumen otorisasi dari bagian Finance (diunggah bersama/sebagai ganti bukti transfer) yang memicu flag khusus admin (cicilan parsial atau pembayaran ditunda) sehingga Bukti Pengambilan buku tetap dapat terbit dan buku dapat diserahkan ke siswa.

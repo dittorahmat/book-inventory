@@ -96,11 +96,35 @@ describe("Public Orders & Student Search API", () => {
     expect(orderRes.status).toBe(201);
     const orderJson = await orderRes.json();
     expect(orderJson.data.totalAmount).toBe(1500000);
-    expect(orderJson.data.paidAmount).toBe(0);
-    expect(orderJson.data.paymentStatus).toBe("unpaid");
+    // ADR-0018: Alokasi 800.000 dari 1.500.000 dicatat sebagai partial (cicilan)
+    expect(orderJson.data.paidAmount).toBe(800000);
+    expect(orderJson.data.paymentStatus).toBe("partial");
     // Notifikasi dilaporkan ke pemanggil, tidak fire-and-forget (simulasi di test).
     expect(orderJson.data.notification).toBeDefined();
     expect(orderJson.data.notification.success).toBe(true);
+
+    // Rule 21 & ADR-0018: Submit dengan allocationAmount kanonik langsung lunas saat nominal penuh
+    const lunasRes = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId: hendraId,
+        packageId: pkgId,
+        orderType: "regular",
+        payment: {
+          transferAmount: 1500000,
+          allocationAmount: 1500000,
+          bankName: "Mandiri",
+          referenceNumber: `TRX-MDR-${Date.now()}`,
+          paymentProofBase64: "data:image/jpeg;base64,dGVzdC1sdW5hcy1wcm9vZg==",
+        },
+      }),
+    });
+    expect(lunasRes.status).toBe(201);
+    const lunasJson = await lunasRes.json();
+    expect(lunasJson.data.totalAmount).toBe(1500000);
+    expect(lunasJson.data.paidAmount).toBe(1500000);
+    expect(lunasJson.data.paymentStatus).toBe("paid");
 
     // 6. Test Scholarship Order submission (100% discount, requires proof)
     const beasiswaStudentId = `st-beasiswa-${Date.now()}`;
@@ -133,7 +157,8 @@ describe("Public Orders & Student Search API", () => {
     expect(schRes.status).toBe(201);
     const schJson = await schRes.json();
     expect(schJson.data.totalAmount).toBe(0); // 100% discount
-    expect(schJson.data.paymentStatus).toBe("scholarship_pending");
+    // ADR-0018: Beasiswa dengan dokumen langsung disetujui
+    expect(schJson.data.paymentStatus).toBe("scholarship_approved");
 
     // 7. Test Public Order Lookup by NIS or OrderNumber (partitioned by schoolId)
     const lookupRes = await publicOrdersRouter.request(`/lookup-order?query=${encodeURIComponent("20241001")}&schoolId=${schoolId}`, {
@@ -346,7 +371,8 @@ describe("Public Orders & Student Search API", () => {
     expect(accepted.status).toBe(201);
     const acceptedJson = await accepted.json();
     expect(acceptedJson.data.totalAmount).toBe(0);
-    expect(acceptedJson.data.paymentStatus).toBe("scholarship_pending");
+    // ADR-0018: Bukti beasiswa yang valid langsung disetujui (scholarship_approved)
+    expect(acceptedJson.data.paymentStatus).toBe("scholarship_approved");
   });
 
   it("locks unverified students out of search and submit", async () => {
@@ -880,8 +906,9 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
       expect(result.data.order.id).toBe(orderId);
       expect(result.data.order.orderNumber).toBe(orderNo);
       expect(result.data.totalAmount).toBe(120000 + 750000);
-      expect(result.data.paidAmount).toBe(0);
-      expect(result.data.paymentStatus).toBe("unpaid");
+      // ADR-0018: Alokasi 120.000 dari total 870.000 dicatat sebagai partial (cicilan)
+      expect(result.data.paidAmount).toBe(120000);
+      expect(result.data.paymentStatus).toBe("partial");
       expect(result.data.wprCharged).toBe(true);
 
       const items = await db

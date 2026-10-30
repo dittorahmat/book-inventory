@@ -22,9 +22,15 @@ describe("order-validation murni", () => {
     expect(validateSatuanCutoff(true, { open: true, reason: "" })).toEqual({ ok: true });
   });
 
-  test("derivasi pembayaran: beasiswa & reguler selalu belum terbayar (uang sah hanya setelah verifikasi)", () => {
+  test("derivasi pembayaran (ADR-0018 rekonsiliasi): beasiswa langsung approved, reguler sesuai alokasi", () => {
     expect(derivePaymentStatus({ isScholarship: true, grossAmount: 900000 }))
-      .toEqual({ totalAmount: 0, paidAmount: 0, paymentStatus: "scholarship_pending" });
+      .toEqual({ totalAmount: 0, paidAmount: 0, paymentStatus: "scholarship_approved" });
+    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, allocationAmount: 900000 }))
+      .toEqual({ totalAmount: 900000, paidAmount: 900000, paymentStatus: "paid" });
+    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, allocationAmount: 500000 }))
+      .toEqual({ totalAmount: 900000, paidAmount: 500000, paymentStatus: "partial" });
+    expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000, allocationAmount: 0 }))
+      .toEqual({ totalAmount: 900000, paidAmount: 0, paymentStatus: "unpaid" });
     expect(derivePaymentStatus({ isScholarship: false, grossAmount: 900000 }))
       .toEqual({ totalAmount: 900000, paidAmount: 0, paymentStatus: "unpaid" });
   });

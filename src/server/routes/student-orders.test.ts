@@ -326,16 +326,16 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
       schoolId,
       packageId: pkgId,
       orderType: "regular",
-      paymentStatus: "partial",
+      paymentStatus: "unpaid",
       fulfillmentStatus: "waiting_preparation",
       totalAmount: 500000,
-      paidAmount: 200000,
+      paidAmount: 0,
       financeHandoverApproved: false,
       createdAt: now,
       updatedAt: now,
     });
 
-    // 1. Handover harus DIBLOKIR karena belum lunas dan belum di-ACC finance
+    // 1. Handover harus DIBLOKIR untuk status unpaid murni (belum bayar & belum ada diskresi finance)
     const blockedHandover = await studentOrdersRouter.request(`/${orderId}/handover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,7 +343,7 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     });
     expect(blockedHandover.status).toBe(400);
     const blockedJson = await blockedHandover.json();
-    expect(blockedJson.message).toContain("belum ada diskresi");
+    expect(blockedJson.message).toContain("belum ada konfirmasi");
 
     // 2. Beri diskresi: handover_override
     const overrideRes = await studentOrdersRouter.request(`/${orderId}/discretion`, {
