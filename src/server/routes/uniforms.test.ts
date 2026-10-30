@@ -355,6 +355,32 @@ describe("Uniform exchange & refund", () => {
       body: JSON.stringify({ orderId, oldVariantId: olId, oldSize: "M", newVariantId: olId, newSize: "S", reason: "X" }),
     });
     expect(cross.status).toBe(403);
+
+    // Approval pembatalan seragam murid mundur & penerbitan slip RET-U
+    mockActor("central_admin", null);
+    const rfWithdrawReq = await uniformsRouter.request("/refunds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, amount: 100000, reason: "[PENGUNDURAN DIRI] [RESI: SICEPAT-991] Pindah sekolah" }),
+    });
+    expect(rfWithdrawReq.status).toBe(201);
+    const wId = ((await rfWithdrawReq.json()).data as { id: string }).id;
+
+    mockActor("warehouse_admin", null);
+    const approveWdr = await uniformsRouter.request(`/refunds/${wId}/approve-withdrawal`, {
+      method: "POST",
+    });
+    expect(approveWdr.status).toBe(200);
+    const appWJson = (await approveWdr.json()) as { success: boolean; data: { slipNumber: string; courierResi: string } };
+    expect(appWJson.success).toBe(true);
+    expect(appWJson.data.slipNumber).toMatch(/^RET-U-/);
+    expect(appWJson.data.courierResi).toBe("SICEPAT-991");
+
+    // Detail slip via GET /withdrawal-slip/:slipNumber
+    const getSlip = await uniformsRouter.request(`/withdrawal-slip/${appWJson.data.slipNumber}`, { method: "GET" });
+    expect(getSlip.status).toBe(200);
+    const slipPayload = (await getSlip.json()) as { success: boolean; data: { orderNumber: string } };
+    expect(slipPayload.data.orderNumber).toBeDefined();
   });
 });
 

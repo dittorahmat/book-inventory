@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchBookChoices, lookupReturnableOrders, submitReturnReport } from "./portal-api";
+import { postJson } from "../../lib/api";
 import { BOOK_RETURN_MAX_PHOTO_BYTES, BOOK_RETURN_MIN_QUERY } from "../../lib/book-return";
 import type { BookPackageOption, PortalBookChoice, PortalOrderLookup } from "../../lib/portal-types";
 
@@ -27,6 +28,8 @@ export type BookReturnFormApi = Pick<
   | "photoBase64"
   | "handlePhoto"
   | "submitting"
+  | "isWithdrawal"
+  | "setIsWithdrawal"
 >;
 
 /**
@@ -48,6 +51,7 @@ export function useBookReturn(packages: BookPackageOption[] = []) {
   const [selectedBookId, setSelectedBookId] = useState("");
   const [reason, setReason] = useState("");
   const [photoBase64, setPhotoBase64] = useState("");
+  const [isWithdrawal, setIsWithdrawal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<SubmitSuccess | null>(null);
 
@@ -131,29 +135,47 @@ export function useBookReturn(packages: BookPackageOption[] = []) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || submitting) return;
-    if (!selectedBookId) {
+    if (!isWithdrawal && !selectedBookId) {
       setError("Pilih judul buku yang dikembalikan.");
       return;
     }
     if (reason.trim().length < MIN_REASON_CHARS) {
-      setError(`Alasan pengembalian minimal ${MIN_REASON_CHARS} karakter.`);
+      setError(`Alasan ${isWithdrawal ? "pengunduran diri" : "pengembalian"} minimal ${MIN_REASON_CHARS} karakter.`);
       return;
     }
     if (!photoBase64) {
-      setError("Foto kondisi fisik buku wajib diunggah sebagai bukti.");
+      setError(
+        isWithdrawal
+          ? "Surat Pengunduran Diri wajib diunggah sebagai bukti."
+          : "Foto kondisi fisik buku wajib diunggah sebagai bukti."
+      );
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const result = await submitReturnReport({
-        orderId: selectedOrder.id,
-        studentId: selectedOrder.studentId,
-        defectiveBookId: selectedBookId,
-        reason: reason.trim(),
-        photoProofBase64: photoBase64,
-      });
-      setSuccess({ returnId: result.returnId, orderNumber: result.orderNumber });
+      if (isWithdrawal) {
+        const result = await postJson<{ success: boolean; data: { orderId: string; orderNumber: string } }>(
+          "/api/public/orders/cancel-withdrawal",
+          {
+            orderId: selectedOrder.id,
+            studentId: selectedOrder.studentId,
+            reason: reason.trim(),
+            letterProofBase64: photoBase64,
+          },
+          "Gagal mengirim pengajuan pembatalan buku siswa mengundurkan diri."
+        );
+        setSuccess({ returnId: result.data.orderId, orderNumber: result.data.orderNumber });
+      } else {
+        const result = await submitReturnReport({
+          orderId: selectedOrder.id,
+          studentId: selectedOrder.studentId,
+          defectiveBookId: selectedBookId,
+          reason: reason.trim(),
+          photoProofBase64: photoBase64,
+        });
+        setSuccess({ returnId: result.returnId, orderNumber: result.orderNumber });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mengirimkan pengajuan refund buku.");
     } finally {
@@ -203,6 +225,8 @@ export function useBookReturn(packages: BookPackageOption[] = []) {
     photoBase64,
     handlePhoto,
     submitting,
+    isWithdrawal,
+    setIsWithdrawal,
     success,
     submit,
     backToSearch,

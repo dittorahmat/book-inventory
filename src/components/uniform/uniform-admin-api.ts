@@ -146,8 +146,24 @@ export const fetchUniformExchanges = (params: { schoolId?: string; status?: stri
 export const requestUniformExchange = (payload: unknown): Promise<unknown> =>
   postJson("/api/uniforms/exchanges", payload, "Gagal mengajukan tukar ukuran.");
 
-export const resolveUniformExchange = (id: string, action: "approve" | "complete" | "reject"): Promise<unknown> =>
-  postJson(`/api/uniforms/exchanges/${id}/resolve`, { action }, "Gagal memproses tukar ukuran.");
+export const resolveUniformExchange = (
+  id: string,
+  action: "approve" | "complete" | "reject" | "approve_ready" | "approve_backorder",
+  extra?: { replacementResi?: string; estimatedShipDate?: string }
+): Promise<unknown> =>
+  postJson(`/api/uniforms/exchanges/${id}/resolve`, { action, ...extra }, "Gagal memproses tukar ukuran.");
+
+export const checkSportsExchangeStock = (id: string): Promise<{
+  available: boolean;
+  quantity: number;
+  details: {
+    courierResi?: string;
+    fulfillmentType?: "ready" | "backorder";
+    replacementResi?: string;
+    estimatedShipDate?: string;
+  };
+}> =>
+  getJson(`/api/uniforms/exchanges/${id}/check-stock`, "Gagal memeriksa stok pengganti seragam.");
 
 export interface UniformRefundRow {
   id: string; orderId: string; refundNumber: string; amount: number; reason: string; status: string;
@@ -161,6 +177,9 @@ export const requestUniformRefund = (payload: unknown): Promise<unknown> =>
 
 export const resolveUniformRefund = (id: string, action: "approve" | "refund" | "reject"): Promise<unknown> =>
   postJson(`/api/uniforms/refunds/${id}/resolve`, { action }, "Gagal memproses refund.");
+
+export const approveUniformWithdrawal = (id: string): Promise<{ success: boolean; data: { slipNumber: string }; message: string }> =>
+  postJson(`/api/uniforms/refunds/${id}/approve-withdrawal`, {}, "Gagal menyetujui pengembalian seragam murid mundur.");
 
 export interface UniformSalesReport {
   period: { from: string; to: string };

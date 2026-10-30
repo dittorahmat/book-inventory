@@ -1725,4 +1725,80 @@ describe("Struk bayar ganda di intake publik", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("Public return-address endpoint > terbuka tanpa login dan menyajikan alamat gudang", async () => {
+    const res = await publicOrdersRouter.request("/return-address", { method: "GET" });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: { recipientName: string; postalCode: string } };
+    expect(json.success).toBe(true);
+    expect(json.data.recipientName).toContain("Gudang");
+    expect(json.data.postalCode).toBeDefined();
+  });
+
+  it("Public cancel-withdrawal > mengajukan pembatalan buku oleh ortu dengan surat mundur", async () => {
+    const stamp = Date.now().toString(36);
+    const schoolId = `sch-wdr-${stamp}`;
+    const studentId = `stu-wdr-${stamp}`;
+    const orderId = `ord-wdr-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({ id: schoolId, name: "Sekolah WDR", code: `SW-${stamp}`, type: "branch", createdAt: now, updatedAt: now });
+    await db.insert(students).values({
+      id: studentId,
+      nis: `NIS-WDR-${stamp}`,
+      name: "Siswa Mundur",
+      schoolId,
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-WDR-${stamp}`,
+      studentId,
+      schoolId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "ready_for_pickup",
+      totalAmount: 200000,
+      paidAmount: 200000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const samplePng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+    try {
+      const res = await publicOrdersRouter.request("/cancel-withdrawal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          studentId,
+          reason: "Pindah ke luar kota karena pekerjaan orang tua",
+          letterProofBase64: samplePng,
+        }),
+      });
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { success: boolean; data: { orderId: string; status: string } };
+      expect(json.success).toBe(true);
+      expect(json.data.status).toBe("return_in_progress");
+
+      const [updatedOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(updatedOrder.fulfillmentStatus).toBe("return_in_progress");
+
+      const [retRow] = await db.select().from(bookReturns).where(eq(bookReturns.orderId, orderId));
+      expect(retRow).toBeDefined();
+      expect(retRow.reason).toContain("[PENGUNDURAN DIRI]");
+      expect(retRow.photoProofUrl).toBeDefined();
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

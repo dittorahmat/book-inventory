@@ -83,8 +83,18 @@ export const requestUniformExchange = (payload: {
   orderId: string; studentId: string;
   oldVariantId: string; oldSize: string;
   newVariantId: string; newSize: string; reason: string;
+  courierResi?: string;
 }): Promise<unknown> =>
   postJson("/api/public/uniform-orders/exchange-requests", payload, "Gagal mengajukan tukar ukuran.");
+
+export const getSportsExchangeTracking = (exchangeId: string): Promise<{
+  courierResi?: string;
+  fulfillmentType?: "ready" | "backorder";
+  replacementResi?: string;
+  estimatedShipDate?: string;
+  updatedAt?: string;
+}> =>
+  getJson(`/api/public/uniform-orders/exchange-tracking/${exchangeId}`, "Gagal memuat pelacakan status penukaran.");
 
 export const requestUniformRefund = (payload: {
   orderId: string; studentId: string; amount?: number; reason: string;

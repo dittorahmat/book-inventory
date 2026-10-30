@@ -34,6 +34,18 @@ const GENERATED_COLUMNS: DocColumn[] = [
   { prefix: "USO", table: "uniformOrders", column: "orderNumber" },
   { prefix: "UPO", table: "uniformPos", column: "poNumber" },
   { prefix: "RFD-U", table: "uniformRefunds", column: "refundNumber" },
+  {
+    prefix: "RET-B",
+    table: "systemSettings",
+    column: "value",
+    nonUniqueReason: "Slip pengembalian buku murid mundur disimpan terpusat sebagai slip ledger",
+  },
+  {
+    prefix: "RET-U",
+    table: "systemSettings",
+    column: "value",
+    nonUniqueReason: "Slip pengembalian seragam murid mundur disimpan terpusat sebagai slip ledger",
+  },
   { prefix: "CLM", table: "branchClaims", column: "claimNumber" },
   { prefix: "TGH", table: "branchCharges", column: "chargeNumber" },
   { prefix: "BA-RECON", table: "termReconciliations", column: "reconciliationNumber" },

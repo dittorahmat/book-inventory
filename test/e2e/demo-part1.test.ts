@@ -86,7 +86,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
     // Buku Rp 130.000 + Rp 120.000 + WPR Rp 750.000 = Rp 1.000.000
     expect(orderJson.data.totalAmount).toBe(1000000);
     expect(orderJson.data.wprCharged).toBe(true);
-    // ADR-0018: Alokasi transfer penuh langsung berstatus paid (Lunas)
+    // Sesuai ADR-0018 rekonsiliasi mandiri: transfer penuh (Rp 1.000.000) langsung paid (Lunas)
     expect(orderJson.data.paymentStatus).toBe("paid");
 
     // Verifikasi pembanding Salsabila (ORD-202610-102) sudah ada di demo

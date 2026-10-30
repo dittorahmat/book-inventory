@@ -189,4 +189,80 @@ describe("Book Returns & Refund API", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("approve-withdrawal > menyetujui pembatalan buku siswa mundur, unassign paket, dan menerbitkan slip RET-B", async () => {
+    const { packageItems, bookPackages, systemSettings } = await import("../../db/schema");
+    const stamp = Date.now().toString(36);
+    const schoolId = `sch-app-${stamp}`;
+    const studentId = `stu-app-${stamp}`;
+    const orderId = `ord-app-${stamp}`;
+    const bookId = `b-app-${stamp}`;
+    const pkgId = `pkg-app-${stamp}`;
+    const pkiId = `pki-app-${stamp}`;
+    const returnId = `ret-app-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({ id: schoolId, name: "Sekolah App", code: `SA-${stamp}`, type: "branch", createdAt: now, updatedAt: now });
+    await db.insert(students).values({ id: studentId, nis: `NIS-APP-${stamp}`, name: "Siswa Mundur App", schoolId, gradeLevel: "1", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now });
+    await db.insert(books).values({ id: bookId, title: "Buku App", isbn: `ISBN-${stamp}`, author: "Penulis App", publisher: "Pub", publishYear: 2026, price: 50000, createdAt: now, updatedAt: now });
+    await db.insert(bookPackages).values({ id: pkgId, code: `PKG-${stamp}`, name: "Paket App", gradeLevel: "1", academicYear: "2026/2027", price: 150000, createdAt: now, updatedAt: now });
+    await db.insert(packageItems).values({ id: pkiId, packageId: pkgId, currentSchoolId: schoolId, barcode: `BAR-APP-${stamp}`, status: "reserved", createdAt: now, updatedAt: now });
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-APP-${stamp}`,
+      studentId,
+      schoolId,
+      packageId: pkgId,
+      assignedPackageItemId: pkiId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "return_in_progress",
+      totalAmount: 150000,
+      paidAmount: 150000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookReturns).values({
+      id: returnId,
+      orderId,
+      studentId,
+      defectiveBookId: bookId,
+      reason: "[PENGUNDURAN DIRI] Pindah domisili keluarga",
+      status: "reported",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      const res = await bookReturnsRouter.request(`/${returnId}/approve-withdrawal`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { success: boolean; data: { slipNumber: string; refundAmount: number } };
+      expect(json.success).toBe(true);
+      expect(json.data.slipNumber).toMatch(/^RET-B-/);
+      expect(json.data.refundAmount).toBe(150000);
+
+      // Verifikasi stok paket otomatis kembali menjadi in_stock (stok bebas cabang)
+      const [unassignedPki] = await db.select().from(packageItems).where(eq(packageItems.id, pkiId));
+      expect(unassignedPki.status).toBe("in_stock");
+
+      // Verifikasi relasi order
+      const [updatedOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(updatedOrder.assignedPackageItemId).toBeNull();
+
+      // Verifikasi slip tersimpan di system_settings
+      const [slipSetting] = await db.select().from(systemSettings).where(eq(systemSettings.key, `withdrawal_slip_book_${json.data.slipNumber}`));
+      expect(slipSetting).toBeDefined();
+      expect(JSON.parse(slipSetting.value).orderNumber).toBe(`ORD-APP-${stamp}`);
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageItems).where(eq(packageItems.id, pkiId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

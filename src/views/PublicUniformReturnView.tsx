@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { AlertCircle, CheckCircle2, ArrowLeftRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, ArrowLeftRight, ImagePlus } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useUniformReturn } from "../components/uniform/useUniformReturn";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
+import { WarehouseReturnAddressCard } from "../components/portal/WarehouseReturnAddressCard";
 import { formatRupiah } from "../lib/transfer-pricing";
 
 const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2.5 text-sm bg-white";
@@ -95,8 +96,88 @@ export function PublicUniformReturnView() {
                   </button>
                 ))}
               </div>
+              {ret.mode === "refund" && (
+                <div className="p-3 bg-[#F7F8FA] border border-[#E4E6EB] rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-[#050505] block">Siswa Mengundurkan Diri?</span>
+                    <span className="text-[11px] text-[#65676B] block">Kembalikan fisik seragam via ekspedisi ke Gudang Pusat</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={ret.isWithdrawal}
+                      onChange={(e) => ret.setIsWithdrawal(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1877F2]"></div>
+                  </label>
+                </div>
+              )}
+
+              {ret.mode === "refund" && ret.isWithdrawal && (
+                <div className="space-y-3">
+                  <WarehouseReturnAddressCard />
+                  <div>
+                    <label className={labelCls}>
+                      No. Resi Kurir Pengiriman Retur ke Gudang Pusat <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      value={ret.courierResi}
+                      onChange={(e) => ret.setCourierResi(e.target.value)}
+                      placeholder="Contoh: JNE / J&T / SiCepat - JP12345678"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-[#050505] mb-1">Surat Pengunduran Diri Resmi</span>
+                    <div className="flex items-center gap-3">
+                      <label
+                        htmlFor="uniform-withdrawal-doc"
+                        className="px-4 py-2 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <ImagePlus className="w-4 h-4 text-[#1877F2]" />
+                        <span>{ret.letterBase64 ? "Ganti Dokumen" : "Unggah Dokumen"}</span>
+                      </label>
+                      <input
+                        id="uniform-withdrawal-doc"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Surat pengunduran diri siswa"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => ret.setLetterBase64(String(reader.result));
+                          reader.readAsDataURL(file);
+                        }}
+                        className="sr-only"
+                      />
+                      {ret.letterBase64 && (
+                        <img
+                          src={ret.letterBase64}
+                          alt="Pratinjau surat mundur"
+                          className="h-14 w-14 object-cover rounded-xl border border-[#E4E6EB]"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {ret.mode === "exchange" ? (
                 <div className="space-y-3">
+                  <WarehouseReturnAddressCard />
+                  <div>
+                    <label className={labelCls}>
+                      No. Resi Kurir Pengiriman Seragam ke Gudang Pusat <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      value={ret.exCourierResi}
+                      onChange={(e) => ret.setExCourierResi(e.target.value)}
+                      placeholder="Contoh: JNE / J&T / SiCepat - JP98765432"
+                      className={inputCls}
+                    />
+                  </div>
                   <div>
                     <SearchableSingleSelect
                       label="Item yang ditukar"

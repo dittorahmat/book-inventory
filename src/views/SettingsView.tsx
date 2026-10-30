@@ -5,6 +5,7 @@ import { UniformSatuanToggle } from "../components/settings/UniformSatuanToggle"
 import { UniformNumberingSettings } from "../components/settings/UniformNumberingSettings";
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { MetaWhatsAppSettingsSection } from "../components/settings/MetaWhatsAppSettingsSection";
+import { WarehouseReturnAddressSettings } from "../components/settings/WarehouseReturnAddressSettings";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
 import { UsersSettingsTab } from "../components/settings/UsersSettingsTab";
 import { useSettingsData } from "../components/settings/useSettingsData";
@@ -155,6 +156,9 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
           </div>
           <SatuanCutoffSettings academicYear={cutoffYear} />
           <UniformSatuanToggle />
+          <div className="pt-4 border-t border-[#E4E6EB]">
+            <WarehouseReturnAddressSettings />
+          </div>
         </div>
       )}
     </div>

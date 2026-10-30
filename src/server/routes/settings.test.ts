@@ -363,4 +363,51 @@ describe("Settings penomoran seragam (USO/CLM customizable)", () => {
       body: JSON.stringify({ orderPrefix: "USO", claimPrefix: "CLM" }),
     });
   });
+
+  it("Settings alamat retur Gudang Pusat > GET default, POST menyimpan, otorisasi logistik", async () => {
+    mockActor(null);
+    const unauth = await settingsRouter.request("/return-address", { method: "GET" });
+    expect(unauth.status).toBe(401);
+
+    mockActor("central_admin");
+    const getRes = await settingsRouter.request("/return-address", { method: "GET" });
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as { success: boolean; data: { recipientName: string } };
+    expect(getJson.success).toBe(true);
+    expect(getJson.data.recipientName).toContain("Gudang Logistik Pusat");
+
+    mockActor("warehouse_admin");
+    const saveRes = await settingsRouter.request("/return-address", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipientName: "Gudang Retur Al Wildan 1",
+        phone: "081299998888",
+        addressLine: "Jl. Retur Sentral No. 10",
+        district: "Kelapa Dua",
+        city: "Tangerang",
+        postalCode: "15810",
+        notes: "Sertakan nomor tiket di bungkus paket.",
+      }),
+    });
+    expect(saveRes.status).toBe(200);
+    const saveJson = (await saveRes.json()) as { success: boolean; data: { recipientName: string } };
+    expect(saveJson.success).toBe(true);
+    expect(saveJson.data.recipientName).toBe("Gudang Retur Al Wildan 1");
+
+    mockActor("branch_admin", "school-alw-1");
+    const branchRes = await settingsRouter.request("/return-address", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipientName: "Cabang",
+        phone: "081299998888",
+        addressLine: "Jl. Cabang",
+        district: "Kecamatan",
+        city: "Kota",
+        postalCode: "15810",
+      }),
+    });
+    expect(branchRes.status).toBe(403);
+  });
 });
