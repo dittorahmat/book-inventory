@@ -10,7 +10,7 @@ import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
 import { buildReceiptDraft } from "../payment-ledger";
 import { validateOrderLines } from "./validation";
-import { reserveLooseLines, resolveLooseLines } from "./intake";
+import { allocateLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
 import { buildBookOrderWriteQueries } from "./book-order-write";
 
@@ -42,7 +42,7 @@ export type DirectSaleResult =
 
 /**
  * Deep module: penjualan satuan langsung ke orang tua di Gudang Pusat.
- * Memakai ulang seam stok (`allocateLooseStock` FIFO + kondisi layak) dan
+ * Memakai ulang seam stok (`allocateInventoryStock` FIFO + kondisi layak) dan
  * harga jual efektif kanonik; tulis order + item + pembayaran + mutasi
  * status fisik ke `sold` dalam satu Write Batch (chunk 10 baris).
  */
@@ -82,7 +82,7 @@ export async function sellDirect(
     saleLines.push({ bookId, quantity: agg.quantity, unitPrice: agg.unitPrice });
   }
 
-  const reserved = await reserveLooseLines(database, input.schoolId, resolved.lines);
+  const reserved = await allocateLooseLines(database, input.schoolId, resolved.lines);
   if (!reserved.ok) {
     return {
       ok: false,

@@ -10,7 +10,7 @@ import { db } from "../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
 import { stockSummaryRouter } from "./stock-summary";
 import { shipmentsRouter } from "./shipments";
-import { allocateLooseStock, getLooseStockSummary, getPackageStockSummary } from "../services/stock";
+import { allocateInventoryStock, getLooseStockSummary, getPackageStockSummary } from "../services/stock";
 import { planCreateLines } from "../services/shipment";
 
 const iso = (offsetMinutes: number) =>
@@ -287,14 +287,14 @@ describe("Alokasi FIFO berbasis kuantitas (spec: inventory-summary)", () => {
     await seedLooseCopies({ bookId, schoolId: locationId, count: 2, condition: "damaged" });
     const good = await seedLooseCopies({ bookId, schoolId: locationId, count: 3, condition: "good" });
 
-    const result = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 3 }, db);
+    const result = await allocateInventoryStock({ kind: "loose", targetId: bookId, schoolId: locationId, quantity: 3 }, db);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.items.map((i) => i.id)).toEqual(good);
     }
 
     // Butuh 4 (2 rusak + 3 baik) -> hanya 3 yang boleh dialokasikan
-    const tooMany = await allocateLooseStock({ bookId, schoolId: locationId, quantity: 4 }, db);
+    const tooMany = await allocateInventoryStock({ kind: "loose", targetId: bookId, schoolId: locationId, quantity: 4 }, db);
     expect(tooMany.ok).toBe(false);
 
     await db.delete(bookItems).where(eq(bookItems.currentSchoolId, locationId));

@@ -18,7 +18,7 @@ import { ensureWprBook } from "../wpr";
 import { buildBookOrderWriteQueries } from "./book-order-write";
 import { wprFeeForStudent } from "../pricing";
 import { buildReceiptDraft, receiptNumberConflict } from "../payment-ledger";
-import { reserveLooseLines, resolveLooseLines } from "./intake";
+import { allocateLooseLines, resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
   grossOrderAmount,
@@ -160,9 +160,9 @@ export async function submitPublicOrder(
   const paymentProofCheck = validatePaymentProof(!isScholarship, input.payment?.paymentProofBase64);
   if (!paymentProofCheck.ok) return paymentProofCheck;
 
-  // 6. Reservasi kuantitas satuan via modul intake bersama SEBELUM upload bukti.
+  // 6. Verifikasi ketersediaan satuan via seam alokasi bersama SEBELUM upload bukti.
   // WPR bukan stok fisik: tidak direservasi, ditambahkan sebagai baris biaya sesudahnya.
-  const reserved = await reserveLooseLines(database, student.schoolId, looseLines);
+  const reserved = await allocateLooseLines(database, student.schoolId, looseLines);
   if (!reserved.ok) return { ok: false, status: reserved.status, message: reserved.message };
 
   // 6b. WPR wajib untuk satuan tanpa order paket (reguler maupun beasiswa).
