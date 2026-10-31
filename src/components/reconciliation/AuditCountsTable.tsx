@@ -1,5 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
-import type { AuditPackageRow } from "./useTermReconciliation";
+import type { AuditPackageRow, AuditTotals } from "./useTermReconciliation";
 
 interface AuditCountsTableProps {
   packages: AuditPackageRow[];
@@ -9,12 +9,7 @@ interface AuditCountsTableProps {
   selectedSchoolName?: string;
   academicYear: string;
   term: string;
-  totalInbound: number;
-  totalDistributed: number;
-  totalSystemRemaining: number;
-  totalPhysicalRemaining: number;
-  totalDiscrepancy: number;
-  totalLossAmount: number;
+  totals: AuditTotals;
 }
 
 export function AuditCountsTable({
@@ -25,13 +20,16 @@ export function AuditCountsTable({
   selectedSchoolName,
   academicYear,
   term,
-  totalInbound,
-  totalDistributed,
-  totalSystemRemaining,
-  totalPhysicalRemaining,
-  totalDiscrepancy,
-  totalLossAmount,
+  totals,
 }: AuditCountsTableProps) {
+  const {
+    totalInbound,
+    totalDistributed,
+    totalSystemRemaining,
+    totalPhysicalRemaining,
+    totalDiscrepancy,
+    totalLossAmount,
+  } = totals;
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] overflow-hidden">
       <div className="p-3 bg-[#F0F2F5] border-b border-[#E4E6EB] flex justify-between items-center">

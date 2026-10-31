@@ -1,5 +1,7 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
+import { students } from "../../db/schema";
 import { type WriteDeps } from "../lib/d1-write";
 import type { StorageService } from "../../services/storage";
 import {
@@ -48,21 +50,43 @@ export type WithdrawalCancellationResult =
 
 /**
  * Seam terpadu pengajuan pembatalan akibat murid mengundurkan diri (ADR-0019).
- * Mengabstraksikan disparitas penanganan alokasi buku vs resi seragam di balik
- * satu interface polimorfik dengan leverage & locality tinggi.
+ * Menjalankan validasi domain kanonik terpusat (keberadaan murid & alasan)
+ * sebelum mendelegasikan aturan spesifik alokasi buku atau resi seragam.
  */
 export async function requestStudentWithdrawal(
   database: AppDatabase,
   input: RequestStudentWithdrawalInput,
   deps: StudentWithdrawalDeps = {}
 ): Promise<WithdrawalCancellationResult> {
+  const trimmedReason = input.reason?.trim() ?? "";
+  if (trimmedReason.length < 5) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Alasan pengunduran diri minimal 5 karakter",
+    };
+  }
+
+  const [student] = await database
+    .select({ id: students.id })
+    .from(students)
+    .where(eq(students.id, input.studentId));
+
+  if (!student) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Data murid tidak ditemukan",
+    };
+  }
+
   if (input.kind === "buku") {
     const bookResult = await requestBookWithdrawal(
       database,
       {
         orderId: input.orderId,
         studentId: input.studentId,
-        reason: input.reason,
+        reason: trimmedReason,
         letterProofBase64: input.letterProofBase64,
       },
       deps as BookWithdrawalDeps
@@ -82,7 +106,7 @@ export async function requestStudentWithdrawal(
     {
       orderId: input.orderId,
       studentId: input.studentId,
-      reason: input.reason,
+      reason: trimmedReason,
       courierResi: input.courierResi ?? "",
       letterProofBase64: input.letterProofBase64,
     },

@@ -71,4 +71,32 @@ describe("student-withdrawal unified seam", () => {
 
     expect(res.ok).toBe(false);
   });
+
+  it("rejects withdrawal request if student not found", async () => {
+    const res = await requestStudentWithdrawal(db, {
+      kind: "buku",
+      orderId: "ord-wd-test",
+      studentId: "non-existent-student",
+      reason: "Pindah sekolah",
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(404);
+    }
+  });
+
+  it("validates reason length canonical guard", async () => {
+    const res = await requestStudentWithdrawal(db, {
+      kind: "buku",
+      orderId: "ord-wd-test",
+      studentId: "std-wd-test",
+      reason: "abc",
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(400);
+    }
+  });
 });

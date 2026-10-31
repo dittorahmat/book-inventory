@@ -14,6 +14,15 @@ export interface AuditPackageRow {
   systemRemaining: number;
 }
 
+export interface AuditTotals {
+  totalInbound: number;
+  totalDistributed: number;
+  totalSystemRemaining: number;
+  totalPhysicalRemaining: number;
+  totalDiscrepancy: number;
+  totalLossAmount: number;
+}
+
 export interface UseTermReconciliationProps {
   schools: School[];
   activeSchoolId: string | null;
@@ -174,6 +183,15 @@ export function useTermReconciliation({ schools, activeSchoolId }: UseTermReconc
     }
   };
 
+  const totals: AuditTotals = {
+    totalInbound,
+    totalDistributed,
+    totalSystemRemaining,
+    totalPhysicalRemaining,
+    totalDiscrepancy,
+    totalLossAmount,
+  };
+
   return {
     selectedSchoolId,
     setSelectedSchoolId,
@@ -194,6 +212,7 @@ export function useTermReconciliation({ schools, activeSchoolId }: UseTermReconc
     returnSuccessNotice,
     creatingReturn,
     error,
+    totals,
     totalInbound,
     totalDistributed,
     totalSystemRemaining,

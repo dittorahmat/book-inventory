@@ -36,6 +36,7 @@ export function TermReconciliationTab({
     returnSuccessNotice,
     creatingReturn,
     error,
+    totals,
     totalInbound,
     totalDistributed,
     totalSystemRemaining,
@@ -163,12 +164,7 @@ export function TermReconciliationTab({
         selectedSchoolName={selectedSchool?.name}
         academicYear={academicYear}
         term={term}
-        totalInbound={totalInbound}
-        totalDistributed={totalDistributed}
-        totalSystemRemaining={totalSystemRemaining}
-        totalPhysicalRemaining={totalPhysicalRemaining}
-        totalDiscrepancy={totalDiscrepancy}
-        totalLossAmount={totalLossAmount}
+        totals={totals}
       />
 
       {showPrintModal && savedRecon && (

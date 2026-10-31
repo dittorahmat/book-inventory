@@ -190,11 +190,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 38. **Seam Terpadu Pengunduran Diri Murid (ADR-0019)** — seluruh intake pembatalan pesanan akibat murid mengundurkan
     diri (buku maupun seragam) wajib memusat ke seam polimorfik `requestStudentWithdrawal`
     (`src/server/services/student-withdrawal.ts`), dilarang membuat handler intake pembatalan terpisah langsung
-    di router ataupun memanggil sub-layanan spesifik buku/seragam secara terisolasi.
+    di router ataupun memanggil sub-layanan spesifik buku/seragam secara terisolasi. Seam terpadu ini wajib
+    menjadi otoritas validasi domain kanonik bersama (misal keabsahan data murid dan panjang alasan pembatalan)
+    sehingga bertindak sebagai deep module substantif dan bukan sekadar *middle-man pass-through*.
 39. **Dekomposisi Sub-Router & Pemisahan Komponen Rekonsiliasi** — route publik yang memuat intake komplain/retur
     wajib didelegasikan ke sub-router fungsional (`public-order-returns.ts`); tampilan Berita Acara / audit rekonsiliasi
     akhir periode wajib memisahkan state/mutasi ke custom hook (`useTermReconciliation.ts`) dan tabel audit ke
     sub-komponen (`AuditCountsTable.tsx`) agar view orchestrator tetap ramping (<200 baris) dan mematuhi gate file-size §7.
+    Objek agregat audit rekonsiliasi wajib diikat ke tipe terstruktur terpadu (`AuditTotals`) guna mencegah bau kode *data clumps*.
 
 ---
 
