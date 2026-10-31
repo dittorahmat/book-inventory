@@ -7,30 +7,16 @@ import {
   studentBookOrders,
   studentOrderItems,
   students,
-  systemSettings,
 } from "../../db/schema";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { defaultStorage, type StorageService } from "../../services/storage";
+import { findRefundSlip, refundSlipInsertQuery } from "./refund-slip";
 import {
   BOOK_RETURN_MAX_PHOTO_BYTES,
   BOOK_RETURN_PHOTO_DATA_URL,
   detectImageMime,
 } from "../../lib/book-return";
-
-export interface BookWithdrawalSlip {
-  slipNumber: string;
-  orderId: string;
-  orderNumber: string;
-  studentId: string;
-  studentName: string;
-  nis: string;
-  schoolId: string;
-  refundAmount: number;
-  approvedAt: string;
-  unassignedPackageItemId?: string | null;
-  letterProofUrl?: string | null;
-}
 
 export interface RequestBookWithdrawalInput {
   orderId: string;
@@ -43,8 +29,6 @@ export interface BookWithdrawalDeps extends WriteDeps {
   storage?: StorageService;
   generateSlipNumber?: (now: string) => string;
 }
-
-export const BOOK_WITHDRAWAL_KEY_PREFIX = "withdrawal_slip_book_";
 
 export async function requestBookWithdrawal(
   database: AppDatabase,
@@ -158,7 +142,7 @@ export async function approveBookWithdrawal(
   actorUserId?: string,
   deps: BookWithdrawalDeps = {}
 ): Promise<
-  | { ok: true; slip: BookWithdrawalSlip; message: string }
+  | { ok: true; slip: NonNullable<Awaited<ReturnType<typeof findRefundSlip>>>; message: string }
   | { ok: false; status: 400 | 404 | 409 | 500; message: string }
 > {
   const now = writeNow(deps);
@@ -182,20 +166,6 @@ export async function approveBookWithdrawal(
     (() => documentNumber("RET-B", epochTimeFragment(Date.now(), 6), randomSerial(6)));
   const slipNumber = generateSlip(now);
   const refundAmount = order.paidAmount > 0 ? order.paidAmount : order.totalAmount;
-
-  const slip: BookWithdrawalSlip = {
-    slipNumber,
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    studentId: order.studentId,
-    studentName: student?.name ?? "Siswa",
-    nis: student?.nis ?? "-",
-    schoolId: order.schoolId,
-    refundAmount,
-    approvedAt: now,
-    unassignedPackageItemId: order.assignedPackageItemId,
-    letterProofUrl: ret.photoProofUrl,
-  };
 
   const writeOps = [];
 
@@ -234,13 +204,20 @@ export async function approveBookWithdrawal(
       .where(eq(studentBookOrders.id, order.id))
   );
 
-  // 4. Catat slip bukti refund digital di system_settings untuk rujukan Finance
+  // 4. Terbitkan Slip Bukti Pengembalian resmi untuk Finance (tabel, bukan KV).
   writeOps.push(
-    database.insert(systemSettings).values({
-      key: `${BOOK_WITHDRAWAL_KEY_PREFIX}${slipNumber}`,
-      value: JSON.stringify(slip),
-      description: `Slip pengembalian buku murid mundur ${slipNumber}`,
-      updatedAt: now,
+    refundSlipInsertQuery(database, {
+      kind: "buku",
+      slipNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      studentId: order.studentId,
+      studentName: student?.name ?? "Siswa",
+      nis: student?.nis ?? "-",
+      schoolId: order.schoolId,
+      refundAmount,
+      letterProofUrl: ret.photoProofUrl,
+      approvedAt: now,
     })
   );
 
@@ -252,25 +229,13 @@ export async function approveBookWithdrawal(
     throw err;
   }
 
+  const slip = await findRefundSlip(database, slipNumber);
+  if (!slip) {
+    return { ok: false, status: 500, message: "Slip pengembalian gagal dibaca setelah disimpan." };
+  }
   return {
     ok: true,
     slip,
     message: `Pembatalan buku disetujui. Alokasi stok paket telah di-unassign menjadi stok bebas dan Slip ${slipNumber} diterbitkan untuk Finance.`,
   };
-}
-
-export async function getBookWithdrawalSlip(
-  database: AppDatabase,
-  slipNumber: string
-): Promise<BookWithdrawalSlip | null> {
-  const [row] = await database
-    .select()
-    .from(systemSettings)
-    .where(eq(systemSettings.key, `${BOOK_WITHDRAWAL_KEY_PREFIX}${slipNumber}`));
-  if (!row) return null;
-  try {
-    return JSON.parse(row.value) as BookWithdrawalSlip;
-  } catch {
-    return null;
-  }
 }

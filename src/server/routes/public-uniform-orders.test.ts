@@ -4,7 +4,7 @@ import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds, systemSettings } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -332,13 +332,10 @@ describe("Portal retur seragam mandiri", () => {
 
     const [rfRow] = await db.select().from(uniformRefunds).where(eq(uniformRefunds.id, wJson.data.refundId));
     expect(rfRow.reason).toContain("[PENGUNDURAN DIRI]");
-    
-    // Verifikasi resi tersimpan di system_settings (anti-string-packing)
-    const [resiRow] = await db
-      .select()
-      .from(systemSettings)
-      .where(eq(systemSettings.key, `uniform_withdrawal_resi_${wJson.data.refundId}`));
-    expect(resiRow).toBeDefined();
-    expect(resiRow.value).toContain("JNE-RETI-00129");
+
+    // Resi & surat tersimpan sebagai kolom terstruktur (AGENTS §0.10),
+    // bukan JSON di system_settings.
+    expect(rfRow.courierResi).toBe("JNE-RETI-00129");
+    expect(rfRow.letterProofUrl).toBeTruthy();
   });
 });

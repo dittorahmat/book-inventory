@@ -11,7 +11,8 @@ import {
   schools,
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
-import { approveBookWithdrawal, getBookWithdrawalSlip } from "../services/book-withdrawal";
+import { approveBookWithdrawal } from "../services/book-withdrawal";
+import { findRefundSlip } from "../services/refund-slip";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -248,7 +249,7 @@ bookReturnsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
   try {
     await requireScopedActor(db, c);
     const slipNumber = c.req.param("slipNumber");
-    const slip = await getBookWithdrawalSlip(db, slipNumber);
+    const slip = await findRefundSlip(db, slipNumber);
     if (!slip) {
       return c.json({ success: false, message: "Slip bukti pengembalian buku tidak ditemukan" }, 404);
     }

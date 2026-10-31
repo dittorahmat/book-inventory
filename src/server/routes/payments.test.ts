@@ -321,9 +321,9 @@ describe("Payments & Cashier Verification API", () => {
     const stamp = Date.now() + 10;
     const { schoolId, studentId, orderId, now } = await seedOrder(stamp, 250000, null);
     const slipNumber = `RET-B-FIN-${stamp}`;
-    const { systemSettings, bookReturns } = await import("../../db/schema");
+    const { bookReturns, refundSlips } = await import("../../db/schema");
 
-    // Seed slip di system_settings dan status approved di book_returns
+    // Slip kini baris tabel (bukan JSON di system_settings).
     await db.insert(bookReturns).values({
       id: `br-fin-${stamp}`,
       orderId,
@@ -336,20 +336,20 @@ describe("Payments & Cashier Verification API", () => {
       updatedAt: now,
     });
 
-    await db.insert(systemSettings).values({
-      key: `withdrawal_slip_book_${slipNumber}`,
-      value: JSON.stringify({
-        slipNumber,
-        orderId,
-        orderNumber: `ORD-REV-${String(stamp).slice(-6)}`,
-        studentId,
-        studentName: "Budi Review",
-        nis: `NIS-REV-${stamp}`,
-        schoolId,
-        refundAmount: 250000,
-        approvedAt: now,
-      }),
-      description: "Slip pengembalian buku murid mundur",
+    await db.insert(refundSlips).values({
+      id: slipNumber,
+      kind: "buku",
+      slipNumber,
+      orderId,
+      orderNumber: `ORD-REV-${String(stamp).slice(-6)}`,
+      studentId,
+      studentName: "Budi Review",
+      nis: `NIS-REV-${stamp}`,
+      schoolId,
+      refundAmount: 250000,
+      status: "approved",
+      approvedAt: now,
+      createdAt: now,
       updatedAt: now,
     });
 
@@ -384,8 +384,15 @@ describe("Payments & Cashier Verification API", () => {
       // 3. Verifikasi status book_returns menjadi refunded
       const [updatedBr] = await db.select().from(bookReturns).where(eq(bookReturns.id, `br-fin-${stamp}`));
       expect(updatedBr.status).toBe("refunded");
+
+      // 4. Slip ikut ditandai cair, dan struknya keluar (bukan masuk)
+      const [slipRow] = await db.select().from(refundSlips).where(eq(refundSlips.slipNumber, slipNumber));
+      expect(slipRow.status).toBe("refunded");
+      expect(slipRow.disbursedReferenceNumber).toContain("REF-TRF-");
+      const [receipt] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.id, disburseJson.data.receiptId));
+      expect(receipt.direction).toBe("out");
     } finally {
-      await db.delete(systemSettings).where(eq(systemSettings.key, `withdrawal_slip_book_${slipNumber}`));
+      await db.delete(refundSlips).where(eq(refundSlips.slipNumber, slipNumber));
       await db.delete(bookReturns).where(eq(bookReturns.id, `br-fin-${stamp}`));
       await cleanup(schoolId, studentId, orderId);
     }

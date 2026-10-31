@@ -36,7 +36,8 @@ import {
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
-import { approveUniformWithdrawal, getUniformWithdrawalSlip } from "../services/uniform-withdrawal";
+import { approveUniformWithdrawal } from "../services/uniform-withdrawal";
+import { findRefundSlip } from "../services/refund-slip";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import { listPaymentsWithStatus } from "../services/order-payment-review";
 import { fail } from "../lib/route-fail";
@@ -302,7 +303,7 @@ uniformsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
 uniformsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const slip = await getUniformWithdrawalSlip(db, c.req.param("slipNumber"));
+    const slip = await findRefundSlip(db, c.req.param("slipNumber"));
     if (!slip) return c.json({ success: false, message: "Slip bukti pengembalian seragam tidak ditemukan" }, 404);
     return c.json({ success: true, data: slip });
   } catch (err) {

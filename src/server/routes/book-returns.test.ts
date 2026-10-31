@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 import { bookReturnsRouter } from "./book-returns";
 import { db } from "../../db";
-import { schools, books, students, studentBookOrders, bookReturns } from "../../db/schema";
+import { schools, books, students, studentBookOrders, bookReturns, refundSlips } from "../../db/schema";
 
 beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
@@ -191,7 +191,7 @@ describe("Book Returns & Refund API", () => {
   });
 
   it("approve-withdrawal > menyetujui pembatalan buku siswa mundur, unassign paket, dan menerbitkan slip RET-B", async () => {
-    const { packageItems, bookPackages, systemSettings } = await import("../../db/schema");
+    const { packageItems, bookPackages } = await import("../../db/schema");
     const stamp = Date.now().toString(36);
     const schoolId = `sch-app-${stamp}`;
     const studentId = `stu-app-${stamp}`;
@@ -233,12 +233,14 @@ describe("Book Returns & Refund API", () => {
       updatedAt: now,
     });
 
+    let slipNumber = "";
     try {
       const res = await bookReturnsRouter.request(`/${returnId}/approve-withdrawal`, {
         method: "POST",
       });
       expect(res.status).toBe(200);
       const json = (await res.json()) as { success: boolean; data: { slipNumber: string; refundAmount: number } };
+      slipNumber = json.data.slipNumber;
       expect(json.success).toBe(true);
       expect(json.data.slipNumber).toMatch(/^RET-B-/);
       expect(json.data.refundAmount).toBe(150000);
@@ -251,11 +253,14 @@ describe("Book Returns & Refund API", () => {
       const [updatedOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       expect(updatedOrder.assignedPackageItemId).toBeNull();
 
-      // Verifikasi slip tersimpan di system_settings
-      const [slipSetting] = await db.select().from(systemSettings).where(eq(systemSettings.key, `withdrawal_slip_book_${json.data.slipNumber}`));
-      expect(slipSetting).toBeDefined();
-      expect(JSON.parse(slipSetting.value).orderNumber).toBe(`ORD-APP-${stamp}`);
+      // Verifikasi slip tersimpan sebagai baris tabel (bukan KV JSON)
+      const [slipRow] = await db.select().from(refundSlips).where(eq(refundSlips.slipNumber, slipNumber));
+      expect(slipRow).toBeDefined();
+      expect(slipRow.orderNumber).toBe(`ORD-APP-${stamp}`);
+      expect(slipRow.kind).toBe("buku");
+      expect(slipRow.status).toBe("approved");
     } finally {
+      if (slipNumber) await db.delete(refundSlips).where(eq(refundSlips.slipNumber, slipNumber));
       await db.delete(bookReturns).where(eq(bookReturns.id, returnId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(packageItems).where(eq(packageItems.id, pkiId));

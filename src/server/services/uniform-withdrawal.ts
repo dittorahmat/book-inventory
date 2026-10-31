@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
   students,
-  systemSettings,
   uniformOrders,
   uniformOrderItems,
   uniformRefunds,
@@ -10,26 +9,13 @@ import {
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { defaultStorage, type StorageService } from "../../services/storage";
+import { findRefundSlip, refundSlipInsertQuery } from "./refund-slip";
 import {
   BOOK_RETURN_MAX_PHOTO_BYTES,
   BOOK_RETURN_PHOTO_DATA_URL,
   detectImageMime,
 } from "../../lib/book-return";
 import { adjustPackageStockQuery, adjustVariantStockQuery } from "./uniform/stock";
-
-export interface UniformWithdrawalSlip {
-  slipNumber: string;
-  orderId: string;
-  orderNumber: string;
-  studentId: string;
-  studentName: string;
-  nis: string;
-  schoolId: string;
-  refundAmount: number;
-  approvedAt: string;
-  courierResi: string;
-  letterProofUrl?: string | null;
-}
 
 export interface RequestUniformWithdrawalInput {
   orderId: string;
@@ -43,8 +29,6 @@ export interface UniformWithdrawalDeps extends WriteDeps {
   storage?: StorageService;
   generateSlipNumber?: (now: string) => string;
 }
-
-export const UNIFORM_WITHDRAWAL_KEY_PREFIX = "withdrawal_slip_uniform_";
 
 export async function requestUniformWithdrawal(
   database: AppDatabase,
@@ -99,14 +83,6 @@ export async function requestUniformWithdrawal(
   const refundNumber = documentNumber("RFD-U", now.slice(0, 10).replaceAll("-", ""), randomSerial(6));
   const fullReason = `[PENGUNDURAN DIRI] ${input.reason.trim()}`;
 
-  // Simpan data nomor resi kurir & bukti dokumen ke record terstruktur di system_settings untuk mencegah string-packing
-  const courierResiKey = `uniform_withdrawal_resi_${id}`;
-  const proofMetadata = {
-    courierResi: input.courierResi.trim(),
-    refundId: id,
-    letterProofUrl: letterProofUrl ?? null,
-  };
-
   try {
     await database.insert(uniformRefunds).values({
       id,
@@ -115,18 +91,11 @@ export async function requestUniformWithdrawal(
       studentId: order.studentId,
       amount: order.paidAmount > 0 ? order.paidAmount : order.totalAmount,
       reason: fullReason,
+      courierResi: input.courierResi.trim(),
+      letterProofUrl,
       status: "requested",
       createdAt: now,
       updatedAt: now,
-    });
-    await database.insert(systemSettings).values({
-      key: courierResiKey,
-      value: JSON.stringify(proofMetadata),
-      description: "Nomor resi pengiriman & bukti retur seragam fisik ke gudang pusat",
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: systemSettings.key,
-      set: { value: JSON.stringify(proofMetadata), updatedAt: now },
     });
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "pengajuan pembatalan seragam");
@@ -148,7 +117,7 @@ export async function approveUniformWithdrawal(
   actorUserId?: string,
   deps: UniformWithdrawalDeps = {}
 ): Promise<
-  | { ok: true; slip: UniformWithdrawalSlip; message: string }
+  | { ok: true; slip: NonNullable<Awaited<ReturnType<typeof findRefundSlip>>>; message: string }
   | { ok: false; status: 400 | 404 | 409 | 500; message: string }
 > {
   const now = writeNow(deps);
@@ -168,37 +137,7 @@ export async function approveUniformWithdrawal(
     deps.generateSlipNumber ??
     (() => documentNumber("RET-U", epochTimeFragment(Date.now(), 6), randomSerial(6)));
   const slipNumber = generateSlip(now);
-
-  let courierResi = "-";
-  const [resiSetting] = await database
-    .select()
-    .from(systemSettings)
-    .where(eq(systemSettings.key, `uniform_withdrawal_resi_${rf.id}`));
-  if (resiSetting) {
-    try {
-      const parsed = JSON.parse(resiSetting.value);
-      if (parsed?.courierResi) courierResi = String(parsed.courierResi);
-    } catch {
-      courierResi = "-";
-    }
-  } else {
-    // Fallback baca jika tersimpan di teks alasan lama
-    const legacyMatch = rf.reason.match(/resi:\s*([A-Za-z0-9_-]+)/i);
-    if (legacyMatch) courierResi = legacyMatch[1].trim();
-  }
-
-  const slip: UniformWithdrawalSlip = {
-    slipNumber,
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    studentId: order.studentId,
-    studentName: student?.name ?? "Siswa",
-    nis: student?.nis ?? "-",
-    schoolId: order.schoolId,
-    refundAmount: rf.amount,
-    approvedAt: now,
-    courierResi,
-  };
+  const courierResi = rf.courierResi?.trim() || "-";
 
   // 1. Restock fisik seragam yang diterima kembali ke Gudang Pusat
   const items = await database.select().from(uniformOrderItems).where(eq(uniformOrderItems.orderId, order.id));
@@ -220,7 +159,7 @@ export async function approveUniformWithdrawal(
     }
   }
 
-  // 2. Tandai uniformRefunds sebagai approved dan terbitkan slip ke systemSettings
+  // 2. Tandai uniformRefunds approved + terbitkan Slip Bukti Pengembalian.
   const writeOps = [
     database
       .update(uniformRefunds)
@@ -231,11 +170,19 @@ export async function approveUniformWithdrawal(
         updatedAt: now,
       })
       .where(eq(uniformRefunds.id, refundId)),
-    database.insert(systemSettings).values({
-      key: `${UNIFORM_WITHDRAWAL_KEY_PREFIX}${slipNumber}`,
-      value: JSON.stringify(slip),
-      description: `Slip pengembalian seragam murid mundur ${slipNumber}`,
-      updatedAt: now,
+    refundSlipInsertQuery(database, {
+      kind: "seragam",
+      slipNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      studentId: order.studentId,
+      studentName: student?.name ?? "Siswa",
+      nis: student?.nis ?? "-",
+      schoolId: order.schoolId,
+      refundAmount: rf.amount,
+      courierResi,
+      letterProofUrl: rf.letterProofUrl,
+      approvedAt: now,
     }),
   ];
 
@@ -247,25 +194,13 @@ export async function approveUniformWithdrawal(
     throw err;
   }
 
+  const slip = await findRefundSlip(database, slipNumber);
+  if (!slip) {
+    return { ok: false, status: 500, message: "Slip pengembalian gagal dibaca setelah disimpan." };
+  }
   return {
     ok: true,
     slip,
     message: `Fisik seragam retur berhasil diterima & dimasukkan ke stok gudang pusat. Slip ${slipNumber} diterbitkan untuk Finance.`,
   };
-}
-
-export async function getUniformWithdrawalSlip(
-  database: AppDatabase,
-  slipNumber: string
-): Promise<UniformWithdrawalSlip | null> {
-  const [row] = await database
-    .select()
-    .from(systemSettings)
-    .where(eq(systemSettings.key, `${UNIFORM_WITHDRAWAL_KEY_PREFIX}${slipNumber}`));
-  if (!row) return null;
-  try {
-    return JSON.parse(row.value) as UniformWithdrawalSlip;
-  } catch {
-    return null;
-  }
 }

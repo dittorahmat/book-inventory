@@ -470,6 +470,38 @@ export const bookReturns = sqliteTable("book_returns", {
   index("returns_student_idx").on(t.studentId),
 ]);
 
+// Slip Bukti Pengembalian (ADR-0019): dokumen bernomor yang diterbitkan saat
+// gudang menyetujui retur/pengunduran diri, lalu dicairkan Finance. Disimpan
+// sebagai tabel, bukan JSON di system_settings, supaya antrean Finance satu
+// query terindeks dan status tidak ditebak dari tabel lain.
+export const refundSlips = sqliteTable("refund_slips", {
+  id: text("id").primaryKey(), // = slipNumber
+  kind: text("kind", { enum: ["buku", "seragam"] }).notNull(),
+  slipNumber: text("slip_number").notNull().unique(),
+  // Polimorfik: student_book_orders atau uniform_orders sesuai `kind`.
+  orderId: text("order_id").notNull(),
+  orderNumber: text("order_number").notNull(),
+  studentId: text("student_id").notNull().references(() => students.id),
+  studentName: text("student_name").notNull(),
+  nis: text("nis").notNull(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  refundAmount: integer("refund_amount").notNull(),
+  status: text("status", { enum: ["approved", "refunded"] }).notNull().default("approved"),
+  courierResi: text("courier_resi"),
+  letterProofUrl: text("letter_proof_url"),
+  approvedAt: text("approved_at").notNull(),
+  disbursedAt: text("disbursed_at"),
+  disbursedBankName: text("disbursed_bank_name"),
+  disbursedReferenceNumber: text("disbursed_reference_number"),
+  disbursedProofUrl: text("disbursed_proof_url"),
+  disbursedNotes: text("disbursed_notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("refund_slips_school_approved_idx").on(t.schoolId, t.approvedAt),
+  index("refund_slips_order_idx").on(t.orderId),
+]);
+
 // ==========================================
 // 9. SYSTEM CONFIGURATION & SMTP / WA SETTINGS
 // ==========================================
@@ -657,6 +689,9 @@ export const uniformRefunds = sqliteTable("uniform_refunds", {
   studentId: text("student_id").notNull().references(() => students.id),
   amount: integer("amount").notNull().default(0),
   reason: text("reason").notNull(),
+  // Nomor resi kurir retur fisik (dulu dipadatkan ke system_settings/reason).
+  courierResi: text("courier_resi"),
+  letterProofUrl: text("letter_proof_url"),
   status: text("status", { enum: ["requested", "approved", "refunded", "rejected"] }).notNull().default("requested"),
   handledByUserId: text("handled_by_user_id").references(() => users.id),
   resolvedAt: text("resolved_at"),

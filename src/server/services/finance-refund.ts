@@ -1,19 +1,18 @@
-import { eq, like } from "drizzle-orm";
-import type { AppDatabase } from "../../db";
-import {
-  bookReturns,
-  studentBookOrders,
-  systemSettings,
-  uniformRefunds,
-} from "../../db/schema";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { BOOK_WITHDRAWAL_KEY_PREFIX, type BookWithdrawalSlip } from "./book-withdrawal";
-import { UNIFORM_WITHDRAWAL_KEY_PREFIX, type UniformWithdrawalSlip } from "./uniform-withdrawal";
+import type { AppDatabase } from "../../db";
 import { buildReceiptDraft, receiptWriteQueries } from "./payment-ledger";
+import {
+  findRefundSlip,
+  listRefundSlips,
+  refundSlipDisbursedQuery,
+  type RefundSlipRow,
+} from "./refund-slip";
+import { markBookReturnRefundedQueries } from "./return/fulfilment";
+import { markUniformRefundRefundedQuery } from "./uniform/returns";
 import { d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 
 export interface RefundQueueItem {
-  id: string; // returnId or refundId
+  id: string;
   kind: "buku" | "seragam";
   slipNumber: string;
   orderId: string;
@@ -31,90 +30,32 @@ export interface RefundQueueItem {
   referenceNumber?: string;
 }
 
+/** Baris antrean = baris slip; tidak ada status yang ditebak dari tabel lain. */
+const toQueueItem = (slip: RefundSlipRow): RefundQueueItem => ({
+  id: slip.id,
+  kind: slip.kind,
+  slipNumber: slip.slipNumber,
+  orderId: slip.orderId,
+  orderNumber: slip.orderNumber,
+  studentId: slip.studentId,
+  studentName: slip.studentName,
+  nis: slip.nis,
+  schoolId: slip.schoolId,
+  refundAmount: slip.refundAmount,
+  approvedAt: slip.approvedAt,
+  status: slip.status,
+  courierResi: slip.courierResi ?? undefined,
+  disbursedAt: slip.disbursedAt ?? undefined,
+  bankName: slip.disbursedBankName ?? undefined,
+  referenceNumber: slip.disbursedReferenceNumber ?? undefined,
+});
+
 export async function listFinanceRefundQueue(
   database: AppDatabase,
   schoolId?: string
 ): Promise<RefundQueueItem[]> {
-  const items: RefundQueueItem[] = [];
-
-  // 1. Slip Buku
-  const bookSlips = await database
-    .select()
-    .from(systemSettings)
-    .where(like(systemSettings.key, `${BOOK_WITHDRAWAL_KEY_PREFIX}%`));
-
-  for (const row of bookSlips) {
-    try {
-      const slip = JSON.parse(row.value) as BookWithdrawalSlip;
-      if (schoolId && slip.schoolId !== schoolId) continue;
-
-      // Cari status pengembalian terkini dari bookReturns
-      const [br] = await database
-        .select()
-        .from(bookReturns)
-        .where(eq(bookReturns.orderId, slip.orderId));
-
-      const status = br?.status === "refunded" ? "refunded" : "approved";
-
-      items.push({
-        id: br?.id ?? slip.orderId,
-        kind: "buku",
-        slipNumber: slip.slipNumber,
-        orderId: slip.orderId,
-        orderNumber: slip.orderNumber,
-        studentId: slip.studentId,
-        studentName: slip.studentName,
-        nis: slip.nis,
-        schoolId: slip.schoolId,
-        refundAmount: slip.refundAmount,
-        approvedAt: slip.approvedAt,
-        status,
-      });
-    } catch {
-      // Abaikan slip corrupt
-    }
-  }
-
-  // 2. Slip Seragam
-  const uniformSlips = await database
-    .select()
-    .from(systemSettings)
-    .where(like(systemSettings.key, `${UNIFORM_WITHDRAWAL_KEY_PREFIX}%`));
-
-  for (const row of uniformSlips) {
-    try {
-      const slip = JSON.parse(row.value) as UniformWithdrawalSlip;
-      if (schoolId && slip.schoolId !== schoolId) continue;
-
-      const [ur] = await database
-        .select()
-        .from(uniformRefunds)
-        .where(eq(uniformRefunds.orderId, slip.orderId));
-
-      const status = ur?.status === "refunded" ? "refunded" : "approved";
-
-      items.push({
-        id: ur?.id ?? slip.orderId,
-        kind: "seragam",
-        slipNumber: slip.slipNumber,
-        orderId: slip.orderId,
-        orderNumber: slip.orderNumber,
-        studentId: slip.studentId,
-        studentName: slip.studentName,
-        nis: slip.nis,
-        schoolId: slip.schoolId,
-        refundAmount: slip.refundAmount,
-        approvedAt: slip.approvedAt,
-        status,
-        courierResi: slip.courierResi,
-      });
-    } catch {
-      // Abaikan slip corrupt
-    }
-  }
-
-  // Urutkan paling baru
-  return items.sort((a, b) => b.approvedAt.localeCompare(a.approvedAt));
+  const slips = await listRefundSlips(database, schoolId);
+  return slips.map(toQueueItem);
 }
 
 export interface DisburseRefundInput {
@@ -140,24 +81,18 @@ export async function disburseFinanceRefund(
     return { ok: false, status: 400, message: "Bank dan Nomor Referensi transfer refund wajib diisi" };
   }
 
-  const settingKey =
-    input.kind === "buku"
-      ? `${BOOK_WITHDRAWAL_KEY_PREFIX}${input.slipNumber}`
-      : `${UNIFORM_WITHDRAWAL_KEY_PREFIX}${input.slipNumber}`;
-
-  const [row] = await database.select().from(systemSettings).where(eq(systemSettings.key, settingKey));
-  if (!row) {
+  const slip = await findRefundSlip(database, input.slipNumber);
+  if (!slip) {
     return { ok: false, status: 404, message: "Slip pengembalian dana tidak ditemukan" };
   }
-
-  let slip: BookWithdrawalSlip | UniformWithdrawalSlip;
-  try {
-    slip = JSON.parse(row.value);
-  } catch {
-    return { ok: false, status: 400, message: "Format slip tidak valid" };
+  if (slip.kind !== input.kind) {
+    return { ok: false, status: 400, message: "Jenis slip tidak sesuai dengan permintaan pencairan." };
+  }
+  if (slip.status === "refunded") {
+    return { ok: false, status: 409, message: `Slip ${slip.slipNumber} sudah dicairkan.` };
   }
 
-  // Catat struk keluar (refund transfer) lewat payment-ledger kanonik
+  // Catat struk keluar (refund transfer) lewat payment-ledger kanonik.
   const receiptId = newWriteId(deps);
   const built = buildReceiptDraft(
     {
@@ -189,32 +124,19 @@ export async function disburseFinanceRefund(
     return { ok: false, status: built.status, message: built.message };
   }
 
-  const writeOps: unknown[] = [...receiptWriteQueries(database, built.draft)];
-
-  if (input.kind === "buku") {
-    // 1. Update book_returns status -> refunded
-    writeOps.push(
-      database
-        .update(bookReturns)
-        .set({ status: "refunded", updatedAt: now })
-        .where(eq(bookReturns.orderId, slip.orderId))
-    );
-    // 2. Set student_book_orders fulfillmentStatus -> return_in_progress / unassigned
-    writeOps.push(
-      database
-        .update(studentBookOrders)
-        .set({ fulfillmentStatus: "return_in_progress", updatedAt: now })
-        .where(eq(studentBookOrders.id, slip.orderId))
-    );
-  } else {
-    // 1. Update uniform_refunds status -> refunded
-    writeOps.push(
-      database
-        .update(uniformRefunds)
-        .set({ status: "refunded", updatedAt: now })
-        .where(eq(uniformRefunds.orderId, slip.orderId))
-    );
-  }
+  const writeOps: unknown[] = [
+    ...receiptWriteQueries(database, built.draft),
+    refundSlipDisbursedQuery(database, slip.slipNumber, {
+      bankName: input.bankName.trim(),
+      referenceNumber: input.referenceNumber.trim(),
+      proofUrl: input.proofUrl,
+      notes: input.notes,
+      now,
+    }),
+    ...(input.kind === "buku"
+      ? markBookReturnRefundedQueries(database, slip.orderId, now)
+      : [markUniformRefundRefundedQuery(database, slip.orderId, now)]),
+  ];
 
   try {
     await runWriteBatch(database, writeOps);
