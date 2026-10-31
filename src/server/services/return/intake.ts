@@ -10,9 +10,13 @@ import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { isOrderReportable, RETURN_OPEN_STATUSES } from "./flow";
 
 /**
- * Buku penanda untuk withdrawal: order bisa belum punya alokasi fisik sama
- * sekali (murid mundur sebelum serah terima), jadi fallback terakhir adalah
- * baris WPR yang selalu ada di setiap pesanan satuan.
+ * Resolusi ID buku untuk retur pembatalan pengunduran diri (withdrawal):
+ * Pada skema relasional, `book_returns.defective_book_id` memiliki foreign key NOT NULL
+ * ke tabel `books`. Jika pesanan paket, pilih item pertama dari BOM paket pesanan.
+ * Jika pesanan satuan, pilih item buku pertama yang dipesan.
+ * Jika pesanan belum memiliki alokasi fisik / baris satuan, fallback kanonik adalah
+ * baris buku komponen wajib WPR (`WPR_BOOK_ID`) agar integritas FK tetap terpenuhi
+ * tanpa membiarkan nilai acak atau string bebas.
  */
 const pickWithdrawalBookId = async (
   database: AppDatabase,

@@ -166,6 +166,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     yang telah mendekati batas 400 baris (>=350 baris) dilarang langsung ditambahi logika endpoint baru;
     pecah endpoint ke sub-router fungsional (misal `*-actions.ts` atau delegasi penuh ke `services/`)
     sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket.
+34. **Disiplin Whitelist Single-Writer Gate & Integritas Seeder** — pengecualian pada gate `check:single-writer`
+    hanya diizinkan untuk baseline seeder utama (`src/server/seed.ts`) atau file seeder demo spesifik yang
+    tercantum secara eksplisit (*exact whitelist*, misal `seed-demo/orders.ts`); dilarang menggunakan wildcard
+    atau prefix glob/directory sweeping (`startsWith("src/server/seed-demo/")`) yang dapat melemahkan
+    penegakan arsitektur single-writer secara tidak sengaja di seluruh seeder baru.
+35. **Integritas Resolusi Foreign Key Pembatalan Dokumen (ADR-0019)** — pada pembuatan baris dokumen retur/batal
+    (`book_returns`) akibat siswa mengundurkan diri yang belum memiliki alokasi fisik, kolom `defectiveBookId`
+    wajib diisi melalui resolusi deterministik: BOM paket pertama bila ada, baris satuan pertama bila ada,
+    atau fallback komponen wajib katalog (`WPR_BOOK_ID`) untuk menjamin kepatuhan Foreign Key integritas relasional
+    tanpa memasukkan ID arbitrer atau string kosong.
 
 ---
 

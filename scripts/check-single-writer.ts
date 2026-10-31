@@ -69,9 +69,16 @@ const walk = (dir: string, out: string[] = []): string[] => {
       !/\.d\.ts$/.test(entry.name)
     ) {
       const normalized = full.replace(/\\/g, "/");
-      // Seed baseline mengisi baris awal langsung; itu data, bukan mutasi
-      // runtime. Modul demo memakai modul pemilik (payment-ledger/uniform stock).
-      if (normalized === "src/server/seed.ts" || normalized.startsWith("src/server/seed-demo/")) continue;
+      // Seed baseline & seeder data awal mengisi baris demo langsung sebagai fixture data;
+      // itu data diam (fixtures), bukan mutasi alur runtime aplikasi.
+      if (
+        normalized === "src/server/seed.ts" ||
+        normalized === "src/server/seed-demo/orders.ts" ||
+        normalized === "src/server/seed-demo/uniform-core.ts" ||
+        normalized === "src/server/seed-demo/demo-uniform.ts"
+      ) {
+        continue;
+      }
       out.push(normalized);
     }
   }
