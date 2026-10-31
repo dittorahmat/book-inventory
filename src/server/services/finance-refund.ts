@@ -134,8 +134,8 @@ export async function disburseFinanceRefund(
       now,
     }),
     ...(input.kind === "buku"
-      ? markBookReturnRefundedQueries(database, slip.orderId, now)
-      : [markUniformRefundRefundedQuery(database, slip.orderId, now)]),
+      ? markBookReturnRefundedQueries(database, { returnId: slip.sourceId, orderId: slip.orderId }, now)
+      : [markUniformRefundRefundedQuery(database, { refundId: slip.sourceId, orderId: slip.orderId }, now)]),
   ];
 
   try {

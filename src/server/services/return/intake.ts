@@ -1,19 +1,49 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
-import { bookPackageItems, bookReturns, studentBookOrders } from "../../../db/schema";
+import { bookPackageItems, bookReturns, studentBookOrders, studentOrderItems } from "../../../db/schema";
 import { defaultStorage, type StorageService } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import { detectImageMime } from "../../../lib/book-return";
+import { WPR_BOOK_ID } from "../../../lib/wpr";
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { isOrderReportable, RETURN_OPEN_STATUSES } from "./flow";
 
+/**
+ * Buku penanda untuk withdrawal: order bisa belum punya alokasi fisik sama
+ * sekali (murid mundur sebelum serah terima), jadi fallback terakhir adalah
+ * baris WPR yang selalu ada di setiap pesanan satuan.
+ */
+const pickWithdrawalBookId = async (
+  database: AppDatabase,
+  order: typeof studentBookOrders.$inferSelect
+): Promise<string> => {
+  if (order.packageId) {
+    const [bom] = await database
+      .select({ bookId: bookPackageItems.bookId })
+      .from(bookPackageItems)
+      .where(eq(bookPackageItems.packageId, order.packageId))
+      .limit(1);
+    if (bom) return bom.bookId;
+  }
+  const [loose] = await database
+    .select({ bookId: studentOrderItems.bookId })
+    .from(studentOrderItems)
+    .where(eq(studentOrderItems.orderId, order.id))
+    .limit(1);
+  return loose?.bookId ?? WPR_BOOK_ID;
+};
+
 export type ReturnSource = "staff" | "public";
+/** defect = barang cacat; withdrawal = murid mengundurkan diri (ADR-0019). */
+export type ReturnKind = "defect" | "withdrawal";
 
 export interface ReportReturnInput {
   orderId: string;
   studentId: string;
-  defectiveBookId: string;
+  /** Wajib untuk defect; untuk withdrawal boleh kosong (dipilih otomatis). */
+  defectiveBookId?: string;
+  kind?: ReturnKind;
   reason: string;
   photoProofBase64?: string | null;
   source: ReturnSource;
@@ -60,58 +90,80 @@ export async function reportReturn(
       message: "Pesanan tidak sesuai dengan data siswa yang dipilih",
     };
   }
-  // Sumber publik hanya boleh mengajukan sekali per pesanan; staf tetap boleh
-  // menambah item retur lain dari pesanan yang sama (`return_in_progress`).
-  if (input.source === "public" && order.fulfillmentStatus !== "picked_up") {
-    return {
-      ok: false,
-      status: 400,
-      message:
-        order.fulfillmentStatus === "return_in_progress"
-          ? "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diproses logistik."
-          : `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
-    };
+  const kind: ReturnKind = input.kind ?? "defect";
+  // Jalur withdrawal terjadi SEBELUM serah terima (murid mundur), jadi gerbang
+  // "harus picked_up" tidak berlaku; yang dilarang hanya pengajuan ganda.
+  if (kind === "withdrawal") {
+    if (order.fulfillmentStatus === "return_in_progress") {
+      return {
+        ok: false,
+        status: 400,
+        message: "Pengajuan pembatalan / refund untuk pesanan ini sedang diproses",
+      };
+    }
+  } else {
+    // Sumber publik hanya boleh mengajukan sekali per pesanan; staf tetap boleh
+    // menambah item retur lain dari pesanan yang sama (`return_in_progress`).
+    if (input.source === "public" && order.fulfillmentStatus !== "picked_up") {
+      return {
+        ok: false,
+        status: 400,
+        message:
+          order.fulfillmentStatus === "return_in_progress"
+            ? "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diproses logistik."
+            : `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
+      };
+    }
+    if (!isOrderReportable(order.fulfillmentStatus)) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
+      };
+    }
   }
-  if (!isOrderReportable(order.fulfillmentStatus)) {
-    return {
-      ok: false,
-      status: 400,
-      message: `Pesanan berstatus ${order.fulfillmentStatus}, retur hanya dapat dilaporkan setelah serah terima (picked_up).`,
-    };
+
+  const defectiveBookId =
+    input.defectiveBookId?.trim() ||
+    (kind === "withdrawal" ? await pickWithdrawalBookId(database, order) : "");
+  if (!defectiveBookId) {
+    return { ok: false, status: 400, message: "Buku yang diretur wajib dipilih." };
   }
-  // Satu buku tidak boleh punya dua laporan terbuka sekaligus: staf masih boleh
-  // menambah buku lain dari pesanan yang sama, tetapi buku yang sudah dilaporkan
-  // dan belum selesai ditolak agar refund tidak dibayar dua kali. Validasi
-  // pra-tulis (§10.3) sebelum upload supaya tidak ada foto yatim.
-  const [openDuplicate] = await database
-    .select({ id: bookReturns.id, status: bookReturns.status })
-    .from(bookReturns)
-    .where(
-      and(
-        eq(bookReturns.orderId, input.orderId),
-        eq(bookReturns.defectiveBookId, input.defectiveBookId),
-        inArray(bookReturns.status, [...RETURN_OPEN_STATUSES])
+
+  // Satu buku tidak boleh punya dua laporan cacat terbuka sekaligus. Withdrawal
+  // tidak mengunci buku: seluruh pesanan dibatalkan, bukan satu judul.
+  if (kind === "defect") {
+    const [openDuplicate] = await database
+      .select({ id: bookReturns.id, status: bookReturns.status })
+      .from(bookReturns)
+      .where(
+        and(
+          eq(bookReturns.orderId, input.orderId),
+          eq(bookReturns.defectiveBookId, defectiveBookId),
+          eq(bookReturns.kind, "defect"),
+          inArray(bookReturns.status, [...RETURN_OPEN_STATUSES])
+        )
       )
-    )
-    .limit(1);
-  if (openDuplicate) {
-    return {
-      ok: false,
-      status: 400,
-      message: `Buku ini sudah dilaporkan dan sedang diproses (status ${openDuplicate.status}). Selesaikan laporan itu sebelum mengajukan retur baru untuk buku yang sama.`,
-    };
+      .limit(1);
+    if (openDuplicate) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Buku ini sudah dilaporkan dan sedang diproses (status ${openDuplicate.status}). Selesaikan laporan itu sebelum mengajukan retur baru untuk buku yang sama.`,
+      };
+    }
   }
   // Buku yang direfund harus benar-benar bagian dari paket pesanan, bukan judul
   // lain yang kebetulan ada di katalog. Pesanan satuan tidak punya BOM sehingga
   // pemeriksaan ini dilewati (daftar bukunya tidak diekspos di portal).
-  if (input.source === "public" && order.packageId) {
+  if (kind === "defect" && input.source === "public" && order.packageId) {
     const [bom] = await database
       .select({ id: bookPackageItems.id })
       .from(bookPackageItems)
       .where(
         and(
           eq(bookPackageItems.packageId, order.packageId),
-          eq(bookPackageItems.bookId, input.defectiveBookId)
+          eq(bookPackageItems.bookId, defectiveBookId)
         )
       )
       .limit(1);
@@ -141,7 +193,7 @@ export async function reportReturn(
     }
     const contentType = detected ?? "image/jpeg";
     const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
-    const prefix = input.source === "public" ? "returns/public_" : "returns/";
+    const prefix = kind === "withdrawal" ? "withdrawals/books/" : input.source === "public" ? "returns/public_" : "returns/";
     photoKey = `${prefix}${returnId}_${Date.now()}.${extension}`;
     photoProofUrl = await store.upload(photoKey, buffer, contentType);
   }
@@ -152,7 +204,8 @@ export async function reportReturn(
         id: returnId,
         orderId: input.orderId,
         studentId: input.studentId,
-        defectiveBookId: input.defectiveBookId,
+        defectiveBookId,
+        kind,
         reason: input.reason,
         photoProofUrl,
         status: "reported",

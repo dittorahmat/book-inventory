@@ -281,6 +281,13 @@
       "when": 1793365673084,
       "tag": "0039_colossal_gwen_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1793410249347,
+      "tag": "0040_perpetual_devos",
+      "breakpoints": true
     }
   ]
 }

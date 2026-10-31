@@ -178,11 +178,15 @@ export interface RefundRequestInput {
  * Pemilik kolom `uniform_refunds.status` untuk pencairan Finance (ADR-0019):
  * Finance menyusun uangnya, transisi status tetap milik modul refund seragam.
  */
-export const markUniformRefundRefundedQuery = (database: AppDatabase, orderId: string, now: string) =>
+export const markUniformRefundRefundedQuery = (
+  database: AppDatabase,
+  target: { refundId?: string | null; orderId: string },
+  now: string
+) =>
   database
     .update(uniformRefunds)
     .set({ status: "refunded", updatedAt: now })
-    .where(eq(uniformRefunds.orderId, orderId));
+    .where(target.refundId ? eq(uniformRefunds.id, target.refundId) : eq(uniformRefunds.orderId, target.orderId));
 
 export async function requestUniformRefund(
   database: AppDatabase,

@@ -91,6 +91,7 @@ bookReturnsRouter.get("/", async (c) => {
         defectiveBookId: bookReturns.defectiveBookId,
         bookTitle: books.title,
         isbn: books.isbn,
+        kind: bookReturns.kind,
         reason: bookReturns.reason,
         photoProofUrl: bookReturns.photoProofUrl,
         status: bookReturns.status,

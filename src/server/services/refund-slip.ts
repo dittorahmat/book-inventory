@@ -22,6 +22,8 @@ export interface RefundSlipInput {
   nis: string;
   schoolId: string;
   refundAmount: number;
+  /** book_returns.id / uniform_refunds.id yang menjadi dasar slip. */
+  sourceId?: string | null;
   courierResi?: string | null;
   letterProofUrl?: string | null;
   approvedAt: string;
@@ -34,6 +36,7 @@ export const refundSlipInsertQuery = (database: AppDatabase, input: RefundSlipIn
     kind: input.kind,
     slipNumber: input.slipNumber,
     orderId: input.orderId,
+    sourceId: input.sourceId ?? null,
     orderNumber: input.orderNumber,
     studentId: input.studentId,
     studentName: input.studentName,

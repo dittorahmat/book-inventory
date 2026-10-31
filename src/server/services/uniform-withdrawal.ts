@@ -81,7 +81,6 @@ export async function requestUniformWithdrawal(
 
   const id = `rf-wdr-${deps.generateId?.() ?? Date.now()}`;
   const refundNumber = documentNumber("RFD-U", now.slice(0, 10).replaceAll("-", ""), randomSerial(6));
-  const fullReason = `[PENGUNDURAN DIRI] ${input.reason.trim()}`;
 
   try {
     await database.insert(uniformRefunds).values({
@@ -90,7 +89,8 @@ export async function requestUniformWithdrawal(
       orderId: order.id,
       studentId: order.studentId,
       amount: order.paidAmount > 0 ? order.paidAmount : order.totalAmount,
-      reason: fullReason,
+      kind: "withdrawal",
+      reason: input.reason.trim(),
       courierResi: input.courierResi.trim(),
       letterProofUrl,
       status: "requested",
@@ -174,6 +174,7 @@ export async function approveUniformWithdrawal(
       kind: "seragam",
       slipNumber,
       orderId: order.id,
+      sourceId: refundId,
       orderNumber: order.orderNumber,
       studentId: order.studentId,
       studentName: student?.name ?? "Siswa",

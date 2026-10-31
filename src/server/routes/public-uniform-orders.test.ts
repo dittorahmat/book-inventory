@@ -331,7 +331,8 @@ describe("Portal retur seragam mandiri", () => {
     expect(wJson.data.refundId).toBeDefined();
 
     const [rfRow] = await db.select().from(uniformRefunds).where(eq(uniformRefunds.id, wJson.data.refundId));
-    expect(rfRow.reason).toContain("[PENGUNDURAN DIRI]");
+    expect(rfRow.kind).toBe("withdrawal");
+    expect(rfRow.reason).toBe("Pindah sekolah ke luar kota");
 
     // Resi & surat tersimpan sebagai kolom terstruktur (AGENTS §0.10),
     // bukan JSON di system_settings.

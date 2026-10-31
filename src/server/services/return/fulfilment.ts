@@ -20,17 +20,21 @@ export type FulfilmentError = { ok: false; status: ContentfulStatusCode; message
  * untuk pencairan refund (ADR-0019). Finance hanya menyusun uangnya; transisi
  * status tetap milik modul retur.
  */
-export const markBookReturnRefundedQueries = (database: AppDatabase, orderId: string, now: string) => [
+export const markBookReturnRefundedQueries = (
+  database: AppDatabase,
+  target: { returnId?: string | null; orderId: string },
+  now: string
+) => [
   database
     .update(bookReturns)
     .set({ status: "refunded", updatedAt: now })
-    .where(eq(bookReturns.orderId, orderId)),
+    .where(target.returnId ? eq(bookReturns.id, target.returnId) : eq(bookReturns.orderId, target.orderId)),
   // Kosakata fulfillment belum punya `cancelled`; nilai lama dipertahankan
   // agar perilaku tidak berubah (lihat catatan ADR-0019).
   database
     .update(studentBookOrders)
     .set({ fulfillmentStatus: "return_in_progress", updatedAt: now })
-    .where(eq(studentBookOrders.id, orderId)),
+    .where(eq(studentBookOrders.id, target.orderId)),
 ];
 
 export interface ResolveReturnInput {

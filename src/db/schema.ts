@@ -456,6 +456,9 @@ export const bookReturns = sqliteTable("book_returns", {
   studentId: text("student_id").notNull().references(() => students.id),
   defectiveBookId: text("defective_book_id").notNull().references(() => books.id),
   replacementBookItemId: text("replacement_book_item_id").references(() => bookItems.id),
+  // Pembeda jalur retur: cacat (defect) vs pengunduran diri murid (withdrawal).
+  // Dulu hanya dikodekan sebagai tag "[PENGUNDURAN DIRI]" di kolom reason.
+  kind: text("kind", { enum: ["defect", "withdrawal"] }).notNull().default("defect"),
   reason: text("reason").notNull(),
   photoProofUrl: text("photo_proof_url"),
   status: text("status", { enum: ["reported", "approved", "replaced", "rejected", "refunded"] }).notNull().default("reported"),
@@ -480,6 +483,9 @@ export const refundSlips = sqliteTable("refund_slips", {
   slipNumber: text("slip_number").notNull().unique(),
   // Polimorfik: student_book_orders atau uniform_orders sesuai `kind`.
   orderId: text("order_id").notNull(),
+  // Baris sumber (book_returns.id / uniform_refunds.id) agar pencairan Finance
+  // menandai baris yang benar, bukan sembarang baris dengan order_id sama.
+  sourceId: text("source_id"),
   orderNumber: text("order_number").notNull(),
   studentId: text("student_id").notNull().references(() => students.id),
   studentName: text("student_name").notNull(),
@@ -689,6 +695,8 @@ export const uniformRefunds = sqliteTable("uniform_refunds", {
   studentId: text("student_id").notNull().references(() => students.id),
   amount: integer("amount").notNull().default(0),
   reason: text("reason").notNull(),
+  // Pembeda jalur: cacat/gagal kirim (defect) vs pengunduran diri (withdrawal).
+  kind: text("kind", { enum: ["defect", "withdrawal"] }).notNull().default("defect"),
   // Nomor resi kurir retur fisik (dulu dipadatkan ke system_settings/reason).
   courierResi: text("courier_resi"),
   letterProofUrl: text("letter_proof_url"),
