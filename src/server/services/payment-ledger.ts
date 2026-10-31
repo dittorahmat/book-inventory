@@ -48,9 +48,17 @@ export interface ReceiptInput {
 }
 
 /** Kredit hasil hitung ulang satu order; bentuknya sama untuk buku dan seragam. */
-export type OrderCredit =
-  | { ok: true; kind: "buku"; orderId: string; paidAmount: number; paymentStatus: BookStatus; due: number }
-  | { ok: true; kind: "seragam"; orderId: string; paidAmount: number; paymentStatus: UniformStatus; due: number };
+export type OrderCredit = {
+  kind: PaymentKind;
+  orderId: string;
+  paidAmount: number;
+  /** Gabungan enum tabel order; nilai selalu berasal dari baris order itu sendiri. */
+  paymentStatus: BookStatus | UniformStatus;
+  due: number;
+};
+
+/** Kredit order yang berhasil dihitung ulang (atau alasan gagal). */
+export type OrderCreditResult = ({ ok: true } & OrderCredit) | LedgerError;
 
 export const orderTableFor = (kind: PaymentKind) => (kind === "buku" ? studentBookOrders : uniformOrders);
 
@@ -94,6 +102,42 @@ export const verifiedAllocationSum = async (
 };
 
 /**
+ * Bangun kredit dari baris order apa pun. Satu-satunya tempat status bayar
+ * diturunkan sebelum ditulis, sehingga pemanggil tidak perlu tahu tabelnya.
+ */
+export const orderCreditFor = (
+  kind: PaymentKind,
+  order: {
+    id: string;
+    orderType: string;
+    totalAmount: number;
+    shippingCost?: number | null;
+    paymentStatus: BookStatus | UniformStatus;
+  },
+  paidAmount: number
+): OrderCredit => {
+  const { due, paymentStatus } = creditParts(order, paidAmount);
+  return { kind, orderId: order.id, paidAmount, due, paymentStatus };
+};
+
+/**
+ * Query tulis kredit ke baris order. Satu-satunya pemilik pemetaan
+ * kind → tabel order untuk penulisan `paidAmount`/`paymentStatus`.
+ * Seragam memakai enum status yang lebih sempit; nilai yang ditulis selalu
+ * berasal dari baris seragam itu sendiri (lihat `orderCreditFor`).
+ */
+export const orderCreditQuery = (database: AppDatabase, credit: OrderCredit, now: string) =>
+  credit.kind === "buku"
+    ? database
+        .update(studentBookOrders)
+        .set({ paidAmount: credit.paidAmount, paymentStatus: credit.paymentStatus, updatedAt: now })
+        .where(eq(studentBookOrders.id, credit.orderId))
+    : database
+        .update(uniformOrders)
+        .set({ paidAmount: credit.paidAmount, paymentStatus: credit.paymentStatus as UniformStatus, updatedAt: now })
+        .where(eq(uniformOrders.id, credit.orderId));
+
+/**
  * Kredit order hasil hitung dari barisnya. Nilainya turunan, jadi penulisan
  * ulang selalu memulihkan angka — tidak ada riwayat inkremental yang bisa drift.
  */
@@ -102,26 +146,20 @@ export const recomputeOrderPayment = async (
   kind: PaymentKind,
   orderId: string,
   now: string
-): Promise<OrderCredit | LedgerError> => {
+): Promise<OrderCreditResult> => {
   const paidAmount = await verifiedAllocationSum(database, kind, orderId);
   if (kind === "buku") {
     const [order] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
     if (!order) return notFound("Pesanan tidak ditemukan.");
-    const { due, paymentStatus } = creditParts(order, paidAmount);
-    await database
-      .update(studentBookOrders)
-      .set({ paidAmount, paymentStatus, updatedAt: now })
-      .where(eq(studentBookOrders.id, orderId));
-    return { ok: true, kind: "buku", orderId, paidAmount, paymentStatus, due };
+    const credit = orderCreditFor("buku", order, paidAmount);
+    await orderCreditQuery(database, credit, now);
+    return { ok: true, ...credit };
   }
   const [order] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   if (!order) return notFound("Pesanan tidak ditemukan.");
-  const { due, paymentStatus } = creditParts(order, paidAmount);
-  await database
-    .update(uniformOrders)
-    .set({ paidAmount, paymentStatus, updatedAt: now })
-    .where(eq(uniformOrders.id, orderId));
-  return { ok: true, kind: "seragam", orderId, paidAmount, paymentStatus, due };
+  const credit = orderCreditFor("seragam", order, paidAmount);
+  await orderCreditQuery(database, credit, now);
+  return { ok: true, ...credit };
 };
 
 export type ReceiptRow = typeof paymentReceipts.$inferInsert;

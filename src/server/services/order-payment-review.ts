@@ -15,14 +15,16 @@ import { confirmUrlFor, ensurePaymentToken } from "./order-invoice";
 import { notifyOrderPaidOff, notifyPaymentRejected, type NotifyDeps, type NotifyResult } from "./order-paid-notify";
 import {
   buildReceiptDraft,
-  creditParts,
   listPaymentRows,
+  orderCreditFor,
+  orderCreditQuery,
   orderTableFor,
   paymentRowStatus,
   receiptNumberConflict,
   receiptWriteQueries,
   verifiedAllocationSum,
   type ListPaymentRow,
+  type OrderCredit,
   type PaymentKind,
 } from "./payment-ledger";
 
@@ -61,21 +63,6 @@ export interface ReviewDeps extends WriteDeps, NotifyDeps {}
 const invalid = (message: string): PaymentReviewError => ({ ok: false, status: 400, message });
 const notFound = (message: string): PaymentReviewError => ({ ok: false, status: 404, message });
 
-/** Kredit satu order dari struk; bentuknya seragam untuk buku dan seragam. */
-type Credit =
-  | { kind: "buku"; orderId: string; paidAmount: number; paymentStatus: typeof studentBookOrders.$inferSelect["paymentStatus"]; due: number }
-  | { kind: "seragam"; orderId: string; paidAmount: number; paymentStatus: typeof uniformOrders.$inferSelect["paymentStatus"]; due: number };
-
-const creditUpdateQuery = (database: AppDatabase, credit: Credit, now: string) =>
-  credit.kind === "buku"
-    ? database
-        .update(studentBookOrders)
-        .set({ paidAmount: credit.paidAmount, paymentStatus: credit.paymentStatus, updatedAt: now })
-        .where(eq(studentBookOrders.id, credit.orderId))
-    : database
-        .update(uniformOrders)
-        .set({ paidAmount: credit.paidAmount, paymentStatus: credit.paymentStatus, updatedAt: now })
-        .where(eq(uniformOrders.id, credit.orderId));
 
 /** Nama lama dipertahankan: pembaca baris struk kini milik ledger. */
 export const listPaymentsWithStatus = listPaymentRows;
@@ -168,21 +155,13 @@ export const verifyPayment = async (
   // tidak boleh terpisah (struk verified tanpa order terkredit = angka liar).
   // `verifiedAllocationSum` belum menghitung struk ini (masih pending), jadi
   // kredit = jumlah lama + porsi struk ini.
-  const credits: Credit[] = [];
+  const credits: OrderCredit[] = [];
   for (const allocation of allocations) {
     const alreadyPaid = await verifiedAllocationSum(database, allocation.kind, allocation.orderId);
     const paidAmount = alreadyPaid + allocation.amount;
-    if (allocation.kind === "buku") {
-      const [target] = await database.select().from(studentBookOrders).where(eq(studentBookOrders.id, allocation.orderId));
-      if (!target) continue;
-      const { due, paymentStatus } = creditParts(target, paidAmount);
-      credits.push({ kind: "buku", orderId: allocation.orderId, paidAmount, due, paymentStatus });
-    } else {
-      const [target] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, allocation.orderId));
-      if (!target) continue;
-      const { due, paymentStatus } = creditParts(target, paidAmount);
-      credits.push({ kind: "seragam", orderId: allocation.orderId, paidAmount, due, paymentStatus });
-    }
+    const target = await findOrder(database, allocation.kind, allocation.orderId);
+    if (!target) continue;
+    credits.push(orderCreditFor(allocation.kind, target, paidAmount));
   }
   try {
     await runWriteBatch(database, [
@@ -190,7 +169,7 @@ export const verifyPayment = async (
         .update(paymentReceipts)
         .set({ verifiedAt: now, verifiedByUserId: input.verifiedByUserId ?? null, updatedAt: now })
         .where(eq(paymentReceipts.id, receipt.id)),
-      ...credits.map((credit) => creditUpdateQuery(database, credit, now)),
+      ...credits.map((credit) => orderCreditQuery(database, credit, now)),
     ]);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "verifikasi struk bayar");
@@ -310,8 +289,10 @@ export const recordCashierPayment = async (
   const effectiveAllocation = input.allocationAmount ?? input.bookAllocationAmount ?? 0;
   if (effectiveAllocation < 1) return invalid("Nominal alokasi wajib diisi");
   const alreadyPaid = await verifiedAllocationSum(database, kind, orderId);
-  const paidAmount = alreadyPaid + effectiveAllocation;
-  const { due, paymentStatus } = creditParts(order, paidAmount);
+  const credit = orderCreditFor(kind, order, alreadyPaid + effectiveAllocation);
+  const { due } = credit;
+  const paymentStatus = credit.paymentStatus;
+  const paidAmount = credit.paidAmount;
   const receiptId = newWriteId(deps);
   const built = buildReceiptDraft(
     {
@@ -331,26 +312,10 @@ export const recordCashierPayment = async (
   if (!built.ok) return { ok: false, status: built.status, message: built.message };
   // Kredit dihitung dari baris order yang sama sebelum batch; struk + kredit
   // ditulis atomik agar verifikasi tidak pernah meninggalkan order tak terkredit.
-  const credit: Credit =
-    kind === "buku"
-      ? {
-          kind,
-          orderId,
-          paidAmount,
-          due,
-          paymentStatus: paymentStatus as typeof studentBookOrders.$inferSelect["paymentStatus"],
-        }
-      : {
-          kind,
-          orderId,
-          paidAmount,
-          due,
-          paymentStatus: paymentStatus as typeof uniformOrders.$inferSelect["paymentStatus"],
-        };
   try {
     await runWriteBatch(database, [
       ...receiptWriteQueries(database, built.draft),
-      creditUpdateQuery(database, credit, now),
+      orderCreditQuery(database, credit, now),
     ]);
   } catch (err) {
     if (receiptNumberConflict(err)) {

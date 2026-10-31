@@ -6,6 +6,7 @@ import { dropSeed, seedSchool, seedStudent } from "../lib/test-seed";
 import {
   buildReceiptDraft,
   creditParts,
+  orderCreditFor,
   paymentRowStatus,
   recomputeOrderPayment,
   type ReceiptInput,
@@ -19,6 +20,40 @@ const baseInput = (overrides: Partial<ReceiptInput> = {}): ReceiptInput => ({
   bankName: "BCA",
   referenceNumber: "REF-1",
   ...overrides,
+});
+
+describe("orderCreditFor (satu registry kind → kredit order)", () => {
+  test("buku: status diturunkan dari angka, kind dipertahankan", () => {
+    const credit = orderCreditFor(
+      "buku",
+      { id: "ord-1", orderType: "regular", totalAmount: 100_000, paymentStatus: "unpaid" },
+      40_000
+    );
+    expect(credit).toEqual({
+      kind: "buku",
+      orderId: "ord-1",
+      paidAmount: 40_000,
+      due: 100_000,
+      paymentStatus: "partial",
+    });
+  });
+
+  test("seragam: ongkir masuk tagihan dan beasiswa mempertahankan statusnya", () => {
+    const credit = orderCreditFor(
+      "seragam",
+      {
+        id: "uo-1",
+        orderType: "scholarship",
+        totalAmount: 250_000,
+        shippingCost: 25_000,
+        paymentStatus: "scholarship_pending",
+      },
+      0
+    );
+    expect(credit.kind).toBe("seragam");
+    expect(credit.due).toBe(275_000);
+    expect(credit.paymentStatus).toBe("scholarship_pending");
+  });
 });
 
 describe("buildReceiptDraft", () => {
