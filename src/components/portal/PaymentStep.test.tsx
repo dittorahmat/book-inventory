@@ -24,22 +24,14 @@ const samplePkg: BookPackageOption = {
 const noop = () => {};
 
 const actions: OrderDraftActions = {
-  setOrderType: noop,
-  setScholarshipProofBase64: noop,
-  setPaymentChoice: noop,
-  setTransferAmount: noop,
-  setBookAllocationAmount: noop,
-  setBankName: noop,
-  setReferenceNumber: noop,
-  setPaymentProofBase64: noop,
-  setFinanceProofBase64: noop,
-  setParentPhoneManual: noop,
-  setNotes: noop,
-  setHomeAddress: noop,
-  setPaketKirim: noop,
-  setHasTakenPackage: noop,
-  setWprPrice: noop,
+  edit: noop,
+  chooseOrderType: noop,
+  choosePaymentScheme: noop,
+  attachProof: noop,
   setAmounts: noop,
+  setHasTakenPackage: noop,
+  setPaketKirim: noop,
+  setWprPrice: noop,
 };
 
 const draft = (overrides: Partial<OrderDraft> = {}): OrderDraft => ({

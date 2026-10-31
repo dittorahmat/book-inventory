@@ -7,7 +7,7 @@ import type {
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
 import { WprQuestion } from "./WprQuestion";
-import { allocationForChoice, draftRemainder, validateAllocation } from "./order-draft";
+import { draftRemainder, validateAllocation } from "./order-draft";
 import type { OrderDraft, OrderDraftActions } from "./useOrderDraft";
 
 interface PaymentStepProps {
@@ -50,21 +50,7 @@ export function PaymentStep({
     homeAddress,
     hasTakenPackage,
   } = draft;
-  const {
-    setOrderType,
-    setScholarshipProofBase64,
-    setPaymentChoice,
-    setTransferAmount,
-    setBookAllocationAmount,
-    setBankName,
-    setReferenceNumber,
-    setPaymentProofBase64,
-    setFinanceProofBase64,
-    setParentPhoneManual,
-    setNotes,
-    setHomeAddress,
-    setHasTakenPackage,
-  } = actions;
+  const { edit, chooseOrderType, choosePaymentScheme, attachProof, setHasTakenPackage } = actions;
   const allocationCheck = validateAllocation({
     transferAmount,
     allocationAmount: bookAllocationAmount,
@@ -90,7 +76,7 @@ export function PaymentStep({
       {/* Radio Order Type */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div
-          onClick={() => setOrderType("regular")}
+          onClick={() => chooseOrderType("regular")}
           className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
             orderType === "regular"
               ? "border-[#1877F2] bg-[#E7F3FF]/40"
@@ -107,7 +93,7 @@ export function PaymentStep({
         </div>
 
         <div
-          onClick={() => setOrderType("scholarship")}
+          onClick={() => chooseOrderType("scholarship")}
           className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
             orderType === "scholarship"
               ? "border-emerald-600 bg-emerald-50/50"
@@ -143,7 +129,7 @@ export function PaymentStep({
               type="file"
               accept="image/*"
               required
-              onChange={(e) => onFileUpload(e, setScholarshipProofBase64)}
+              onChange={(e) => onFileUpload(e, (base64) => attachProof("scholarship", base64))}
               className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700"
             />
           </div>
@@ -169,10 +155,7 @@ export function PaymentStep({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setPaymentChoice("full");
-                  setBookAllocationAmount(allocationForChoice("full", pkg.price));
-                }}
+                onClick={() => choosePaymentScheme({ choice: "full", bookTotal: pkg.price })}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                   paymentChoice === "full" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
                 }`}
@@ -181,10 +164,7 @@ export function PaymentStep({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setPaymentChoice("partial");
-                  setBookAllocationAmount(allocationForChoice("partial", pkg.price));
-                }}
+                onClick={() => choosePaymentScheme({ choice: "partial", bookTotal: pkg.price })}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                   paymentChoice === "partial" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
                 }`}
@@ -204,7 +184,7 @@ export function PaymentStep({
                   { value: "BSI", label: "BSI", hint: "Yayasan Al Wildan - 772001928" },
                 ]}
                 value={bankName}
-                onChange={setBankName}
+                onChange={(value) => edit({ bankName: value })}
                 placeholder="Pilih bank..."
               />
             </div>
@@ -216,7 +196,7 @@ export function PaymentStep({
               <input
                 type="text"
                 value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
+                onChange={(e) => edit({ referenceNumber: e.target.value })}
                 placeholder="Contoh: 981249821 / Ref ATM"
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
               />
@@ -230,7 +210,7 @@ export function PaymentStep({
                 type="number"
                 min={0}
                 value={transferAmount === 0 ? "" : transferAmount}
-                onChange={(e) => setTransferAmount(parseInt(e.target.value) || 0)}
+                onChange={(e) => edit({ transferAmount: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
                 placeholder="Total di struk (bisa gabung SPP)"
               />
@@ -249,7 +229,7 @@ export function PaymentStep({
                 max={pkg.price}
                 placeholder="0"
                 value={bookAllocationAmount === 0 ? "" : bookAllocationAmount}
-                onChange={(e) => setBookAllocationAmount(parseInt(e.target.value) || 0)}
+                onChange={(e) => edit({ bookAllocationAmount: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]"
               />
               <div className="flex justify-between text-[10px] text-[#65676B] mt-0.5">
@@ -271,7 +251,7 @@ export function PaymentStep({
                 type="tel"
                 required
                 value={parentPhoneManual}
-                onChange={(e) => setParentPhoneManual(e.target.value)}
+                onChange={(e) => edit({ parentPhoneManual: e.target.value })}
                 placeholder="Contoh: 081234567890 (Bukti Pengambilan & Kode Unik dikirim ke nomor ini)"
                 className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
               />
@@ -288,7 +268,7 @@ export function PaymentStep({
                 type="file"
                 accept="image/*"
                 data-testid="payment-proof-input"
-                onChange={(e) => onFileUpload(e, setPaymentProofBase64)}
+                onChange={(e) => onFileUpload(e, (base64) => attachProof("payment", base64))}
                 className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
               />
               {paymentProofBase64 && (
@@ -306,7 +286,7 @@ export function PaymentStep({
                 type="file"
                 accept="image/*,.pdf"
                 data-testid="finance-proof-input"
-                onChange={(e) => onFileUpload(e, setFinanceProofBase64)}
+                onChange={(e) => onFileUpload(e, (base64) => attachProof("finance", base64))}
                 className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-800"
               />
               {financeProofBase64 ? (
@@ -341,7 +321,7 @@ export function PaymentStep({
             rows={2}
             required
             value={homeAddress ?? ""}
-            onChange={(e) => setHomeAddress?.(e.target.value)}
+            onChange={(e) => edit({ homeAddress: e.target.value })}
             placeholder="Contoh: Jl. Mawar No. 10, RT 02/RW 05, Bogor 16111"
             className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
           />
@@ -358,7 +338,7 @@ export function PaymentStep({
         <textarea
           rows={2}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => edit({ notes: e.target.value })}
           placeholder="Catatan untuk bagian administrasi buku sekolah..."
           className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
         />
