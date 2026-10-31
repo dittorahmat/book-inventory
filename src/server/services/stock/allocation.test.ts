@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../../../db";
 import { bookItems, bookPackages, books, packageItems, schools } from "../../../db/schema";
-import { allocateInventoryStock, allocateLooseStock } from "./allocation";
+import { allocateInventoryStock } from "./allocation";
 
 describe("stock allocation FIFO via SQL", () => {
   it("returns the oldest available items first and reports exact shortage", async () => {
@@ -29,22 +29,19 @@ describe("stock allocation FIFO via SQL", () => {
         });
       }
 
-      const two = await allocateLooseStock({ bookId, schoolId, quantity: 2 }, db);
-      expect(two.ok).toBe(true);
-      if (!two.ok) return;
-      expect(two.items.map((r) => r.id)).toEqual([ids[1], ids[2]]);
-
-      // Uji lewat interface terpadu allocateInventoryStock
-      const unifiedRes = await allocateInventoryStock(
+      const two = await allocateInventoryStock(
         { kind: "loose", targetId: bookId, schoolId, quantity: 2 },
         db
       );
-      expect(unifiedRes.ok).toBe(true);
-      if (!unifiedRes.ok) return;
-      expect(unifiedRes.items[0].kind).toBe("loose");
-      expect(unifiedRes.items.map((r) => r.id)).toEqual([ids[1], ids[2]]);
+      expect(two.ok).toBe(true);
+      if (!two.ok) return;
+      expect(two.items.map((r) => r.id)).toEqual([ids[1], ids[2]]);
+      expect(two.items[0].kind).toBe("loose");
 
-      const short = await allocateLooseStock({ bookId, schoolId, quantity: 5 }, db);
+      const short = await allocateInventoryStock(
+        { kind: "loose", targetId: bookId, schoolId, quantity: 5 },
+        db
+      );
       expect(short.ok).toBe(false);
       if (short.ok) return;
       expect(short.available).toBe(3);

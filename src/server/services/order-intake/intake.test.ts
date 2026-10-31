@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { db } from "../../../db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { bookItems, books, schools } from "../../../db/schema";
-import { reserveLooseLines, resolveLooseLines } from "./intake";
+import { allocateLooseLines, resolveLooseLines } from "./intake";
 
 const now = new Date().toISOString();
 const stamp = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -56,7 +56,7 @@ describe("order-intake shared seam", () => {
     const { schoolId, bookId } = await seedStock("agg", 3);
     try {
       // Duplikat qty 2+2 = 4 lawan stok 3: agregasi menolak (dulu dua cek 2-satuan lolos dua-duanya).
-      const failed = await reserveLooseLines(db, schoolId, [
+      const failed = await allocateLooseLines(db, schoolId, [
         { bookId, title: "x", quantity: 2, unitPrice: 25000 },
         { bookId, title: "x", quantity: 2, unitPrice: 25000 },
       ]);
@@ -66,12 +66,16 @@ describe("order-intake shared seam", () => {
       expect(failed.quantity).toBe(4);
       expect(failed.available).toBe(3);
 
-      const ok = await reserveLooseLines(db, schoolId, [
+      const ok = await allocateLooseLines(db, schoolId, [
         { bookId, title: "x", quantity: 3, unitPrice: 25000 },
       ]);
       expect(ok.ok).toBe(true);
       if (!ok.ok) return;
       expect(ok.allocatedIds.length).toBe(3);
+      // Alokasi MURNI BACA: unit tidak dikunci/dipindah, jadi stok tetap tersedia
+      // sampai pemanggil (Direct Sale / serah terima) benar-benar mengonsumsinya.
+      const allocated = await db.select().from(bookItems).where(inArray(bookItems.id, ok.allocatedIds));
+      expect(allocated.every((row) => row.status === "in_stock")).toBe(true);
     } finally {
       await cleanupStock(schoolId, bookId);
     }

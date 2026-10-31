@@ -166,7 +166,8 @@ export const checkSportsExchangeStock = (id: string): Promise<{
   getJson(`/api/uniforms/exchanges/${id}/check-stock`, "Gagal memeriksa stok pengganti seragam.");
 
 export interface UniformRefundRow {
-  id: string; orderId: string; refundNumber: string; amount: number; reason: string; status: string;
+  id: string; orderId: string; refundNumber: string; amount: number;
+  kind: "defect" | "withdrawal"; reason: string; status: string;
 }
 
 export const fetchUniformRefunds = (params: { schoolId?: string; status?: string }): Promise<UniformRefundRow[]> =>

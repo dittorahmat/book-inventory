@@ -8,7 +8,7 @@ describe("order-intake seam", () => {
       "sellDirect",
       "markSatuanShipped",
       "resolveLooseLines",
-      "reserveLooseLines",
+      "allocateLooseLines",
       "getSatuanStatus",
       "getSatuanCatalogIfOpen",
       "getCurrentSatuanStatus",

@@ -58,6 +58,7 @@ export const buildReconciliation = async (
   const { start, end } = periodBounds(input.period);
   const school = input.schoolId;
   const receiptScope = [
+    eq(paymentReceipts.direction, "in"),
     gte(paymentReceipts.receivedAt, start),
     lt(paymentReceipts.receivedAt, end),
     isNotNull(paymentReceipts.verifiedAt),

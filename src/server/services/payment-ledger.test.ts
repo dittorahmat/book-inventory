@@ -1,8 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { db } from "../../db";
+import { paymentAllocations, paymentReceipts, studentBookOrders } from "../../db/schema";
+import { dropSeed, seedSchool, seedStudent } from "../lib/test-seed";
 import {
   buildReceiptDraft,
   creditParts,
+  orderCreditFor,
   paymentRowStatus,
+  recomputeOrderPayment,
   type ReceiptInput,
 } from "./payment-ledger";
 
@@ -14,6 +20,40 @@ const baseInput = (overrides: Partial<ReceiptInput> = {}): ReceiptInput => ({
   bankName: "BCA",
   referenceNumber: "REF-1",
   ...overrides,
+});
+
+describe("orderCreditFor (satu registry kind → kredit order)", () => {
+  test("buku: status diturunkan dari angka, kind dipertahankan", () => {
+    const credit = orderCreditFor(
+      "buku",
+      { id: "ord-1", orderType: "regular", totalAmount: 100_000, paymentStatus: "unpaid" },
+      40_000
+    );
+    expect(credit).toEqual({
+      kind: "buku",
+      orderId: "ord-1",
+      paidAmount: 40_000,
+      due: 100_000,
+      paymentStatus: "partial",
+    });
+  });
+
+  test("seragam: ongkir masuk tagihan dan beasiswa mempertahankan statusnya", () => {
+    const credit = orderCreditFor(
+      "seragam",
+      {
+        id: "uo-1",
+        orderType: "scholarship",
+        totalAmount: 250_000,
+        shippingCost: 25_000,
+        paymentStatus: "scholarship_pending",
+      },
+      0
+    );
+    expect(credit.kind).toBe("seragam");
+    expect(credit.due).toBe(275_000);
+    expect(credit.paymentStatus).toBe("scholarship_pending");
+  });
 });
 
 describe("buildReceiptDraft", () => {
@@ -102,5 +142,55 @@ describe("paymentRowStatus", () => {
     expect(paymentRowStatus({ verifiedAt: null, rejectedAt: null })).toBe("pending");
     expect(paymentRowStatus({ verifiedAt: "x", rejectedAt: null })).toBe("verified");
     expect(paymentRowStatus({ verifiedAt: "x", rejectedAt: "y" })).toBe("rejected");
+  });
+});
+
+describe("arah struk (direction)", () => {
+  // Regresi ADR-0019: refund keluar dulu tercatat sebagai struk terverifikasi
+  // pada order yang sama, sehingga recompute membacanya sebagai pembayaran dan
+  // menggelembungkan paidAmount. Hanya direction="in" yang boleh dikreditkan.
+  it("struk keluar tidak menambah paidAmount order", async () => {
+    const tag = `dir-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
+    const schoolId = await seedSchool(tag);
+    const studentId = await seedStudent(tag, schoolId);
+    const orderId = `ord-${tag}`;
+    const now = "2026-10-30T00:00:00.000Z";
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-${tag.toUpperCase()}`, studentId, schoolId,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 100_000, paidAmount: 0, createdAt: now, updatedAt: now,
+      });
+
+      const inbound = buildReceiptDraft(
+        { studentId, schoolId, amount: 100_000, allocations: [{ orderId, kind: "buku", amount: 100_000, billAmount: 100_000 }], autoVerify: true },
+        now,
+        `rcp-in-${tag}`
+      );
+      const outbound = buildReceiptDraft(
+        { studentId, schoolId, amount: 40_000, direction: "out", autoVerify: true, allocations: [{ orderId, kind: "buku", amount: 40_000, billAmount: 100_000 }] },
+        now,
+        `rcp-out-${tag}`
+      );
+      expect(inbound.ok).toBe(true);
+      expect(outbound.ok).toBe(true);
+      if (!inbound.ok || !outbound.ok) return;
+
+      for (const built of [inbound, outbound]) {
+        await db.insert(paymentReceipts).values(built.draft.receipt);
+        await db.insert(paymentAllocations).values(built.draft.allocations);
+      }
+
+      const credit = await recomputeOrderPayment(db, "buku", orderId, now);
+      expect(credit.ok).toBe(true);
+      if (!credit.ok) return;
+      expect(credit.paidAmount).toBe(100_000);
+      expect(credit.paymentStatus).toBe("paid");
+    } finally {
+      await db.delete(paymentAllocations).where(eq(paymentAllocations.orderId, orderId));
+      await db.delete(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await dropSeed({ schoolIds: [schoolId], studentIds: [studentId] });
+    }
   });
 });

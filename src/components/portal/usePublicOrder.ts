@@ -125,7 +125,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     if (nextId === selectedPackageId) return;
     setSelectedPackageId(nextId);
     if (matched && transferAmount === 0 && bookAllocationAmount === 0) {
-      setAmounts(matched.price, matched.price);
+      setAmounts({ transferAmount: matched.price, bookAllocationAmount: matched.price });
     }
   }, [packages, selectedStudent, step, selectedPackageId, transferAmount, bookAllocationAmount, setAmounts]);
 
@@ -133,7 +133,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     const matched = resolveLockedPackage(st, packages);
     if (matched) {
       setSelectedPackageId(matched.id);
-      setAmounts(matched.price, matched.price);
+      setAmounts({ transferAmount: matched.price, bookAllocationAmount: matched.price });
     } else {
       setSelectedPackageId("");
     }

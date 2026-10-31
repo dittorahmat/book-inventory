@@ -3,7 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
 import { books } from "../../../db/schema";
 import { effectiveSellPrice } from "../../../lib/book-pricing";
-import { allocateLooseStock } from "../stock";
+import { allocateInventoryStock } from "../stock";
 import { validateLooseBooks } from "./validation";
 
 export interface IntakeLooseItem {
@@ -64,12 +64,15 @@ export interface FailedReservation {
 }
 
 /**
- * Satu-satunya pemilik reservasi FIFO intake: agregasi kuantitas per judul
- * lalu alokasi sekuensial via seam stock-allocation. Pemanggil memetakan
- * kegagalan ke pesannya sendiri (publik teruskan mentah, direct bungkus
- * judul + sisa) — urutan panggil dan agregasi tinggal di sini.
+ * Satu-satunya pintu alokasi FIFO untuk baris satuan intake: agregasi
+ * kuantitas per judul lalu alokasi sekuensial via seam `allocateInventoryStock`
+ * (AGENTS §0.15). Alokasi ini MURNI BACA — tidak ada unit yang dikunci.
+ * Pemanggil yang langsung mengonsumsi unit (Direct Sale) memakai
+ * `allocatedIds`; submit publik hanya memakainya sebagai verifikasi
+ * ketersediaan karena fisik baru dikonsumsi saat serah terima (ADR-0018).
+ * Karena itu nama fungsi menyebut "allocate", bukan "reserve".
  */
-export async function reserveLooseLines(
+export async function allocateLooseLines(
   database: AppDatabase,
   schoolId: string,
   lines: IntakeLooseLine[]
@@ -78,18 +81,21 @@ export async function reserveLooseLines(
   for (const line of lines) aggregated.set(line.bookId, (aggregated.get(line.bookId) ?? 0) + line.quantity);
   const allocatedIds: string[] = [];
   for (const [bookId, quantity] of aggregated) {
-    const reservation = await allocateLooseStock({ bookId, schoolId, quantity }, database);
-    if (!reservation.ok) {
+    const available = await allocateInventoryStock(
+      { kind: "loose", targetId: bookId, schoolId, quantity },
+      database
+    );
+    if (!available.ok) {
       return {
         ok: false,
         bookId,
         quantity,
-        available: reservation.available ?? 0,
-        status: reservation.status,
-        message: reservation.message,
+        available: available.available ?? 0,
+        status: available.status,
+        message: available.message,
       };
     }
-    allocatedIds.push(...reservation.items.map((i) => i.id));
+    allocatedIds.push(...available.items.map((item) => item.id));
   }
   return { ok: true, allocatedIds };
 }

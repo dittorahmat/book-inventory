@@ -6,6 +6,7 @@ afterEach(() => {
   restoreActor();
 });
 import { uniformsRouter } from "./uniforms";
+import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { branchClaimsRouter } from "./branch-claims";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
@@ -356,15 +357,21 @@ describe("Uniform exchange & refund", () => {
     });
     expect(cross.status).toBe(403);
 
-    // Approval pembatalan seragam murid mundur & penerbitan slip RET-U
+    // Pengajuan pembatalan seragam murid mundur lewat portal (resi terstruktur),
+    // lalu persetujuan gudang menerbitkan slip RET-U.
     mockActor("central_admin", null);
-    const rfWithdrawReq = await uniformsRouter.request("/refunds", {
+    const rfWithdrawReq = await publicUniformOrdersRouter.request("/cancel-withdrawal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, amount: 100000, reason: "[PENGUNDURAN DIRI] [RESI: SICEPAT-991] Pindah sekolah" }),
+      body: JSON.stringify({
+        orderId,
+        studentId,
+        courierResi: "SICEPAT-991",
+        reason: "Pindah sekolah ke luar kota",
+      }),
     });
     expect(rfWithdrawReq.status).toBe(201);
-    const wId = ((await rfWithdrawReq.json()).data as { id: string }).id;
+    const wId = ((await rfWithdrawReq.json()).data as { refundId: string }).refundId;
 
     mockActor("warehouse_admin", null);
     const approveWdr = await uniformsRouter.request(`/refunds/${wId}/approve-withdrawal`, {

@@ -266,7 +266,7 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
               <div className="text-[#65676B]">{r.reason} · {r.status}</div>
               {logistics && r.status === "requested" && (
                 <div className="flex flex-wrap gap-2">
-                  {r.reason.includes("[PENGUNDURAN DIRI]") ? (
+                  {r.kind === "withdrawal" ? (
                     <button
                       type="button"
                       disabled={busy}

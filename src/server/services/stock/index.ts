@@ -48,7 +48,7 @@ export type {
   AllocationResult,
   InventoryAllocationInput,
 } from "./allocation";
-export { allocateInventoryStock, allocateLooseStock, allocatePackages } from "./allocation";
+export { allocateInventoryStock } from "./allocation";
 export type { LooseStockSummaryRow, PackageStockSummaryRow } from "./summary";
 export { getLooseStockSummary, getPackageStockSummary } from "./summary";
 export type { VendorReturnDisposeCandidate } from "./vendor-return";

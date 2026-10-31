@@ -4,7 +4,7 @@ import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds, systemSettings } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -25,6 +25,19 @@ const postPublic = (path: string, body: unknown) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+// Rute konfirmasi kini memanggil modul seragam langsung (tanpa seam dispatch
+// order-billing): token asing tetap 404, bukan 200 kosong.
+const lookupConfirmToken = (token: string) =>
+  publicUniformOrdersRouter.request(`/confirm/${encodeURIComponent(token)}`, { method: "GET" });
+
+describe("Public uniform confirm token", () => {
+  it("token asing ditolak 404", async () => {
+    const res = await lookupConfirmToken("tok-ghost-seragam");
+    expect(res.status).toBe(404);
+    expect((await res.json()).success).toBe(false);
+  });
+});
 
 async function seedSchoolStudent(stamp: string, uuidIds = false) {
   const now = new Date().toISOString();
@@ -318,14 +331,12 @@ describe("Portal retur seragam mandiri", () => {
     expect(wJson.data.refundId).toBeDefined();
 
     const [rfRow] = await db.select().from(uniformRefunds).where(eq(uniformRefunds.id, wJson.data.refundId));
-    expect(rfRow.reason).toContain("[PENGUNDURAN DIRI]");
-    
-    // Verifikasi resi tersimpan di system_settings (anti-string-packing)
-    const [resiRow] = await db
-      .select()
-      .from(systemSettings)
-      .where(eq(systemSettings.key, `uniform_withdrawal_resi_${wJson.data.refundId}`));
-    expect(resiRow).toBeDefined();
-    expect(resiRow.value).toContain("JNE-RETI-00129");
+    expect(rfRow.kind).toBe("withdrawal");
+    expect(rfRow.reason).toBe("Pindah sekolah ke luar kota");
+
+    // Resi & surat tersimpan sebagai kolom terstruktur (AGENTS §0.10),
+    // bukan JSON di system_settings.
+    expect(rfRow.courierResi).toBe("JNE-RETI-00129");
+    expect(rfRow.letterProofUrl).toBeTruthy();
   });
 });

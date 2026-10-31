@@ -56,6 +56,7 @@ export interface StaffBookReturn {
   defectiveBookId: string;
   bookTitle: string;
   isbn: string;
+  kind: "defect" | "withdrawal";
   reason: string;
   photoProofUrl?: string;
   status: "reported" | "approved" | "replaced" | "rejected";

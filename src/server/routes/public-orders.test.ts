@@ -1792,7 +1792,8 @@ describe("Struk bayar ganda di intake publik", () => {
 
       const [retRow] = await db.select().from(bookReturns).where(eq(bookReturns.orderId, orderId));
       expect(retRow).toBeDefined();
-      expect(retRow.reason).toContain("[PENGUNDURAN DIRI]");
+      expect(retRow.kind).toBe("withdrawal");
+      expect(retRow.reason).toBe("Pindah ke luar kota karena pekerjaan orang tua");
       expect(retRow.photoProofUrl).toBeDefined();
     } finally {
       await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));

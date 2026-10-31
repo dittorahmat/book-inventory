@@ -106,7 +106,7 @@ export async function allocateInventoryStock(
  * bukan seluruh stok lalu di-sort di JS. Hitungan total hanya di-query
  * saat stok kurang (untuk pesan error yang tepat).
  */
-export async function allocateLooseStock(
+async function allocateLooseStock(
   input: {
     bookId: string;
     schoolId: string;
@@ -159,7 +159,7 @@ export async function allocateLooseStock(
 }
 
 /** Alokasi FIFO bundel fisik untuk satu jenis paket di lokasi asal. */
-export async function allocatePackages(
+async function allocatePackages(
   input: {
     packageId: string;
     schoolId: string;

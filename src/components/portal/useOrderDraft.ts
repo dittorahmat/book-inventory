@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
+import { allocationForChoice } from "./order-draft";
 
 /**
- * Draf pembayaran portal: satu modul pemilik state + transisi, bukan 14
- * pasangan nilai/setter yang harus diketahui setiap step. Server tetap
- * otoritas terakhir; modul ini hanya menyatukan cara draf dibentuk.
+ * Draf pembayaran portal: satu modul pemilik state + transisi, bukan belasan
+ * pasangan nilai/setter yang harus diketahui setiap step (AGENTS §0.8).
+ * Step hanya mengirim niat domain ("pilih skema bayar", "lampirkan bukti");
+ * aturan turunan (nominal alokasi preset) tetap di sini, bukan di JSX.
+ * Server tetap otoritas terakhir.
  */
 export interface OrderDraft {
   orderType: "regular" | "scholarship";
@@ -23,24 +26,36 @@ export interface OrderDraft {
   wprPrice: number;
 }
 
+/** Tiga slot bukti dokumen portal; satu pintu lampiran, bukan tiga setter. */
+export type DraftProofSlot = "scholarship" | "payment" | "finance";
+
+const PROOF_FIELD: Record<DraftProofSlot, keyof OrderDraft> = {
+  scholarship: "scholarshipProofBase64",
+  payment: "paymentProofBase64",
+  finance: "financeProofBase64",
+};
+
 export interface OrderDraftActions {
-  setOrderType: (value: OrderDraft["orderType"]) => void;
-  setScholarshipProofBase64: (value: string) => void;
-  setPaymentChoice: (value: OrderDraft["paymentChoice"]) => void;
-  setTransferAmount: (value: number) => void;
-  setBookAllocationAmount: (value: number) => void;
-  setBankName: (value: string) => void;
-  setReferenceNumber: (value: string) => void;
-  setPaymentProofBase64: (value: string) => void;
-  setFinanceProofBase64: (value: string) => void;
-  setParentPhoneManual: (value: string) => void;
-  setNotes: (value: string) => void;
-  setHomeAddress: (value: string) => void;
-  setPaketKirim: (value: boolean) => void;
+  /** Isian bebas (teks/angka) yang tidak membawa transisi domain. */
+  edit: (patch: Partial<OrderDraft>) => void;
+  /** Pilih jalur pendaftaran. */
+  chooseOrderType: (orderType: OrderDraft["orderType"]) => void;
+  /**
+   * Pilih skema bayar sekaligus nominal alokasi preset-nya. Dulu dua setter
+   * dipanggil berpasangan di JSX sehingga tombol "Lunas"/"Cicilan" bisa lupa
+   * menyelaraskan nominal.
+   */
+  choosePaymentScheme: (input: { choice: OrderDraft["paymentChoice"]; bookTotal: number }) => void;
+  /** Lampirkan bukti pada slot yang sesuai. */
+  attachProof: (slot: DraftProofSlot, base64: string) => void;
+  /** Isi dua nominal sekaligus (paket terkunci) tanpa parameter posisional. */
+  setAmounts: (input: { transferAmount: number; bookAllocationAmount: number }) => void;
+  /** Jawaban "paket sudah diambil" — null berarti belum dijawab. */
   setHasTakenPackage: (value: boolean | null) => void;
-  setWprPrice: (value: number) => void;
-  /** Isi dua nominal sekaligus (paket terkunci) tanpa menimpa edit manual. */
-  setAmounts: (transferAmount: number, bookAllocationAmount: number) => void;
+  /** Pilih pengiriman paket ke rumah. */
+  setPaketKirim: (value: boolean) => void;
+  /** Harga WPR hasil kelayakan murid. */
+  setWprPrice: (price: number) => void;
 }
 
 const EMPTY_DRAFT: OrderDraft = {
@@ -64,32 +79,26 @@ const EMPTY_DRAFT: OrderDraft = {
 export function useOrderDraft(initialWprPrice: number) {
   const [draft, setDraft] = useState<OrderDraft>({ ...EMPTY_DRAFT, wprPrice: initialWprPrice });
 
-  const actions = useMemo<OrderDraftActions>(() => {
-    const set =
-      <K extends keyof OrderDraft>(key: K) =>
-      (value: OrderDraft[K]) =>
-        setDraft((previous) => ({ ...previous, [key]: value }));
-
-    return {
-      setOrderType: set("orderType"),
-      setScholarshipProofBase64: set("scholarshipProofBase64"),
-      setPaymentChoice: set("paymentChoice"),
-      setTransferAmount: set("transferAmount"),
-      setBookAllocationAmount: set("bookAllocationAmount"),
-      setBankName: set("bankName"),
-      setReferenceNumber: set("referenceNumber"),
-      setPaymentProofBase64: set("paymentProofBase64"),
-      setFinanceProofBase64: set("financeProofBase64"),
-      setParentPhoneManual: set("parentPhoneManual"),
-      setNotes: set("notes"),
-      setHomeAddress: set("homeAddress"),
-      setPaketKirim: set("paketKirim"),
-      setHasTakenPackage: set("hasTakenPackage"),
-      setWprPrice: set("wprPrice"),
-      setAmounts: (transferAmount, bookAllocationAmount) =>
+  const actions = useMemo<OrderDraftActions>(
+    () => ({
+      edit: (patch) => setDraft((previous) => ({ ...previous, ...patch })),
+      chooseOrderType: (orderType) => setDraft((previous) => ({ ...previous, orderType })),
+      choosePaymentScheme: ({ choice, bookTotal }) =>
+        setDraft((previous) => ({
+          ...previous,
+          paymentChoice: choice,
+          bookAllocationAmount: allocationForChoice(choice, bookTotal),
+        })),
+      attachProof: (slot, base64) =>
+        setDraft((previous) => ({ ...previous, [PROOF_FIELD[slot]]: base64 })),
+      setAmounts: ({ transferAmount, bookAllocationAmount }) =>
         setDraft((previous) => ({ ...previous, transferAmount, bookAllocationAmount })),
-    };
-  }, []);
+      setHasTakenPackage: (hasTakenPackage) => setDraft((previous) => ({ ...previous, hasTakenPackage })),
+      setPaketKirim: (paketKirim) => setDraft((previous) => ({ ...previous, paketKirim })),
+      setWprPrice: (wprPrice) => setDraft((previous) => ({ ...previous, wprPrice })),
+    }),
+    []
+  );
 
   return { draft, actions };
 }

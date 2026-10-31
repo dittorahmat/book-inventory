@@ -33,10 +33,12 @@ import {
   receiveUniformPo,
   requestUniformExchange,
   requestUniformRefund,
+  checkReplacementStock,
   resolveUniformExchange,
   resolveUniformRefund,
 } from "../services/uniform";
-import { approveUniformWithdrawal, getUniformWithdrawalSlip } from "../services/uniform-withdrawal";
+import { approveUniformWithdrawal } from "../services/uniform-withdrawal";
+import { findRefundSlip } from "../services/refund-slip";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import { listPaymentsWithStatus } from "../services/order-payment-review";
 import { fail } from "../lib/route-fail";
@@ -208,29 +210,35 @@ uniformsRouter.post("/exchanges", zValidator("json", exchangeSchema), async (c) 
   }
 });
 
-import {
-  reviewSportsExchange,
-  getSportsExchangeDetails,
-  checkReplacementStock,
-} from "../services/uniform-sports-exchange";
 
 uniformsRouter.post("/exchanges/:id/resolve", zValidator("json", resolveExchangeSchema), async (c) => {
   try {
     await resolveLogisticsActor(c);
     const body = c.req.valid("json");
-    if (body.action === "approve_ready" || body.action === "approve_backorder") {
-      const res = await reviewSportsExchange(db, {
-        exchangeId: c.req.param("id"),
-        action: body.action,
-        replacementResi: body.replacementResi,
-        estimatedShipDate: body.estimatedShipDate,
-      });
-      if (!res.ok) return c.json({ success: false, message: res.message }, res.status);
-      return c.json({ success: true, data: res.data, details: res.details, message: res.message });
-    }
-    const result = await resolveUniformExchange(db, c.req.param("id"), body.action);
-    if (!result.ok) return fail(c, result);
-    return c.json({ success: true, data: result.data });
+    const decision =
+      body.action === "approve_ready"
+        ? "ready"
+        : body.action === "approve_backorder"
+          ? "backorder"
+          : body.action;
+    const res = await resolveUniformExchange(db, {
+      exchangeId: c.req.param("id"),
+      decision,
+      replacementResi: body.replacementResi,
+      estimatedShipDate: body.estimatedShipDate,
+    });
+    if (!res.ok) return fail(c, res);
+    return c.json({
+      success: true,
+      data: res.data,
+      // Bentuk respons lama dipertahankan: detail pelacakan kini dibaca dari baris.
+      details: {
+        courierResi: res.data.courierResi ?? undefined,
+        replacementResi: res.data.replacementResi ?? undefined,
+        estimatedShipDate: res.data.estimatedShipDate ?? undefined,
+      },
+      message: res.message,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -243,8 +251,12 @@ uniformsRouter.get("/exchanges/:id/check-stock", async (c) => {
     const [ex] = await db.select().from(uniformExchanges).where(eq(uniformExchanges.id, exId));
     if (!ex) return c.json({ success: false, message: "Pengajuan tukar tidak ditemukan" }, 404);
     const stockInfo = await checkReplacementStock(db, ex.newVariantId, ex.newSize);
-    const details = await getSportsExchangeDetails(db, exId);
-    return c.json({ success: true, data: { ...stockInfo, details: details ?? {} } });
+    const details = {
+      courierResi: ex.courierResi ?? undefined,
+      replacementResi: ex.replacementResi ?? undefined,
+      estimatedShipDate: ex.estimatedShipDate ?? undefined,
+    };
+    return c.json({ success: true, data: { ...stockInfo, details } });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -302,7 +314,7 @@ uniformsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
 uniformsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const slip = await getUniformWithdrawalSlip(db, c.req.param("slipNumber"));
+    const slip = await findRefundSlip(db, c.req.param("slipNumber"));
     if (!slip) return c.json({ success: false, message: "Slip bukti pengembalian seragam tidak ditemukan" }, 404);
     return c.json({ success: true, data: slip });
   } catch (err) {

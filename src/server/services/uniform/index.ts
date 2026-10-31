@@ -5,16 +5,17 @@ export { createUniformPackage, createUniformVariant, listUniformPackages, listUn
 export { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY, UNIFORM_SATUAN_KEY } from "./orders";
 export type { SubmitUniformOrderDeps, UniformOrderLine } from "./orders";
 export { isUniformSatuanEnabled, markUniformShipped, resolveUniformScholarship, submitUniformOrder } from "./orders";
-export type { ExchangeRequestInput, RefundRequestInput } from "./returns";
+export type { ExchangeRequestInput, ResolveExchangeInput } from "./exchange";
+export type { RefundRequestInput } from "./returns";
 export {
   EXCHANGE_WINDOW_DAYS,
+  checkReplacementStock,
+  findUniformExchange,
   listUniformExchanges,
-  listUniformRefunds,
   requestUniformExchange,
-  requestUniformRefund,
   resolveUniformExchange,
-  resolveUniformRefund,
-} from "./returns";
+} from "./exchange";
+export { listUniformRefunds, requestUniformRefund, resolveUniformRefund } from "./returns";
 export type { CreateUniformPoInput, ReceiveLineInput, UniformPoLineInput, UniformSupplyDeps } from "./supply";
 export { assembleUniformPackages, adjustManualStock, createUniformPo, receiveUniformPo } from "./supply";
 

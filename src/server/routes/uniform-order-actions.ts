@@ -3,7 +3,8 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { resolveLogisticsActor, accessErrorResponse } from "../services/access-scope";
-import { sendInvoice as sendBillingInvoice, setShipping as setBillingShipping } from "../services/order-billing";
+import { sendUniformInvoice } from "../services/order-invoice";
+import { setUniformShipping } from "../services/order-shipping";
 import {
   cashierPaymentSchema,
   recordCashierPayment,
@@ -19,7 +20,7 @@ export const uniformOrderActionsRouter = new Hono();
 uniformOrderActionsRouter.post("/orders/:id/send-invoice", async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await sendBillingInvoice(db, c.req.param("id"), { kind: "seragam", baseUrl: new URL(c.req.url).origin });
+    const result = await sendUniformInvoice(db, c.req.param("id"), { baseUrl: new URL(c.req.url).origin });
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
   } catch (err) {
@@ -34,7 +35,7 @@ uniformOrderActionsRouter.post("/orders/:id/shipping", zValidator("json", z.obje
 })), async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await setBillingShipping(db, c.req.param("id"), c.req.valid("json"), "seragam");
+    const result = await setUniformShipping(db, c.req.param("id"), c.req.valid("json"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Ongkir berhasil disimpan.", data: result.data });
   } catch (err) {

@@ -309,7 +309,7 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
                 >
                   Tolak
                 </button>
-                {activeReturn.reason.includes("[PENGUNDURAN DIRI]") ? (
+                {activeReturn.kind === "withdrawal" ? (
                   <button
                     type="button"
                     disabled={isSubmitting}

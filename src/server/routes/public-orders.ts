@@ -17,7 +17,7 @@ import {
 import { MetaWhatsAppSender, type SendWhatsAppResult } from "../services/whatsapp";
 import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
-import { confirmPayment as confirmBillingPayment, lookupByToken as lookupBillingByToken } from "../services/order-billing";
+import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice";
 import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
@@ -238,7 +238,7 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
 
 // 6. Konfirmasi pembayaran via link invoice (lunas/bertahap, termin bebas)
 publicOrdersRouter.get("/confirm/:token", async (c) => {
-  const found = await lookupBillingByToken(db, c.req.param("token"), "buku");
+  const found = await lookupBookByToken(db, c.req.param("token"));
   if (!found) return c.json({ success: false, message: "Link konfirmasi tidak valid." }, 404);
   return c.json({
     success: true,
@@ -255,7 +255,7 @@ const confirmPaymentSchema = z.object({
 });
 
 publicOrdersRouter.post("/confirm/:token", zValidator("json", confirmPaymentSchema), async (c) => {
-  const result = await confirmBillingPayment(db, c.req.param("token"), c.req.valid("json"), "buku");
+  const result = await confirmBookPayment(db, c.req.param("token"), c.req.valid("json"));
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({ success: true, message: "Konfirmasi pembayaran tercatat.", data: result.data }, 201);
 });
