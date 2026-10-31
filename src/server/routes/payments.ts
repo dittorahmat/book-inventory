@@ -220,7 +220,8 @@ paymentsRouter.post("/orders/:orderId/scholarship", zValidator("json", scholarsh
       .update(studentBookOrders)
       .set({
         paymentStatus: newStatus,
-        notes: body.notes ? `${order.notes || ""} [Beasiswa ${body.action}: ${body.notes}]`.trim() : order.notes,
+        discretionType: "scholarship",
+        discretionNotes: body.notes?.trim() || null,
         updatedAt: now,
       })
       .where(eq(studentBookOrders.id, orderId));

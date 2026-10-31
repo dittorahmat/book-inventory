@@ -1,9 +1,11 @@
-// Memblokir pola darurat string-packing domain fields (seperti [WA: ...] atau [Surat: ...])
-// ke dalam kolom teks catatan/notes bebas, sesuai Mandat Anti-Kambuh AGENTS.md §0.10.
+// Memblokir pola darurat string-packing domain fields (seperti [WA: ...] atau
+// [PENGUNDURAN DIRI]) ke dalam kolom teks catatan/alasan bebas, sesuai Mandat
+// Anti-Kambuh AGENTS.md §0.10: field domain wajib kolom skema resmi.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const PACKING_PATTERN = /\[(WA|WhatsApp|Surat|Bukti|Finance|Resi):\s*[^\]]+\]/i;
+const PACKING_PATTERN =
+  /\[(WA|WhatsApp|Surat|Bukti|Finance|Resi|Beasiswa|PENGUNDURAN DIRI|Retur)\b[^\]]*\]/i;
 
 function walk(dir: string, fileList: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

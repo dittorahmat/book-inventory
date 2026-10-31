@@ -111,9 +111,12 @@ describe("Payments & Cashier Verification API", () => {
       fulfillmentStatus: "waiting_preparation", totalAmount: 0, paidAmount: 0,
       createdAt: now, updatedAt: now,
     });
-    const schApprove = await postJson(`/orders/${schOrderId}/scholarship`, { action: "approve" });
+    const schApprove = await postJson(`/orders/${schOrderId}/scholarship`, { action: "approve", notes: "Lolos seleksi berkas" });
     expect(schApprove.status).toBe(200);
     expect((await schApprove.json()).data.paymentStatus).toBe("scholarship_approved");
+    const [savedOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, schOrderId));
+    expect(savedOrder?.discretionType).toBe("scholarship");
+    expect(savedOrder?.discretionNotes).toBe("Lolos seleksi berkas");
 
     await db.delete(studentBookOrders).where(eq(studentBookOrders.id, schOrderId));
     await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));

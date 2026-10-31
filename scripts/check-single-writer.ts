@@ -37,6 +37,24 @@ const OWNED_WRITES: OwnedWrite[] = [
     pattern: /\.(insert|update)\s*\(\s*uniformPackageStock\s*\)/,
     detail: "pakai adjustPackageStockQuery() dari services/uniform/stock",
   },
+  {
+    table: "refund_slips",
+    owner: "src/server/services/refund-slip.ts",
+    pattern: /\.(insert|update)\s*\(\s*refundSlips\s*\)/,
+    detail: "pakai refundSlipInsertQuery()/refundSlipDisbursedQuery() dari services/refund-slip",
+  },
+  {
+    table: "book_returns",
+    owner: "src/server/services/return/intake.ts",
+    pattern: /\.insert\s*\(\s*bookReturns\s*\)/,
+    detail: "satu intake retur: pakai reportReturn() dari services/return (kind defect/withdrawal)",
+  },
+  {
+    table: "uniform_exchanges",
+    owner: "src/server/services/uniform/exchange.ts",
+    pattern: /\.(insert|update)\s*\(\s*uniformExchanges\s*\)/,
+    detail: "satu mesin tukar seragam: pakai requestUniformExchange()/resolveUniformExchange() dari services/uniform/exchange",
+  },
 ];
 
 const walk = (dir: string, out: string[] = []): string[] => {
@@ -53,7 +71,7 @@ const walk = (dir: string, out: string[] = []): string[] => {
       const normalized = full.replace(/\\/g, "/");
       // Seed baseline mengisi baris awal langsung; itu data, bukan mutasi
       // runtime. Modul demo memakai modul pemilik (payment-ledger/uniform stock).
-      if (normalized === "src/server/seed.ts") continue;
+      if (normalized === "src/server/seed.ts" || normalized.startsWith("src/server/seed-demo/")) continue;
       out.push(normalized);
     }
   }
@@ -86,4 +104,4 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log("Single-writer gate OK: struk & stok seragam hanya ditulis modul pemiliknya.");
+console.log("Single-writer gate OK: struk, slip retur, retur buku, tukar seragam & stok seragam hanya ditulis modul pemiliknya.");
