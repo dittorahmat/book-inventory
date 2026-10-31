@@ -176,6 +176,17 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     wajib diisi melalui resolusi deterministik: BOM paket pertama bila ada, baris satuan pertama bila ada,
     atau fallback komponen wajib katalog (`WPR_BOOK_ID`) untuk menjamin kepatuhan Foreign Key integritas relasional
     tanpa memasukkan ID arbitrer atau string kosong.
+36. **Disiplin Navigasi & Persistensi Spesifikasi Desain** — spesifikasi arsitektur atau rencana implementasi
+    yang dihasilkan dari skill perancangan (`/improve-codebase-architecture`, `/plan`, dsb.) dilarang hanya
+    ditinggalkan pada file temp sistem operasi (`%TEMP%` / `/tmp`) yang rentan terhapus atau sulit dijangkau
+    sub-agent review; sertakan tautan / ringkasan spesifikasi di commit message awal atau simpan artefak rencana
+    di `.scratch/` / `openspec/changes/` agar sub-agent peninjau spesifikasi (`/code-review` spec axis) memiliki
+    akses langsung ke dokumen acuan kebenaran (*single source of truth*).
+37. **Ekonomi Eksekusi Test & Gate pada Pengembangan Aktif** — selama siklus perubahan aktif per tiket,
+    prioritaskan `bun test <file>` dan `bun run check:fast` (yang mengeksekusi gate inkremental secara instan);
+    hindari menjalankan `bun test` penuh atau `check:all` di setiap iterasi kecil karena suite 550+ test membutuhkan
+    waktu ~60 detik dan berpotensi menghabiskan batas asinkron shell. Jalankan `check:all` penuh hanya sekali
+    pada tahap verifikasi akhir sebelum commit atau pembukaan Pull Request.
 
 ---
 

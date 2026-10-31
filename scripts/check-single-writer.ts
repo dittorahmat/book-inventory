@@ -2,8 +2,12 @@
 // modul pemilik (AGENTS.md §0.4/§0.7, CODING_STANDARDS.md §10). Pola ini
 // menangkap empat penulis struk dan lima salinan mutasi stok yang pernah
 // menyimpang (id alokasi, default bank, 400 vs 409).
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
+
+const ALL = process.argv.includes("--all");
+const norm = (p: string) => p.replace(/\\/g, "/");
 
 interface OwnedWrite {
   table: string;
@@ -85,10 +89,37 @@ const walk = (dir: string, out: string[] = []): string[] => {
   return out;
 };
 
+function getTargetFiles(): string[] {
+  if (ALL) {
+    return walk("src");
+  }
+  try {
+    const out = execSync("git status --porcelain -- src", { encoding: "utf8" });
+    const changed = out
+      .split(/\r?\n/)
+      .map((l) => l.trim().split(/\s+/).pop() || "")
+      .filter((f) => f && /\.(ts|tsx)$/.test(f) && !f.endsWith(".test.ts") && !f.endsWith(".test.tsx") && !f.endsWith(".d.ts"))
+      .map(norm)
+      .filter((f) => existsSync(f))
+      .filter((normalized) => {
+        return !(
+          normalized === "src/server/seed.ts" ||
+          normalized === "src/server/seed-demo/orders.ts" ||
+          normalized === "src/server/seed-demo/uniform-core.ts" ||
+          normalized === "src/server/seed-demo/demo-uniform.ts"
+        );
+      });
+    return changed;
+  } catch {
+    return walk("src");
+  }
+}
+
 const isCommentLine = (line: string): boolean => /^\s*(\/\/|\/\*|\*)/.test(line);
 
+const targetFiles = getTargetFiles();
 const findings: Array<{ file: string; line: number; table: string; detail: string }> = [];
-for (const file of walk("src")) {
+for (const file of targetFiles) {
   const owned = OWNED_WRITES.filter((rule) => rule.owner !== file);
   if (owned.length === 0) continue;
   const lines = readFileSync(file, "utf8").split("\n");
@@ -111,4 +142,4 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log("Single-writer gate OK: struk, slip retur, retur buku, tukar seragam & stok seragam hanya ditulis modul pemiliknya.");
+console.log(`Single-writer gate OK (${ALL ? "all" : `${targetFiles.length} file berubah`}): struk, slip retur, retur buku, tukar seragam & stok seragam hanya ditulis modul pemiliknya.`);
