@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 import { uniformsRouter } from "./uniforms";
 import { db } from "../../db";
@@ -116,6 +117,9 @@ describe("Uniform sports exchange actions & resolution", () => {
       const appJson = (await appRes.json()) as { success: boolean; data: { status: string }; details: { replacementResi: string } };
       expect(appJson.data.status).toBe("approved");
       expect(appJson.details.replacementResi).toBe("JNE-REP-9988");
+      // Detail kini hidup di baris exchange, bukan JSON system_settings.
+      const [rowReady] = await db.select().from(uniformExchanges).where(eq(uniformExchanges.id, exIdReady));
+      expect(rowReady.replacementResi).toBe("JNE-REP-9988");
     } finally {
       restoreActor();
     }
@@ -151,6 +155,8 @@ describe("Uniform sports exchange actions & resolution", () => {
       const boJson = (await boRes.json()) as { success: boolean; data: { status: string }; details: { estimatedShipDate: string } };
       expect(boJson.data.status).toBe("approved");
       expect(boJson.details.estimatedShipDate).toBe("2026-11-15");
+      const [rowBo] = await db.select().from(uniformExchanges).where(eq(uniformExchanges.id, exIdBo));
+      expect(rowBo.estimatedShipDate).toBe("2026-11-15");
     } finally {
       restoreActor();
     }

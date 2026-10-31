@@ -677,6 +677,10 @@ export const uniformExchanges = sqliteTable("uniform_exchanges", {
   newVariantId: text("new_variant_id").notNull().references(() => uniformVariants.id),
   newSize: text("new_size").notNull(),
   reason: text("reason").notNull(),
+  // Pelacakan penukaran (dulu JSON di system_settings `uniform_exchange_sports_*`).
+  courierResi: text("courier_resi"), // resi retur dari orang tua
+  replacementResi: text("replacement_resi"), // resi kirim unit pengganti
+  estimatedShipDate: text("estimated_ship_date"), // ETA backorder
   status: text("status", { enum: ["requested", "approved", "completed", "rejected"] }).notNull().default("requested"),
   handledByUserId: text("handled_by_user_id").references(() => users.id),
   resolvedAt: text("resolved_at"),

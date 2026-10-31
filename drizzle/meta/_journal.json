@@ -288,6 +288,13 @@
       "when": 1793410249347,
       "tag": "0040_perpetual_devos",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1793410501930,
+      "tag": "0041_public_madame_masque",
+      "breakpoints": true
     }
   ]
 }

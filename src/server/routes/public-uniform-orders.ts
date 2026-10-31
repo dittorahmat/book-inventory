@@ -7,6 +7,7 @@ import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { matchLower } from "../lib/partitioned-search";
 import { idSchema, academicYearSchema } from "../lib/validators";
 import {
+  findUniformExchange,
   listUniformPackages,
   listUniformVariants,
   requestUniformExchange,
@@ -163,11 +164,6 @@ const ownershipGuard = async (orderId: string, studentId: string) => {
   return { ok: true as const };
 };
 
-import {
-  saveSportsExchangeDetails,
-  getSportsExchangeDetails,
-} from "../services/uniform-sports-exchange";
-
 const publicExchangeSchema = z.object({
   orderId: idSchema,
   studentId: idSchema,
@@ -191,21 +187,27 @@ publicUniformOrdersRouter.post("/exchange-requests", zValidator("json", publicEx
     newVariantId: body.newVariantId,
     newSize: body.newSize,
     reason: body.reason,
+    courierResi: body.courierResi,
   });
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
-
-  if (body.courierResi?.trim()) {
-    await saveSportsExchangeDetails(db, result.data.id, { courierResi: body.courierResi.trim() });
-  }
 
   return c.json({ success: true, data: result.data }, 201);
 });
 
 // Pelacakan status & detail penukaran seragam (resi retur, resi kirim baru, estimasi tanggal kirim)
 publicUniformOrdersRouter.get("/exchange-tracking/:id", async (c) => {
-  const id = c.req.param("id");
-  const details = await getSportsExchangeDetails(db, id);
-  return c.json({ success: true, data: details ?? {} });
+  const exchange = await findUniformExchange(db, c.req.param("id"));
+  if (!exchange) return c.json({ success: true, data: {} });
+  return c.json({
+    success: true,
+    data: {
+      courierResi: exchange.courierResi,
+      replacementResi: exchange.replacementResi,
+      estimatedShipDate: exchange.estimatedShipDate,
+      status: exchange.status,
+      updatedAt: exchange.updatedAt,
+    },
+  });
 });
 
 const publicRefundSchema = z.object({
