@@ -187,6 +187,14 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     hindari menjalankan `bun test` penuh atau `check:all` di setiap iterasi kecil karena suite 550+ test membutuhkan
     waktu ~60 detik dan berpotensi menghabiskan batas asinkron shell. Jalankan `check:all` penuh hanya sekali
     pada tahap verifikasi akhir sebelum commit atau pembukaan Pull Request.
+38. **Seam Terpadu Pengunduran Diri Murid (ADR-0019)** — seluruh intake pembatalan pesanan akibat murid mengundurkan
+    diri (buku maupun seragam) wajib memusat ke seam polimorfik `requestStudentWithdrawal`
+    (`src/server/services/student-withdrawal.ts`), dilarang membuat handler intake pembatalan terpisah langsung
+    di router ataupun memanggil sub-layanan spesifik buku/seragam secara terisolasi.
+39. **Dekomposisi Sub-Router & Pemisahan Komponen Rekonsiliasi** — route publik yang memuat intake komplain/retur
+    wajib didelegasikan ke sub-router fungsional (`public-order-returns.ts`); tampilan Berita Acara / audit rekonsiliasi
+    akhir periode wajib memisahkan state/mutasi ke custom hook (`useTermReconciliation.ts`) dan tabel audit ke
+    sub-komponen (`AuditCountsTable.tsx`) agar view orchestrator tetap ramping (<200 baris) dan mematuhi gate file-size §7.
 
 ---
 

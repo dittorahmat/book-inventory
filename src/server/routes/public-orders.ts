@@ -22,16 +22,15 @@ import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema } from "../lib/validators";
-import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
 import { getWarehouseReturnAddress } from "../services/return-address";
-import { reportReturn } from "../services/return";
-import { requestBookWithdrawal } from "../services/book-withdrawal";
 import {
   searchVerifiedStudents,
   toBookSearchView,
   toConfirmOrderView,
 } from "../services/public-order";
+import { publicOrderReturnsRouter } from "./public-order-returns";
 export const publicOrdersRouter = new Hono();
+publicOrdersRouter.route("/", publicOrderReturnsRouter);
 
 // Schema for student search
 const searchStudentSchema = z.object({
@@ -312,64 +311,4 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
   return c.json({ success: true, data: matchedOrders });
 });
 
-// 5. Pengajuan refund buku oleh orang tua (tanpa login). Foto wajib: keputusan
-// approval logistik bergantung pada bukti fisik, jadi intake menolak tanpa foto.
-const publicReturnSchema = z.object({
-  orderId: idSchema,
-  studentId: idSchema,
-  defectiveBookId: idSchema,
-  reason: z.string().min(5, "Alasan / deskripsi kerusakan minimal 5 karakter"),
-  photoProofBase64: z
-    .string()
-    .regex(BOOK_RETURN_PHOTO_DATA_URL, "Foto bukti harus berupa gambar JPG/PNG/WebP.")
-    .max(BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, "Ukuran foto melebihi batas 2 MB"),
-});
 
-publicOrdersRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
-  const body = c.req.valid("json");
-  // Kepemilikan pesanan, kelayakan status, dan keanggotaan buku divalidasi di
-  // intake (satu pemilik aturan, satu baca baris order) — bukan di route.
-  const result = await reportReturn(db, { ...body, source: "public" });
-  if (!result.ok) {
-    return c.json({ success: false, message: result.message }, result.status);
-  }
-
-  return c.json(
-    {
-      success: true,
-      message:
-        "Pengajuan refund buku berhasil dikirim. Tim logistik gudang akan memverifikasi kondisi fisik buku Anda.",
-      data: {
-        returnId: result.created.id,
-        orderNumber: result.orderNumber,
-        status: result.created.status,
-      },
-    },
-    201
-  );
-});
-
-// 6. Pengajuan pembatalan buku oleh siswa mengundurkan diri (ADR-0019)
-const cancelWithdrawalSchema = z.object({
-  orderId: idSchema,
-  studentId: idSchema,
-  reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
-  letterProofBase64: z.string().optional(),
-});
-
-publicOrdersRouter.post("/cancel-withdrawal", zValidator("json", cancelWithdrawalSchema), async (c) => {
-  const body = c.req.valid("json");
-  const result = await requestBookWithdrawal(db, body);
-  if (!result.ok) {
-    return c.json({ success: false, message: result.message }, result.status);
-  }
-
-  return c.json(
-    {
-      success: true,
-      message: "Pengajuan pembatalan buku siswa mengundurkan diri berhasil dikirim untuk review gudang.",
-      data: result,
-    },
-    201
-  );
-});

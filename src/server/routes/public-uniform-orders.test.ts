@@ -328,6 +328,7 @@ describe("Portal retur seragam mandiri", () => {
     expect(withdrawal.status).toBe(201);
     const wJson = (await withdrawal.json()) as { success: boolean; data: { orderId: string; refundId: string } };
     expect(wJson.success).toBe(true);
+    expect(wJson.data.orderId).toBe(orderId);
     expect(wJson.data.refundId).toBeDefined();
 
     const [rfRow] = await db.select().from(uniformRefunds).where(eq(uniformRefunds.id, wJson.data.refundId));
