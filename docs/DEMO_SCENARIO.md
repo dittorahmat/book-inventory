@@ -328,7 +328,28 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 4. Pada laporan kedua (Bab 14.1), pilih **Refund Dana** dan isi nominal, atau **Tolak**.
 5. Selesai: order kembali `picked_up` bila tidak ada laporan terbuka lain.
 
-**Verifikasi:** eksemplar pengganti berstatus disposed; refund menambah satu eksemplar `RFD-*` ke stok; laporan selesai tidak bisa diputuskan dua kali dengan aksi berbeda.
+### 14.3 Pembatalan buku siswa mundur (Student Withdrawal) & pelepasan stok fisik (ADR-0019)
+
+1. **Pengajuan dari Portal (Orang Tua)**:
+   - Buka `/refund` (tab **Refund Buku**), pilih Al Wildan 1.
+   - Cari order siswa yang mengajukan pengunduran diri sekolah (misal `ORD-202610-101`, Kayla).
+   - Centang opsi **"Pembatalan karena Siswa Mengundurkan Diri"**.
+   - Masukkan alasan pengunduran diri (misal *"Pindah domisili tugas orang tua ke luar kota"*).
+   - Unggah scan/foto **Surat Pengunduran Diri Resmi** (JPEG/PNG/WebP).
+   - Klik **Kirim Pengaduan Pembatalan**.
+   - Status permohonan tercatat dengan jenis `withdrawal`.
+2. **Persetujuan & Pelepasan Stok Fisik oleh Gudang**:
+   - Login staf gudang → tab **Refund Buku**.
+   - Tinjau permohonan pembatalan murid mundur Kayla (`kind: withdrawal`).
+   - Verifikasi dokumen surat pengunduran diri resmi.
+   - Klik **Setujui Pengembalian & Batalkan Pesanan**.
+   - **Hasil & Verifikasi Otomatis**:
+     - Sistem menerbitkan **Slip Bukti Pengembalian Buku** dengan format nomor resmi `RET-B-YYYYMM-XXXX`.
+     - Seluruh alokasi unit fisik buku (baik paket `package_items` maupun buku satuan `book_items`) otomatis di-*unassign* kembali menjadi stok bebas cabang/gudang.
+     - Status order buku diperbarui menjadi dibatalkan.
+     - Slip resmi `RET-B-*` dapat dicetak atau dibawa orang tua ke bagian Finance sebagai dasar pencairan refund dana via payment ledger.
+
+**Verifikasi:** eksemplar pengganti berstatus disposed; refund menambah satu eksemplar `RFD-*` ke stok; laporan selesai tidak bisa diputuskan dua kali dengan aksi berbeda; pembatalan siswa mundur otomatis mengembalikan alokasi fisik buku menjadi stok bebas tanpa menghapus riwayat dokumen audit.
 
 ---
 
@@ -447,9 +468,21 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 4. Tab **Retur Seragam**:
    - Cari `Kayla` → pilih `USO-DEMO-04` → mode **Tukar Ukuran** → olahraga S → M → alasan → submit.
    - Cari `Farhan` → pilih `USO-DEMO-03` atau `-02` → **Refund Dana** (kosong = refund penuh) → alasan → submit.
-5. Staf memproses di **Tukar & Refund**: setujui → selesaikan tukar; setujui → refund.
+   - **Pengajuan Pembatalan Seragam Siswa Mundur (ADR-0019)**:
+     - Cari order seragam siswa mundur → pilih **Refund Dana** dan centang **"Siswa Mengundurkan Diri"**.
+     - Masukkan alasan pembatalan dan **Nomor Resi Ekspedisi** pengembalian paket fisik ke Gudang Pusat (misal `JNE-RET-889911`).
+     - Unggah scan/foto **Surat Pengunduran Diri Resmi**.
+     - Submit → tercatat permohonan refund jenis `withdrawal`.
+5. Staf memproses di **Tukar & Refund**:
+   - Setujui → selesaikan tukar; setujui → refund komplain biasa.
+   - **Persetujuan Seragam Siswa Mundur**:
+     - Login admin gudang seragam → buka permohonan `kind: withdrawal`.
+     - Verifikasi resi kurir penerimaan paket fisik di gudang pusat dan keabsahan surat keterangan.
+     - Klik **Setujui Pengembalian Seragam Murid Mundur**.
+     - Sistem otomatis menerbitkan **Slip Bukti Pengembalian Seragam** (`RET-U-YYYYMM-XXXX`) dan mengembalikan unit seragam ke stok fisik gudang pusat (`sudah_dikirim` / status stok pulih).
+     - Slip `RET-U-*` menjadi instrumen klaim pencairan dana di bagian Finance.
 
-**Verifikasi:** tukar hanya untuk olahraga, bukan kain harian; pengajuan di luar 14 hari ditolak.
+**Verifikasi:** tukar hanya untuk olahraga, bukan kain harian; pengajuan di luar 14 hari ditolak; pembatalan seragam siswa mundur wajib menyertakan resi pengiriman fisik dan dokumen resmi sebelum stok dipulihkan dan slip `RET-U` diterbitkan.
 
 ---
 
@@ -541,12 +574,12 @@ Uji data:
 - [ ] Klaim portal menjadi struk pending; verifikasi staf mengubah status.
 - [ ] Halaman `/bayar` menghitung total + ongkir dan menerima Invoice WhatsApp.
 - [ ] Serah-terima menerbitkan `SJ-SERAH-*` dan mengikat bundel dengan Bukti Pengambilan.
-- [ ] Refund buku bisa ganti/tolak/refund.
+- [ ] Refund buku bisa ganti/tolak/refund dan pembatalan murid mundur menerbitkan `RET-B-*` dengan auto-unassign stok fisik.
 - [ ] Rakit dan bongkar mengubah stok dua lapis.
 - [ ] Stok satuan di gudang pusat dapat dijual langsung (ad-hoc) ke orang tua.
 - [ ] PO supplier punya riwayat penerimaan dan Retur Vendor (RTV) dapat dicatat via UI.
 - [ ] IPO, surat jalan, selisih, dan push berfungsi.
-- [ ] Seragam: PO parsial, reject, tukar, refund.
+- [ ] Seragam: PO parsial, reject, tukar, refund, dan pembatalan murid mundur dengan resi menerbitkan `RET-U-*`.
 - [ ] Rekonsiliasi menampilkan klaim tanpa drift.
 - [ ] Audit periode menghasilkan BA + tagihan hilang.
 - [ ] Laporan dan dashboard terisi.

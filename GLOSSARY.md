@@ -9,8 +9,16 @@ Dokumen resmi pengunduran diri siswa yang wajib diunggah oleh orang tua/wali mur
 _Avoid_: Surat keterangan biasa, form pembatalan lisan
 
 **Slip Bukti Pengembalian Barang**:
-Dokumen tanda terima digital bernomor resmi yang digenerate otomatis oleh sistem saat gudang mengonfirmasi penerimaan fisik retur buku/seragam; menjadi instrumen bukti sah yang dibawa wali murid ke bagian Finance untuk pencairan dana refund.
+Dokumen tanda terima digital bernomor resmi (`RET-B-*` untuk buku, `RET-U-*` untuk seragam) yang digenerate otomatis oleh sistem saat gudang menyetujui pembatalan/pengembalian fisik siswa mundur; menjadi instrumen bukti sah yang dibawa wali murid ke bagian Finance untuk pencairan dana refund.
 _Avoid_: Kuitansi manual, memo finance informal
+
+**Pembatalan Siswa Mundur (Student Withdrawal)**:
+Alur pembatalan pesanan terpadu akibat siswa batal mendaftar atau mengundurkan diri dari sekolah. Memisahkan secara tegas wewenang fisik (Gudang memverifikasi keabsahan surat/resi pengembalian, menyetujui di sistem, melepas alokasi fisik barang menjadi stok bebas, dan menerbitkan slip resmi) dan wewenang finansial (Finance mencairkan refund dana berdasarkan slip resmi via payment ledger).
+_Avoid_: Pembatalan sepihak kasir, refund tanpa bukti pengembalian fisik
+
+**Pelepasan Alokasi Fisik (Stock Unassign)**:
+Pengembalian otomatis ikatan unit fisik buku (bundel paket `package_items` maupun buku satuan `book_items`) dari pesanan yang dibatalkan kembali menjadi stok bebas cabang/gudang dalam batch transaksi yang sama, sehingga langsung tersedia untuk dialokasikan ke siswa lain.
+_Avoid_: Stok menggantung, penghapusan data fisik tanpa unassign
 
 **Tiket Penukaran Seragam**:
 Permohonan pergantian seragam olahraga (tukar ukuran / jenis karena salah kirim) yang diajukan wali murid via portal dengan bukti resi pengiriman retur ke Gudang Pusat; diverifikasi kondisi fisiknya oleh gudang sebelum unit pengganti dikirim kembali ke siswa.
