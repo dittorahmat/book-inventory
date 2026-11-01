@@ -200,6 +200,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     akhir periode wajib memisahkan state/mutasi ke custom hook (`useTermReconciliation.ts`) dan tabel audit ke
     sub-komponen (`AuditCountsTable.tsx`) agar view orchestrator tetap ramping (<200 baris) dan mematuhi gate file-size §7.
     Objek agregat audit rekonsiliasi wajib diikat ke tipe terstruktur terpadu (`AuditTotals`) guna mencegah bau kode *data clumps*.
+40. **Integritas Penegakan Asersi E2E & Isolasi Actor Test** — pengujian mutasi aktif skenario bisnis (E2E) dilarang
+    membungkus asersi mutasi utama dalam pengkondisian pasif (`if (collection.length > 0)`) yang berpotensi dilewati diam-diam
+    (*silent skip*); susun precondition data (misal binding paket fisik atau kuantitas stok awal) secara deterministik dan
+    lakukan asersi mutasi saldo/kolom secara langsung. Selain itu, pemanggilan `mockActor` di suite test wajib mendampingkan
+    `restoreActor()` di hook siklus hidup `afterEach()` atau blok `finally` guna mencegah kebocoran sesi otentikasi antar berkas test.
 
 ---
 
