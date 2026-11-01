@@ -205,6 +205,12 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     (*silent skip*); susun precondition data (misal binding paket fisik atau kuantitas stok awal) secara deterministik dan
     lakukan asersi mutasi saldo/kolom secara langsung. Selain itu, pemanggilan `mockActor` di suite test wajib mendampingkan
     `restoreActor()` di hook siklus hidup `afterEach()` atau blok `finally` guna mencegah kebocoran sesi otentikasi antar berkas test.
+    Ditegakkan mekanis oleh gate `check:test-isolation`.
+41. **Disiplin Skema Input Ketat & Anti-Silent Drop (Zod Strict)** — endpoint intake publik yang menerima dokumen/bukti
+    (seperti komplain retur atau pembatalan pengunduran diri) wajib menggunakan `.strict()` pada schema validator Zod agar
+    kesalahan ketik nama kunci payload (typo key) ditolak secara eksplisit dengan status 400 Bad Request, bukan dilewati
+    diam-diam menjadi `undefined`. Selain itu, loop `check:fast` wajib menjalankan linting inkremental pada berkas yang diubah
+    guna mencegah alokasi memori heap berlebih (out-of-memory).
 
 ---
 

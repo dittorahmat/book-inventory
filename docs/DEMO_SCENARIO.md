@@ -328,7 +328,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 4. Pada laporan kedua (Bab 14.1), pilih **Refund Dana** dan isi nominal, atau **Tolak**.
 5. Selesai: order kembali `picked_up` bila tidak ada laporan terbuka lain.
 
-### 14.3 Pembatalan buku siswa mundur (Student Withdrawal) & pelepasan stok fisik (ADR-0019)
+### 14.3 Skenario 9.3 — Pembatalan buku siswa mundur (Student Withdrawal) & pelepasan stok fisik (ADR-0019)
 
 1. **Pengajuan dari Portal (Orang Tua)**:
    - Buka `/refund` (tab **Refund Buku**), pilih Al Wildan 1.
@@ -468,7 +468,7 @@ Layar login staf punya **Akses Demo Cepat** untuk kedelapan akun.
 4. Tab **Retur Seragam**:
    - Cari `Kayla` → pilih `USO-DEMO-04` → mode **Tukar Ukuran** → olahraga S → M → alasan → submit.
    - Cari `Farhan` → pilih `USO-DEMO-03` atau `-02` → **Refund Dana** (kosong = refund penuh) → alasan → submit.
-   - **Pengajuan Pembatalan Seragam Siswa Mundur (ADR-0019)**:
+   - **Pengajuan Pembatalan Seragam Siswa Mundur (Skenario 15.4 / ADR-0019)**:
      - Cari order seragam siswa mundur → pilih **Refund Dana** dan centang **"Siswa Mengundurkan Diri"**.
      - Masukkan alasan pembatalan dan **Nomor Resi Ekspedisi** pengembalian paket fisik ke Gudang Pusat (misal `JNE-RET-889911`).
      - Unggah scan/foto **Surat Pengunduran Diri Resmi**.

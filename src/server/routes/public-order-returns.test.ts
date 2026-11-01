@@ -32,4 +32,18 @@ describe("public-order-returns router", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("rejects unknown extra keys due to strict schema", async () => {
+    const res = await app.request("/api/public/orders/cancel-withdrawal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: "ord-test",
+        studentId: "std-test",
+        reason: "Valid reason text here",
+        unknownKey: "typo",
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
 });
