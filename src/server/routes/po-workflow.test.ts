@@ -7,7 +7,20 @@ import { db } from "../../db";
 import { purchaseOrders, purchaseOrderItems, suppliers, books, schools } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
-beforeEach(() => mockActor("central_admin", null));
+beforeEach(async () => {
+  mockActor("central_admin", null);
+  await db
+    .insert(schools)
+    .values({
+      id: "school-warehouse",
+      name: "Gudang Logistik Pusat",
+      code: "GUD-LOG-TEST",
+      type: "warehouse",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .onConflictDoNothing();
+});
 afterEach(() => {
   restoreActor();
 });
