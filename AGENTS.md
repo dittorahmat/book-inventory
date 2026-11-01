@@ -158,14 +158,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 32. **Disiplin Asinkron Tooling & Anti Polling/Looping** — hindari perulangan aktif / polling status
     berulang-ulang pada background tasks (`manage_task status` / `manage_task kill`) atau command shell.
     Sistem otomatis memberikan notifikasi saat background task selesai. Bila menjalankan perintah shell
-    yang diharapkan terminasi cepat, beri `WaitMsBeforeAsync` yang cukup (5000–10000ms) agar selesai secara
-    sinkron tanpa memicu siklus polling status yang membuang konteks percakapan. Untuk pencarian teks di
+    yang diharapkan terminasi cepat (termasuk `bun run check:fast` atau `git commit`), gunakan nilai
+    `WaitMsBeforeAsync: 10000` (10 detik) agar selesai secara sinkron dalam satu turn tanpa memicu siklus
+    polling status background task yang membuang kuota pesan dan token context. Untuk pencarian teks di
     Windows pwsh, gunakan `git grep` atau `rg` native langsung, dilarang membungkus dengan syntax `rtk proxy`
     yang tidak kompatibel dengan flag sub-tools.
 33. **Pencegahan File-Size Overflow Saat Penambahan Route Actions** — route file (`src/server/routes/*.ts`)
     yang telah mendekati batas 400 baris (>=350 baris) dilarang langsung ditambahi logika endpoint baru;
     pecah endpoint ke sub-router fungsional (misal `*-actions.ts` atau delegasi penuh ke `services/`)
-    sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket.
+    sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket. Ditegakkan mekanis
+    dengan peringatan dini otomatis oleh gate `check:file-size`.
 34. **Disiplin Whitelist Single-Writer Gate & Integritas Seeder** — pengecualian pada gate `check:single-writer`
     hanya diizinkan untuk baseline seeder utama (`src/server/seed.ts`) atau file seeder demo spesifik yang
     tercantum secara eksplisit (*exact whitelist*, misal `seed-demo/orders.ts`); dilarang menggunakan wildcard
@@ -187,6 +189,17 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     hindari menjalankan `bun test` penuh atau `check:all` di setiap iterasi kecil karena suite 550+ test membutuhkan
     waktu ~60 detik dan berpotensi menghabiskan batas asinkron shell. Jalankan `check:all` penuh hanya sekali
     pada tahap verifikasi akhir sebelum commit atau pembukaan Pull Request.
+38. **Seam Terpadu Pengunduran Diri Murid (ADR-0019)** — seluruh intake pembatalan pesanan akibat murid mengundurkan
+    diri (buku maupun seragam) wajib memusat ke seam polimorfik `requestStudentWithdrawal`
+    (`src/server/services/student-withdrawal.ts`), dilarang membuat handler intake pembatalan terpisah langsung
+    di router ataupun memanggil sub-layanan spesifik buku/seragam secara terisolasi. Seam terpadu ini wajib
+    menjadi otoritas validasi domain kanonik bersama (misal keabsahan data murid dan panjang alasan pembatalan)
+    sehingga bertindak sebagai deep module substantif dan bukan sekadar *middle-man pass-through*.
+39. **Dekomposisi Sub-Router & Pemisahan Komponen Rekonsiliasi** — route publik yang memuat intake komplain/retur
+    wajib didelegasikan ke sub-router fungsional (`public-order-returns.ts`); tampilan Berita Acara / audit rekonsiliasi
+    akhir periode wajib memisahkan state/mutasi ke custom hook (`useTermReconciliation.ts`) dan tabel audit ke
+    sub-komponen (`AuditCountsTable.tsx`) agar view orchestrator tetap ramping (<200 baris) dan mematuhi gate file-size §7.
+    Objek agregat audit rekonsiliasi wajib diikat ke tipe terstruktur terpadu (`AuditTotals`) guna mencegah bau kode *data clumps*.
 
 ---
 

@@ -15,7 +15,7 @@ import {
   submitUniformOrder,
   isUniformSatuanEnabled,
 } from "../services/uniform";
-import { requestUniformWithdrawal } from "../services/uniform-withdrawal";
+import { requestStudentWithdrawal } from "../services/student-withdrawal";
 import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
 import { searchVerifiedStudents, toConfirmOrderView, toUniformSearchView } from "../services/public-order";
 
@@ -240,7 +240,14 @@ publicUniformOrdersRouter.post("/cancel-withdrawal", zValidator("json", publicWi
   const body = c.req.valid("json");
   const owned = await ownershipGuard(body.orderId, body.studentId);
   if (!owned.ok) return c.json({ success: false, message: owned.message }, owned.status);
-  const result = await requestUniformWithdrawal(db, body);
+  const result = await requestStudentWithdrawal(db, {
+    kind: "seragam",
+    orderId: body.orderId,
+    studentId: body.studentId,
+    reason: body.reason,
+    courierResi: body.courierResi,
+    letterProofBase64: body.letterProofBase64,
+  });
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
   return c.json({
     success: true,
