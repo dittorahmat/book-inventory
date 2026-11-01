@@ -30,7 +30,7 @@ export async function requestBookWithdrawal(
   input: RequestBookWithdrawalInput,
   deps: BookWithdrawalDeps = {}
 ): Promise<
-  | { ok: true; orderId: string; orderNumber: string; status: string; returnId?: string }
+  | { ok: true; orderId: string; orderNumber: string; status: string; returnId: string }
   | { ok: false; status: ContentfulStatusCode; message: string }
 > {
   const result = await reportReturn(
