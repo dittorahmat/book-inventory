@@ -30,7 +30,7 @@ export async function requestBookWithdrawal(
   input: RequestBookWithdrawalInput,
   deps: BookWithdrawalDeps = {}
 ): Promise<
-  | { ok: true; orderId: string; orderNumber: string; status: string }
+  | { ok: true; orderId: string; orderNumber: string; status: string; returnId?: string }
   | { ok: false; status: ContentfulStatusCode; message: string }
 > {
   const result = await reportReturn(
@@ -50,6 +50,7 @@ export async function requestBookWithdrawal(
     ok: true,
     orderId: result.created.orderId,
     orderNumber: result.orderNumber,
+    returnId: result.created.id,
     status: "return_in_progress",
   };
 }

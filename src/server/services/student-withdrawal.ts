@@ -35,6 +35,7 @@ export interface WithdrawalCancellationSuccess {
   orderId: string;
   orderNumber: string;
   status?: string;
+  returnId?: string;
   refundId?: string;
 }
 
@@ -97,6 +98,7 @@ export async function requestStudentWithdrawal(
       kind: "buku",
       orderId: bookResult.orderId,
       orderNumber: bookResult.orderNumber,
+      returnId: bookResult.returnId,
       status: bookResult.status,
     };
   }
