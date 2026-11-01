@@ -158,14 +158,16 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 32. **Disiplin Asinkron Tooling & Anti Polling/Looping** — hindari perulangan aktif / polling status
     berulang-ulang pada background tasks (`manage_task status` / `manage_task kill`) atau command shell.
     Sistem otomatis memberikan notifikasi saat background task selesai. Bila menjalankan perintah shell
-    yang diharapkan terminasi cepat, beri `WaitMsBeforeAsync` yang cukup (5000–10000ms) agar selesai secara
-    sinkron tanpa memicu siklus polling status yang membuang konteks percakapan. Untuk pencarian teks di
+    yang diharapkan terminasi cepat (termasuk `bun run check:fast` atau `git commit`), gunakan nilai
+    `WaitMsBeforeAsync: 10000` (10 detik) agar selesai secara sinkron dalam satu turn tanpa memicu siklus
+    polling status background task yang membuang kuota pesan dan token context. Untuk pencarian teks di
     Windows pwsh, gunakan `git grep` atau `rg` native langsung, dilarang membungkus dengan syntax `rtk proxy`
     yang tidak kompatibel dengan flag sub-tools.
 33. **Pencegahan File-Size Overflow Saat Penambahan Route Actions** — route file (`src/server/routes/*.ts`)
     yang telah mendekati batas 400 baris (>=350 baris) dilarang langsung ditambahi logika endpoint baru;
     pecah endpoint ke sub-router fungsional (misal `*-actions.ts` atau delegasi penuh ke `services/`)
-    sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket.
+    sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket. Ditegakkan mekanis
+    dengan peringatan dini otomatis oleh gate `check:file-size`.
 34. **Disiplin Whitelist Single-Writer Gate & Integritas Seeder** — pengecualian pada gate `check:single-writer`
     hanya diizinkan untuk baseline seeder utama (`src/server/seed.ts`) atau file seeder demo spesifik yang
     tercantum secara eksplisit (*exact whitelist*, misal `seed-demo/orders.ts`); dilarang menggunakan wildcard

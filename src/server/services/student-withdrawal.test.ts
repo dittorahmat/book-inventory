@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { db } from "../../db";
 import { students, studentBookOrders, schools } from "../../db/schema";
+import { createTestStudent, createTestBookOrder } from "../lib/test-fixtures";
 import { requestStudentWithdrawal } from "./student-withdrawal";
 
 describe("student-withdrawal unified seam", () => {
@@ -9,40 +10,19 @@ describe("student-withdrawal unified seam", () => {
     await db.delete(students);
     await db.delete(schools);
 
-    await db.insert(schools).values({
-      id: "sch-wd-test",
-      name: "Sekolah Withdrawal Test",
-      code: "SWT",
-      address: "Jl Test",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db.insert(students).values({
+    const student = await createTestStudent(db, {
       id: "std-wd-test",
-      schoolId: "sch-wd-test",
-      nis: "NIS-WD-001",
       name: "Ahmad Withdrawal",
-      gender: "male",
-      gradeLevel: "1",
-      academicYear: "2026/2027",
-      status: "active",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
 
-    await db.insert(studentBookOrders).values({
+    await createTestBookOrder(db, {
       id: "ord-wd-test",
       orderNumber: "ORD-WD-001",
-      studentId: "std-wd-test",
-      schoolId: "sch-wd-test",
+      studentId: student.id,
+      schoolId: student.schoolId,
       paymentStatus: "paid",
-      fulfillmentStatus: "waiting_preparation",
-      orderType: "regular",
       totalAmount: 500000,
       paidAmount: 500000,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
   });
 

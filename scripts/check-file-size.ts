@@ -53,6 +53,8 @@ const candidates = ALL ? walk("src").map(norm) : changed ?? walk("src").map(norm
 const mode = ALL ? "full-tree (--all)" : "file yang diubah";
 
 const offenders: Array<{ file: string; lines: number }> = [];
+const warnings: Array<{ file: string; lines: number }> = [];
+
 for (const file of candidates) {
   if (EXCLUDE.some((re) => re.test(file))) continue;
   if (GRANDFATHERED.includes(file)) continue;
@@ -62,7 +64,21 @@ for (const file of candidates) {
   } catch {
     continue; // file dihapus setelah git status, abaikan
   }
-  if (lines > MAX_LINES) offenders.push({ file, lines });
+  if (lines > MAX_LINES) {
+    offenders.push({ file, lines });
+  } else if (lines >= 350 && file.includes("/routes/")) {
+    // Peringatan dini sebelum melanggar aturan AGENTS.md §0.33
+    warnings.push({ file, lines });
+  }
+}
+
+if (warnings.length > 0) {
+  console.warn(
+    `File-size gate WARNING (route file mendekati batas ${MAX_LINES} baris, patuhi AGENTS §0.33):`
+  );
+  for (const w of warnings.sort((a, b) => b.lines - a.lines)) {
+    console.warn(`  ${w.lines}  ${w.file} (segera dekomposisi ke sub-router fungsional)`);
+  }
 }
 
 if (offenders.length > 0) {
