@@ -37,10 +37,10 @@ console.log(
   `Gate file berubah (${staged ? "staged" : "working"}): ${changed.length} file.`
 );
 
-// Lint mengikuti mode: staged hanya file TS yang berubah, working tree seluruh repo.
-if (staged) {
-  if (tsFiles.length > 0) run([...eslintCommand, ...tsFiles]);
-} else {
+// Lint mengikuti mode: bila ada tsFiles yang berubah, lint file tersebut untuk efisiensi memori & performa loop cepat.
+if (tsFiles.length > 0) {
+  run([...eslintCommand, ...tsFiles]);
+} else if (!staged) {
   runBun("lint");
 }
 

@@ -19,7 +19,7 @@ const publicReturnSchema = z.object({
     .string()
     .regex(BOOK_RETURN_PHOTO_DATA_URL, "Foto bukti harus berupa gambar JPG/PNG/WebP.")
     .max(BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, "Ukuran foto melebihi batas 2 MB"),
-});
+}).strict();
 
 publicOrderReturnsRouter.post("/submit-return", zValidator("json", publicReturnSchema), async (c) => {
   const body = c.req.valid("json");
@@ -49,7 +49,7 @@ const cancelWithdrawalSchema = z.object({
   studentId: idSchema,
   reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
   letterProofBase64: z.string().optional(),
-});
+}).strict();
 
 publicOrderReturnsRouter.post("/cancel-withdrawal", zValidator("json", cancelWithdrawalSchema), async (c) => {
   const body = c.req.valid("json");

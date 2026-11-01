@@ -69,6 +69,14 @@ if (!existsSync(setupPath) || !readFileSync(setupPath, "utf8").includes("process
   hits.push(`${setupPath}: wajib ada dan memuat \`process.env.DB_PATH\` (pengalih ke DB test sementara).`);
 }
 
+// B4 — isolasi actor mock (AGENTS.md §0.40): setiap file yang memanggil mockActor wajib memanggil restoreActor.
+for (const file of testFiles) {
+  const content = readFileSync(file, "utf8");
+  if (content.includes("mockActor(") && !content.includes("restoreActor")) {
+    hits.push(`${file}: memanggil mockActor() tetapi tidak memuat restoreActor (risiko kebocoran sesi antar test).`);
+  }
+}
+
 if (hits.length > 0) {
   console.error("Test-isolation gate FAILED:");
   for (const hit of hits) console.error(`  ${hit}`);
