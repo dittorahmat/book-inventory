@@ -46,4 +46,19 @@ describe("public-order-returns router", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("rejects oversized letterProofBase64 payload exceeding size limit", async () => {
+    const hugeProof = "data:image/png;base64," + "A".repeat(7_000_001);
+    const res = await app.request("/api/public/orders/cancel-withdrawal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: "ord-test",
+        studentId: "std-test",
+        reason: "Valid reason text here",
+        letterProofBase64: hugeProof,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
 });

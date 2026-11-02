@@ -162,9 +162,9 @@ describe("Users RBAC (#41): central only", () => {
     expect((await res.json()).success).toBe(true);
   });
 
-  it("blocks public sign-up route with 403 Forbidden to prevent unauthorized user creation", async () => {
+  it("blocks public sign-up route with 403 Forbidden across all HTTP methods to prevent unauthorized user creation", async () => {
     const { app } = await import("../index");
-    const res = await app.request("/api/auth/sign-up/email", {
+    const postRes = await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -174,9 +174,17 @@ describe("Users RBAC (#41): central only", () => {
         role: "central_admin",
       }),
     });
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.success).toBe(false);
-    expect(body.message).toContain("Public registration is disabled");
+    expect(postRes.status).toBe(403);
+    const postBody = await postRes.json();
+    expect(postBody.success).toBe(false);
+    expect(postBody.message).toContain("Public registration is disabled");
+
+    const getRes = await app.request("/api/auth/sign-up/email", {
+      method: "GET",
+    });
+    expect(getRes.status).toBe(403);
+    const getBody = await getRes.json();
+    expect(getBody.success).toBe(false);
+    expect(getBody.message).toContain("Public registration is disabled");
   });
 });

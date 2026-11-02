@@ -17,6 +17,16 @@ describe("Better-Auth security configuration", () => {
       expect((origin as unknown) instanceof RegExp).toBe(false);
       expect((origin as string).includes("*")).toBe(false);
     }
+
+    // Negative verification: arbitrary / attacker subdomains on workers.dev or pages.dev must not be trusted
+    const untrustedOrigins = [
+      "https://evil.pages.dev",
+      "https://attacker-book-inventory.workers.dev",
+      "https://malicious.com",
+    ];
+    for (const untrusted of untrustedOrigins) {
+      expect(allowed).not.toContain(untrusted);
+    }
   });
 
   it("throws fail-fast error in production mode when BETTER_AUTH_SECRET is missing", () => {

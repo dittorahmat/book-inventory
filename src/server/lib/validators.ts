@@ -5,11 +5,11 @@ export const idSchema = z.string().min(1);
 
 export const academicYearSchema = z.string().regex(/^\d{4}\/\d{4}$/, "Format tahun ajaran wajib YYYY/YYYY");
 
-/** Maksimal ukuran string base64 untuk upload bukti dokumen (~5MB payload batas memori worker). */
-export const MAX_BASE64_UPLOAD_BYTES = 7_000_000;
+/** Maksimal ukuran karakter string base64 untuk upload bukti dokumen (~5MB payload batas memori worker). */
+export const MAX_BASE64_UPLOAD_CHARS = 7_000_000;
 export const base64UploadSchema = z
   .string()
-  .max(MAX_BASE64_UPLOAD_BYTES, "Ukuran file bukti maksimal 5MB")
+  .max(MAX_BASE64_UPLOAD_CHARS, "Ukuran file bukti maksimal 5MB")
   .optional();
 
 /**

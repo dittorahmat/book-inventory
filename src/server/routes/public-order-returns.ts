@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
-import { idSchema } from "../lib/validators";
+import { idSchema, base64UploadSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
 import { reportReturn } from "../services/return";
 import { requestStudentWithdrawal } from "../services/student-withdrawal";
@@ -48,7 +48,7 @@ const cancelWithdrawalSchema = z.object({
   orderId: idSchema,
   studentId: idSchema,
   reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
-  letterProofBase64: z.string().optional(),
+  letterProofBase64: base64UploadSchema,
 }).strict();
 
 publicOrderReturnsRouter.post("/cancel-withdrawal", zValidator("json", cancelWithdrawalSchema), async (c) => {
