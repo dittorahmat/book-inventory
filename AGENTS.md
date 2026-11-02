@@ -144,7 +144,8 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     SQL di folder `drizzle/*.sql` wajib diverifikasi kelengkapannya ke remote Cloudflare D1
     (`bun run check:d1-drift` dan `wrangler d1 execute book-inventory-db --remote`) sebelum menguji endpoint
     produksi atau membuat PR. Skrip `check:fast` secara otomatis memicu alarm drift bila ada berkas migrasi
-    yang berubah. Dilarang membiarkan perbedaan kolom antara schema kode TypeScript dan SQLite remote.
+    yang berubah, dan runner `bun run deploy` otomatis mengeksekusi gate `check:d1-drift` sebelum deploy worker.
+    Dilarang membiarkan perbedaan kolom antara schema kode TypeScript dan SQLite remote.
 31. **Integritas Alur Retur & Pembatalan Pengunduran Diri (ADR-0019)** — pembatalan pesanan akibat
     siswa mengundurkan diri (buku maupun seragam) wajib memisahkan wewenang fisik dan finansial:
     verifikasi bukti fisik / resi kurir / surat resmi berada di bawah wewenang Gudang, sedangkan pencairan
