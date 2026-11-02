@@ -147,6 +147,31 @@ npm run build
 npm run test
 ```
 
+### 🎭 Menjalankan Browser Automated Test (E2E Demo Automation)
+
+Suite otomatisasi browser berbasis [Playwright](https://playwright.dev/) menguji seluruh skenario operasional nyata di [`docs/DEMO_SCENARIO.md`](docs/DEMO_SCENARIO.md) (portal publik, seragam, kasir, approval retur, hingga audit rekonsiliasi):
+
+1. **Jalankan server aplikasi (Backend + Frontend)** di terminal terpisah:
+   ```bash
+   bun run dev
+   # Backend aktif di http://localhost:3000, Frontend di http://localhost:5173
+   ```
+
+2. **Jalankan browser automated test**:
+   ```bash
+   # Mode Presentasi Visual (Headed Browser dengan jendela terbuka):
+   bun run demo:automate
+
+   # Mode Headless (Background / CI):
+   $env:HEADLESS="true"; bun run demo:automate    # Windows PowerShell
+   HEADLESS=true bun run demo:automate            # Linux / macOS
+   ```
+
+3. **Kustomisasi Parameter (Opsional)**:
+   - `DEMO_BASE_URL`: URL target aplikasi (default: `http://localhost:5173`).
+   - `SLOW_MO`: Kecepatan jeda per aksi dalam milidetik untuk presentasi (default: `300` ms untuk headed, `0` ms untuk headless).
+   - **Tangkapan Layar (Screenshots)**: Tersimpan otomatis di folder `test-results/demo-screenshots/` sebagai bukti verifikasi alur UI tanpa banner error.
+
 ---
 
 ## 📖 Dokumentasi Terkait
