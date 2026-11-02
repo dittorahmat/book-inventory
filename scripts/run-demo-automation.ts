@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { execSync } from "node:child_process";
 import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
 import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
 import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
@@ -21,6 +22,15 @@ async function main() {
   console.log(`   Headless   : ${HEADLESS} (Browser ${HEADLESS ? "sembunyi" : "terbuka di layar"})`);
   console.log(`   SlowMo     : ${SLOW_MO}ms per aksi (kecepatan presentasi)`);
   console.log(`=======================================================`);
+
+  // Pre-flight check: Pastikan migrasi skema SQLite lokal tersinkronisasi penuh
+  try {
+    console.log("⚙ Memeriksa dan mensinkronkan skema database lokal...");
+    execSync("bun run db:push:bun --all", { stdio: "pipe" });
+    console.log("  ✓ Skema database lokal terverifikasi mutakhir.");
+  } catch (err) {
+    console.warn("  ⚠ Sinkronisasi skema lokal dilewati / terjadi error:", err instanceof Error ? err.message : String(err));
+  }
 
   const browser = await chromium.launch({
     headless: HEADLESS,
