@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Shirt } from "lucide-react";
 import type { School } from "../types";
-import { isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { UniformShipmentSection } from "../components/uniform/UniformShipmentSection";
 import { UniformCatalogSection } from "../components/uniform/UniformCatalogSection";
 import { UniformReturnsSection } from "../components/uniform/UniformReturnsSection";
@@ -15,9 +15,10 @@ interface UniformViewProps {
 }
 
 export function UniformView({ schools, activeSchool, userRole, userSchoolId }: UniformViewProps) {
+  const isGlobal = isCentralRole(userRole) || isLogisticsRole(userRole);
   const logistics = isLogisticsRole(userRole);
   const [section, setSection] = useState<"kirim" | "katalog" | "retur" | "laporan">("kirim");
-  const lockedSchoolId = logistics ? (activeSchool?.id ?? null) : (userSchoolId ?? null);
+  const lockedSchoolId = isGlobal ? null : (userSchoolId ?? activeSchool?.id ?? null);
 
   return (
     <div className="space-y-4">

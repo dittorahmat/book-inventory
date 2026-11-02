@@ -138,7 +138,7 @@ uniformsRouter.get("/orders", async (c) => {
   try {
     const { actor, scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const isGlobal = actor && (actor.role === "central_admin" || LOGISTICS_ROLES.includes(actor.role));
-    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
+    const schoolId = !isGlobal && scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const search = c.req.query("search")?.trim();
     if (search && !schoolId && !isGlobal) {
       return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
