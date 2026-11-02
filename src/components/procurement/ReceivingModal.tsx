@@ -4,6 +4,19 @@ import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { postJson, getJson } from "../../lib/api";
 import type { PurchaseOrder } from "./procurement-types";
 
+interface ReceiptItemSummary {
+  title: string;
+  quantityReceived: number;
+  condition?: "good" | "damaged";
+}
+
+interface ReceiptHistoryEntry {
+  id: string;
+  deliveryNoteNumber: string;
+  receivedDate: string;
+  items?: ReceiptItemSummary[];
+}
+
 interface ReceivingModalProps {
   po: PurchaseOrder;
   onClose: () => void;
@@ -14,7 +27,7 @@ interface ReceivingModalProps {
 export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps) {
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
   const [receivingNotes, setReceivingNotes] = useState("");
-  const [receiptHistory, setReceiptHistory] = useState<any[]>([]);
+  const [receiptHistory, setReceiptHistory] = useState<ReceiptHistoryEntry[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     po.items.forEach((item) => {
@@ -26,7 +39,7 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    getJson<any[]>(`/api/procurement/purchase-orders/${po.id}/receipts`)
+    getJson<ReceiptHistoryEntry[]>(`/api/procurement/purchase-orders/${po.id}/receipts`)
       .then(setReceiptHistory)
       .catch(() => {});
   }, [po.id]);
@@ -66,8 +79,8 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-xl border border-[#E4E6EB] max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-sm font-bold text-[#050505]">Penerimaan Barang Fisik (Inbound Receiving)</h3>
             <p className="text-[11px] text-[#65676B]">Otomatis buat barcode fisik & tambahkan ke stok satuan</p>
@@ -81,118 +94,120 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
-          <div className="bg-[#F0F2F5] p-3 rounded-xl flex justify-between">
-            <span>No. PO: <strong className="font-mono">{po.poNumber}</strong></span>
-            <span>Supplier: <strong>{po.supplierName}</strong></span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold mb-1 text-[#050505]">
-                No. SJ Supplier (Wajib)
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Contoh: SJ-2026/09/001"
-                value={deliveryNoteNumber}
-                onChange={(e) => setDeliveryNoteNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-medium text-[#050505]"
-              />
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 text-xs">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="bg-[#F0F2F5] p-3 rounded-xl flex justify-between">
+              <span>No. PO: <strong className="font-mono">{po.poNumber}</strong></span>
+              <span>Supplier: <strong>{po.supplierName}</strong></span>
             </div>
-            <div>
-              <label className="block font-semibold mb-1 text-[#050505]">
-                Catatan Penerimaan (Opsional)
-              </label>
-              <input
-                type="text"
-                placeholder="Contoh: Dus kondisi baik / Pengiriman tahap 1"
-                value={receivingNotes}
-                onChange={(e) => setReceivingNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl text-[#050505]"
-              />
-            </div>
-          </div>
 
-          {receiptHistory.length > 0 && (
-            <div className="p-3 bg-gray-50 border border-[#CED0D4] rounded-xl space-y-2">
-              <div className="font-bold text-[#050505] flex items-center gap-1.5 text-[11px]">
-                <FileText className="w-3.5 h-3.5 text-[#1877F2]" />
-                Riwayat SJ Supplier Sebelumnya ({receiptHistory.length} kali pengiriman):
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold mb-1 text-[#050505]">
+                  No. SJ Supplier (Wajib)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: SJ-2026/09/001"
+                  value={deliveryNoteNumber}
+                  onChange={(e) => setDeliveryNoteNumber(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-medium text-[#050505]"
+                />
               </div>
-              <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
-                {receiptHistory.map((rc: any) => (
-                  <div key={rc.id} className="text-[11px] bg-white p-2 rounded-lg border border-[#E4E6EB]">
-                    <div className="flex justify-between font-semibold text-[#050505]">
-                      <span>SJ: {rc.deliveryNoteNumber}</span>
-                      <span className="text-[#65676B]">{rc.receivedDate}</span>
-                    </div>
-                    <div className="text-[10px] text-[#65676B] mt-0.5">
-                      Item: {rc.items?.map((it: any) => `${it.title} (${it.quantityReceived} eks${it.condition === "damaged" ? ", rusak" : ""})`).join(", ")}
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <label className="block font-semibold mb-1 text-[#050505]">
+                  Catatan Penerimaan (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Dus kondisi baik / Pengiriman tahap 1"
+                  value={receivingNotes}
+                  onChange={(e) => setReceivingNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl text-[#050505]"
+                />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="block font-semibold mb-2 text-[#050505]">
-              Input Jumlah Buku yang Diterima Hari Ini:
-            </label>
-            <div className="space-y-2.5 max-h-56 overflow-y-auto">
-              {po.items.map((it) => {
-                const remaining = Math.max(0, it.quantityOrdered - it.quantityReceived);
-                return (
-                  <div
-                    key={it.id}
-                    className="p-3 bg-white border border-[#CED0D4] rounded-xl flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-bold text-[#050505] truncate">{it.title}</div>
-                      <div className="text-[10px] text-[#65676B]">
-                        Telah diterima: {it.quantityReceived} dari total {it.quantityOrdered} eks
+            {receiptHistory.length > 0 && (
+              <div className="p-3 bg-gray-50 border border-[#CED0D4] rounded-xl space-y-2">
+                <div className="font-bold text-[#050505] flex items-center gap-1.5 text-[11px]">
+                  <FileText className="w-3.5 h-3.5 text-[#1877F2]" />
+                  Riwayat SJ Supplier Sebelumnya ({receiptHistory.length} kali pengiriman):
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {receiptHistory.map((rc) => (
+                    <div key={rc.id} className="text-[11px] bg-white p-2 rounded-lg border border-[#E4E6EB]">
+                      <div className="flex justify-between font-semibold text-[#050505]">
+                        <span>SJ: {rc.deliveryNoteNumber}</span>
+                        <span className="text-[#65676B]">{rc.receivedDate}</span>
+                      </div>
+                      <div className="text-[10px] text-[#65676B] mt-0.5">
+                        Item: {rc.items?.map((it) => `${it.title} (${it.quantityReceived} eks${it.condition === "damaged" ? ", rusak" : ""})`).join(", ")}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <SearchableSingleSelect
-                        options={[
-                          { value: "good", label: "Baik" },
-                          { value: "damaged", label: "Rusak" },
-                        ]}
-                        value={conditions[it.id] ?? "good"}
-                        onChange={(v) => setConditions({ ...conditions, [it.id]: v as "good" | "damaged" })}
-                        placeholder="Kondisi..."
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={remaining}
-                        placeholder="0"
-                        value={(quantities[it.id] ?? 0) === 0 ? "" : quantities[it.id]}
-                        onChange={(e) =>
-                          setQuantities({ ...quantities, [it.id]: parseInt(e.target.value) || 0 })
-                        }
-                        className="w-20 px-2.5 py-1.5 border border-[#CED0D4] rounded-lg text-center font-bold text-[#1877F2]"
-                      />
-                      <span className="text-[11px] text-[#65676B]">/ max {remaining}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-semibold mb-2 text-[#050505]">
+                Input Jumlah Buku yang Diterima Hari Ini:
+              </label>
+              <div className="space-y-2.5">
+                {po.items.map((it) => {
+                  const remaining = Math.max(0, it.quantityOrdered - it.quantityReceived);
+                  return (
+                    <div
+                      key={it.id}
+                      className="p-3 bg-white border border-[#CED0D4] rounded-xl flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-bold text-[#050505] truncate">{it.title}</div>
+                        <div className="text-[10px] text-[#65676B]">
+                          Telah diterima: {it.quantityReceived} dari total {it.quantityOrdered} eks
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <SearchableSingleSelect
+                          options={[
+                            { value: "good", label: "Baik" },
+                            { value: "damaged", label: "Rusak" },
+                          ]}
+                          value={conditions[it.id] ?? "good"}
+                          onChange={(v) => setConditions({ ...conditions, [it.id]: v as "good" | "damaged" })}
+                          placeholder="Kondisi..."
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={remaining}
+                          placeholder="0"
+                          value={(quantities[it.id] ?? 0) === 0 ? "" : quantities[it.id]}
+                          onChange={(e) =>
+                            setQuantities({ ...quantities, [it.id]: parseInt(e.target.value) || 0 })
+                          }
+                          className="w-20 px-2.5 py-1.5 border border-[#CED0D4] rounded-lg text-center font-bold text-[#1877F2]"
+                        />
+                        <span className="text-[11px] text-[#65676B]">/ max {remaining}</span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2 text-[11px]">
+              <AlertCircle className="w-4 h-4 shrink-0 text-[#1877F2] mt-0.5" />
+              <span>
+                Buku yang dikonfirmasi akan langsung otomatis dibuatkan ID barcode lepasan di gudang <strong>{po.schoolName}</strong> —
+                kondisi <strong>Baik</strong> tercatat Baru, <strong>Rusak</strong> tercatat rusak dan muncul di perhatian.
+              </span>
             </div>
           </div>
 
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2 text-[11px]">
-            <AlertCircle className="w-4 h-4 shrink-0 text-[#1877F2] mt-0.5" />
-            <span>
-              Buku yang dikonfirmasi akan langsung otomatis dibuatkan ID barcode lepasan di gudang <strong>{po.schoolName}</strong> —
-              kondisi <strong>Baik</strong> tercatat Baru, <strong>Rusak</strong> tercatat rusak dan muncul di perhatian.
-            </span>
-          </div>
-
-          <div className="pt-2 flex justify-end gap-2">
+          <div className="px-6 py-3.5 bg-gray-50 border-t border-[#E4E6EB] flex justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
