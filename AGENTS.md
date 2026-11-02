@@ -217,6 +217,12 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     mengeksekusi klik submit/konfirmasi. Pemanggilan endpoint reset database demo (`POST /api/demo/seed`) wajib menyertakan
     otentikasi sesi Central Admin sah via browser context (`page.request.post`), dilarang menggunakan fetch mentah tanpa header
     yang berujung pada penolakan 401/403.
+43. **Verifikasi Lingkungan Bersih & Zero-Error-Banner pada Otomasi Demo** — eksekusi otomasi demo (`demo:automate`)
+    wajib dijalankan di atas server backend + klien frontend aktif yang terhubung (port 5173 dengan proxy API 3000),
+    dengan database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`). Seluruh tangkapan layar hasil
+    di `test-results/demo-screenshots/` wajib terbebas dari banner/alert kegagalan server ("Terjadi kendala pada server"
+    atau "Dashboard gagal dimuat"). Pada modal serah-terima buku (`OrderHandoverModal.tsx`), tombol konfirmasi disabled
+    hingga kode pengambilan diisi cocok, sehingga skrip otomasi wajib menginput kode cross-check order sebelum submit.
 
 ---
 

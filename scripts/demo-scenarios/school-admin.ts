@@ -59,6 +59,17 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
         await serahkanBtn.first().click();
         await page.waitForLoadState("networkidle");
 
+        // Isi kode konfirmasi bukti pengambilan (cross-check orderNumber)
+        const orderNumberLabel = page.locator('span.font-mono.font-bold');
+        if (await orderNumberLabel.count() > 0) {
+          const code = (await orderNumberLabel.first().innerText()).trim();
+          const codeInput = page.locator('input[placeholder*="Ketik kode"]');
+          if (await codeInput.count() > 0) {
+            await codeInput.first().fill(code);
+            await page.waitForTimeout(300);
+          }
+        }
+
         const konfirmasiHandoverBtn = page.locator('button:has-text("Konfirmasi"), button:has-text("Simpan")');
         if (await konfirmasiHandoverBtn.count() > 0) {
           await konfirmasiHandoverBtn.first().click();
