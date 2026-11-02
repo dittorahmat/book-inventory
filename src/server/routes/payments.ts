@@ -11,6 +11,7 @@ import {
   loadLocationIds,
   loadScopedOrder,
   requireAuthenticatedActor,
+  requireCentralAdmin,
   resolveRequestActor,
 } from "../services/access-scope";
 import {
@@ -52,7 +53,7 @@ const disburseRefundSchema = z.object({
 // Eksekusi pencairan refund oleh Finance (terhubung ke payment-ledger)
 paymentsRouter.post("/disburse-refund", zValidator("json", disburseRefundSchema), async (c) => {
   try {
-    await requireAuthenticatedActor(await resolveRequestActor(c));
+    requireCentralAdmin(await resolveRequestActor(c));
     const body = c.req.valid("json");
     const result = await disburseFinanceRefund(db, body);
     if (!result.ok) {
