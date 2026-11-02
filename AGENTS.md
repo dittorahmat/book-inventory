@@ -226,6 +226,17 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     serah-terima buku (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip
     otomasi wajib menginput kode cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol
     aktif via `waitForFunction` tanpa memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
+44. **Disiplin Scoping Global & Anti-Locking Lokasi pada View Transaksi (ADR-0020)** —
+    role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
+    berhak melihat pesanan dan transaksi seluruh cabang secara terpusat (*cross-branch roaming*):
+    (a) Pada level backend router (`/api/student-orders`, `/api/uniforms/orders`), jika `c.req.query("schoolId")`
+    kosong, filter partisi sekolah dilarang dipaksa menyempit ke cabang tunggal (`!isGlobal && scope.length === 1`),
+    agar instalasi dengan 1 cabang atau database baru tidak mendegradasi query global menjadi scoped query secara sepihak.
+    (b) Pada level UI view (`StudentOrdersView.tsx`, `UniformView.tsx`, `UniformShipmentSection.tsx`), role global
+    wajib mengaktifkan opsi `"Semua Cabang"` sebagai default view dengan `lockedSchoolId: null`, dan pemilihan cabang
+    dilakukan mandiri di filter tingkat transaksi/view tanpa membatasi roaming akun atau menimpa penugasan identitas global.
+    (c) Seluruh test suite yang menguji pemanggilan fetch atau custom hook data-fetching wajib menggunakan pengetikan
+    struktural (`typeof fetch` / `unknown` narrowing), dilarang menggunakan type assertion `as any` (§check:no-any).
 
 ---
 
