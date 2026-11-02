@@ -74,6 +74,11 @@ if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
 
 if (has(/^drizzle\/.*\.sql$/)) {
   try {
+    runBun("db:push:bun");
+  } catch (err) {
+    console.warn("\n[WARNING] db:push:bun gagal diaplikasikan ke database SQLite lokal:", err);
+  }
+  try {
     runBun("check:d1-drift");
   } catch {
     console.warn("\n[WARNING] check:d1-drift gagal dijalankan (mungkin belum ada koneksi D1 remote). Pastikan remote D1 tersinkronisasi sebelum deploy.");

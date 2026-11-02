@@ -8,6 +8,24 @@ export async function captureScreenshot(page: Page, filename: string): Promise<v
 }
 
 /**
+ * Pasang fail-fast listener untuk intercept error HTTP 500 dan uncaught page errors.
+ */
+export function attachErrorFailFast(page: Page, failedUrls: string[]): void {
+  page.on("response", (res) => {
+    if (res.status() >= 500) {
+      const errLine = `[HTTP ${res.status()}] ${res.url()}`;
+      console.error(`  🚨 Terdeteksi respon kegagalan server: ${errLine}`);
+      failedUrls.push(errLine);
+    }
+  });
+
+  page.on("pageerror", (err) => {
+    console.error(`  🚨 Terdeteksi unhandled JavaScript error pada halaman: ${err.message}`);
+    failedUrls.push(`[JS ERROR] ${err.message}`);
+  });
+}
+
+/**
  * Login dan eksekusi seed database demo melalui UI/session Playwright.
  */
 export async function resetDemoDatabaseViaBrowser(page: Page, baseUrl: string): Promise<void> {

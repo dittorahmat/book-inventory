@@ -221,10 +221,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     wajib dijalankan di atas server backend + klien frontend aktif yang terhubung (port 5173 dengan proxy API 3000),
     dengan pre-flight check sinkronisasi database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`).
     Seluruh tangkapan layar hasil di `test-results/demo-screenshots/` wajib terbebas dari banner/alert kegagalan server
-    ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"). Pada modal serah-terima buku (`OrderHandoverModal.tsx`),
-    tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip otomasi wajib menginput kode cross-check
-    secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol aktif via `waitForFunction` tanpa
-    memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
+    ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"), dan runner wajib memasang response error interceptor
+    (`attachErrorFailFast`) yang memicu error fail-fast bila terdeteksi HTTP >= 500 atau unhandled page crash. Pada modal
+    serah-terima buku (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip
+    otomasi wajib menginput kode cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol
+    aktif via `waitForFunction` tanpa memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
 
 ---
 
