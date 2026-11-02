@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   Warehouse,
@@ -51,6 +51,10 @@ export function BookWarehouseView({
   defaultSection?: BookWarehouseSubSection;
 }) {
   const [activeSection, setActiveSection] = useState<BookWarehouseSubSection>(defaultSection);
+
+  useEffect(() => {
+    setActiveSection(defaultSection);
+  }, [defaultSection]);
 
   return (
     <div className="space-y-4">

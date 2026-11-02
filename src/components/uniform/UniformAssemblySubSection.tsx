@@ -156,20 +156,31 @@ export function UniformAssemblySubSection({
                     Rincian Isi Paket (BOM Komponen):
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {p.bom.map((b) => (
-                      <div
-                        key={b.variantId}
-                        className="bg-white p-2 rounded-lg border border-[#E4E6EB] text-[11px] flex justify-between items-center"
-                      >
-                        <div>
-                          <p className="font-semibold text-[#050505]">{b.variantName}</p>
-                          <p className="text-[10px] text-[#65676B]">
-                            Tipe: {b.kind === "kain_harian" ? "Kain Harian" : "Olahraga"} · Size: {b.size}
-                          </p>
+                    {p.bom.map((b) => {
+                      const vObj = variants.find((x) => x.variant.id === b.variantId);
+                      const stockQty =
+                        b.size && b.size !== "—"
+                          ? (vObj?.stock.find((s) => s.size === b.size)?.quantity ?? 0)
+                          : (vObj?.stock.reduce((acc, s) => acc + s.quantity, 0) ?? 0);
+
+                      return (
+                        <div
+                          key={b.variantId}
+                          className="bg-white p-2 rounded-lg border border-[#E4E6EB] text-[11px] flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="font-semibold text-[#050505]">{b.variantName}</p>
+                            <p className="text-[10px] text-[#65676B]">
+                              Tipe: {b.kind === "kain_harian" ? "Kain Harian" : "Olahraga"} · Size: {b.size} · Stok Bahan:{" "}
+                              <strong className={stockQty > 0 ? "text-emerald-700" : "text-amber-700"}>
+                                {stockQty} unit
+                              </strong>
+                            </p>
+                          </div>
+                          <span className="font-bold text-[#1877F2]">{b.quantity} unit / paket</span>
                         </div>
-                        <span className="font-bold text-[#1877F2]">{b.quantity} unit / paket</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -236,7 +236,11 @@ export function UniformCatalogSection() {
         variants={variants}
         vYear={vYear}
         busy={busy}
-        onRefresh={() => fetchUniformPackages().then(setPackages).catch(() => {})}
+        onRefresh={() =>
+          fetchUniformPackages()
+            .then(setPackages)
+            .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat paket seragam."))
+        }
         run={run}
       />
 
@@ -258,7 +262,7 @@ export function UniformCatalogSection() {
               onClick={() => setPoLines((prev) => (prev.some((l) => l.variantId === v.id) ? prev : [...prev, { variantId: v.id, size: "", qty: "1", price: String(v.price) }]))}
               className="px-3 py-1.5 rounded-full border border-[#CED0D4] text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
             >
-              + {v.code}
+              + {v.name} ({v.code})
             </button>
           ))}
         </div>
