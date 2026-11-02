@@ -18,6 +18,7 @@ import {
   accessErrorResponse,
   requireScopedActor,
   resolveLogisticsActor,
+  LOGISTICS_ROLES,
 } from "../services/access-scope";
 import {
   assembleUniformPackages,
@@ -132,13 +133,16 @@ uniformsRouter.post("/pos/:id/receive", zValidator("json", receiveSchema), async
   }
 });
 
-// Daftar order seragam: filter sekolah + status kirim + cari (cari wajib dalam sekolah).
+// Daftar order seragam: filter sekolah + status kirim + cari (cari wajib dalam sekolah untuk role non-global).
 uniformsRouter.get("/orders", async (c) => {
   try {
-    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const { actor, scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const isGlobal = actor && (actor.role === "central_admin" || LOGISTICS_ROLES.includes(actor.role));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const search = c.req.query("search")?.trim();
-    if (search && !schoolId) return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
+    if (search && !schoolId && !isGlobal) {
+      return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
+    }
     const data = await listUniformOrders(db, {
       schoolId,
       shipmentStatus: c.req.query("shipmentStatus"),
