@@ -60,21 +60,26 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
         await page.waitForLoadState("networkidle");
 
         // Isi kode konfirmasi bukti pengambilan (cross-check orderNumber)
-        const orderNumberLabel = page.locator('span.font-mono.font-bold');
-        if (await orderNumberLabel.count() > 0) {
-          const code = (await orderNumberLabel.first().innerText()).trim();
-          const codeInput = page.locator('input[placeholder*="Ketik kode"]');
-          if (await codeInput.count() > 0) {
-            await codeInput.first().fill(code);
-            await page.waitForTimeout(300);
-          }
-        }
+        const orderNumberLabel = page.locator('span.font-mono.font-bold').first();
+        await orderNumberLabel.waitFor({ state: "visible", timeout: 5000 });
+        const code = (await orderNumberLabel.innerText()).trim();
 
-        const konfirmasiHandoverBtn = page.locator('button:has-text("Konfirmasi"), button:has-text("Simpan")');
-        if (await konfirmasiHandoverBtn.count() > 0) {
-          await konfirmasiHandoverBtn.first().click();
-          await page.waitForLoadState("networkidle");
-        }
+        const codeInput = page.locator('input[placeholder*="Ketik kode"]').first();
+        await codeInput.waitFor({ state: "visible", timeout: 5000 });
+        await codeInput.fill(code);
+
+        const konfirmasiHandoverBtn = page.locator('button:has-text("Konfirmasi"), button:has-text("Simpan")').first();
+        await konfirmasiHandoverBtn.waitFor({ state: "visible", timeout: 5000 });
+        // Tunggu tombol aktif secara deterministik setelah input kode cocok (tanpa waitForTimeout)
+        await page.waitForFunction(
+          () => {
+            const btn = document.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+            return btn && !btn.disabled;
+          },
+          { timeout: 5000 }
+        );
+        await konfirmasiHandoverBtn.click();
+        await page.waitForLoadState("networkidle");
         console.log("  ✓ Aksi serah-terima buku fisik Kayla (SJ-SERAH) dieksekusi.");
       }
     }
