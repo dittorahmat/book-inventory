@@ -525,10 +525,16 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
   `src/components/portal/portal-tabs.ts`; state alur di
   `src/components/portal/use*.ts`; adapter HTTP tunggal
   `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`
-  (semua route publik memusat di `/api/public/orders/*` dan `/api/public/uniforms/*`).
+  (semua route publik memusat di `/api/public/orders/*` via `public-orders.ts` & `public-order-returns.ts`,
+  serta `/api/public/uniforms/*` via `public-uniform-orders.ts`).
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
   `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
   scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam
   tinggal di direktori (misal `services/return/index.ts`, `services/order-intake/index.ts`,
   `services/uniform/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba
   `<nama>/index.ts` sebelum grep luas.
+- **Sub-Agent & Asynchronous Execution**: hindari polling loop (`schedule` timer pendek / `manage_subagents list`)
+  saat menunggu sub-agent aktif. Sistem runtime otomatis membangkitkan parent agent (*reactive wakeup*) seketika
+  sub-agent mengirimkan pesan (`send_message`). Cukup akhiri turn tanpa menjadwalkan timer buatan.
+- **Schema & Upload Gate Enforcement**: seluruh field base64 route publik (`*Base64`, `*Proof*`) wajib memakai
+  `base64UploadSchema` atau `.max(...)`. Ditegakkan mekanis oleh gate `check:base64-schemas`.

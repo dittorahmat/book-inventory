@@ -302,4 +302,20 @@ describe("Book Returns & Refund API", () => {
       await dropSeed({ schoolIds: [schoolId], studentIds: [studentId], bookIds: [bookId] });
     }
   });
+
+  it("rejects oversized photoProofBase64 exceeding upload character limit", async () => {
+    const hugePhoto = "data:image/png;base64," + "A".repeat(7_000_001);
+    const res = await bookReturnsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: "ord-test",
+        studentId: "std-test",
+        defectiveBookId: "bk-test",
+        reason: "Buku rusak parah",
+        photoProofBase64: hugePhoto,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
 });

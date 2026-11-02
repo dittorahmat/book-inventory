@@ -20,7 +20,7 @@ import {
   requireScopedActor,
 } from "../services/access-scope";
 import { matchAnyLower } from "../lib/partitioned-search";
-import { idSchema } from "../lib/validators";
+import { idSchema, base64UploadSchema } from "../lib/validators";
 
 export const bookReturnsRouter = new Hono();
 
@@ -32,7 +32,7 @@ const returnBookSchema = z.object({
   studentId: idSchema,
   defectiveBookId: idSchema,
   reason: z.string().min(1, "Reason is required"),
-  photoProofBase64: z.string().optional(),
+  photoProofBase64: base64UploadSchema,
 });
 
 const resolveReturnSchema = z.object({
