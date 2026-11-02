@@ -271,6 +271,13 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     (b) State sub-seksi internal (`activeSection`) yang menerima prop `defaultSection` dari luar (dashboard link/delegated route)
     wajib menyinkronkan perubahan via `useEffect(() => { setActiveSection(defaultSection); }, [defaultSection])` guna
     mencegah bug desync navigasi saat view induk tetap berstatus terpasang (*mounted*).
+48. **Disiplin Konsumsi Helper Intake & Anti-Tautologi Predikat UI** —
+    (a) Seluruh fungsi helper domain/filter yang dibuat di bawah `src/lib/` (seperti `filterBranchSchools`) wajib
+    dikonsumsi secara aktif oleh pemanggil fitur di view/komponen terkait dalam diff yang sama; dilarang meninggalkan helper
+    hanya terhubung ke file unit test-nya sendiri (*speculative generality / dead code*).
+    (b) Pada percabangan rendering form/modal intake (seperti pemilih cabang di `StudentBulkUploadModal`), predikat kondisi
+    wajib diekspresikan secara ketat (`(!initialSchoolId || initialSchoolId === "all") && schools.length > 0`), dilarang
+    memasang disjungsi longgar (`|| schools.length > 0`) yang membuat percabangan bersifat tautologis.
 
 ---
 
