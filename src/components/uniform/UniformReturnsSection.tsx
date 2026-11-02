@@ -67,7 +67,11 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
       await fn();
       setNotice(okMsg);
       if (detail) setDetail(await fetchUniformOrderDetail(detail.order.id));
-      await reloadQueues(schoolId).catch(() => undefined);
+      try {
+        await reloadQueues(schoolId);
+      } catch (queueErr) {
+        setError(queueErr instanceof Error ? queueErr.message : "Gagal memuat antrean retur.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Operasi gagal.");
     } finally {
@@ -81,7 +85,11 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
     try {
       setFound(await fetchUniformOrders({ schoolId: schoolId || undefined, search: keyword.trim() || undefined }));
       setDetail(null);
-      await reloadQueues(schoolId).catch(() => undefined);
+      try {
+        await reloadQueues(schoolId);
+      } catch (queueErr) {
+        setError(queueErr instanceof Error ? queueErr.message : "Gagal memuat antrean retur.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mencari order.");
     } finally {

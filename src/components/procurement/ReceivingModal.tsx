@@ -37,11 +37,12 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
   });
   const [conditions, setConditions] = useState<Record<string, "good" | "damaged">>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     getJson<ReceiptHistoryEntry[]>(`/api/procurement/purchase-orders/${po.id}/receipts`)
       .then(setReceiptHistory)
-      .catch(() => {});
+      .catch((err) => setHistoryError(err instanceof Error ? err.message : "Gagal memuat riwayat penerimaan"));
   }, [po.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,6 +129,12 @@ export function ReceivingModal({ po, onClose, onReceived }: ReceivingModalProps)
                 />
               </div>
             </div>
+
+            {historyError && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px]">
+                {historyError}
+              </div>
+            )}
 
             {receiptHistory.length > 0 && (
               <div className="p-3 bg-gray-50 border border-[#CED0D4] rounded-xl space-y-2">

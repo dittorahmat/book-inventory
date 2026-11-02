@@ -7,9 +7,9 @@ import {
   Scale,
   Package,
   Layers,
-  LucideIcon,
 } from "lucide-react";
 import type { StaffShellContext } from "../components/layout/staff-tab-views";
+import { SegmentedSubNav, type SegmentedSubNavItem } from "../components/ui/SegmentedSubNav";
 import { CatalogView } from "./CatalogView";
 import { PackagesView } from "./PackagesView";
 import { InventoryView } from "./InventoryView";
@@ -27,13 +27,7 @@ export type BookWarehouseSubSection =
   | "returns"
   | "reconciliation";
 
-interface SubTabItem {
-  id: BookWarehouseSubSection;
-  label: string;
-  icon: LucideIcon;
-}
-
-const SUB_TABS: readonly SubTabItem[] = [
+const SUB_TABS: readonly SegmentedSubNavItem<BookWarehouseSubSection>[] = [
   { id: "shipments", label: "Kirim Ke Cabang (Surat Jalan)", icon: Warehouse },
   { id: "packages", label: "Paket & Rakit Buku", icon: Package },
   { id: "inventory", label: "Stok Satuan Gudang", icon: Layers },
@@ -71,27 +65,7 @@ export function BookWarehouseView({
           </div>
         </div>
 
-        <nav className="flex flex-wrap p-1 bg-[#F0F2F5] rounded-xl gap-1 border border-[#E4E6EB]/60">
-          {SUB_TABS.map((t) => {
-            const Icon = t.icon;
-            const active = activeSection === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveSection(t.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
-                  active
-                    ? "bg-white text-[#1877F2] shadow-xs"
-                    : "text-[#65676B] hover:text-[#050505] hover:bg-white/60"
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${active ? "text-[#1877F2]" : "text-[#65676B]"}`} />
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <SegmentedSubNav items={SUB_TABS} activeId={activeSection} onChange={setActiveSection} />
       </div>
 
       <div>

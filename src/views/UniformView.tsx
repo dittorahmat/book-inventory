@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Shirt, Send, PackagePlus, ArrowLeftRight, BarChart3 } from "lucide-react";
 import type { School } from "../types";
 import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { SegmentedSubNav, type SegmentedSubNavItem } from "../components/ui/SegmentedSubNav";
 import { UniformShipmentSection } from "../components/uniform/UniformShipmentSection";
 import { UniformCatalogSection } from "../components/uniform/UniformCatalogSection";
 import { UniformReturnsSection } from "../components/uniform/UniformReturnsSection";
@@ -14,18 +15,20 @@ interface UniformViewProps {
   userSchoolId: string | null;
 }
 
+type UniformSubSection = "kirim" | "katalog" | "retur" | "laporan";
+
 export function UniformView({ schools, activeSchool, userRole, userSchoolId }: UniformViewProps) {
   const isGlobal = isCentralRole(userRole) || isLogisticsRole(userRole);
   const logistics = isLogisticsRole(userRole);
-  const [section, setSection] = useState<"kirim" | "katalog" | "retur" | "laporan">("kirim");
+  const [section, setSection] = useState<UniformSubSection>("kirim");
   const lockedSchoolId = isGlobal ? null : (userSchoolId ?? activeSchool?.id ?? null);
 
-  const subTabs = [
-    { id: "kirim" as const, label: "Pengiriman Seragam", icon: Send, visible: true },
-    { id: "katalog" as const, label: "Katalog & PO Konveksi", icon: PackagePlus, visible: logistics },
-    { id: "retur" as const, label: "Tukar & Refund", icon: ArrowLeftRight, visible: true },
-    { id: "laporan" as const, label: "Laporan & Rekap", icon: BarChart3, visible: true },
-  ].filter((t) => t.visible);
+  const subTabs: readonly SegmentedSubNavItem<UniformSubSection>[] = [
+    { id: "kirim" as const, label: "Pengiriman Seragam", icon: Send },
+    ...(logistics ? [{ id: "katalog" as const, label: "Katalog & PO Konveksi", icon: PackagePlus }] : []),
+    { id: "retur" as const, label: "Tukar & Refund", icon: ArrowLeftRight },
+    { id: "laporan" as const, label: "Laporan & Rekap", icon: BarChart3 },
+  ];
 
   return (
     <div className="space-y-4">
@@ -42,27 +45,7 @@ export function UniformView({ schools, activeSchool, userRole, userSchoolId }: U
           </div>
         </div>
 
-        <nav className="flex flex-wrap p-1 bg-[#F0F2F5] rounded-xl gap-1 border border-[#E4E6EB]/60">
-          {subTabs.map((t) => {
-            const Icon = t.icon;
-            const active = section === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setSection(t.id)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
-                  active
-                    ? "bg-white text-[#1877F2] shadow-xs"
-                    : "text-[#65676B] hover:text-[#050505] hover:bg-white/60"
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${active ? "text-[#1877F2]" : "text-[#65676B]"}`} />
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <SegmentedSubNav items={subTabs} activeId={section} onChange={setSection} />
       </div>
 
       <div>
