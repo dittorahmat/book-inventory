@@ -5,7 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { matchLower } from "../lib/partitioned-search";
-import { idSchema, academicYearSchema } from "../lib/validators";
+import { idSchema, academicYearSchema, base64UploadSchema } from "../lib/validators";
 import {
   findUniformExchange,
   listUniformPackages,
@@ -46,7 +46,7 @@ const submitUniformOrderSchema = z
     sizeOverrides: z.record(z.string(), z.string().min(1)).optional(),
     notes: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
-    scholarshipProofBase64: z.string().optional(),
+    scholarshipProofBase64: base64UploadSchema,
   })
   .refine((v) => v.items.every((i) => (i.packageId ? 1 : 0) + (i.variantId ? 1 : 0) === 1), {
     message: "Tiap baris wajib paket atau satuan, bukan keduanya",
@@ -107,7 +107,7 @@ const uniformConfirmSchema = z.object({
   allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
   bankName: z.string().optional(),
   referenceNumber: z.string().optional(),
-  paymentProofBase64: z.string().optional(),
+  paymentProofBase64: base64UploadSchema,
 });
 
 publicUniformOrdersRouter.post("/confirm/:token", zValidator("json", uniformConfirmSchema), async (c) => {
@@ -233,7 +233,7 @@ const publicWithdrawalUniformSchema = z.object({
   studentId: idSchema,
   courierResi: z.string().min(3, "Nomor resi pengiriman kurir retur wajib diisi"),
   reason: z.string().min(5, "Alasan pengunduran diri minimal 5 karakter"),
-  letterProofBase64: z.string().optional(),
+  letterProofBase64: base64UploadSchema,
 });
 
 publicUniformOrdersRouter.post("/cancel-withdrawal", zValidator("json", publicWithdrawalUniformSchema), async (c) => {

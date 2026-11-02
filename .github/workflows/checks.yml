@@ -60,6 +60,9 @@ jobs:
       - name: Validators gate
         run: bun run check:validators
 
+      - name: Base64 schemas gate
+        run: bun run check:base64-schemas
+
       - name: Dead-export gate
         run: bun run check:dead
 

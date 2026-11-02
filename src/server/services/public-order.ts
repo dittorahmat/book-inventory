@@ -63,7 +63,7 @@ export const searchVerifiedStudents = async (
     )
     .limit(10);
 
-/** Bentuk baris portal buku: kolom yang sama persis dengan sebelumnya + kelayakan. */
+/** Bentuk baris portal buku: kolom aman tanpa bocoran kontak PII ortu (§Security). */
 export const toBookSearchView = (row: VerifiedStudentRow) => ({
   id: row.id,
   nis: row.nis,
@@ -75,9 +75,6 @@ export const toBookSearchView = (row: VerifiedStudentRow) => ({
   isScholarship: row.isScholarship,
   schoolId: row.schoolId,
   schoolName: row.schoolName,
-  parentName: row.parentName,
-  parentEmail: row.parentEmail,
-  parentPhone: row.parentPhone,
   ...toEligibilityView(row, validateStudentForOrder(row)),
 });
 
@@ -91,8 +88,6 @@ export interface UniformSearchView {
   status: string;
   schoolId: string;
   schoolName: string;
-  parentName: string | null;
-  parentPhone: string | null;
   detectedStatus: "naik_kelas" | "aktif" | "baru";
   currentGradeLevel: string;
   targetGradeLevel: string;
@@ -100,7 +95,7 @@ export interface UniformSearchView {
   orderBlockedReason: string | null;
 }
 
-/** Bentuk baris portal seragam: kolom yang sama persis dengan sebelumnya + kelayakan. */
+/** Bentuk baris portal seragam: kolom aman tanpa bocoran kontak PII ortu (§Security). */
 export const toUniformSearchView = (row: VerifiedStudentRow): UniformSearchView => ({
   id: row.id,
   nis: row.nis,
@@ -111,8 +106,6 @@ export const toUniformSearchView = (row: VerifiedStudentRow): UniformSearchView 
   status: row.status,
   schoolId: row.schoolId,
   schoolName: row.schoolName,
-  parentName: row.parentName,
-  parentPhone: row.parentPhone,
   ...toEligibilityView(row, validateStudentForOrder(row)),
 });
 

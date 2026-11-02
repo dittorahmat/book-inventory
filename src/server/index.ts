@@ -66,7 +66,10 @@ app.onError((err, c) => {
   );
 });
 
-// Mount Better-Auth handler
+// Mount Better-Auth handler: blokir public self-registration (sign-up publik dilarang)
+app.all("/api/auth/sign-up/*", (c) => {
+  return c.json({ success: false, message: "Public registration is disabled. Contact Central Administrator." }, 403);
+});
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 // Serve media assets (from R2 or memory storage)

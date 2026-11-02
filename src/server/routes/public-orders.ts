@@ -21,7 +21,7 @@ import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice
 import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { idSchema } from "../lib/validators";
+import { idSchema, base64UploadSchema } from "../lib/validators";
 import { getWarehouseReturnAddress } from "../services/return-address";
 import {
   searchVerifiedStudents,
@@ -68,8 +68,8 @@ const submitOrderSchema = z
     looseItems: z.array(looseOrderItemSchema).default([]),
     homeAddress: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
-    scholarshipProofBase64: z.string().optional(), // For scholarship 100% discount
-    financeProofBase64: z.string().optional(), // Surat Keterangan Finance
+    scholarshipProofBase64: base64UploadSchema, // For scholarship 100% discount
+    financeProofBase64: base64UploadSchema, // Surat Keterangan Finance
     parentPhoneManual: z.string().min(6, "Nomor WhatsApp pembayar wajib diisi minimal 6 karakter").optional(),
     // Optional payment info submitted immediately
     payment: z
@@ -80,7 +80,7 @@ const submitOrderSchema = z
         bookAllocationAmount: z.number().int().min(0).optional(),
         bankName: z.string().optional(),
         referenceNumber: z.string().optional(),
-        paymentProofBase64: z.string().optional(),
+        paymentProofBase64: base64UploadSchema,
       })
       .transform((p) => ({
         ...p,
@@ -250,7 +250,7 @@ const confirmPaymentSchema = z.object({
   allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
   bankName: z.string().optional(),
   referenceNumber: z.string().optional(),
-  paymentProofBase64: z.string().optional(),
+  paymentProofBase64: base64UploadSchema,
 });
 
 publicOrdersRouter.post("/confirm/:token", zValidator("json", confirmPaymentSchema), async (c) => {

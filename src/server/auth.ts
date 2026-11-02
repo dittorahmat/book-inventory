@@ -3,15 +3,21 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db";
 import * as schema from "../db/schema";
 
+export function resolveAuthSecret(): string {
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (process.env.NODE_ENV === "production" && (!secret || secret.trim() === "")) {
+    throw new Error("BETTER_AUTH_SECRET environment variable is strictly required in production mode");
+  }
+  return secret || "development-secret-key-book-inventory-1234567890";
+}
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || (process.env.NODE_ENV === "production" ? "https://book-inventory.tech1solusi.workers.dev" : "http://localhost:3000"),
-  secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-book-inventory-1234567890",
+  secret: resolveAuthSecret(),
   trustedOrigins: [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://book-inventory.tech1solusi.workers.dev",
-    /^https:\/\/.*\.workers\.dev$/ as any,
-    /^https:\/\/.*\.pages\.dev$/ as any,
   ],
   database: drizzleAdapter(db, {
     provider: "sqlite",

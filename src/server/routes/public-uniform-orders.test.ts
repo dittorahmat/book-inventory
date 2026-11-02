@@ -138,9 +138,11 @@ describe("Portal seragam publik", () => {
     expect(ok.status).toBe(200);
     const rows = (await ok.json()).data as Array<Record<string, unknown>>;
     expect(rows.length).toBeGreaterThan(0);
-    const whitelist = ["id", "nis", "name", "gender", "gradeLevel", "academicYear", "status", "schoolId", "schoolName", "parentName", "parentPhone", "detectedStatus", "currentGradeLevel", "targetGradeLevel", "canOrder", "orderBlockedReason"].sort();
+    const whitelist = ["id", "nis", "name", "gender", "gradeLevel", "academicYear", "status", "schoolId", "schoolName", "detectedStatus", "currentGradeLevel", "targetGradeLevel", "canOrder", "orderBlockedReason"].sort();
     for (const row of rows) {
       expect(Object.keys(row).sort()).toEqual(whitelist);
+      expect(row).not.toHaveProperty("parentEmail");
+      expect(row).not.toHaveProperty("parentPhone");
     }
   });
 

@@ -368,7 +368,22 @@ describe("Payments & Cashier Verification API", () => {
       expect(item?.refundAmount).toBe(250000);
       expect(item?.status).toBe("approved");
 
-      // 2. Eksekusi pencairan refund oleh Finance
+      // 2. Eksekusi pencairan refund oleh Finance: tolak jika bukan central_admin
+      mockActor("branch_admin", schoolId);
+      const forbiddenRes = await paymentsRouter.request("/disburse-refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "buku",
+          slipNumber,
+          bankName: "BCA",
+          referenceNumber: `REF-TRF-${stamp}`,
+          notes: "Transfer refund",
+        }),
+      });
+      expect(forbiddenRes.status).toBe(403);
+
+      mockActor("central_admin", null);
       const disburseRes = await paymentsRouter.request("/disburse-refund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

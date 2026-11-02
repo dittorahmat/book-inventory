@@ -278,6 +278,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     (b) Pada percabangan rendering form/modal intake (seperti pemilih cabang di `StudentBulkUploadModal`), predikat kondisi
     wajib diekspresikan secara ketat (`(!initialSchoolId || initialSchoolId === "all") && schools.length > 0`), dilarang
     memasang disjungsi longgar (`|| schools.length > 0`) yang membuat percabangan bersifat tautologis.
+49. **Hardening Keamanan Otentikasi, Asal Muasal (Origins), dan Intake Publik** —
+    (a) **Anti-Wildcard Trusted Origins**: `trustedOrigins` pada konfigurasi auth (Better-Auth) wajib berupa daftar literal domain eksplisit (misal `http://localhost:5173`, domain workers/pages produksi), dilarang menggunakan wildcard regex (`/^https:\/\/.*\.workers\.dev$/`) yang mempercayai domain pihak ketiga sembarangan.
+    (b) **Penutupan Total Self-Registration Publik**: pencegahan registrasi mandiri publik di route handler auth (`/api/auth/sign-up/*`) wajib mencakup seluruh metode HTTP (`app.all(...)` atau intersepsi fail-closed) dengan status 403 Forbidden.
+    (c) **Disiplin Batas Karakter & Ukuran Upload Base64 (Anti-Memory DoS Worker)**: seluruh schema input publik yang menerima payload base64 dokumen/bukti (buku, seragam, pembatalan, dan retur) wajib memakai validator kanonik `base64UploadSchema` dengan batas eksplisit `MAX_BASE64_UPLOAD_CHARS` (maksimal 7.000.000 karakter / ~5MB decoded binary) guna melindungi alokasi memori heap Cloudflare Worker (128MB). Konstanta batas panjang string karakter wajib dinamai secara presisi (`_CHARS`/`_STRING_LEN`), bukan `_BYTES`.
+    (d) **Fail-Closed Secret Produksi**: helper auth wajib memverifikasi ketersediaan secret server (`BETTER_AUTH_SECRET`) pada mode produksi (`NODE_ENV === "production"`) dan melempar error fail-fast tanpa fallback ke nilai rahasia development statis.
 
 ---
 
@@ -520,10 +525,16 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
   `src/components/portal/portal-tabs.ts`; state alur di
   `src/components/portal/use*.ts`; adapter HTTP tunggal
   `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`
-  (semua route publik memusat di `/api/public/orders/*` dan `/api/public/uniforms/*`).
+  (semua route publik memusat di `/api/public/orders/*` via `public-orders.ts` & `public-order-returns.ts`,
+  serta `/api/public/uniforms/*` via `public-uniform-orders.ts`).
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
   `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
   scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam
   tinggal di direktori (misal `services/return/index.ts`, `services/order-intake/index.ts`,
   `services/uniform/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba
   `<nama>/index.ts` sebelum grep luas.
+- **Sub-Agent & Asynchronous Execution**: hindari polling loop (`schedule` timer pendek / `manage_subagents list`)
+  saat menunggu sub-agent aktif. Sistem runtime otomatis membangkitkan parent agent (*reactive wakeup*) seketika
+  sub-agent mengirimkan pesan (`send_message`). Cukup akhiri turn tanpa menjadwalkan timer buatan.
+- **Schema & Upload Gate Enforcement**: seluruh field base64 route publik (`*Base64`, `*Proof*`) wajib memakai
+  `base64UploadSchema` atau `.max(...)`. Ditegakkan mekanis oleh gate `check:base64-schemas`.

@@ -67,6 +67,7 @@ if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
     run(["bun", "scripts/check-route-tests.ts", "--diff"]);
   }
   runBun("check:validators");
+  runBun("check:base64-schemas");
   runBun("check:d1-writes");
   runBun("check:d1-error-mapping");
   runBun("check:plans");

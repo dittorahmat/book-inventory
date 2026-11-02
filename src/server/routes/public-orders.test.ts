@@ -75,6 +75,9 @@ describe("Public Orders & Student Search API", () => {
     expect(foundHendra.name).toBe("Hendra Wahyudi");
     expect(foundHendra.detectedStatus).toBe("naik_kelas");
     expect(foundHendra.targetGradeLevel).toBe("2");
+    // Verifikasi keamanan PII: public search tidak boleh membocorkan parentEmail & parentPhone
+    expect(foundHendra).not.toHaveProperty("parentEmail");
+    expect(foundHendra).not.toHaveProperty("parentPhone");
 
     // 5. Submit regular partial order (Transfer total 5.000.000, book allocation 800.000)
     const orderRes = await publicOrdersRouter.request("/submit", {
@@ -125,6 +128,26 @@ describe("Public Orders & Student Search API", () => {
     expect(lunasJson.data.totalAmount).toBe(1500000);
     expect(lunasJson.data.paidAmount).toBe(1500000);
     expect(lunasJson.data.paymentStatus).toBe("paid");
+
+    // DoS Protection: Payload base64 melebihi 7MB ditolak 400 Bad Request
+    const oversizedBase64 = "data:image/jpeg;base64," + "A".repeat(7_000_001);
+    const oversizedRes = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId: hendraId,
+        packageId: pkgId,
+        orderType: "regular",
+        payment: {
+          transferAmount: 1500000,
+          allocationAmount: 1500000,
+          bankName: "Mandiri",
+          referenceNumber: `TRX-MDR-OVERSIZED-${Date.now()}`,
+          paymentProofBase64: oversizedBase64,
+        },
+      }),
+    });
+    expect(oversizedRes.status).toBe(400);
 
     // 6. Test Scholarship Order submission (100% discount, requires proof)
     const beasiswaStudentId = `st-beasiswa-${Date.now()}`;
