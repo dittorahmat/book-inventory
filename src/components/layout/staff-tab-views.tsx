@@ -2,19 +2,14 @@ import { Suspense, lazy, type ReactNode } from "react";
 import type { School } from "../../types";
 import type { StaffRole } from "../../lib/staff-roles";
 import type { ActiveTab } from "./staff-tabs";
-import { BookReturnsView } from "../../views/BookReturnsView";
-import { CatalogView } from "../../views/CatalogView";
 import { DashboardLoadingFallback } from "../../views/DashboardFallback";
 import { InternalProcurementView } from "../../views/InternalProcurementView";
-import { InventoryView } from "../../views/InventoryView";
-import { PackagesView } from "../../views/PackagesView";
-import { ProcurementView } from "../../views/ProcurementView";
-import { ReconciliationView } from "../../views/ReconciliationView";
 import { SalesReportView } from "../../views/SalesReportView";
 import { SettingsView } from "../../views/SettingsView";
 import { StudentOrdersView } from "../../views/StudentOrdersView";
 import { StudentsView } from "../../views/StudentsView";
 import { UniformView } from "../../views/UniformView";
+import { BookWarehouseView } from "../../views/BookWarehouseView";
 
 const DashboardView = lazy(() => import("../../views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
@@ -47,9 +42,10 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
       />
     </Suspense>
   ),
-  catalog: () => <CatalogView />,
-  packages: (context) => <PackagesView activeSchool={context.activeSchool} />,
-  inventory: (context) => <InventoryView activeSchool={context.activeSchool} />,
+  book_warehouse: (context) => <BookWarehouseView context={context} />,
+  catalog: (context) => <BookWarehouseView context={context} defaultSection="catalog" />,
+  packages: (context) => <BookWarehouseView context={context} defaultSection="packages" />,
+  inventory: (context) => <BookWarehouseView context={context} defaultSection="inventory" />,
   students: (context) => (
     <StudentsView activeSchool={context.activeSchool} schools={context.schools} />
   ),
@@ -68,9 +64,7 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
       userSchoolId={context.userSchoolId}
     />
   ),
-  procurement: (context) => (
-    <ProcurementView activeSchool={context.activeSchool} userRole={context.userRole} />
-  ),
+  procurement: (context) => <BookWarehouseView context={context} defaultSection="procurement" />,
   internal_orders: (context) => (
     <InternalProcurementView
       activeSchool={context.activeSchool}
@@ -79,14 +73,8 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
       userSchoolId={context.userSchoolId}
     />
   ),
-  returns: (context) => <BookReturnsView activeSchool={context.activeSchool} />,
-  reconciliation: (context) => (
-    <ReconciliationView
-      activeSchool={context.activeSchool}
-      schools={context.schools}
-      isCentralAdmin={context.isCentralAdmin}
-    />
-  ),
+  returns: (context) => <BookWarehouseView context={context} defaultSection="returns" />,
+  reconciliation: (context) => <BookWarehouseView context={context} defaultSection="reconciliation" />,
   reports: (context) => (
     <SalesReportView
       schools={context.schools}

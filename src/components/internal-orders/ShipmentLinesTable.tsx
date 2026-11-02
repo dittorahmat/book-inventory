@@ -54,7 +54,7 @@ export function ShipmentLinesTable({
             : "Belum ada item ditambahkan."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#E4E6EB]">
+        <div className="rounded-xl border border-[#E4E6EB]">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-[#E4E6EB] bg-[#F0F2F5] font-bold text-[#050505]">
               <tr>

@@ -253,6 +253,19 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     `pushState`) di kedua blok `onSuccess` dan `finally`; tempatkan transisi penataan state secara bersih pada blok
     penyelesaian (`finally`) agar selalu tereksekusi tepat satu kali baik saat response sign-out berhasil maupun saat
     terjadi kegagalan jaringan (resilient offline fallback).
+46. **Disiplin Universal No-Silent-Catch & Penanganan Error UI** —
+    seluruh pemanggilan data fetching asinkron (`fetch`, `getJson`, dsb.) di komponen antarmuka staf maupun portal
+    publik (`src/components/**`, `src/views/**`) dilarang menggunakan *silent-catch* (`.catch(() => {})`, `.catch(() => undefined)`),
+    karena menutupi kegagalan backend dan membuat status tampilan menjadi zombie/stale:
+    (a) Setiap kegagalan wajib ditangkap ke state error lokal/toast yang ramah pengguna agar kesalahan sistem selalu tampak.
+    (b) Ditegakkan mekanis di pre-commit dan CI oleh gate `check:no-silent-catch` yang memindai seluruh direktori UI komponen.
+47. **Kanonikalisasi Sub-Navigasi Segmented & Reaktivitas Sub-Seksi View** —
+    view yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
+    (a) Wajib menggunakan komponen sub-navigasi kanonik bersama `SegmentedSubNav` (`src/components/ui/SegmentedSubNav.tsx`),
+    dilarang menduplikasi styling navigasi pil/segmented inline.
+    (b) State sub-seksi internal (`activeSection`) yang menerima prop `defaultSection` dari luar (dashboard link/delegated route)
+    wajib menyinkronkan perubahan via `useEffect(() => { setActiveSection(defaultSection); }, [defaultSection])` guna
+    mencegah bug desync navigasi saat view induk tetap berstatus terpasang (*mounted*).
 
 ---
 

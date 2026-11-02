@@ -1,6 +1,6 @@
-// Memeriksa bahwa pemanggilan asynchronous fetch di komponen portal publik
-// tidak menggunakan silent-catch (.catch(() => {})) tanpa penanganan error pengguna,
-// sesuai Mandat Anti-Kambuh AGENTS.md §0.31.
+// Memeriksa bahwa pemanggilan asynchronous fetch di komponen portal publik,
+// views, dan komponen staf tidak menggunakan silent-catch (.catch(() => {}))
+// tanpa penanganan error pengguna, sesuai Mandat Anti-Kambuh AGENTS.md §0.31.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -18,7 +18,12 @@ function walk(dir: string, fileList: string[] = []): string[] {
   return fileList;
 }
 
-const files = walk(join(process.cwd(), "src", "components", "portal"));
+const targetDirs = [
+  join(process.cwd(), "src", "components"),
+  join(process.cwd(), "src", "views"),
+];
+
+const files = targetDirs.flatMap((dir) => walk(dir));
 
 const violations: Array<{ file: string; line: number; match: string }> = [];
 
@@ -26,6 +31,9 @@ for (const file of files) {
   const content = readFileSync(file, "utf8");
   const lines = content.split(/\r?\n/);
   lines.forEach((lineText, idx) => {
+    // Abaikan operasi clipboard browser opsional
+    if (lineText.includes("clipboard.writeText")) return;
+
     const match = lineText.match(SILENT_CATCH_PATTERN);
     if (match) {
       violations.push({
@@ -38,7 +46,7 @@ for (const file of files) {
 }
 
 if (violations.length > 0) {
-  console.error("No-silent-catch gate GAGAL: Ditemukan silent-catch pada pemanggilan klien portal:");
+  console.error("No-silent-catch gate GAGAL: Ditemukan silent-catch pada pemanggilan klien:");
   for (const v of violations) {
     console.error(`  ${v.file}:${v.line} -> ${v.match}`);
   }
@@ -46,4 +54,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log("No-silent-catch gate OK: tidak ada silent-catch pada fetch portal.");
+console.log("No-silent-catch gate OK: tidak ada silent-catch pada fetch UI components dan views.");

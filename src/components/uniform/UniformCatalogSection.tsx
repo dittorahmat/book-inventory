@@ -4,11 +4,12 @@ import { getJson } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformVariants, createUniformVariant,
-  fetchUniformPackages, createUniformPackage, assembleUniformPackage,
+  fetchUniformPackages,
   fetchUniformPos, createUniformPo, receiveUniformPo, adjustUniformStock,
   fetchUniformRejects, createUniformReject, type UniformRejectRow,
   type UniformVariantRow, type UniformPackageRow,
 } from "./uniform-admin-api";
+import { UniformAssemblySubSection } from "./UniformAssemblySubSection";
 
 const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
 const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
@@ -32,13 +33,8 @@ export function UniformCatalogSection() {
   const [vSizes, setVSizes] = useState("");
   const [vChart, setVChart] = useState("");
 
-  const [pCode, setPCode] = useState("");
-  const [pName, setPName] = useState("");
-  const [pItems, setPItems] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [poSupplier, setPoSupplier] = useState("");
   const [poLines, setPoLines] = useState<Array<{ variantId: string; size: string; qty: string; price: string }>>([]);
-  const [asmQty, setAsmQty] = useState<Record<string, string>>({});
-  const [asmSize, setAsmSize] = useState<Record<string, string>>({});
 
   const [stVariant, setStVariant] = useState("");
   const [stSize, setStSize] = useState("");
@@ -235,59 +231,18 @@ export function UniformCatalogSection() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <h3 className="text-sm font-bold">Tambah Paket + Rakit</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div><label className={labelCls}>Kode paket</label><input value={pCode} onChange={(e) => setPCode(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Nama paket</label><input value={pName} onChange={(e) => setPName(e.target.value)} className={inputCls} /></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {variants.map(({ variant: v }) => (
-            <button
-              key={v.id} type="button"
-              onClick={() => setPItems((prev) => (prev.some((i) => i.variantId === v.id) ? prev : [...prev, { variantId: v.id, quantity: 1 }]))}
-              className="px-3 py-1.5 rounded-full border border-[#CED0D4] text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
-            >
-              + {v.code}
-            </button>
-          ))}
-        </div>
-        {pItems.length > 0 && (
-          <div className="text-xs text-[#65676B]">{pItems.map((i) => `${variants.find((x) => x.variant.id === i.variantId)?.variant.code}×${i.quantity}`).join(" + ")}</div>
-        )}
-        <button
-          type="button" disabled={busy || pItems.length === 0}
-          onClick={() => run(() => createUniformPackage({ code: pCode.trim(), name: pName.trim(), academicYear: vYear.trim(), items: pItems }).then(() => setPItems([])), "Paket tersimpan.")}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
-        >
-          Simpan Paket
-        </button>
-        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB]">
-          {packages.map((p) => (
-            <div key={p.package.id} className="px-4 py-3 text-xs space-y-2">
-              <div className="text-sm font-semibold">{p.package.name} <span className="font-normal text-[#65676B]">· siap {p.readyQty}</span></div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input value={asmQty[p.package.id] ?? ""} inputMode="numeric" placeholder="Qty" onChange={(e) => setAsmQty((s) => ({ ...s, [p.package.id]: e.target.value }))} className="w-20 rounded-xl border border-[#CED0D4] px-2 py-1.5 text-sm" />
-                {p.bom.some((b) => b.kind === "olahraga" && b.size === "—") && (
-                  <input value={asmSize[p.package.id] ?? ""} placeholder="Size (mis. M)" onChange={(e) => setAsmSize((s) => ({ ...s, [p.package.id]: e.target.value }))} className="w-28 rounded-xl border border-[#CED0D4] px-2 py-1.5 text-sm" />
-                )}
-                <button
-                  type="button" disabled={busy}
-                  onClick={() => {
-                    const sizeVal = (asmSize[p.package.id] ?? "").trim();
-                    const overrides: Record<string, string> = {};
-                    if (sizeVal) p.bom.filter((b) => b.kind === "olahraga" && b.size === "—").forEach((b) => { overrides[b.variantId] = sizeVal; });
-                    run(() => assembleUniformPackage(p.package.id, Number(asmQty[p.package.id]) || 0, Object.keys(overrides).length > 0 ? overrides : undefined), "Paket dirakit.");
-                  }}
-                  className="px-4 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]"
-                >
-                  Rakit
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <UniformAssemblySubSection
+        packages={packages}
+        variants={variants}
+        vYear={vYear}
+        busy={busy}
+        onRefresh={() =>
+          fetchUniformPackages()
+            .then(setPackages)
+            .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat paket seragam."))
+        }
+        run={run}
+      />
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
         <h3 className="text-sm font-bold">PO ke Konveksi</h3>
@@ -307,7 +262,7 @@ export function UniformCatalogSection() {
               onClick={() => setPoLines((prev) => (prev.some((l) => l.variantId === v.id) ? prev : [...prev, { variantId: v.id, size: "", qty: "1", price: String(v.price) }]))}
               className="px-3 py-1.5 rounded-full border border-[#CED0D4] text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
             >
-              + {v.code}
+              + {v.name} ({v.code})
             </button>
           ))}
         </div>
