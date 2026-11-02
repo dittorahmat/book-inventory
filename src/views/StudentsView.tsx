@@ -11,14 +11,19 @@ import { StudentFormModal } from "../components/students/StudentFormModal";
 import { StudentBulkUploadModal } from "../components/students/StudentBulkUploadModal";
 import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
 import { Upload, GraduationCap } from "lucide-react";
+import type { StaffRole } from "../lib/staff-roles";
+import { resolveDefaultStudentSchoolId } from "../lib/student-view-helpers";
 
 interface StudentsViewProps {
   activeSchool: School | null;
   schools?: SchoolOption[];
+  userRole?: StaffRole;
 }
 
-export function StudentsView({ activeSchool, schools: initialSchools }: StudentsViewProps) {
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeSchool?.id ?? "all");
+export function StudentsView({ activeSchool, schools: initialSchools, userRole }: StudentsViewProps) {
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() =>
+    resolveDefaultStudentSchoolId(userRole, activeSchool)
+  );
   const currentSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
   const s = useStudents(currentSchoolId);
   const [schools, setSchools] = useState<SchoolOption[]>(initialSchools || []);
@@ -28,10 +33,8 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
   const { setError } = s;
 
   useEffect(() => {
-    if (activeSchool?.id) {
-      setSelectedSchoolId(activeSchool.id);
-    }
-  }, [activeSchool?.id]);
+    setSelectedSchoolId(resolveDefaultStudentSchoolId(userRole, activeSchool));
+  }, [userRole, activeSchool]);
 
   useEffect(() => {
     if (schools.length === 0) {
