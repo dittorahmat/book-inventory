@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { buildQuery, getJson, delJson, postJson } from "../../lib/api";
 import type { StudentOrder } from "./order-types";
 
-export function useStudentOrders(schoolId: string | null) {
+export function useStudentOrders(schoolId?: string | null) {
   const [orders, setOrders] = useState<StudentOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,12 +11,11 @@ export function useStudentOrders(schoolId: string | null) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
-    if (!schoolId) return;
     setIsLoading(true);
     try {
       setOrders(
         await getJson<StudentOrder[]>(
-          buildQuery("/api/student-orders", { schoolId }),
+          buildQuery("/api/student-orders", { schoolId: schoolId || undefined }),
           "Gagal memuat pesanan siswa."
         )
       );

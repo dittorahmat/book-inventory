@@ -7,6 +7,7 @@ import {
   studentBookOrders,
   students,
   bookPackages,
+  schools,
 } from "../../db/schema";
 import { markSatuanShipped } from "../services/order-intake";
 import { assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
@@ -17,6 +18,7 @@ import {
   accessErrorResponse,
   assertLocationAllowed,
   requireScopedActor,
+  LOGISTICS_ROLES,
 } from "../services/access-scope";
 import { guardScopedOrderMutation } from "../services/order-operations";
 import { matchAnyLower } from "../lib/partitioned-search";
@@ -42,9 +44,10 @@ const handoverSchema = z.object({
 // 1. GET all student orders for a school with matrix filters
 studentOrdersRouter.get("/", async (c) => {
   try {
-    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
-    // Scoped actors are locked to their location; central may filter or see all.
-    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
+    const { actor, scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const isGlobal = actor && (actor.role === "central_admin" || LOGISTICS_ROLES.includes(actor.role));
+    // Scoped actors are locked to their location; central/warehouse may filter or see all.
+    const schoolId = !isGlobal && scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const paymentStatus = c.req.query("paymentStatus");
   const fulfillmentStatus = c.req.query("fulfillmentStatus");
   const search = c.req.query("search");
@@ -71,6 +74,7 @@ studentOrdersRouter.get("/", async (c) => {
       parentEmail: students.parentEmail,
       parentPhone: students.parentPhone,
       schoolId: studentBookOrders.schoolId,
+      schoolName: schools.name,
       packageId: studentBookOrders.packageId,
       packageName: bookPackages.name,
       packageCode: bookPackages.code,
@@ -94,6 +98,7 @@ studentOrdersRouter.get("/", async (c) => {
     })
     .from(studentBookOrders)
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))
+    .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
     .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(studentBookOrders.createdAt))

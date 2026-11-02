@@ -168,7 +168,10 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
         <div>
           <SearchableSingleSelect
             label="Sekolah"
-            options={schools.map((s) => ({ value: s.id, label: s.name }))}
+            options={[
+              ...(!lockedSchoolId ? [{ value: "", label: "🏢 Semua Cabang" }] : []),
+              ...schools.map((s) => ({ value: s.id, label: s.name })),
+            ]}
             value={schoolId}
             onChange={setSchoolId}
             placeholder="Semua sekolah"
@@ -223,7 +226,7 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && load()}
-              placeholder="Perlu filter sekolah"
+              placeholder={lockedSchoolId ? "Cari order..." : "Cari di cabang terpilih / semua..."}
               className="flex-1 rounded-xl border border-[#CED0D4] px-3 py-2 text-sm"
             />
             <button

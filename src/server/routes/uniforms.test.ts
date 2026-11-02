@@ -205,8 +205,18 @@ describe("Uniform shipment flag", () => {
     expect(list.status).toBe(200);
     expect(((await list.json()).data as unknown[]).length).toBe(1);
 
-    const searchGlobal = await uniformsRouter.request("/orders?search=USO-SHIP", { method: "GET" });
-    expect(searchGlobal.status).toBe(400);
+    mockActor("branch_admin", schoolA);
+    const searchBranchNoFilter = await uniformsRouter.request("/orders?search=USO-SHIP", { method: "GET" });
+    expect(searchBranchNoFilter.status).toBe(200);
+    // Branch admin has scope.length === 1 so it defaults to their school, but unassigned/cross branch without schoolId fails
+    mockActor("school_admin", schoolB);
+    const searchOtherBranch = await uniformsRouter.request(`/orders?schoolId=${schoolA}&search=USO-SHIP`, { method: "GET" });
+    expect(searchOtherBranch.status).toBe(403);
+
+    mockActor("central_admin", null);
+    const searchGlobalCentral = await uniformsRouter.request("/orders?search=USO-SHIP", { method: "GET" });
+    expect(searchGlobalCentral.status).toBe(200);
+    expect(((await searchGlobalCentral.json()).data as Array<{ schoolName?: string }>)[0]?.schoolName).toBeDefined();
 
     mockActor("warehouse_admin", null);
     const ship = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });

@@ -1131,4 +1131,63 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("allows central_admin and warehouse roles to query orders across all branches without schoolId", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schA = `sch-gbl-a-${stamp}`;
+    const schB = `sch-gbl-b-${stamp}`;
+    const stuA = `stu-gbl-a-${stamp}`;
+    const stuB = `stu-gbl-b-${stamp}`;
+    const ordA = `ord-gbl-a-${stamp}`;
+    const ordB = `ord-gbl-b-${stamp}`;
+
+    await db.insert(schools).values([
+      { id: schA, name: "Cabang Alpha", code: `AL-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: schB, name: "Cabang Beta", code: `BE-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(students).values([
+      { id: stuA, nis: `NIS-A-${stamp}`, name: "Siswa Alpha", schoolId: schA, gradeLevel: "1", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now },
+      { id: stuB, nis: `NIS-B-${stamp}`, name: "Siswa Beta", schoolId: schB, gradeLevel: "2", academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(studentBookOrders).values([
+      { id: ordA, orderNumber: `ORD-GLA-${String(stamp).slice(-6)}`, studentId: stuA, schoolId: schA, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation", totalAmount: 100000, paidAmount: 100000, createdAt: now, updatedAt: now },
+      { id: ordB, orderNumber: `ORD-GLB-${String(stamp).slice(-6)}`, studentId: stuB, schoolId: schB, orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation", totalAmount: 200000, paidAmount: 200000, createdAt: now, updatedAt: now },
+    ]);
+
+    try {
+      mockActor("central_admin", null);
+      const resCentral = await studentOrdersRouter.request("/", { method: "GET" });
+      expect(resCentral.status).toBe(200);
+      const jsonCentral = await resCentral.json();
+      const ids = (jsonCentral.data as Array<{ id: string }>).map((o) => o.id);
+      expect(ids).toContain(ordA);
+      expect(ids).toContain(ordB);
+
+      const itemA = (jsonCentral.data as Array<{ id: string; schoolName?: string }>).find((o) => o.id === ordA);
+      expect(itemA?.schoolName).toBe("Cabang Alpha");
+
+      // Warehouse roles can also see across all branches when no schoolId is passed
+      mockActor("warehouse_admin", "school-warehouse");
+      const resWarehouse = await studentOrdersRouter.request("/", { method: "GET" });
+      expect(resWarehouse.status).toBe(200);
+      const jsonWarehouse = await resWarehouse.json();
+      const whIds = (jsonWarehouse.data as Array<{ id: string }>).map((o) => o.id);
+      expect(whIds).toContain(ordA);
+      expect(whIds).toContain(ordB);
+
+      // Filtering to school A works
+      const resFiltered = await studentOrdersRouter.request(`/?schoolId=${schA}`, { method: "GET" });
+      expect(resFiltered.status).toBe(200);
+      const jsonFiltered = await resFiltered.json();
+      const filIds = (jsonFiltered.data as Array<{ id: string }>).map((o) => o.id);
+      expect(filIds).toContain(ordA);
+      expect(filIds).not.toContain(ordB);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [ordA, ordB]));
+      await db.delete(students).where(inArray(students.id, [stuA, stuB]));
+      await db.delete(schools).where(inArray(schools.id, [schA, schB]));
+    }
+  });
 });
