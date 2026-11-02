@@ -44,6 +44,33 @@ export function App() {
     (window.location.pathname === "/admin" || window.location.pathname === "/login")
   );
   const [isPublicMode, setIsPublicMode] = useState(!session && !showStaffLogin);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = useCallback(async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            setShowStaffLogin(true);
+            setIsPublicMode(false);
+            if (typeof window !== "undefined") {
+              window.history.pushState({}, "", "/login");
+            }
+          },
+        },
+      });
+    } catch {
+      // Abaikan error jaringan saat logout dan tetap bersihkan view staf
+    } finally {
+      setIsSigningOut(false);
+      setShowStaffLogin(true);
+      setIsPublicMode(false);
+      if (typeof window !== "undefined") {
+        window.history.pushState({}, "", "/login");
+      }
+    }
+  }, []);
 
   const loadSchools = useCallback(async () => {
     try {
@@ -159,8 +186,9 @@ export function App() {
           isCentralAdmin={isCentralAdmin}
           userRole={userRole}
           userName={currentUser.name}
+          isSigningOut={isSigningOut}
           onOpenPublicPortal={() => setIsPublicMode(true)}
-          onSignOut={() => signOut()}
+          onSignOut={handleSignOut}
         />
         <AppTabsNavigation
           activeTab={activeTab}
