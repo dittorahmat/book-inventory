@@ -5,6 +5,7 @@ import type { StudentOrder } from "./order-types";
 
 interface StudentOrdersTableProps {
   orders: StudentOrder[];
+  showSchoolColumn?: boolean;
   onOpenPayment: (order: StudentOrder) => void;
   onOpenScholarship: (order: StudentOrder) => void;
   onOpenHandover: (order: StudentOrder) => void;
@@ -18,6 +19,7 @@ interface StudentOrdersTableProps {
 
 export function StudentOrdersTable({
   orders,
+  showSchoolColumn = false,
   onOpenPayment,
   onOpenScholarship,
   onOpenHandover,
@@ -35,6 +37,7 @@ export function StudentOrdersTable({
           <thead>
             <tr className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] font-semibold">
               <th className="py-3 px-4">No. Order</th>
+              {showSchoolColumn && <th className="py-3 px-4">Sekolah / Cabang</th>}
               <th className="py-3 px-4">Nama Murid</th>
               <th className="py-3 px-4">Paket Buku</th>
               <th className="py-3 px-4">Jalur & Status Bayar</th>
@@ -45,7 +48,7 @@ export function StudentOrdersTable({
           <tbody className="divide-y divide-[#E4E6EB]">
             {orders.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-[#65676B]">
+                <td colSpan={showSchoolColumn ? 7 : 6} className="py-8 text-center text-[#65676B]">
                   Tidak ada data pesanan siswa yang cocok.
                 </td>
               </tr>
@@ -57,6 +60,13 @@ export function StudentOrdersTable({
                 return (
                   <tr key={o.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-[#050505]">{o.orderNumber}</td>
+                    {showSchoolColumn && (
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          {o.schoolName || o.schoolId}
+                        </span>
+                      </td>
+                    )}
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-[#050505]">{o.studentName}</div>
                       <div className="text-[11px] text-[#65676B]">NIS: {o.nis} &bull; Kelas {o.gradeLevel}</div>

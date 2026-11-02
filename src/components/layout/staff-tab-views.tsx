@@ -53,7 +53,13 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
   students: (context) => (
     <StudentsView activeSchool={context.activeSchool} schools={context.schools} />
   ),
-  student_orders: (context) => <StudentOrdersView activeSchool={context.activeSchool} />,
+  student_orders: (context) => (
+    <StudentOrdersView
+      activeSchool={context.activeSchool}
+      schools={context.schools}
+      userRole={context.userRole}
+    />
+  ),
   uniforms: (context) => (
     <UniformView
       schools={context.schools}

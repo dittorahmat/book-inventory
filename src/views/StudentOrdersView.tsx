@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { School } from "../types";
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
 import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
 import { ShippingModal } from "../components/orders/ShippingModal";
@@ -15,9 +16,18 @@ import type { StudentOrder } from "../components/orders/order-types";
 
 interface StudentOrdersViewProps {
   activeSchool: School | null;
+  schools?: School[];
+  userRole?: StaffRole;
 }
 
-export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
+export function StudentOrdersView({ activeSchool, schools = [], userRole }: StudentOrdersViewProps) {
+  const isGlobalUser = isCentralRole(userRole) || isLogisticsRole(userRole);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
+    isGlobalUser ? "all" : (activeSchool?.id ?? "all")
+  );
+
+  const effectiveSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
+
   const {
     filteredOrders,
     isLoading,
@@ -33,7 +43,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
     markSatuanShipped,
     saveShipping,
     sendInvoice,
-  } = useStudentOrders(activeSchool?.id ?? null);
+  } = useStudentOrders(effectiveSchoolId);
 
   const [activePaymentOrder, setActivePaymentOrder] = useState<StudentOrder | null>(null);
   const [activeShippingOrder, setActiveShippingOrder] = useState<StudentOrder | null>(null);
@@ -48,7 +58,10 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
         <div>
           <h1 className="text-base sm:text-lg font-bold text-[#050505]">Pesanan Buku Siswa</h1>
           <p className="text-xs text-[#65676B]">
-            Kelola transaksi, status bayar & serah terima buku &bull; {activeSchool?.name || "Semua Sekolah"}
+            Kelola transaksi, status bayar & serah terima buku &bull;{" "}
+            {selectedSchoolId === "all"
+              ? "Semua Cabang"
+              : schools.find((s) => s.id === selectedSchoolId)?.name || activeSchool?.name || "Semua Sekolah"}
           </p>
         </div>
         <button
@@ -62,6 +75,19 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
+        {isGlobalUser && (
+          <div className="w-full sm:w-56">
+            <SearchableSingleSelect
+              options={[
+                { value: "all", label: "🏢 Semua Cabang" },
+                ...schools.map((sc) => ({ value: sc.id, label: sc.name })),
+              ]}
+              value={selectedSchoolId}
+              onChange={setSelectedSchoolId}
+              placeholder="Pilih cabang..."
+            />
+          </div>
+        )}
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input
@@ -114,6 +140,7 @@ export function StudentOrdersView({ activeSchool }: StudentOrdersViewProps) {
       ) : (
         <StudentOrdersTable
           orders={filteredOrders}
+          showSchoolColumn={selectedSchoolId === "all"}
           onOpenPayment={setActivePaymentOrder}
           onOpenScholarship={setActiveScholarshipOrder}
           onOpenHandover={setActiveHandoverOrder}
