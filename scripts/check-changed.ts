@@ -73,11 +73,8 @@ if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
 }
 
 if (has(/^drizzle\/.*\.sql$/)) {
-  try {
-    runBun("db:push:bun");
-  } catch (err) {
-    console.warn("\n[WARNING] db:push:bun gagal diaplikasikan ke database SQLite lokal:", err);
-  }
+  // Sinkronisasi skema lokal wajib penuh (--all) dan fail-fast tanpa silent swallow (§0.31, §0.43)
+  runBun("db:push:bun --all");
   try {
     runBun("check:d1-drift");
   } catch {
