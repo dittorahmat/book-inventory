@@ -9,6 +9,7 @@ export interface StudentOrder {
   parentEmail?: string;
   parentPhone?: string;
   schoolId: string;
+  schoolName?: string;
   packageId?: string;
   packageName?: string;
   packageCode?: string;

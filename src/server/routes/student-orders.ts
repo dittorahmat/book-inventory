@@ -7,6 +7,7 @@ import {
   studentBookOrders,
   students,
   bookPackages,
+  schools,
 } from "../../db/schema";
 import { markSatuanShipped } from "../services/order-intake";
 import { assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
@@ -71,6 +72,7 @@ studentOrdersRouter.get("/", async (c) => {
       parentEmail: students.parentEmail,
       parentPhone: students.parentPhone,
       schoolId: studentBookOrders.schoolId,
+      schoolName: schools.name,
       packageId: studentBookOrders.packageId,
       packageName: bookPackages.name,
       packageCode: bookPackages.code,
@@ -94,6 +96,7 @@ studentOrdersRouter.get("/", async (c) => {
     })
     .from(studentBookOrders)
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))
+    .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
     .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(studentBookOrders.createdAt))
