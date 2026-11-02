@@ -2,16 +2,17 @@ import { chromium } from "playwright";
 import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
 import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
 import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
+import { resetDemoDatabaseViaBrowser } from "./demo-scenarios/helpers";
 
 /**
  * Full End-to-End Demo Automation Suite
  * Menjalankan seluruh bab skenario di DEMO_SCENARIO.md
  */
 
-const BASE_URL = process.env.DEMO_BASE_URL || "https://book-inventory.tech1solusi.workers.dev";
-// Default headed (membuka browser visual) kecuali di-set HEADLESS=true (misal di CI)
-const HEADLESS = process.env.HEADLESS === "true";
-const SLOW_MO = Number(process.env.SLOW_MO ?? (HEADLESS ? 0 : 700));
+const BASE_URL = process.env.DEMO_BASE_URL || "http://localhost:3000";
+// Default headless bila di CI, default headed bila dijalankan lokal untuk presentasi visual
+const HEADLESS = process.env.HEADLESS === "true" || process.env.CI === "true";
+const SLOW_MO = Number(process.env.SLOW_MO ?? (HEADLESS ? 0 : 300));
 
 async function main() {
   console.log(`\n=======================================================`);
@@ -31,6 +32,9 @@ async function main() {
   const page = await context.newPage();
 
   try {
+    // 0. Auto-seed database lokal dengan autentikasi browser session
+    await resetDemoDatabaseViaBrowser(page, BASE_URL);
+
     // 1. Eksekusi Modul Portal Publik (Bab 6–10, 15)
     await runPublicPortalScenarios(page, BASE_URL);
 

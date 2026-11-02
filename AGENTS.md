@@ -211,6 +211,12 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     kesalahan ketik nama kunci payload (typo key) ditolak secara eksplisit dengan status 400 Bad Request, bukan dilewati
     diam-diam menjadi `undefined`. Selain itu, loop `check:fast` wajib menjalankan linting inkremental pada berkas yang diubah
     guna mencegah alokasi memori heap berlebih (out-of-memory).
+42. **Disiplin Otomasi Browser & Autentikasi Reset Demo** — skrip otomasi browser Playwright (`scripts/demo-scenarios/*`)
+    dilarang hanya mengisi input tanpa men-submit form atau membiarkan mutasi aktif berhenti di level screenshot belaka;
+    setiap alur formulir (murid baru, retur komplain, pembatalan pengunduran diri, serah terima, dan approval retur) wajib
+    mengeksekusi klik submit/konfirmasi. Pemanggilan endpoint reset database demo (`POST /api/demo/seed`) wajib menyertakan
+    otentikasi sesi Central Admin sah via browser context (`page.request.post`), dilarang menggunakan fetch mentah tanpa header
+    yang berujung pada penolakan 401/403.
 
 ---
 
