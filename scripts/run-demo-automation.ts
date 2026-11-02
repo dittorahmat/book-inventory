@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
 import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
 import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
+import { resetDemoDatabaseViaBrowser } from "./demo-scenarios/helpers";
 
 /**
  * Full End-to-End Demo Automation Suite
@@ -31,15 +32,8 @@ async function main() {
   const page = await context.newPage();
 
   try {
-    // 0. Auto-seed database lokal bila tersedia endpoint /api/demo/seed
-    try {
-      const seedRes = await fetch(`${BASE_URL}/api/demo/seed`, { method: "POST" });
-      if (seedRes.ok) {
-        console.log("  ✓ Database berhasil di-reset & di-seed untuk demo.");
-      }
-    } catch {
-      console.log("  ℹ Target server running without direct auto-seed hook (continuing).");
-    }
+    // 0. Auto-seed database lokal dengan autentikasi browser session
+    await resetDemoDatabaseViaBrowser(page, BASE_URL);
 
     // 1. Eksekusi Modul Portal Publik (Bab 6–10, 15)
     await runPublicPortalScenarios(page, BASE_URL);

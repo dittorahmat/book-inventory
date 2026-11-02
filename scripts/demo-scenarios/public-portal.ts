@@ -83,7 +83,19 @@ export async function runPublicPortalScenarios(page: Page, baseUrl: string) {
     if (await namaMuridInput.count() > 0) {
       await namaMuridInput.first().fill("Zaidan Faris Automated");
       await captureScreenshot(page, "03-daftar-murid-baru-form.png");
-      console.log("  ✓ Formulir Pendaftaran Murid Baru diisi.");
+
+      // Isi kontak & submit form pendaftaran aktif
+      const parentNameInput = page.locator('input[id*="parent"], input[placeholder*="Orang Tua"]');
+      if (await parentNameInput.count() > 0) await parentNameInput.first().fill("Faris Abdullah");
+      const phoneInput = page.locator('input[type="tel"], input[placeholder*="WhatsApp"]');
+      if (await phoneInput.count() > 0) await phoneInput.first().fill("081234567890");
+
+      const submitDaftarBtn = page.locator('button[type="submit"]:has-text("Daftar"), button:has-text("Kirim Pendaftaran")');
+      if (await submitDaftarBtn.count() > 0) {
+        await submitDaftarBtn.first().click();
+        await page.waitForLoadState("networkidle");
+      }
+      console.log("  ✓ Formulir Pendaftaran Murid Baru disubmit.");
     }
   }
 
@@ -129,7 +141,14 @@ export async function runPublicPortalScenarios(page: Page, baseUrl: string) {
           await reasonInput.first().fill("Siswa mengundurkan diri karena mutasi orang tua ke luar kota");
         }
         await captureScreenshot(page, "09-form-withdrawal-buku.png");
-        console.log("  ✓ Form pembatalan buku siswa mengundurkan diri aktif.");
+
+        // Submit form pembatalan buku aktif
+        const kirimPengaduanBtn = page.locator('button[type="submit"]:has-text("Kirim"), button:has-text("Pengaduan")');
+        if (await kirimPengaduanBtn.count() > 0) {
+          await kirimPengaduanBtn.first().click();
+          await page.waitForLoadState("networkidle");
+        }
+        console.log("  ✓ Form pembatalan buku siswa mengundurkan diri disubmit.");
       }
     }
   }

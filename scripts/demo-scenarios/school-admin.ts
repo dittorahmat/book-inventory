@@ -56,7 +56,15 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
       const serahkanBtn = page.locator('button:has-text("Serahkan Buku"), button:has-text("Serah Terima")');
       if (await serahkanBtn.count() > 0) {
         await captureScreenshot(page, "13-tombol-serahkan-buku.png");
-        console.log("  ✓ Tombol Serahkan Buku (Bukti Pengambilan SJ-SERAH) tersedia.");
+        await serahkanBtn.first().click();
+        await page.waitForLoadState("networkidle");
+
+        const konfirmasiHandoverBtn = page.locator('button:has-text("Konfirmasi"), button:has-text("Simpan")');
+        if (await konfirmasiHandoverBtn.count() > 0) {
+          await konfirmasiHandoverBtn.first().click();
+          await page.waitForLoadState("networkidle");
+        }
+        console.log("  ✓ Aksi serah-terima buku fisik Kayla (SJ-SERAH) dieksekusi.");
       }
     }
   }

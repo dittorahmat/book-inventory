@@ -26,7 +26,14 @@ export async function runCentralWarehouseScenarios(page: Page, baseUrl: string) 
     await refundTab.first().click();
     await page.waitForLoadState("networkidle");
     await captureScreenshot(page, "14-tab-refund-buku-staf.png");
-    console.log("  ✓ Tab Refund Buku dimuat.");
+
+    // Eksekusi persetujuan pembatalan siswa mundur jika ada permohonan terbuka
+    const approveWithdrawalBtn = page.locator('button:has-text("Setujui Pengembalian"), button:has-text("Setujui")');
+    if (await approveWithdrawalBtn.count() > 0) {
+      await approveWithdrawalBtn.first().click();
+      await page.waitForLoadState("networkidle");
+    }
+    console.log("  ✓ Tab Refund Buku dimuat & permohonan siswa mundur ditinjau.");
   }
 
   // -------------------------------------------------------------

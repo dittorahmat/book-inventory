@@ -11,6 +11,21 @@ export async function captureScreenshot(page: Page, filename: string): Promise<v
   await page.screenshot({ path: `${screenshotDir}/${filename}`, fullPage: false });
 }
 
+/**
+ * Login dan eksekusi seed database demo melalui UI/session Playwright.
+ */
+export async function resetDemoDatabaseViaBrowser(page: Page, baseUrl: string): Promise<void> {
+  try {
+    await page.goto(`${baseUrl.replace(/\/$/, "")}/admin`, { waitUntil: "networkidle" });
+    await performLogin(page, "Central Admin", "admin.gudang@alwildan.sch.id");
+    const seedRes = await page.request.post(`${baseUrl.replace(/\/$/, "")}/api/demo/seed`);
+    if (seedRes.status() === 200) {
+      console.log("  ✓ Database berhasil di-seed ulang via sesi Central Admin terotentikasi.");
+    }
+  } catch (err) {
+    console.log("  ℹ Reset demo seed lewat sesi browser dilewati:", err instanceof Error ? err.message : String(err));
+  }
+}
 export async function performLogin(page: Page, roleLabel: string, email: string): Promise<void> {
   // Cek apakah ada session aktif sebelumnya, lakukan logout jika ada tombol Sign Out
   const signOutBtn = page.locator('button[title*="Sign Out"], button:has-text("Keluar")');
