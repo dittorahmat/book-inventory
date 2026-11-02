@@ -12,7 +12,8 @@ import { StudentBulkUploadModal } from "../components/students/StudentBulkUpload
 import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
 import { Upload, GraduationCap } from "lucide-react";
 import type { StaffRole } from "../lib/staff-roles";
-import { resolveDefaultStudentSchoolId } from "../lib/student-view-helpers";
+import { resolveDefaultStudentSchoolId, resolveFormDefaultSchoolId } from "../lib/student-view-helpers";
+import { isWarehouseLocation } from "../lib/location-helpers";
 
 interface StudentsViewProps {
   activeSchool: School | null;
@@ -177,7 +178,7 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
       {s.showForm && (
         <StudentFormModal
           schools={schools}
-          defaultSchoolId={activeSchool?.id ?? null}
+          defaultSchoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
           initial={s.editing}
           saving={s.isSaving}
           onClose={() => s.setShowForm(false)}
@@ -187,7 +188,8 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
 
       {showBulkUpload && (
         <StudentBulkUploadModal
-          schoolId={activeSchool?.id ?? (schools[0]?.id || null)}
+          schoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
+          schools={schools}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => {
             s.load();
@@ -198,7 +200,7 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
       {showBatchPromote && (
         <BatchPromoteModal
           schools={schools}
-          defaultSchoolId={selectedSchoolId}
+          defaultSchoolId={isWarehouseLocation(activeSchool) ? "all" : selectedSchoolId}
           onClose={() => setShowBatchPromote(false)}
           onSuccess={(msg) => {
             setSuccessBanner(msg);

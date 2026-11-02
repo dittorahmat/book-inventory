@@ -13,3 +13,11 @@ export function isWarehouseLocation(school: Pick<School, "type"> | null | undefi
 export function isBranchLocation(school: Pick<School, "type"> | null | undefined): boolean {
   return school?.type === "branch" || school?.type === "main";
 }
+
+/**
+ * Memfilter daftar sekolah agar hanya menyertakan cabang/sekolah murid fisik
+ * dan mengecualikan entitas gudang logistik.
+ */
+export function filterBranchSchools<T extends { type?: string }>(schools: T[]): T[] {
+  return schools.filter((s) => s.type !== "warehouse");
+}

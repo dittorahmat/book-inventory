@@ -19,3 +19,21 @@ export function resolveDefaultStudentSchoolId(
   }
   return activeSchool?.id ?? "all";
 }
+
+/**
+ * Menentukan default schoolId untuk form intake (tambah siswa manual, bulk upload).
+ * Jika filter view sedang 'all' atau activeSchool bertipe gudang (tanpa pilihan filter cabang spesifik),
+ * kembalikan null agar pengguna wajib memilih sekolah cabang riil.
+ */
+export function resolveFormDefaultSchoolId(
+  activeSchool: Pick<School, "id" | "type"> | null | undefined,
+  selectedSchoolId: string | null | undefined
+): string | null {
+  if (selectedSchoolId && selectedSchoolId !== "all") {
+    return selectedSchoolId;
+  }
+  if (isWarehouseLocation(activeSchool) || selectedSchoolId === "all") {
+    return null;
+  }
+  return activeSchool?.id ?? null;
+}

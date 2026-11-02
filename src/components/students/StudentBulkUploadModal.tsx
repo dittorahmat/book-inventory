@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { X, Upload, Download, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { apiEnvelope } from "../../lib/api";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import type { SchoolOption } from "./students-api";
 
 interface StudentBulkUploadModalProps {
   schoolId: string | null;
+  schools?: SchoolOption[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function StudentBulkUploadModal({ schoolId, onClose, onSuccess }: StudentBulkUploadModalProps) {
+export function StudentBulkUploadModal({
+  schoolId: initialSchoolId,
+  schools = [],
+  onClose,
+  onSuccess,
+}: StudentBulkUploadModalProps) {
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
+    initialSchoolId && initialSchoolId !== "all" ? initialSchoolId : ""
+  );
   const [fileText, setFileText] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -47,8 +58,8 @@ export function StudentBulkUploadModal({ schoolId, onClose, onSuccess }: Student
   };
 
   const handleUpload = async () => {
-    if (!schoolId) {
-      setError("Pilih sekolah terlebih dahulu sebelum mengimpor siswa.");
+    if (!selectedSchoolId) {
+      setError("Pilih sekolah cabang tujuan terlebih dahulu sebelum mengimpor siswa.");
       return;
     }
     if (!fileText.trim()) {
@@ -113,7 +124,7 @@ export function StudentBulkUploadModal({ schoolId, onClose, onSuccess }: Student
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          schoolId,
+          schoolId: selectedSchoolId,
           students: studentList,
         }),
       });
@@ -164,6 +175,19 @@ export function StudentBulkUploadModal({ schoolId, onClose, onSuccess }: Student
             <span>Sample CSV</span>
           </button>
         </div>
+
+        {(!initialSchoolId || initialSchoolId === "all" || schools.length > 0) && (
+          <div className="space-y-1">
+            <SearchableSingleSelect
+              label="Sekolah Cabang Tujuan"
+              options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+              value={selectedSchoolId}
+              onChange={setSelectedSchoolId}
+              placeholder="Pilih cabang sekolah murid..."
+              required
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[#050505] block">Pilih File CSV Siswa</label>

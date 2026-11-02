@@ -22,7 +22,7 @@ export function StudentFormModal({
   onClose,
   onSave,
 }: StudentFormModalProps) {
-  const [schoolId, setSchoolId] = useState(initial?.schoolId || defaultSchoolId || schools[0]?.id || "");
+  const [schoolId, setSchoolId] = useState(initial?.schoolId || defaultSchoolId || "");
   const [nis, setNis] = useState(initial?.nis || "");
   const [name, setName] = useState(initial?.name || "");
   const [gender, setGender] = useState<"male" | "female">(

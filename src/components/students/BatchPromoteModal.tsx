@@ -17,7 +17,7 @@ export function BatchPromoteModal({
   onClose,
   onSuccess,
 }: BatchPromoteModalProps) {
-  const [schoolId, setSchoolId] = useState(defaultSchoolId === "all" ? (schools[0]?.id ?? "") : defaultSchoolId);
+  const [schoolId, setSchoolId] = useState(defaultSchoolId === "all" ? "" : defaultSchoolId);
   const [targetAcademicYear, setTargetAcademicYear] = useState("2026/2027");
   const [maxGradeLevel, setMaxGradeLevel] = useState<number>(6);
   const [students, setStudents] = useState<StudentRecord[]>([]);
