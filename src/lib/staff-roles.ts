@@ -32,7 +32,8 @@ export const isSchoolRole = (role: StaffRole | undefined): boolean =>
 /** Menentukan tab default mendarat saat pengguna pertama kali masuk atau ketika tab saat ini tidak sah. */
 export const getDefaultTabForRole = (role: StaffRole | undefined): ActiveTab => {
   if (role === "warehouse_uniforms_admin") return "uniforms";
-  if (role === "warehouse_books_admin" || role === "school_admin" || role === "branch_admin") {
+  if (role === "warehouse_books_admin") return "book_warehouse";
+  if (role === "school_admin" || role === "branch_admin") {
     return "internal_orders";
   }
   return "dashboard";

@@ -12,7 +12,7 @@ import {
 describe("staff-roles helper", () => {
   it("determines correct default tab per role", () => {
     expect(getDefaultTabForRole("warehouse_uniforms_admin")).toBe("uniforms");
-    expect(getDefaultTabForRole("warehouse_books_admin")).toBe("internal_orders");
+    expect(getDefaultTabForRole("warehouse_books_admin")).toBe("book_warehouse");
     expect(getDefaultTabForRole("branch_admin")).toBe("internal_orders");
     expect(getDefaultTabForRole("school_admin")).toBe("internal_orders");
     expect(getDefaultTabForRole("central_admin")).toBe("dashboard");
