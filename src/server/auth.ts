@@ -10,8 +10,6 @@ export const auth = betterAuth({
     "http://localhost:5173",
     "http://localhost:3000",
     "https://book-inventory.tech1solusi.workers.dev",
-    /^https:\/\/.*\.workers\.dev$/ as any,
-    /^https:\/\/.*\.pages\.dev$/ as any,
   ],
   database: drizzleAdapter(db, {
     provider: "sqlite",
