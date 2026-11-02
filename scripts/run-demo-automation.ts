@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
 import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
 import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
-import { resetDemoDatabaseViaBrowser } from "./demo-scenarios/helpers";
+import { resetDemoDatabaseViaBrowser, attachErrorFailFast } from "./demo-scenarios/helpers";
 
 /**
  * Full End-to-End Demo Automation Suite
@@ -40,6 +40,8 @@ async function main() {
     viewport: { width: 1366, height: 768 },
   });
   const page = await context.newPage();
+  const failedResponses: string[] = [];
+  attachErrorFailFast(page, failedResponses);
 
   try {
     // 0. Auto-seed database lokal dengan autentikasi browser session
@@ -53,6 +55,11 @@ async function main() {
 
     // 3. Eksekusi Modul Admin Sekolah & Finance (Al Wildan 1)
     await runSchoolAdminScenarios(page, BASE_URL);
+
+    // Verifikasi bahwa selama otomasi demo tidak terjadi kegagalan server HTTP 500 / JS Crash
+    if (failedResponses.length > 0) {
+      throw new Error(`Terdeteksi ${failedResponses.length} kegagalan server selama otomasi:\n${failedResponses.join("\n")}`);
+    }
 
     console.log("\n=======================================================");
     console.log("🎉 SELURUH SKENARIO DEMO E2E BERHASIL DIEKSEKUSI PENUH!");
