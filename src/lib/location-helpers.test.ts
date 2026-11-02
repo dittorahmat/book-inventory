@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { isWarehouseLocation, isBranchLocation } from "./location-helpers";
+import { isWarehouseLocation, isBranchLocation, filterBranchSchools } from "./location-helpers";
 import type { School } from "../types";
 
 describe("location-helpers", () => {
@@ -24,5 +24,19 @@ describe("location-helpers", () => {
     expect(isBranchLocation(main)).toBe(true);
     expect(isBranchLocation(wh)).toBe(false);
     expect(isBranchLocation(null)).toBe(false);
+  });
+
+  it("filters branch schools excluding warehouses", () => {
+    const list = [
+      { id: "wh-1", type: "warehouse" },
+      { id: "school-1", type: "branch" },
+      { id: "school-2", type: "main" },
+      { id: "school-3" },
+    ];
+    expect(filterBranchSchools(list)).toEqual([
+      { id: "school-1", type: "branch" },
+      { id: "school-2", type: "main" },
+      { id: "school-3" },
+    ]);
   });
 });

@@ -47,7 +47,11 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
   packages: (context) => <BookWarehouseView context={context} defaultSection="packages" />,
   inventory: (context) => <BookWarehouseView context={context} defaultSection="inventory" />,
   students: (context) => (
-    <StudentsView activeSchool={context.activeSchool} schools={context.schools} />
+    <StudentsView
+      activeSchool={context.activeSchool}
+      schools={context.schools}
+      userRole={context.userRole}
+    />
   ),
   student_orders: (context) => (
     <StudentOrdersView

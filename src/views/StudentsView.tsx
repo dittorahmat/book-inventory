@@ -11,14 +11,20 @@ import { StudentFormModal } from "../components/students/StudentFormModal";
 import { StudentBulkUploadModal } from "../components/students/StudentBulkUploadModal";
 import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
 import { Upload, GraduationCap } from "lucide-react";
+import type { StaffRole } from "../lib/staff-roles";
+import { resolveDefaultStudentSchoolId, resolveFormDefaultSchoolId } from "../lib/student-view-helpers";
+import { filterBranchSchools } from "../lib/location-helpers";
 
 interface StudentsViewProps {
   activeSchool: School | null;
   schools?: SchoolOption[];
+  userRole?: StaffRole;
 }
 
-export function StudentsView({ activeSchool, schools: initialSchools }: StudentsViewProps) {
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeSchool?.id ?? "all");
+export function StudentsView({ activeSchool, schools: initialSchools, userRole }: StudentsViewProps) {
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() =>
+    resolveDefaultStudentSchoolId(userRole, activeSchool)
+  );
   const currentSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
   const s = useStudents(currentSchoolId);
   const [schools, setSchools] = useState<SchoolOption[]>(initialSchools || []);
@@ -28,18 +34,14 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
   const { setError } = s;
 
   useEffect(() => {
-    if (activeSchool?.id) {
-      setSelectedSchoolId(activeSchool.id);
-    }
-  }, [activeSchool?.id]);
-
-  useEffect(() => {
     if (schools.length === 0) {
       fetchSchools()
         .then(setSchools)
         .catch((err: unknown) => setError(err instanceof Error ? err.message : "Gagal memuat daftar sekolah."));
     }
   }, [schools.length, setError]);
+
+  const branchSchools = filterBranchSchools(schools);
 
   return (
     <div className="space-y-4">
@@ -173,8 +175,8 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
 
       {s.showForm && (
         <StudentFormModal
-          schools={schools}
-          defaultSchoolId={activeSchool?.id ?? null}
+          schools={branchSchools}
+          defaultSchoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
           initial={s.editing}
           saving={s.isSaving}
           onClose={() => s.setShowForm(false)}
@@ -184,7 +186,8 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
 
       {showBulkUpload && (
         <StudentBulkUploadModal
-          schoolId={activeSchool?.id ?? (schools[0]?.id || null)}
+          schoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
+          schools={branchSchools}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => {
             s.load();
@@ -194,7 +197,7 @@ export function StudentsView({ activeSchool, schools: initialSchools }: Students
 
       {showBatchPromote && (
         <BatchPromoteModal
-          schools={schools}
+          schools={branchSchools}
           defaultSchoolId={selectedSchoolId}
           onClose={() => setShowBatchPromote(false)}
           onSuccess={(msg) => {

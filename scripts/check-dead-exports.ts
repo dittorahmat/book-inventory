@@ -103,19 +103,27 @@ for (const [file, list] of defs) {
     const pattern = new RegExp(`\\b${name}\\b`);
     // 1. Dirujuk file lain?
     let used = false;
+    let onlyTestUsed = true;
     for (const [other, text] of texts) {
       if (other === file) continue;
       if (pattern.test(text)) {
         used = true;
-        break;
+        if (!/\.test\.(ts|tsx)$/.test(other)) {
+          onlyTestUsed = false;
+          break;
+        }
       }
     }
     // 2. Dirujuk sisa file sendiri di luar deklarasinya (mis. di signature)?
     if (!used) {
       used = lines.some((text, i) => !declLines.has(i) && pattern.test(text));
+      if (used) onlyTestUsed = false;
     }
     if (!used) {
       dead.push({ file, line: Math.min(...declLines) + 1, name });
+    } else if (onlyTestUsed && !file.includes("/lib/") && !file.includes("/services/")) {
+      // Helper/komponen UI yang hanya dirujuk test-nya sendiri tanpa dipakai aplikasi
+      // menandakan dead code / speculative generality di tingkat UI/view.
     }
   }
 }

@@ -2,6 +2,7 @@ export interface SchoolOption {
   id: string;
   name: string;
   code: string;
+  type?: "main" | "branch" | "warehouse";
 }
 
 export interface StudentSearchResult {
