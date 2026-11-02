@@ -75,6 +75,9 @@ describe("Public Orders & Student Search API", () => {
     expect(foundHendra.name).toBe("Hendra Wahyudi");
     expect(foundHendra.detectedStatus).toBe("naik_kelas");
     expect(foundHendra.targetGradeLevel).toBe("2");
+    // Verifikasi keamanan PII: public search tidak boleh membocorkan parentEmail & parentPhone
+    expect(foundHendra).not.toHaveProperty("parentEmail");
+    expect(foundHendra).not.toHaveProperty("parentPhone");
 
     // 5. Submit regular partial order (Transfer total 5.000.000, book allocation 800.000)
     const orderRes = await publicOrdersRouter.request("/submit", {
