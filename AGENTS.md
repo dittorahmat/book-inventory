@@ -244,6 +244,15 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     untuk memastikan junction dependency `node_modules` terhubung otomatis di Windows pwsh tanpa memicu kegagalan import modul.
     Pada pemisahan lokasi (`src/lib/location-helpers.ts`), lokasi bertipe `warehouse` dilarang diperlakukan sebagai cabang sekolah
     murid aktif (`isWarehouseLocation(school)` wajib memicu fallback filter view `"all"`).
+45. **Integritas Alur Sign Out & Transisi Otentikasi Sesi** —
+    proses sign out staf wajib mengarahkan pengguna kembali ke halaman login staf (`/login` / `LoginView`),
+    bukan dibiarkan menggantung atau terlempar ke portal publik:
+    (a) Tombol sign out di komponen layout (`AppHeader.tsx`) wajib memiliki state proteksi `isSigningOut` / `disabled`
+    guna mencegah re-entry atau klik ganda saat request jaringan berlangsung.
+    (b) Handler sign out (`handleSignOut`) dilarang menduplikasi mutasi state navigasi (`setShowStaffLogin`, `setIsPublicMode`,
+    `pushState`) di kedua blok `onSuccess` dan `finally`; tempatkan transisi penataan state secara bersih pada blok
+    penyelesaian (`finally`) agar selalu tereksekusi tepat satu kali baik saat response sign-out berhasil maupun saat
+    terjadi kegagalan jaringan (resilient offline fallback).
 
 ---
 

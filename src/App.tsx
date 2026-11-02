@@ -49,17 +49,7 @@ export function App() {
   const handleSignOut = useCallback(async () => {
     setIsSigningOut(true);
     try {
-      await signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            setShowStaffLogin(true);
-            setIsPublicMode(false);
-            if (typeof window !== "undefined") {
-              window.history.pushState({}, "", "/login");
-            }
-          },
-        },
-      });
+      await signOut();
     } catch {
       // Abaikan error jaringan saat logout dan tetap bersihkan view staf
     } finally {
