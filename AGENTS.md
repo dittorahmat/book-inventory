@@ -219,13 +219,15 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     yang berujung pada penolakan 401/403.
 43. **Verifikasi Lingkungan Bersih & Zero-Error-Banner pada Otomasi Demo** — eksekusi otomasi demo (`demo:automate`)
     wajib dijalankan di atas server backend + klien frontend aktif yang terhubung (port 5173 dengan proxy API 3000),
-    dengan pre-flight check sinkronisasi database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`).
-    Seluruh tangkapan layar hasil di `test-results/demo-screenshots/` wajib terbebas dari banner/alert kegagalan server
-    ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"), dan runner wajib memasang response error interceptor
-    (`attachErrorFailFast`) yang memicu error fail-fast bila terdeteksi HTTP >= 500 atau unhandled page crash. Pada modal
-    serah-terima buku (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip
-    otomasi wajib menginput kode cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol
-    aktif via `waitForFunction` tanpa memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
+    dengan pre-flight check sinkronisasi database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`) tanpa
+    toleransi silent-catch. Seluruh tangkapan layar hasil di `test-results/demo-screenshots/` wajib terbebas dari banner/alert
+    kegagalan server ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"). Runner wajib memasang response error interceptor
+    (`attachErrorFailFast`) di tingkat `BrowserContext` (agar mencakup seluruh tab, popup, dan halaman baru) dengan objek error
+    terstruktur (`InterceptedError`) yang memicu error fail-fast langsung (`immediateThrow: true`) seketika terdeteksi HTTP >= 500
+    atau unhandled page crash, dilarang menunda atau men-swallow kegagalan server. Pada modal serah-terima buku
+    (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip otomasi wajib menginput kode
+    cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol aktif via `waitForFunction` tanpa
+    memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
 
 ---
 

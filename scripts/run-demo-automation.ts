@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { runPublicPortalScenarios } from "./demo-scenarios/public-portal";
 import { runSchoolAdminScenarios } from "./demo-scenarios/school-admin";
 import { runCentralWarehouseScenarios } from "./demo-scenarios/central-warehouse";
-import { resetDemoDatabaseViaBrowser, attachErrorFailFast } from "./demo-scenarios/helpers";
+import { resetDemoDatabaseViaBrowser, attachErrorFailFast, type InterceptedError } from "./demo-scenarios/helpers";
 
 /**
  * Full End-to-End Demo Automation Suite
@@ -26,10 +26,11 @@ async function main() {
   // Pre-flight check: Pastikan migrasi skema SQLite lokal tersinkronisasi penuh
   try {
     console.log("⚙ Memeriksa dan mensinkronkan skema database lokal...");
-    execSync("bun run db:push:bun --all", { stdio: "pipe" });
+    execSync("bun run db:push:bun --all", { stdio: "inherit" });
     console.log("  ✓ Skema database lokal terverifikasi mutakhir.");
   } catch (err) {
-    console.warn("  ⚠ Sinkronisasi skema lokal dilewati / terjadi error:", err instanceof Error ? err.message : String(err));
+    console.error("  ❌ Sinkronisasi skema lokal gagal:", err instanceof Error ? err.message : String(err));
+    process.exit(1);
   }
 
   const browser = await chromium.launch({
@@ -40,8 +41,9 @@ async function main() {
     viewport: { width: 1366, height: 768 },
   });
   const page = await context.newPage();
-  const failedResponses: string[] = [];
-  attachErrorFailFast(page, failedResponses);
+  const failedResponses: InterceptedError[] = [];
+  // Pasang fail-fast listener di tingkat BrowserContext agar mencakup seluruh tab/popup
+  attachErrorFailFast(context, failedResponses, { immediateThrow: true });
 
   try {
     // 0. Auto-seed database lokal dengan autentikasi browser session
@@ -58,7 +60,7 @@ async function main() {
 
     // Verifikasi bahwa selama otomasi demo tidak terjadi kegagalan server HTTP 500 / JS Crash
     if (failedResponses.length > 0) {
-      throw new Error(`Terdeteksi ${failedResponses.length} kegagalan server selama otomasi:\n${failedResponses.join("\n")}`);
+      throw new Error(`Terdeteksi ${failedResponses.length} kegagalan server selama otomasi:\n${failedResponses.map((f) => f.message).join("\n")}`);
     }
 
     console.log("\n=======================================================");
@@ -66,6 +68,7 @@ async function main() {
     console.log("=======================================================\n");
   } catch (error) {
     console.error("\n❌ Terjadi kegagalan pada saat eksekusi otomasi demo:", error);
+    process.exit(1);
   } finally {
     await browser.close();
   }
