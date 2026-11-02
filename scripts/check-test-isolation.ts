@@ -77,6 +77,21 @@ for (const file of testFiles) {
   }
 }
 
+// B5 — disiplin otomasi browser & mutasi aktif (AGENTS.md §0.25 & §0.42):
+// Script demo Playwright di scripts/demo-scenarios/ tidak boleh memanggil raw fetch tanpa autentikasi ke /api/demo/seed.
+const demoScriptDir = "scripts/demo-scenarios";
+if (existsSync(demoScriptDir)) {
+  for (const entry of readdirSync(demoScriptDir)) {
+    if (/\.ts$/.test(entry)) {
+      const p = join(demoScriptDir, entry);
+      const content = readFileSync(p, "utf8");
+      if (/fetch\([^)]*\/api\/demo\/seed/.test(content)) {
+        hits.push(`${p}: memanggil raw fetch() ke /api/demo/seed tanpa otentikasi sesi Central Admin.`);
+      }
+    }
+  }
+}
+
 if (hits.length > 0) {
   console.error("Test-isolation gate FAILED:");
   for (const hit of hits) console.error(`  ${hit}`);
