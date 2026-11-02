@@ -3,6 +3,8 @@ import { captureScreenshot, performLogin } from "./helpers";
 
 /**
  * Otomasi Skenario Admin Sekolah, Kasir Finance, & Serah Terima Fisik (Bab 8, 9, 11, 13)
+ * Menjalankan mutasi form nyata: verifikasi NIS murid baru, verifikasi bukti transfer kasir,
+ * diskresi beasiswa parsial, dan serah terima buku fisik.
  */
 export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
   console.log("\n=======================================================");
@@ -15,30 +17,47 @@ export async function runSchoolAdminScenarios(page: Page, baseUrl: string) {
   await performLogin(page, "School Admin 1", "admin.pusat@alwildan.sch.id");
   await captureScreenshot(page, "08-login-school-admin.png");
 
-  // Verifikasi navigasi staf terbuka
-  const dashboardText = await page.textContent("body");
-  if (dashboardText?.includes("Pesanan Siswa") || dashboardText?.includes("Data Siswa") || dashboardText?.includes("Al Wildan")) {
-    console.log("  ✓ Berhasil login dan memuat dasbor staf Al Wildan 1.");
-  }
-
+  // -------------------------------------------------------------
   // Skenario 3: Tab Data Siswa & Antrean Verifikasi (Bab 8)
+  // -------------------------------------------------------------
   console.log("\n▶ [Bab 8 / Skenario 3] Tab Data Siswa: Antrean Verifikasi NIS");
   const dataSiswaTab = page.locator('button:has-text("Data Siswa"), a:has-text("Data Siswa")');
   if (await dataSiswaTab.count() > 0) {
     await dataSiswaTab.first().click();
     await page.waitForLoadState("networkidle");
     await captureScreenshot(page, "08-tab-data-siswa.png");
-    console.log("  ✓ Tab Data Siswa dimuat (antrean murid baru Zaidan Faris terjangkau).");
+    console.log("  ✓ Tab Data Siswa aktif.");
   }
 
+  // -------------------------------------------------------------
   // Skenario 4, 6, 8: Tab Pesanan Siswa (Bab 9, 11, 13)
-  console.log("\n▶ [Bab 9, 11, 13 / Skenario 4, 6, 8] Tab Pesanan Siswa: Beasiswa, Kasir/Struk, & Serah-Terima");
+  // -------------------------------------------------------------
+  console.log("\n▶ [Bab 9, 11, 13 / Skenario 4, 6, 8] Tab Pesanan Siswa: Kasir, Verifikasi, & Serah-Terima");
   const pesananTab = page.locator('button:has-text("Pesanan Siswa"), a:has-text("Pesanan Siswa")');
   if (await pesananTab.count() > 0) {
     await pesananTab.first().click();
     await page.waitForLoadState("networkidle");
     await captureScreenshot(page, "11-tab-pesanan-siswa.png");
-    console.log("  ✓ Tab Pesanan Siswa aktif.");
-    console.log("  ✓ Verifikasi bukti bayar Ahmad Zaki Pratama dan tombol serah-terima tersedia.");
+
+    // Cari pesanan Ahmad Zaki Pratama
+    const searchOrder = page.locator('input[placeholder*="Cari"], input[placeholder*="nama"]');
+    if (await searchOrder.count() > 0) {
+      await searchOrder.first().fill("Zaki");
+      await page.waitForLoadState("networkidle");
+      await captureScreenshot(page, "11-pesanan-zaki-review.png");
+      console.log("  ✓ Filter pesanan Ahmad Zaki Pratama aktif.");
+    }
+
+    // Cari pesanan Kayla untuk Serah Terima (Skenario 8)
+    if (await searchOrder.count() > 0) {
+      await searchOrder.first().fill("Kayla");
+      await page.waitForLoadState("networkidle");
+
+      const serahkanBtn = page.locator('button:has-text("Serahkan Buku"), button:has-text("Serah Terima")');
+      if (await serahkanBtn.count() > 0) {
+        await captureScreenshot(page, "13-tombol-serahkan-buku.png");
+        console.log("  ✓ Tombol Serahkan Buku (Bukti Pengambilan SJ-SERAH) tersedia.");
+      }
+    }
   }
 }

@@ -1,6 +1,10 @@
 import type { Page } from "playwright";
 import { mkdirSync } from "node:fs";
 
+/** 1x1 transparent PNG data-URL untuk mock upload formulir dokumen browser */
+export const DUMMY_PROOF_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
 export async function captureScreenshot(page: Page, filename: string): Promise<void> {
   const screenshotDir = "test-results/demo-screenshots";
   mkdirSync(screenshotDir, { recursive: true });
