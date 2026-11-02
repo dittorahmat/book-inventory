@@ -176,7 +176,7 @@ export function StudentBulkUploadModal({
           </button>
         </div>
 
-        {(!initialSchoolId || initialSchoolId === "all" || schools.length > 0) && (
+        {(!initialSchoolId || initialSchoolId === "all") && schools.length > 0 && (
           <div className="space-y-1">
             <SearchableSingleSelect
               label="Sekolah Cabang Tujuan"

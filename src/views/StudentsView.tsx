@@ -13,7 +13,7 @@ import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
 import { Upload, GraduationCap } from "lucide-react";
 import type { StaffRole } from "../lib/staff-roles";
 import { resolveDefaultStudentSchoolId, resolveFormDefaultSchoolId } from "../lib/student-view-helpers";
-import { isWarehouseLocation } from "../lib/location-helpers";
+import { filterBranchSchools } from "../lib/location-helpers";
 
 interface StudentsViewProps {
   activeSchool: School | null;
@@ -34,16 +34,14 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
   const { setError } = s;
 
   useEffect(() => {
-    setSelectedSchoolId(resolveDefaultStudentSchoolId(userRole, activeSchool));
-  }, [userRole, activeSchool]);
-
-  useEffect(() => {
     if (schools.length === 0) {
       fetchSchools()
         .then(setSchools)
         .catch((err: unknown) => setError(err instanceof Error ? err.message : "Gagal memuat daftar sekolah."));
     }
   }, [schools.length, setError]);
+
+  const branchSchools = filterBranchSchools(schools);
 
   return (
     <div className="space-y-4">
@@ -177,7 +175,7 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
 
       {s.showForm && (
         <StudentFormModal
-          schools={schools}
+          schools={branchSchools}
           defaultSchoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
           initial={s.editing}
           saving={s.isSaving}
@@ -189,7 +187,7 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
       {showBulkUpload && (
         <StudentBulkUploadModal
           schoolId={resolveFormDefaultSchoolId(activeSchool, selectedSchoolId)}
-          schools={schools}
+          schools={branchSchools}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => {
             s.load();
@@ -199,8 +197,8 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
 
       {showBatchPromote && (
         <BatchPromoteModal
-          schools={schools}
-          defaultSchoolId={isWarehouseLocation(activeSchool) ? "all" : selectedSchoolId}
+          schools={branchSchools}
+          defaultSchoolId={selectedSchoolId}
           onClose={() => setShowBatchPromote(false)}
           onSuccess={(msg) => {
             setSuccessBanner(msg);

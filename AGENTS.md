@@ -244,6 +244,11 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     untuk memastikan junction dependency `node_modules` terhubung otomatis di Windows pwsh tanpa memicu kegagalan import modul.
     Pada pemisahan lokasi (`src/lib/location-helpers.ts`), lokasi bertipe `warehouse` dilarang diperlakukan sebagai cabang sekolah
     murid aktif (`isWarehouseLocation(school)` wajib memicu fallback filter view `"all"`).
+    (e) Pada seluruh modal intake murid (`StudentFormModal`, `StudentBulkUploadModal`, `BatchPromoteModal`), daftar pilihan
+    sekolah wajib disaring dengan `filterBranchSchools` agar entitas gudang logistik tidak dapat dipilih sebagai sekolah murid.
+    (f) State filter lokasi view transaksi (`selectedSchoolId`) hanya diinisialisasi sekali dari helper kanonik saat mount;
+    dilarang memasang `useEffect` yang menimpa ulang `selectedSchoolId` pada setiap render/prop reference update agar pilihan cabang
+    manual pengguna tidak ter-reset secara tidak sengaja di tengah sesi.
 45. **Integritas Alur Sign Out & Transisi Otentikasi Sesi** —
     proses sign out staf wajib mengarahkan pengguna kembali ke halaman login staf (`/login` / `LoginView`),
     bukan dibiarkan menggantung atau terlempar ke portal publik:
