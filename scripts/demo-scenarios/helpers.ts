@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { mkdirSync } from "node:fs";
 
 export async function captureScreenshot(page: Page, filename: string): Promise<void> {
@@ -7,22 +7,70 @@ export async function captureScreenshot(page: Page, filename: string): Promise<v
   await page.screenshot({ path: `${screenshotDir}/${filename}`, fullPage: false });
 }
 
+export interface InterceptedError {
+  type: "http" | "js";
+  status?: number;
+  url?: string;
+  message: string;
+}
+
 /**
- * Pasang fail-fast listener untuk intercept error HTTP 500 dan uncaught page errors.
+ * Pasang fail-fast error listener pada Page atau BrowserContext.
+ * Menghentikan eksekusi (fail-fast) dan mencatat error terstruktur bila terjadi HTTP >= 500 atau unhandled crash.
  */
-export function attachErrorFailFast(page: Page, failedUrls: string[]): void {
-  page.on("response", (res) => {
+export function attachErrorFailFast(
+  target: Page | BrowserContext,
+  errorSink?: InterceptedError[],
+  options: { immediateThrow?: boolean } = { immediateThrow: true }
+): void {
+  const handleResponse = (res: { status: () => number; url: () => string }) => {
     if (res.status() >= 500) {
       const errLine = `[HTTP ${res.status()}] ${res.url()}`;
       console.error(`  🚨 Terdeteksi respon kegagalan server: ${errLine}`);
-      failedUrls.push(errLine);
+      const errObj: InterceptedError = {
+        type: "http",
+        status: res.status(),
+        url: res.url(),
+        message: errLine,
+      };
+      if (errorSink) errorSink.push(errObj);
+      if (options.immediateThrow) {
+        throw new Error(`Fail-Fast Terpicu: Respons server error ${errLine}`);
+      }
     }
-  });
+  };
 
-  page.on("pageerror", (err) => {
+  const handlePageError = (err: Error) => {
     console.error(`  🚨 Terdeteksi unhandled JavaScript error pada halaman: ${err.message}`);
-    failedUrls.push(`[JS ERROR] ${err.message}`);
-  });
+    const errObj: InterceptedError = {
+      type: "js",
+      message: err.message,
+    };
+    if (errorSink) errorSink.push(errObj);
+    if (options.immediateThrow) {
+      throw new Error(`Fail-Fast Terpicu: Unhandled page crash: ${err.message}`);
+    }
+  };
+
+  if ("on" in target) {
+    if ("pages" in target) {
+      // BrowserContext: pantau seluruh page aktif dan page baru (tabs/popups)
+      const context = target as BrowserContext;
+      context.on("page", (newPage) => {
+        newPage.on("response", handleResponse);
+        newPage.on("pageerror", handlePageError);
+      });
+      for (const p of context.pages()) {
+        p.on("response", handleResponse);
+        p.on("pageerror", handlePageError);
+      }
+    } else {
+      // Page tunggal
+      const page = target as Page;
+      page.on("response", handleResponse);
+      page.on("pageerror", handlePageError);
+    }
+  }
 }
 
 /**
