@@ -237,6 +237,10 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
     dilakukan mandiri di filter tingkat transaksi/view tanpa membatasi roaming akun atau menimpa penugasan identitas global.
     (c) Seluruh test suite yang menguji pemanggilan fetch atau custom hook data-fetching wajib menggunakan pengetikan
     struktural (`typeof fetch` / `unknown` narrowing), dilarang menggunakan type assertion `as any` (§check:no-any).
+    (d) Saat membuka worktree baru (`git worktree add`), gunakan script otomatisasi `bun run worktree:create <branch>`
+    untuk memastikan junction dependency `node_modules` terhubung otomatis di Windows pwsh tanpa memicu kegagalan import modul.
+    Pada pemisahan lokasi (`src/lib/location-helpers.ts`), lokasi bertipe `warehouse` dilarang diperlakukan sebagai cabang sekolah
+    murid aktif (`isWarehouseLocation(school)` wajib memicu fallback filter view `"all"`).
 
 ---
 

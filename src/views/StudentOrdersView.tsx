@@ -3,6 +3,7 @@ import type { School } from "../types";
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { isWarehouseLocation } from "../lib/location-helpers";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
 import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
 import { ShippingModal } from "../components/orders/ShippingModal";
@@ -22,8 +23,9 @@ interface StudentOrdersViewProps {
 
 export function StudentOrdersView({ activeSchool, schools = [], userRole }: StudentOrdersViewProps) {
   const isGlobalUser = isCentralRole(userRole) || isLogisticsRole(userRole);
+  const isWh = isWarehouseLocation(activeSchool);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
-    isGlobalUser ? "all" : (activeSchool?.id ?? "all")
+    isGlobalUser || isWh ? "all" : (activeSchool?.id ?? "all")
   );
 
   const effectiveSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
