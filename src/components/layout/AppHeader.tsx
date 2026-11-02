@@ -1,4 +1,4 @@
-import { BookOpen, Globe, LogOut, School as SchoolIcon, Shield } from "lucide-react";
+import { BookOpen, Globe, Loader2, LogOut, School as SchoolIcon, Shield } from "lucide-react";
 import type { School } from "../../types";
 import { getRoleBadgeLabel, type StaffRole } from "../../lib/staff-roles";
 
@@ -7,6 +7,7 @@ interface AppHeaderProps {
   isCentralAdmin: boolean;
   userRole?: StaffRole;
   userName: string;
+  isSigningOut?: boolean;
   onOpenPublicPortal: () => void;
   onSignOut: () => void;
 }
@@ -16,6 +17,7 @@ export function AppHeader({
   isCentralAdmin,
   userRole,
   userName,
+  isSigningOut,
   onOpenPublicPortal,
   onSignOut,
 }: AppHeaderProps) {
@@ -76,11 +78,16 @@ export function AppHeader({
             <button
               type="button"
               onClick={onSignOut}
+              disabled={isSigningOut}
               title="Sign Out"
-              className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition-colors bg-white/15 active:scale-[0.98]"
+              className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors bg-white/15 active:scale-[0.98]"
               aria-label="Sign Out"
             >
-              <LogOut className="w-4 h-4 text-white" />
+              {isSigningOut ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              ) : (
+                <LogOut className="w-4 h-4 text-white" />
+              )}
             </button>
           </div>
         </div>
