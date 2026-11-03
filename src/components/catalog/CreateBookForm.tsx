@@ -108,11 +108,12 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
 
         <div className="flex-1 grid grid-cols-2 gap-3.5 text-xs">
           <div className="col-span-2">
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Nomor ISBN</label>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">
+              Nomor ISBN / Kode Buku <span className="font-normal text-[#65676B]">(opsional)</span>
+            </label>
             <input
-              required
               className="w-full font-mono border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
-              placeholder="978-3-16-148410-0"
+              placeholder="Contoh: 978-3-16-148410-0 atau kode internal (kosongkan jika otomatis)"
               value={formData.isbn}
               onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
             />
