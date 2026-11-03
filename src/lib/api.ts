@@ -15,6 +15,35 @@ export class ApiError extends Error {
   }
 }
 
+/** Format pesan error Zod atau generic API response agar ramah dibaca manusia. */
+interface ZodIssueLike {
+  path?: Array<string | number>;
+  message?: string;
+}
+
+const formatApiErrorMessage = (data: unknown, fallback: string): string => {
+  if (!data || typeof data !== "object") return fallback;
+  const payload = data as Record<string, unknown>;
+  if (typeof payload.message === "string" && payload.message.trim()) return payload.message;
+  if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
+
+  // Handle Hono / Zod error: { success: false, error: { issues: [{ path: [...], message: "..." }] } }
+  const rawIssues = (payload.error && typeof payload.error === "object" && "issues" in payload.error)
+    ? (payload.error as { issues?: unknown }).issues
+    : payload.issues;
+  if (Array.isArray(rawIssues) && rawIssues.length > 0) {
+    return rawIssues
+      .map((item: unknown) => {
+        const issue = item as ZodIssueLike;
+        const field = Array.isArray(issue.path) && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+        return `${field}${issue.message || "Validasi gagal"}`;
+      })
+      .join("; ");
+  }
+
+  return fallback;
+};
+
 export const readJson = async (res: Response, fallback: string): Promise<any> => {
   let data: any = null;
   try {
@@ -24,7 +53,7 @@ export const readJson = async (res: Response, fallback: string): Promise<any> =>
     throw new ApiError(fallback, res.status, null);
   }
   if (!res.ok || !data || data.success === false) {
-    throw new ApiError((data && (data.message || data.error)) || fallback, res.status, data);
+    throw new ApiError(formatApiErrorMessage(data, fallback), res.status, data);
   }
   return data;
 };
