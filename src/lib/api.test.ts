@@ -29,6 +29,24 @@ describe("canonical fetch seam", () => {
     expect((err.body as { ref?: string }).ref).toBe("r1");
   });
 
+  test("error memformat Zod issues menjadi pesan ramah pembaca", async () => {
+    const seen: { url?: string; init?: RequestInit } = {};
+    const zodPayload = {
+      success: false,
+      error: {
+        issues: [
+          { path: ["isbn"], message: "Valid ISBN required" },
+          { path: ["author"], message: "Author is required" },
+        ],
+        name: "ZodError",
+      },
+    };
+    stubFetch(jsonRes(zodPayload, false, 400), seen);
+    const err = (await api("/api/x", undefined, "Jatuh").catch((e) => e)) as ApiError;
+    expect(err.message).toBe("isbn: Valid ISBN required; author: Author is required");
+    expect(err.status).toBe(400);
+  });
+
   test("fallback dipakai bila body bukan JSON / kosong", async () => {
     const seen: { url?: string; init?: RequestInit } = {};
     stubFetch(new Response("bukan json", { status: 500 }), seen);
