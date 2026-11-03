@@ -60,7 +60,7 @@ const withSuppliers = async <T extends { id: string }>(database: typeof db, book
 export const booksRouter = new Hono();
 
 const createBookSchema = z.object({
-  isbn: z.string().min(10, "Valid ISBN required"),
+  isbn: z.string().trim().optional(),
   title: z.string().min(1, "Title is required"),
   publicTitle: z.string().optional(),
   supplierIds: z.array(idSchema).default([]),
@@ -146,8 +146,10 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
+  const isbn = body.isbn && body.isbn.length > 0 ? body.isbn : `AUTO-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 
-  const [existingIsbn] = await db.select().from(books).where(eq(books.isbn, body.isbn));  if (existingIsbn) {
+  const [existingIsbn] = await db.select().from(books).where(eq(books.isbn, isbn));
+  if (existingIsbn) {
     return c.json({ success: false, message: "Book with this ISBN already exists" }, 400);
   }
 
@@ -155,7 +157,7 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     .insert(books)
     .values({
       id,
-      isbn: body.isbn,
+      isbn,
       title: body.title,
       publicTitle: body.publicTitle?.trim() || null,
       author: body.author,

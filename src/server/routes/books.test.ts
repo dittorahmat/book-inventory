@@ -105,6 +105,40 @@ describe("Books Catalog API", () => {
     await db.delete(books).where(eq(books.isbn, "978-0000000001"));
   });
 
+  it("supports creating book with short internal code or without ISBN (auto-generates identifier)", async () => {
+    // 1. Create with short identifier (< 10 digits)
+    const shortRes = await booksRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isbn: "3343242",
+        title: "Buku Flowchart SD",
+        author: "Penulis SD",
+        publisher: "Penerbit SD",
+      }),
+    });
+    const shortJson = await shortRes.json();
+    expect(shortRes.status).toBe(201);
+    expect(shortJson.data.isbn).toBe("3343242");
+
+    // 2. Create without ISBN (empty string or omitted)
+    const autoRes = await booksRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Buku Tematik Tanpa ISBN",
+        author: "Penulis Guru",
+        publisher: "Penerbit Mandiri",
+      }),
+    });
+    const autoJson = await autoRes.json();
+    expect(autoRes.status).toBe(201);
+    expect(autoJson.data.isbn).toMatch(/^AUTO-/);
+
+    // Cleanup
+    await db.delete(books).where(inArray(books.id, [shortJson.data.id, autoJson.data.id]));
+  });
+
   it("rejects deleting a book bound to a package and returns package names in error", async () => {
     const { bookPackages, bookPackageItems } = await import("../../db/schema");
     const testBookId = `test-del-book-${Date.now()}`;
