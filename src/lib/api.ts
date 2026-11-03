@@ -28,8 +28,9 @@ const formatApiErrorMessage = (data: unknown, fallback: string): string => {
   if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
 
   // Handle Hono / Zod error: { success: false, error: { issues: [{ path: [...], message: "..." }] } }
-  const errObj = payload.error as Record<string, unknown> | undefined;
-  const rawIssues = errObj?.issues ?? payload.issues;
+  const rawIssues = (payload.error && typeof payload.error === "object" && "issues" in payload.error)
+    ? (payload.error as { issues?: unknown }).issues
+    : payload.issues;
   if (Array.isArray(rawIssues) && rawIssues.length > 0) {
     return rawIssues
       .map((item: unknown) => {

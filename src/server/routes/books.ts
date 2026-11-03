@@ -19,6 +19,7 @@ import {
   effectiveBuyPrice,
   effectiveSellPrice,
 } from "../../lib/book-pricing";
+import { resolveBookIsbn } from "../../lib/isbn";
 import { recalcPackagesUsingBook } from "../services/pricing";
 import {
   accessErrorResponse,
@@ -146,7 +147,7 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     const body = c.req.valid("json");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  const isbn = body.isbn && body.isbn.length > 0 ? body.isbn : `AUTO-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+  const isbn = resolveBookIsbn(body.isbn);
 
   const [existingIsbn] = await db.select().from(books).where(eq(books.isbn, isbn));
   if (existingIsbn) {
