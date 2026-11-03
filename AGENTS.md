@@ -286,6 +286,10 @@ rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
 50. **Disiplin Formatter Error Validasi & Fleksibilitas Identifikasi Katalog** —
     (a) **Ekstraksi Error Validasi Zod Ramah Pengguna**: seam fetch klien (`readJson` di `src/lib/api.ts`) wajib mengekstrak issue validasi terstruktur (`error.issues` / `payload.issues`) menjadi pesan teks kalimat yang ramah pembaca (`field: message; ...`), dilarang membiarkan objek error terevaluasi menjadi string default `[object Object]` pada alert atau modal antarmuka pengguna.
     (b) **Kanonikalisasi Fallback Identifier Buku (ISBN)**: input nomor ISBN katalog bersifat opsional bagi pengguna dengan format fleksibel (tidak kaku 10/13 digit); bila dikosongkan, resolusi identifier wajib memusat ke helper kanonik `resolveBookIsbn` (`src/lib/isbn.ts`) yang menghasilkan prefix `AUTO-${stamp}-${serial}` secara deterministik guna menjaga keunikan constraint relasional SQLite/D1 (`books.isbn NOT NULL UNIQUE`) tanpa perakitan string inline di handler router.
+51. **Disiplin Eksekusi Test Terfokus & Ekosistem Unit Test Komponen** —
+    (a) **Target File Eksplisit pada Test Runner**: eksekusi test pada siklus iterasi aktif wajib selalu menargetkan berkas secara eksplisit (`bun test <path/file.test.ts>`), dilarang menjalankan `bun test -t <pattern>` tanpa argumen path file karena akan memicu seluruh test suite (550+ test) dan berisiko timeout asinkron shell.
+    (b) **Shim DOM Wajib pada Test Komponen (`*.test.tsx`)**: setiap pengujian komponen React yang merender DOM (`render(...)`) wajib mengimpor shim DOM kanonik (`import "../../test-dom"`) pada baris pertama dan melakukan dynamic import `@testing-library/react` guna mencegah runtime error `document is not defined` di lingkungan Bun.
+    (c) **Disiplin Deklarasi Path Tooling**: pemanggilan tool manipulasi berkas (`read_file`, `write_file`, dsb.) wajib selalu menggunakan path absolut lengkap (berbasis root project `D:\development\book-inventory\...`), dilarang mengoper path relatif yang memicu error permission.
 
 ---
 
