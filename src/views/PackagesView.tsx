@@ -5,6 +5,7 @@ import { usePackagesFilter } from "../components/packages/usePackagesFilter";
 import { PackageCard } from "../components/packages/PackageCard";
 import { BundlingModal } from "../components/BundlingModal";
 import { CreatePackageModal } from "../components/packages/CreatePackageModal";
+import { EditPackageModal } from "../components/packages/EditPackageModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 
@@ -24,6 +25,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
     loadError,
     loadPackagesData,
     createPackage,
+    updatePackage,
     deletePackage,
   } = usePackagesData(activeSchool);
   const { searchQuery, setSearchQuery, selectedCurriculum, setSelectedCurriculum, filteredPackages } =
@@ -36,6 +38,9 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
   // Create Package Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Edit Package Modal State
+  const [editingPkg, setEditingPkg] = useState<BookPackage | null>(null);
 
   return (
     <div className="space-y-5">
@@ -149,10 +154,23 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                 setModalPkg(pkg);
                 setModalMode(mode);
               }}
+              onOpenEdit={() => setEditingPkg(pkg)}
               deletePackage={deletePackage}
             />
           ))}
         </div>
+      )}
+
+      {/* EDIT PACKAGE MODAL */}
+      {editingPkg && (
+        <EditPackageModal
+          pkg={editingPkg}
+          readyBundleCount={stockMap[editingPkg.id]?.readyBundleCount ?? 0}
+          catalogBooks={catalogBooks}
+          updatePackage={updatePackage}
+          onClose={() => setEditingPkg(null)}
+          onUpdated={() => loadPackagesData()}
+        />
       )}
 
       {/* CREATE PACKAGE MODAL */}
