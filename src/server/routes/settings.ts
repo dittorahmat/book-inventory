@@ -3,6 +3,9 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
+import { getWprPriceSetting, saveWprPriceSetting } from "../services/wpr";
+import { recalcPackagesUsingBook } from "../services/pricing";
+import { WPR_BOOK_ID } from "../../lib/wpr";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   getMetaView,
@@ -122,6 +125,35 @@ settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.
     await assertSettingsAdmin(c, "cutoff");
     const { open } = await setUniformSatuanEnabled(db, c.req.valid("json").enabled);
     return c.json({ success: true, message: `Pembelian satuan seragam ${open ? "dibuka" : "ditutup"}.`, data: { open } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET nominal harga WPR
+settingsRouter.get("/wpr-price", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const price = await getWprPriceSetting(db);
+    return c.json({ success: true, data: { price } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan nominal harga WPR
+settingsRouter.post("/wpr-price", zValidator("json", z.object({ price: z.number().int().positive("Nominal WPR harus lebih dari 0") })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const { price } = c.req.valid("json");
+    await saveWprPriceSetting(db, price);
+    // Sinkronkan harga all-in seluruh paket buku yang mengandung WPR (§0.28)
+    const updatedCount = await recalcPackagesUsingBook(db, WPR_BOOK_ID);
+    return c.json({
+      success: true,
+      message: `Nominal WPR berhasil diubah menjadi Rp ${price.toLocaleString("id-ID")}${updatedCount > 0 ? ` (${updatedCount} paket disinkronkan)` : ""}.`,
+      data: { price, updatedPackagesCount: updatedCount },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
