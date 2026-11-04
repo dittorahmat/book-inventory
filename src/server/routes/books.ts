@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bookBulkRouter } from "./books-bulk";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, inArray } from "drizzle-orm";
@@ -59,6 +60,7 @@ const withSuppliers = async <T extends { id: string }>(database: typeof db, book
 });
 
 export const booksRouter = new Hono();
+booksRouter.route("/", bookBulkRouter);
 
 const createBookSchema = z.object({
   isbn: z.string().trim().optional(),
