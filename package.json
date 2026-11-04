@@ -31,6 +31,7 @@
     "check:staged": "bun scripts/check-changed.ts --staged",
     "check:fast": "bun run check:changed",
     "fix:crlf": "bun scripts/normalize-crlf.ts",
+    "worktree:add": "bun scripts/worktree-setup.ts",
     "check:string-packing": "bun scripts/check-string-packing.ts --all",
     "check:no-silent-catch": "bun scripts/check-no-silent-catch.ts",
     "check:seed-integrity": "bun scripts/check-seed-integrity.ts",
