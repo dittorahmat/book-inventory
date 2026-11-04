@@ -31,7 +31,10 @@ const run = (command: string[]): void => {
   execFileSync(command[0], command.slice(1), { stdio: "inherit" });
 };
 
-const runBun = (script: string): void => run(["bun", "run", script]);
+const runBun = (script: string): void => {
+  const parts = script.split(" ");
+  run(["bun", "run", parts[0], ...parts.slice(1)]);
+};
 
 console.log(
   `Gate file berubah (${staged ? "staged" : "working"}): ${changed.length} file.`
