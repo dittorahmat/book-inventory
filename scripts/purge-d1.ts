@@ -29,8 +29,9 @@ try {
   }
   db.exec("PRAGMA foreign_keys = ON;");
   console.log("Local SQLite database cleaned successfully.");
-} catch (e: any) {
-  console.error("Local SQLite purge error:", e.message);
+} catch (e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error("Local SQLite purge error:", msg);
 }
 
 // 2. Pembersihan D1 remote dengan urutan aman constraint

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Upload, Download, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet, Link2, Info } from "lucide-react";
 import { apiEnvelope } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { normalizeGoogleSheetsUrl } from "../../lib/student-import-parser";
+import { normalizeGoogleSheetsUrl } from "../../lib/sheets";
 import { parseBookCatalogData, type ParsedBookRow, type SkippedBookRow } from "../../lib/book-import-parser";
 
 interface BookBulkUploadModalProps {
@@ -282,7 +282,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5 text-xs text-amber-800">
               <div className="font-semibold flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                {skippedRows.length} baris dilewati (duplikat):
+                {skippedRows.length} baris dilewati (duplikat atau judul kosong):
               </div>
               <ul className="list-disc list-inside text-[11px] space-y-0.5 text-amber-700">
                 {skippedRows.slice(0, 3).map((sk) => (

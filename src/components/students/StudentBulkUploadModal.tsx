@@ -4,8 +4,8 @@ import { apiEnvelope } from "../../lib/api";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { SchoolOption } from "./students-api";
 import { StudentImportPreview } from "./StudentImportPreview";
+import { normalizeGoogleSheetsUrl } from "../../lib/sheets";
 import {
-  normalizeGoogleSheetsUrl,
   parseStudentData,
   type ParsedStudentRow,
   type SkippedStudentRow,

@@ -1,12 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { books } from "../../db/schema";
 import { requireScopedActor, accessErrorResponse } from "../services/access-scope";
 import { idSchema } from "../lib/validators";
-import { resolveBookIsbn } from "../../lib/isbn";
+import { importBookCatalog } from "../services/book-catalog-import";
 
 export const bookBulkRouter = new Hono();
 
@@ -36,68 +34,12 @@ bookBulkRouter.post("/bulk-import", zValidator("json", bulkImportBooksPayloadSch
     }
 
     const body = c.req.valid("json");
-    const items = body.books;
-
-    let insertedCount = 0;
-    let updatedCount = 0;
-    const nowIso = new Date().toISOString();
-
-    for (const item of items) {
-      const isbn = resolveBookIsbn(item.isbn);
-      const [existingBook] = await db
-        .select({ id: books.id })
-        .from(books)
-        .where(eq(books.isbn, isbn));
-
-      const effectivePrice = Math.round(item.sellPrice ?? item.price ?? 0);
-      const effectiveBuyPrice = Math.round(item.buyPrice ?? item.price ?? 0);
-
-      if (existingBook) {
-        await db
-          .update(books)
-          .set({
-            title: item.title,
-            author: item.author || "Tim Al-Wildan",
-            publisher: item.publisher || "Penerbit Al-Wildan",
-            publishYear: item.publishYear,
-            category: item.category || null,
-            description: item.description || null,
-            price: effectivePrice,
-            sellPrice: effectivePrice,
-            buyPrice: effectiveBuyPrice,
-            updatedAt: nowIso,
-          })
-          .where(eq(books.id, existingBook.id));
-        updatedCount++;
-      } else {
-        const newId = item.id || crypto.randomUUID();
-        await db.insert(books).values({
-          id: newId,
-          isbn,
-          title: item.title,
-          author: item.author || "Tim Al-Wildan",
-          publisher: item.publisher || "Penerbit Al-Wildan",
-          publishYear: item.publishYear,
-          category: item.category || null,
-          description: item.description || null,
-          price: effectivePrice,
-          sellPrice: effectivePrice,
-          buyPrice: effectiveBuyPrice,
-          createdAt: nowIso,
-          updatedAt: nowIso,
-        });
-        insertedCount++;
-      }
-    }
+    const result = await importBookCatalog(db, body.books);
 
     return c.json({
       success: true,
-      message: `Impor katalog buku berhasil: ${insertedCount} judul baru ditambahkan, ${updatedCount} judul diperbarui.`,
-      data: {
-        insertedCount,
-        updatedCount,
-        total: items.length,
-      },
+      message: `Impor katalog buku berhasil: ${result.insertedCount} judul baru ditambahkan, ${result.updatedCount} judul diperbarui.`,
+      data: result,
     });
   } catch (err: unknown) {
     return accessErrorResponse(c, err);
