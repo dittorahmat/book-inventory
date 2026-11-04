@@ -33,7 +33,7 @@ export function BookImportPreview({ parsedBooks, sheetName }: BookImportPreviewP
                 <td className="p-2 font-medium text-[#050505]">{b.title}</td>
                 <td className="p-2">Kelas {b.gradeLevel}</td>
                 <td className="p-2 font-mono">{formatRupiah(b.price)}</td>
-                <td className="p-2 text-[10px] text-[#65676B]">{b.publisher || "Penerbit Al-Wildan"}</td>
+                <td className="p-2 text-[10px] text-[#65676B]">{b.publisher || "Al-Wildan Press"}</td>
               </tr>
             ))}
           </tbody>

@@ -38,7 +38,7 @@ describe("book-import-parser", () => {
     expect(inferBookPublisher("English Student Book+Workbook 1")).toBe("Cambridge");
     expect(inferBookPublisher("Akidah Akhlak 1")).toBe("Al-Wildan Press");
     expect(inferBookPublisher("Weekly Progress Report 1 Tahun")).toBe("Al-Wildan Press");
-    expect(inferBookPublisher("Buku Cerita Bergambar")).toBe("Penerbit Al-Wildan");
+    expect(inferBookPublisher("Buku Cerita Bergambar")).toBe("Al-Wildan Press");
   });
 
 

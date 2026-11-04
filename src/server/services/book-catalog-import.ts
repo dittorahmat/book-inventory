@@ -89,7 +89,7 @@ export async function importBookCatalog(
         values: {
           title: item.title,
           author: item.author || "Tim Al-Wildan",
-          publisher: item.publisher || "Penerbit Al-Wildan",
+          publisher: item.publisher || "Al-Wildan Press",
           publishYear: item.publishYear,
           category: item.category || null,
           description: item.description || null,
@@ -107,7 +107,7 @@ export async function importBookCatalog(
         isbn: item.resolvedIsbn,
         title: item.title,
         author: item.author || "Tim Al-Wildan",
-        publisher: item.publisher || "Penerbit Al-Wildan",
+        publisher: item.publisher || "Al-Wildan Press",
         publishYear: item.publishYear,
         category: item.category || null,
         description: item.description || null,

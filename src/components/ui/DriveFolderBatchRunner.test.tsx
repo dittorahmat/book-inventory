@@ -64,4 +64,29 @@ describe("DriveFolderBatchRunner", () => {
     expect(processedIds).toEqual(["file-1", "file-2"]);
     expect(screen.getByText("100%")).toBeDefined();
   });
+
+  it("does not call onComplete when all files produce 0 items or fail", async () => {
+    let completed = false;
+
+    render(
+      <DriveFolderBatchRunner
+        files={dummyFiles}
+        onProcessFile={async () => {
+          throw new Error("File corrupt");
+        }}
+        onComplete={() => {
+          completed = true;
+        }}
+      />
+    );
+
+    const startBtn = screen.getByText("Mulai Proses Semua");
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeDefined();
+    });
+
+    expect(completed).toBe(false);
+  });
 });

@@ -59,8 +59,7 @@ export function inferBookPublisher(title: string): string {
   ) {
     return "Al-Wildan Press";
   }
-  return "Penerbit Al-Wildan";
-
+  return "Al-Wildan Press";
 }
 
 /**

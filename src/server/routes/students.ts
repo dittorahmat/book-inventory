@@ -23,7 +23,6 @@ import { studentsBulkRouter } from "./students-bulk";
 export const studentsRouter = new Hono();
 studentsRouter.route("/", studentsBulkRouter);
 
-
 const upsertStudentSchema = z.object({
   id: idSchema.optional(),
   schoolId: z.string().min(1, "Sekolah wajib dipilih"),

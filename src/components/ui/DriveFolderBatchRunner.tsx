@@ -88,7 +88,7 @@ export function DriveFolderBatchRunner({
     }
 
     setIsRunning(false);
-    if (!isCancelledRef.current) {
+    if (!isCancelledRef.current && accumulatedTotal > 0) {
       onComplete();
     }
   };

@@ -27,7 +27,7 @@ describe("POST /api/books/bulk-import", () => {
             buyPrice: 35000,
             isbn: isbn1,
             subject: "Matematika",
-            publisher: "Penerbit Al-Wildan",
+            publisher: "Al-Wildan Press",
           },
           {
             title: `Buku Bulk B ${stamp}`,

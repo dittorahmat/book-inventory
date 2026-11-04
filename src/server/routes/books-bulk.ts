@@ -16,7 +16,7 @@ const bookImportItemSchema = z
     id: idSchema.optional(),
     title: z.string().min(1, "Judul buku wajib diisi"),
     author: z.string().optional().default("Tim Al-Wildan"),
-    publisher: z.string().optional().default("Penerbit Al-Wildan"),
+    publisher: z.string().optional().default("Al-Wildan Press"),
     publishYear: z.number().int().optional().default(new Date().getFullYear()),
     category: z.string().optional(),
     description: z.string().optional(),
