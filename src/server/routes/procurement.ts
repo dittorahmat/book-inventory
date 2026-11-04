@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db } from "../../db";
 import { suppliers } from "../../db/schema";
 import {
@@ -27,6 +27,7 @@ export const procurementRouter = new Hono();
 const createSupplierSchema = z.object({
   code: z.string().min(1, "Kode supplier wajib diisi"),
   name: z.string().min(1, "Nama supplier wajib diisi"),
+  type: z.enum(["book", "uniform", "all"]).default("book"),
   contactPerson: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
@@ -66,6 +67,15 @@ const receivePOSchema = z.object({
 procurementRouter.get("/suppliers", async (c) => {
   try {
     await resolveLogisticsActor(c);
+    const typeParam = c.req.query("type");
+    if (typeParam === "book") {
+      const filtered = await db.select().from(suppliers).where(or(eq(suppliers.type, "book"), eq(suppliers.type, "all")));
+      return c.json({ success: true, data: filtered });
+    }
+    if (typeParam === "uniform") {
+      const filtered = await db.select().from(suppliers).where(or(eq(suppliers.type, "uniform"), eq(suppliers.type, "all")));
+      return c.json({ success: true, data: filtered });
+    }
     const allSuppliers = await db.select().from(suppliers);
     return c.json({ success: true, data: allSuppliers });
   } catch (err) {
@@ -89,6 +99,7 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
     id,
     code: body.code,
     name: body.name,
+    type: body.type,
     contactPerson: body.contactPerson || null,
     email: body.email || null,
     phone: body.phone || null,

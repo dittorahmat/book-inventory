@@ -5,22 +5,36 @@ import { postJson } from "../../lib/api";
 interface CreateSupplierModalProps {
   onClose: () => void;
   onCreated: (newSupplierId: string) => void | Promise<void>;
+  defaultType?: "book" | "uniform" | "all";
+  title?: string;
+  codePlaceholder?: string;
+  namePlaceholder?: string;
 }
 
 /** Modal pendaftaran supplier baru. */
-export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalProps) {
+export function CreateSupplierModal({
+  onClose,
+  onCreated,
+  defaultType = "book",
+  title = "Tambah Vendor / Supplier Baru",
+  codePlaceholder = "mis. ERL, YUD",
+  namePlaceholder = "mis. PT Penerbit Erlangga",
+}: CreateSupplierModalProps) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [type, setType] = useState<"book" | "uniform" | "all">(defaultType);
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!code.trim() || !name.trim()) {
-      alert("Kode dan Nama Supplier wajib diisi.");
+      setError("Kode dan Nama Supplier wajib diisi.");
       return;
     }
     setIsSubmitting(true);
@@ -30,6 +44,7 @@ export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalP
         {
           code: code.trim().toUpperCase(),
           name: name.trim(),
+          type,
           contactPerson: contact.trim() || undefined,
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
@@ -38,8 +53,8 @@ export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalP
         "Gagal mendaftarkan supplier."
       );
       await onCreated(created.id);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal mendaftarkan supplier.");
     } finally {
       setIsSubmitting(false);
     }
@@ -53,7 +68,7 @@ export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalP
             <div className="w-7 h-7 rounded-lg bg-[#E7F3FF] text-[#1877F2] flex items-center justify-center">
               <Building2 className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-[#050505]">Tambah Vendor / Supplier Baru</h3>
+            <h3 className="text-sm font-bold text-[#050505]">{title}</h3>
           </div>
           <button
             type="button"
@@ -65,23 +80,42 @@ export function CreateSupplierModal({ onClose, onCreated }: CreateSupplierModalP
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs">
-          <div>
-            <label className="block font-semibold text-[#050505] mb-1">Kode Supplier *</label>
-            <input
-              type="text"
-              placeholder="Contoh: SUP-ERL, MENTARI-ID"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] uppercase font-mono focus:outline-hidden focus:border-[#1877F2]"
-            />
+          {error && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              {error}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#050505] mb-1">Kode Supplier *</label>
+              <input
+                type="text"
+                placeholder={codePlaceholder}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] uppercase font-mono focus:outline-hidden focus:border-[#1877F2]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[#050505] mb-1">Kategori Vendor *</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as "book" | "uniform" | "all")}
+                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
+              >
+                <option value="uniform">Konveksi / Seragam</option>
+                <option value="book">Penerbit / Buku</option>
+                <option value="all">Keduanya (Universal)</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block font-semibold text-[#050505] mb-1">Nama Perusahaan / Penerbit *</label>
+            <label className="block font-semibold text-[#050505] mb-1">Nama Perusahaan / Vendor *</label>
             <input
               type="text"
-              placeholder="Contoh: Penerbit Erlangga Pusat"
+              placeholder={namePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               required

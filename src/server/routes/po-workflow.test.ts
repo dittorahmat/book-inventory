@@ -376,6 +376,23 @@ describe("Master supplier di tab PO", () => {
     expect(badEmail.status).toBe(400);
   });
 
+  it("mengizinkan pembaruan tipe supplier (book, uniform, all)", async () => {
+    const stamp = Date.now();
+    const supId = await makeSupplier(stamp, false);
+    try {
+      const updateRes = await poWorkflowRouter.request(`/suppliers/${supId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "uniform" }),
+      });
+      expect(updateRes.status).toBe(200);
+      const json = await updateRes.json();
+      expect(json.data.type).toBe("uniform");
+    } finally {
+      await db.delete(suppliers).where(eq(suppliers.id, supId));
+    }
+  });
+
   it("menampilkan daftar supplier lengkap dengan kontak di tab PO", async () => {
     const res = await procurementRouter.request("/suppliers", { method: "GET" });
     expect(res.status).toBe(200);
