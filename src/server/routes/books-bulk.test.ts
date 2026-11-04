@@ -27,7 +27,7 @@ describe("POST /api/books/bulk-import", () => {
             buyPrice: 35000,
             isbn: isbn1,
             subject: "Matematika",
-            publisher: "Penerbit Al-Wildan",
+            publisher: "Al-Wildan Press",
           },
           {
             title: `Buku Bulk B ${stamp}`,
@@ -98,4 +98,78 @@ describe("POST /api/books/bulk-import", () => {
     expect(res.status).toBe(403);
     restoreActor();
   });
+
+  it("handles parse-drive-url for Google Drive folder link simulation", async () => {
+    mockActor("central_admin", null);
+
+    // Test rejection of non-drive non-sheets url
+    const badRes = await booksRouter.request("/parse-drive-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://example.com/invalid-file" }),
+    });
+    expect(badRes.status).toBe(400);
+
+    restoreActor();
+  });
+
+  it("creates packages and BOM automatically when autoCreatePackages is true", async () => {
+    mockActor("central_admin", null);
+    const stamp = Date.now();
+    const isbn1 = `978-PKG-${stamp}-1`;
+    const isbn2 = `978-PKG-${stamp}-2`;
+
+    const res = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          {
+            title: `Buku Math Auto ${stamp}`,
+            gradeLevel: "1",
+            price: 100000,
+            isbn: isbn1,
+            curriculumType: "international",
+          },
+          {
+            title: `Buku English Auto ${stamp}`,
+            gradeLevel: "1",
+            price: 150000,
+            isbn: isbn2,
+            curriculumType: "international",
+          },
+        ],
+        autoCreatePackages: true,
+        academicYear: "2026/2027",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.packagesCreatedCount).toBeGreaterThanOrEqual(1);
+
+    // Verify package created
+    const { bookPackages, bookPackageItems } = await import("../../db/schema");
+    const [pkg] = await db
+      .select()
+      .from(bookPackages)
+      .where(eq(bookPackages.code, "PKG-SD1-INT-2026-2027"));
+    expect(pkg).toBeDefined();
+    expect(pkg.price).toBe(250000);
+
+    // Verify BOM items
+    const boms = await db
+      .select()
+      .from(bookPackageItems)
+      .where(eq(bookPackageItems.packageId, pkg.id));
+    expect(boms.length).toBe(2);
+
+    // Clean up
+    await db.delete(bookPackages).where(eq(bookPackages.id, pkg.id));
+    await db.delete(books).where(eq(books.isbn, isbn1));
+    await db.delete(books).where(eq(books.isbn, isbn2));
+    restoreActor();
+  });
 });
+

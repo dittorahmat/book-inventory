@@ -1,51 +1,62 @@
 import { useState } from "react";
 import { X, Upload, Download, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet, Link2, Info } from "lucide-react";
 import { apiEnvelope } from "../../lib/api";
-import { formatRupiah } from "../../lib/transfer-pricing";
-import { normalizeGoogleSheetsUrl } from "../../lib/sheets";
 import { parseBookCatalogData, type ParsedBookRow, type SkippedBookRow } from "../../lib/book-import-parser";
+import { DriveFileList, type DriveFolderItem } from "../ui/DriveFileList";
+import { DriveFolderBatchRunner } from "../ui/DriveFolderBatchRunner";
+import { useDriveFolderIntake } from "../ui/useDriveFolderIntake";
+import { BookImportPreview } from "./BookImportPreview";
+import { BookAutoPackageOptions } from "./BookAutoPackageOptions";
+import { downloadSampleBookTemplate, submitBooksInChunks } from "./book-import-helpers";
 
 interface BookBulkUploadModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
 
+
 export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalProps) {
   const [activeTab, setActiveTab] = useState<"file" | "link">("file");
   const [fileName, setFileName] = useState<string>("");
-  const [sheetsUrl, setSheetsUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isParsing, setIsParsing] = useState<boolean>(false);
+  const [isParsingFile, setIsParsingFile] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   const [parsedBooks, setParsedBooks] = useState<ParsedBookRow[]>([]);
   const [skippedRows, setSkippedRows] = useState<SkippedBookRow[]>([]);
   const [sheetName, setSheetName] = useState<string>("");
+  const [autoCreatePackages, setAutoCreatePackages] = useState<boolean>(true);
+  const [academicYear, setAcademicYear] = useState<string>("2026/2027");
 
-  const downloadSampleTemplate = () => {
-    const csvContent =
-      "isbn,judul,kelas,harga_jual,harga_beli,penerbit\n" +
-      "978-0132350884,Clean Code,1,150000,100000,Prentice Hall\n" +
-      "978-0201616224,The Pragmatic Programmer,2,175000,120000,Addison-Wesley\n";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "template_import_katalog_buku.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const {
+    sheetsUrl,
+    setSheetsUrl,
+    folderFiles,
+    setFolderFiles,
+    isParsingDrive,
+    driveError,
+    fetchDriveUrl,
+    selectFolderFile,
+  } = useDriveFolderIntake<ParsedBookRow, SkippedBookRow>({
+    endpoint: "/api/books/parse-drive-url",
+    onSingleSheetParsed: ({ validItems, skippedRows: sk, sheetName: sName }) => {
+      setParsedBooks(validItems);
+      setSkippedRows(sk);
+      setSheetName(sName);
+      setFileName("Google Sheets Catalog");
+    },
+  });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     setResultMsg(null);
+    setFolderFiles([]);
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
-    setIsParsing(true);
+    setIsParsingFile(true);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -58,44 +69,44 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       setParsedBooks([]);
       setSkippedRows([]);
     } finally {
-      setIsParsing(false);
+      setIsParsingFile(false);
     }
   };
 
-  const handleFetchGoogleSheets = async () => {
-    if (!sheetsUrl.trim()) {
-      setError("Masukkan URL Google Sheets terlebih dahulu.");
-      return;
+  const handleBatchProcessFile = async (file: DriveFolderItem) => {
+    const fileUrl = `https://docs.google.com/spreadsheets/d/${file.id}/edit`;
+    const resp = await apiEnvelope<{
+      success: boolean;
+      type: "sheet";
+      data: {
+        validBooks: ParsedBookRow[];
+        skippedRows: SkippedBookRow[];
+        sheetName: string;
+      };
+    }>("/api/books/parse-drive-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: fileUrl }),
+    });
+
+    const newBooks = resp.data.validBooks || [];
+    if (newBooks.length === 0) {
+      return { count: 0, warning: "Tidak ada baris buku valid" };
     }
 
-    const exportUrl = normalizeGoogleSheetsUrl(sheetsUrl);
-    if (!exportUrl) {
-      setError("URL tidak valid. Pastikan link berasal dari Google Sheets.");
-      return;
+    setParsedBooks((prev) => {
+      const existingKeys = new Set(prev.map((b) => `${b.title.toLowerCase()}_${b.gradeLevel}`));
+      const nonDuplicate = newBooks.filter(
+        (b) => !existingKeys.has(`${b.title.toLowerCase()}_${b.gradeLevel}`)
+      );
+      return [...prev, ...nonDuplicate];
+    });
+
+    if (resp.data.skippedRows?.length) {
+      setSkippedRows((prev) => [...prev, ...resp.data.skippedRows]);
     }
 
-    setIsParsing(true);
-    setError(null);
-    setResultMsg(null);
-
-    try {
-      const resp = await fetch(exportUrl);
-      if (!resp.ok) {
-        throw new Error("Gagal mengunduh Google Sheets. Pastikan akses diatur publik (Anyone with link).");
-      }
-      const csvText = await resp.text();
-      const res = parseBookCatalogData(csvText);
-      setParsedBooks(res.validBooks);
-      setSkippedRows(res.skippedRows);
-      setSheetName(res.sheetName);
-      setFileName("Google Sheets Catalog");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal memproses Google Sheets");
-      setParsedBooks([]);
-      setSkippedRows([]);
-    } finally {
-      setIsParsing(false);
-    }
+    return { count: newBooks.length };
   };
 
   const handleUpload = async () => {
@@ -108,29 +119,14 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       setIsSubmitting(true);
       setError(null);
 
-      const CHUNK_SIZE = 50;
-      let totalInserted = 0;
-      let totalUpdated = 0;
+      const { totalInserted, totalUpdated, totalPackages } = await submitBooksInChunks({
+        books: parsedBooks,
+        autoCreatePackages,
+        academicYear,
+      });
 
-      for (let i = 0; i < parsedBooks.length; i += CHUNK_SIZE) {
-        const batch = parsedBooks.slice(i, i + CHUNK_SIZE);
-        const res = await apiEnvelope<{
-          success: boolean;
-          message: string;
-          data: { insertedCount: number; updatedCount: number };
-        }>("/api/books/bulk-import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ books: batch }),
-        });
-
-        if (res.data) {
-          totalInserted += res.data.insertedCount;
-          totalUpdated += res.data.updatedCount;
-        }
-      }
-
-      setResultMsg(`Berhasil mengimpor ${parsedBooks.length} buku! (${totalInserted} baru, ${totalUpdated} diperbarui).`);
+      const pkgNote = totalPackages > 0 ? ` & ${totalPackages} paket dibuat` : "";
+      setResultMsg(`Berhasil mengimpor ${parsedBooks.length} buku! (${totalInserted} baru, ${totalUpdated} diperbarui${pkgNote}).`);
       setTimeout(() => {
         onSuccess();
         onClose();
@@ -151,7 +147,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
               <Upload className="w-5 h-5 text-[#1877F2]" />
               Bulk Upload Katalog Buku
             </h2>
-            <p className="text-xs text-[#65676B]">Impor banyak judul buku dari Excel (.xlsx / .xlsm), CSV, atau Google Sheets</p>
+            <p className="text-xs text-[#65676B]">Impor banyak judul buku dari Excel (.xlsx / .xlsm), CSV, atau Folder Google Drive</p>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-[#65676B] hover:bg-[#F0F2F5] transition-all">
             <X className="w-4 h-4" />
@@ -162,11 +158,11 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
           <div className="p-3 bg-[#F0F2F5] rounded-xl flex items-center justify-between text-xs">
             <div>
               <div className="font-semibold text-[#050505]">Format Katalog Fleksibel</div>
-              <div className="text-[#65676B]">Kolom wajib: `Judul`, `Harga`, `Kelas`. ISBN otomatis dibuatkan jika kosong.</div>
+              <div className="text-[#65676B]">Mendukung multi-sheet kelas numerik dan folder Google Drive Al-Wildan.</div>
             </div>
             <button
               type="button"
-              onClick={downloadSampleTemplate}
+              onClick={downloadSampleBookTemplate}
               className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-gray-50 active:scale-[0.98] text-[#050505] rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm shrink-0"
             >
               <Download className="w-3.5 h-3.5 text-[#1877F2]" />
@@ -193,7 +189,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
               }`}
             >
               <Link2 className="w-4 h-4" />
-              Link Google Sheets
+              Link Google Sheets / Drive Folder
             </button>
           </div>
 
@@ -205,78 +201,78 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
                 <div className="text-xs font-semibold text-[#050505]">
                   {fileName || "Klik atau drag & drop file Excel / CSV katalog buku"}
                 </div>
-                <div className="text-[11px] text-[#65676B] mt-0.5">Format didukung: .xlsm, .xlsx, .csv</div>
+                <div className="text-[11px] text-[#65676B] mt-0.5">Format didukung: .xlsm, .xlsx, .csv (Multi-sheet kelas otomatis terbaca)</div>
               </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-[#050505] block">Tautan Google Sheets Publik</label>
+              <label className="text-xs font-semibold text-[#050505] block">Tautan Google Sheets atau Folder Google Drive Publik</label>
               <div className="flex gap-2">
                 <input
                   type="url"
                   value={sheetsUrl}
                   onChange={(e) => setSheetsUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  placeholder="https://drive.google.com/drive/folders/... atau https://docs.google.com/spreadsheets/d/..."
                   className="flex-1 px-3 py-2 text-xs border border-[#CED0D4] rounded-xl focus:outline-none focus:border-[#1877F2]"
                 />
                 <button
                   type="button"
-                  onClick={handleFetchGoogleSheets}
-                  disabled={isParsing || !sheetsUrl}
-                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5"
+                  onClick={() => {
+                    setFileName("");
+                    fetchDriveUrl().then(() => {
+                      if (folderFiles.length > 0) {
+                        setFileName(`Folder Google Drive (${folderFiles.length} berkas)`);
+                      }
+                    });
+                  }}
+                  disabled={isParsingDrive || !sheetsUrl}
+                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
-                  {isParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Muat Data"}
+                  {isParsingDrive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Muat Data"}
                 </button>
               </div>
               <div className="text-[11px] text-[#65676B] flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-[#1877F2]" />
-                Pastikan akses berbagi disetel ke "Siapa saja yang memiliki link".
+                <Info className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
+                Dapat berupa link satu Google Sheets atau link folder Google Drive yang memuat banyak file katalog.
               </div>
             </div>
           )}
 
-          {isParsing && (
+          {/* Opsi Auto-Bundling BOM Paket */}
+          <BookAutoPackageOptions
+            autoCreatePackages={autoCreatePackages}
+            onAutoCreateChange={setAutoCreatePackages}
+            academicYear={academicYear}
+            onAcademicYearChange={setAcademicYear}
+          />
+
+          {folderFiles.length > 0 && (
+            <div className="space-y-3">
+              <DriveFolderBatchRunner
+                files={folderFiles}
+                onProcessFile={handleBatchProcessFile}
+                onComplete={() => {
+                  setFileName(`Semua Berkas Folder (${folderFiles.length} file)`);
+                }}
+              />
+              <DriveFileList
+                files={folderFiles}
+                onSelect={(f) => {
+                  selectFolderFile(f).then(() => setFileName(f.name));
+                }}
+              />
+            </div>
+          )}
+
+          {(isParsingFile || isParsingDrive) && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-700">
               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
               <span>Sedang membaca data katalog buku...</span>
             </div>
           )}
 
-          {parsedBooks.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#050505]">
-                  Pratinjau Hasil Pembacaan {sheetName && `(Sheet: ${sheetName})`}
-                </span>
-                <span className="text-emerald-600 font-bold">{parsedBooks.length} judul siap diimpor</span>
-              </div>
-              <div className="border border-[#E4E6EB] rounded-xl overflow-hidden max-h-40 overflow-y-auto text-[11px]">
-                <table className="w-full text-left">
-                  <thead className="bg-[#F0F2F5] text-[#65676B] sticky top-0">
-                    <tr>
-                      <th className="p-2">Judul</th>
-                      <th className="p-2">Kelas</th>
-                      <th className="p-2">Harga</th>
-                      <th className="p-2">ISBN</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E6EB]">
-                    {parsedBooks.slice(0, 5).map((b, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="p-2 font-medium text-[#050505]">{b.title}</td>
-                        <td className="p-2">Kelas {b.gradeLevel}</td>
-                        <td className="p-2 font-mono">{formatRupiah(b.price)}</td>
-                        <td className="p-2 font-mono text-[10px] text-[#65676B]">{b.isbn || "Otomatis"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {parsedBooks.length > 5 && (
-                <div className="text-[11px] text-[#65676B] text-center">... dan {parsedBooks.length - 5} judul buku lainnya.</div>
-              )}
-            </div>
-          )}
+          <BookImportPreview parsedBooks={parsedBooks} sheetName={sheetName} />
+
 
           {skippedRows.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5 text-xs text-amber-800">
@@ -294,10 +290,10 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             </div>
           )}
 
-          {error && (
+          {(error || driveError) && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span>{error || driveError}</span>
             </div>
           )}
 
@@ -337,3 +333,4 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
     </div>
   );
 }
+

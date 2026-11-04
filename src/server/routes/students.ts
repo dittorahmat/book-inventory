@@ -18,8 +18,10 @@ import {
   verifyStudentRegistration,
 } from "../services/student-lifecycle";
 import { idSchema } from "../lib/validators";
+import { studentsBulkRouter } from "./students-bulk";
 
 export const studentsRouter = new Hono();
+studentsRouter.route("/", studentsBulkRouter);
 
 const upsertStudentSchema = z.object({
   id: idSchema.optional(),
