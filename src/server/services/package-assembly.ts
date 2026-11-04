@@ -275,6 +275,56 @@ export type DeletePackageResult =
     }
   | AssemblyError;
 
+export type UnbundleAllResult =
+  | {
+      ok: true;
+      data: {
+        packageId: string;
+        unbundledCount: number;
+        restoredLooseCount: number;
+      };
+    }
+  | AssemblyError;
+
+/**
+ * Bongkar seluruh bundel ready dari satu paket di seluruh sekolah/gudang.
+ * Digunakan sebelum penghapusan atau sebelum perubahan komposisi BOM paket.
+ */
+export async function unbundleAllActiveBundles(
+  database: AppDatabase,
+  packageId: string,
+  reason: string,
+  deps?: WriteDeps
+): Promise<UnbundleAllResult> {
+  const activeBundles = await database
+    .select({ id: packageItems.id, schoolId: packageItems.currentSchoolId })
+    .from(packageItems)
+    .where(and(eq(packageItems.packageId, packageId), inArray(packageItems.status, [...READY_BUNDLE_STATUSES])));
+
+  const bySchool = new Map<string, number>();
+  for (const b of activeBundles) {
+    bySchool.set(b.schoolId, (bySchool.get(b.schoolId) ?? 0) + 1);
+  }
+
+  let totalUnbundled = 0;
+  let totalRestored = 0;
+  for (const [schoolId, count] of bySchool.entries()) {
+    const res = await disassemblePackageBundles(database, packageId, schoolId, count, reason, deps);
+    if (!res.ok) return res;
+    totalUnbundled += res.data.unbundledCount;
+    totalRestored += res.data.restoredLooseCount;
+  }
+
+  return {
+    ok: true,
+    data: {
+      packageId,
+      unbundledCount: totalUnbundled,
+      restoredLooseCount: totalRestored,
+    },
+  };
+}
+
 /**
  * Deep module: hapus paket dengan auto-unbundle seluruh bundel fisik in_stock.
  */
@@ -284,26 +334,8 @@ export async function deletePackageWithAutoUnbundle(database: AppDatabase, packa
     return { ok: false, status: 404, message: "Package not found" };
   }
 
-  // Cari semua bundel ready di seluruh sekolah (seam: READY_BUNDLE_STATUSES)
-  const activeBundles = await database
-    .select({ id: packageItems.id, schoolId: packageItems.currentSchoolId })
-    .from(packageItems)
-    .where(and(eq(packageItems.packageId, packageId), inArray(packageItems.status, [...READY_BUNDLE_STATUSES])));
-
-  // Kelompokkan per sekolah
-  const bySchool = new Map<string, number>();
-  for (const b of activeBundles) {
-    bySchool.set(b.schoolId, (bySchool.get(b.schoolId) ?? 0) + 1);
-  }
-
-  let totalUnbundled = 0;
-  let totalRestored = 0;
-  for (const [schoolId, count] of bySchool.entries()) {
-    const res = await disassemblePackageBundles(database, packageId, schoolId, count, `Auto-unbundle saat penghapusan paket ${pkg.name}`, deps);
-    if (!res.ok) return res;
-    totalUnbundled += res.data.unbundledCount;
-    totalRestored += res.data.restoredLooseCount;
-  }
+  const unbundleRes = await unbundleAllActiveBundles(database, packageId, `Auto-unbundle saat penghapusan paket ${pkg.name}`, deps);
+  if (!unbundleRes.ok) return unbundleRes;
 
   // Hapus relasi BOM dan master paket
   try {
@@ -321,8 +353,8 @@ export async function deletePackageWithAutoUnbundle(database: AppDatabase, packa
     ok: true,
     data: {
       packageId,
-      unbundledCount: totalUnbundled,
-      restoredLooseCount: totalRestored,
+      unbundledCount: unbundleRes.data.unbundledCount,
+      restoredLooseCount: unbundleRes.data.restoredLooseCount,
     },
   };
 }

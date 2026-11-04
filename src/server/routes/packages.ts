@@ -12,7 +12,7 @@ import {
   requireScopedLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
+import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle, unbundleAllActiveBundles } from "../services/package-assembly";
 import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
@@ -244,6 +244,77 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
       data: result.data,
     });
   } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// PUT Update existing Package (metadata & BOM) with auto-unbundle of ready bundles
+packagesRouter.put("/:id", zValidator("json", createPackageSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const packageId = c.req.param("id");
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
+
+    const [existing] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+    if (!existing) {
+      return c.json({ success: false, message: "Package not found" }, 404);
+    }
+
+    if (body.code !== existing.code) {
+      const [duplicateCode] = await db.select().from(bookPackages).where(eq(bookPackages.code, body.code));
+      if (duplicateCode) {
+        return c.json({ success: false, message: "Package code already exists" }, 400);
+      }
+    }
+
+    // Auto-unbundle bundel fisik aktif agar tidak terjadi mismatch isi dengan BOM baru
+    const unbundleRes = await unbundleAllActiveBundles(db, packageId, `Auto-unbundle saat edit paket ${existing.name}`);
+    if (!unbundleRes.ok) {
+      return c.json({ success: false, message: unbundleRes.message }, unbundleRes.status);
+    }
+
+    // Update metadata paket
+    await db.update(bookPackages).set({
+      code: body.code,
+      name: body.name,
+      gradeLevel: body.gradeLevel,
+      curriculumType: body.curriculumType,
+      academicYear: body.academicYear,
+      description: body.description ?? null,
+      updatedAt: now,
+    }).where(eq(bookPackages.id, packageId));
+
+    // Perbarui BOM: hapus item lama, masukkan item baru
+    const bomRows = body.items.map((item) => ({
+      id: crypto.randomUUID(),
+      packageId,
+      bookId: item.bookId,
+      quantity: item.quantity,
+      createdAt: now,
+    }));
+
+    await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+    for (const rows of chunkRows(bomRows)) {
+      await runWriteBatch(db, [db.insert(bookPackageItems).values(rows)]);
+    }
+
+    // WPR wajib di semua BOM paket
+    await ensurePackageHasWpr(db, packageId);
+
+    // Hitung ulang total harga paket
+    const computedTotal = await recalcPackagePrice(db, packageId);
+
+    const [updated] = await db.select().from(bookPackages).where(eq(bookPackages.id, packageId));
+    return c.json({
+      success: true,
+      message: `Paket berhasil diperbarui.${unbundleRes.data.unbundledCount > 0 ? ` ${unbundleRes.data.unbundledCount} bundel fisik lama dibongkar ke stok satuan.` : ""}`,
+      data: updated ? { ...updated, price: computedTotal } : updated,
+      unbundledCount: unbundleRes.data.unbundledCount,
+    });
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "memperbarui paket");
+    if (mapped) return c.json({ success: false, message: mapped.message }, mapped.status);
     return accessErrorResponse(c, err);
   }
 });
