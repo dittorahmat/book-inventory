@@ -97,11 +97,14 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
 
   if (body.replacePendingOrderId) {
-    await handleOrderReplacement(db, {
+    const rep = await handleOrderReplacement(db, {
       kind: "seragam",
       oldOrderId: body.replacePendingOrderId,
       newOrderId: result.data.order.id,
     });
+    if (!rep.ok) {
+      return c.json({ success: false, message: rep.message ?? "Gagal mengganti pesanan lama" }, rep.status ?? 400);
+    }
   }
 
   return c.json({ success: true, data: result.data }, 201);

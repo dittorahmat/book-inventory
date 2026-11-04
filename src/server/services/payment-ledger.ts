@@ -300,6 +300,20 @@ export const receiptNumberConflict = (err: unknown): boolean => {
   return /UNIQUE/i.test(message) && /payment_receipts/i.test(message);
 };
 
+/**
+ * Satu-satunya pembuat query mutasi alokasi untuk pemindahan/realokasi order
+ * (ADR-0021). Menjaga kepatuhan single-writer pada tabel payment_allocations.
+ */
+export const reallocateAllocationQuery = (
+  database: AppDatabase,
+  allocationId: string,
+  newOrderId: string
+) =>
+  database
+    .update(paymentAllocations)
+    .set({ orderId: newOrderId })
+    .where(eq(paymentAllocations.id, allocationId));
+
 /** Siklus hidup struk: rejected > verified > pending. Murni. */
 export type PaymentRowStatus = "pending" | "verified" | "rejected";
 

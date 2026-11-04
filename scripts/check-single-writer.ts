@@ -26,8 +26,8 @@ const OWNED_WRITES: OwnedWrite[] = [
   {
     table: "payment_allocations",
     owner: "src/server/services/payment-ledger.ts",
-    pattern: /\.insert\s*\(\s*paymentAllocations\s*\)/,
-    detail: "pakai receiptWriteQueries() dari services/payment-ledger",
+    pattern: /\.(insert|update)\s*\(\s*paymentAllocations\s*\)/,
+    detail: "pakai receiptWriteQueries() atau reallocateAllocationQuery() dari services/payment-ledger",
   },
   {
     table: "uniform_stock",

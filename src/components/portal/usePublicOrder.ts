@@ -4,6 +4,8 @@ import { calcLooseOrderTotal } from "../../lib/book-pricing";
 import {
   submitFinalOrder,
   fetchWprEligibility,
+  checkPendingOrders,
+  type PendingOrderSummary,
 } from "./portal-api";
 import { WPR_PRICE } from "../../lib/wpr";
 import { buildFinalOrderPayload } from "./order-payload";
@@ -43,17 +45,37 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   // 3 = Payment / Scholarship, 4 = Success
   const [step, setStep] = useState<OrderStep>(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingBookOrder, setPendingBookOrder] = useState<PendingOrderSummary | null>(null);
+  const [pendingStudentTarget, setPendingStudentTarget] = useState<StudentSearchResult | null>(null);
+
+  const proceedWithSelectedStudent = (st: StudentSearchResult, replaceOrderId?: string | null) => {
+    setErrorMessage(null);
+    if (replaceOrderId !== undefined) {
+      draftActions.setReplacePendingOrderId(replaceOrderId);
+    }
+    applyLockedPackage(st);
+    setStep(2);
+  };
 
   const search = useStudentSearch({
     schools,
-    onSelectStudent: (st) => {
+    onSelectStudent: async (st) => {
       if (st.canOrder === false) {
         setErrorMessage(st.orderBlockedReason ?? "Data siswa masih menunggu verifikasi admin sekolah.");
         return;
       }
       setErrorMessage(null);
-      applyLockedPackage(st);
-      setStep(2);
+      try {
+        const pending = await checkPendingOrders(st.id);
+        if (pending.bookOrder) {
+          setPendingStudentTarget(st);
+          setPendingBookOrder(pending.bookOrder);
+          return;
+        }
+      } catch {
+        // Fallback: proceed normally if check fails
+      }
+      proceedWithSelectedStudent(st, null);
     },
     onError: setErrorMessage,
   });
@@ -217,6 +239,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         paymentProofBase64,
         notes,
         homeAddress,
+        replacePendingOrderId: draft.replacePendingOrderId,
       });
       const data = await submitFinalOrder(payload);
 
@@ -260,5 +283,24 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,
     resetOrderFlow,
+    pendingBookOrder,
+    confirmReplaceOrder: () => {
+      if (pendingStudentTarget && pendingBookOrder) {
+        proceedWithSelectedStudent(pendingStudentTarget, pendingBookOrder.id);
+        setPendingBookOrder(null);
+        setPendingStudentTarget(null);
+      }
+    },
+    confirmKeepAndAddOrder: () => {
+      if (pendingStudentTarget) {
+        proceedWithSelectedStudent(pendingStudentTarget, null);
+        setPendingBookOrder(null);
+        setPendingStudentTarget(null);
+      }
+    },
+    cancelPendingModal: () => {
+      setPendingBookOrder(null);
+      setPendingStudentTarget(null);
+    },
   };
 }

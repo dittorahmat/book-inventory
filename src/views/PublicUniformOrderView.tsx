@@ -4,6 +4,7 @@ import { useUniformOrder } from "../components/uniform/useUniformOrder";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
 import { UniformItemStep } from "../components/uniform/UniformItemStep";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { PendingOrderConfirmModal } from "../components/portal/PendingOrderConfirmModal";
 
 export function PublicUniformOrderView() {
   const order = useUniformOrder();
@@ -52,21 +53,32 @@ export function PublicUniformOrderView() {
       )}
 
       {order.step === 1 && (
-        <UniformSearchStep
-          order={{
-            schools: order.schools,
-            schoolId: order.schoolId,
-            setSchoolId: order.setSchoolId,
-            query: order.query,
-            setQuery: order.setQuery,
-            searching: order.searching,
-            searched: order.searched,
-            results: order.results,
-            handleSearch: order.handleSearch,
-            selectStudent: order.selectStudent,
-            loading: order.loadingCatalog,
-          }}
-        />
+        <>
+          <UniformSearchStep
+            order={{
+              schools: order.schools,
+              schoolId: order.schoolId,
+              setSchoolId: order.setSchoolId,
+              query: order.query,
+              setQuery: order.setQuery,
+              searching: order.searching,
+              searched: order.searched,
+              results: order.results,
+              handleSearch: order.handleSearch,
+              selectStudent: order.selectStudent,
+              loading: order.loadingCatalog,
+            }}
+          />
+          {order.pendingUniformOrder && (
+            <PendingOrderConfirmModal
+              order={order.pendingUniformOrder}
+              kind="seragam"
+              onReplace={order.confirmReplaceOrder}
+              onKeepAndAdd={order.confirmKeepAndAddOrder}
+              onCancel={order.cancelPendingModal}
+            />
+          )}
+        </>
       )}
 
       {order.step === 2 && order.student && (

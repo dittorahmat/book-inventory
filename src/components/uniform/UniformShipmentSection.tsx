@@ -212,6 +212,7 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
             options={[
               { value: "belum_dikirim", label: "Belum terkirim" },
               { value: "sudah_dikirim", label: "Sudah terkirim" },
+              { value: "superseded", label: "Tertimpa (Superseded)" },
               { value: "", label: "Semua" },
             ]}
             value={status}
@@ -267,7 +268,11 @@ const parseImportCsv = (text: string): Array<{ nis: string; resi?: string; ongki
               <div className="text-xs text-[#65676B] truncate">{r.homeAddressSnapshot}</div>
               <div className="text-xs text-[#65676B]">Ongkir: {r.shippingCost ? formatRupiah(r.shippingCost) : "-"} · Invoice: {r.invoiceSentAt ? "terkirim" : "belum"}</div>
               <div className="mt-1 flex flex-wrap gap-1">
-                {r.shipmentStatus === "sudah_dikirim" ? (
+                {r.shipmentStatus === "superseded" ? (
+                  <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                    Tertimpa (Superseded)
+                  </span>
+                ) : r.shipmentStatus === "sudah_dikirim" ? (
                   <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Terkirim{r.shippedAt ? ` · ${r.shippedAt.slice(0, 10)}` : ""}</span>
                 ) : (
                   <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full">Belum terkirim</span>

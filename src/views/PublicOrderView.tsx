@@ -9,6 +9,7 @@ import { NoResultConfirmModal } from "../components/portal/NoResultConfirmModal"
 import { OrderItemStep } from "../components/portal/OrderItemStep";
 import { PaymentStep } from "../components/portal/PaymentStep";
 import { OrderSuccessStep } from "../components/portal/OrderSuccessStep";
+import { PendingOrderConfirmModal } from "../components/portal/PendingOrderConfirmModal";
 import { buildSatuanPkg } from "../components/portal/order-draft";
 
 interface PublicOrderViewProps {
@@ -158,6 +159,15 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 onConfirm={order.confirmCreateNewStudent}
                 onEditKeyword={order.editNoResultKeyword}
                 onCancel={order.cancelNoResult}
+              />
+            )}
+            {step === 1 && order.pendingBookOrder && (
+              <PendingOrderConfirmModal
+                order={order.pendingBookOrder}
+                kind="buku"
+                onReplace={order.confirmReplaceOrder}
+                onKeepAndAdd={order.confirmKeepAndAddOrder}
+                onCancel={order.cancelPendingModal}
               />
             )}
 

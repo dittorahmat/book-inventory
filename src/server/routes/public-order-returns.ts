@@ -6,19 +6,8 @@ import { idSchema, base64UploadSchema } from "../lib/validators";
 import { BOOK_RETURN_MAX_PHOTO_BASE64_CHARS, BOOK_RETURN_PHOTO_DATA_URL } from "../../lib/book-return";
 import { reportReturn } from "../services/return";
 import { requestStudentWithdrawal } from "../services/student-withdrawal";
-import { findPendingOrdersForStudent } from "../services/order-supersede";
 
 export const publicOrderReturnsRouter = new Hono();
-
-// Pengecekan pesanan gantung murid sebelum submit portal
-publicOrderReturnsRouter.get("/check-pending/:studentId", async (c) => {
-  const studentId = c.req.param("studentId");
-  if (!studentId) {
-    return c.json({ success: false, message: "ID murid wajib diisi" }, 400);
-  }
-  const pending = await findPendingOrdersForStudent(db, studentId);
-  return c.json({ success: true, data: pending });
-});
 
 // Pengajuan refund buku oleh orang tua (tanpa login).
 const publicReturnSchema = z.object({

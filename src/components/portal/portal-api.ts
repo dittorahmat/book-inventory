@@ -63,6 +63,7 @@ export const registerStudent = (payload: NewStudentForm): Promise<any> =>
 export interface FinalOrderPayload {
   studentId: string;
   packageId?: string;
+  replacePendingOrderId?: string;
   looseItems?: Array<{ bookId: string; quantity: number }>;
   homeAddress?: string;
   orderType: "regular" | "scholarship";
@@ -98,7 +99,27 @@ export interface WprEligibility {
   wprPrice: number;
 }
 
-/** Status WPR murid: hijau (bebas) bila sudah punya order paket. */
+export interface PendingOrderSummary {
+  id: string;
+  orderNumber: string;
+  orderType: string;
+  totalAmount: number;
+  paidAmount: number;
+  paymentStatus: string;
+  createdAt: string;
+}
+
+export interface StudentPendingOrders {
+  bookOrder: PendingOrderSummary | null;
+  uniformOrder: PendingOrderSummary | null;
+}
+
+/** Cek pesanan gantung murid sebelum submit portal (ADR-0021). */
+export const checkPendingOrders = (studentId: string): Promise<StudentPendingOrders> =>
+  getJson<StudentPendingOrders>(
+    `/api/public/orders/check-pending/${encodeURIComponent(studentId)}`,
+    "Gagal memeriksa status pesanan gantung."
+  );
 export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> =>
   getJson<WprEligibility>(
     buildQuery("/api/public/orders/wpr-eligibility", { studentId }),

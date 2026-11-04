@@ -11,6 +11,7 @@ import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { refundSlipInsertQuery } from "./refund-slip";
 import { supersedeBookOrder, supersedeUniformOrder } from "./order-supersede";
+import { reallocateAllocationQuery } from "./payment-ledger";
 
 export type PaymentKind = "buku" | "seragam";
 
@@ -123,14 +124,9 @@ export async function buildReallocatePaymentQueries(
       return { ok: true, queries, reallocatedAmount: 0, newOrderPaidAmount: newOrder.paidAmount, refundPendingAmount: 0 };
     }
 
-    // Alihkan alokasi ke orderId baru
+    // Alihkan alokasi ke orderId baru via helper single-writer payment-ledger
     for (const alloc of allocations) {
-      queries.push(
-        database
-          .update(paymentAllocations)
-          .set({ orderId: newOrder.id })
-          .where(eq(paymentAllocations.id, alloc.id))
-      );
+      queries.push(reallocateAllocationQuery(database, alloc.id, newOrder.id));
     }
 
     const bill = newOrder.totalAmount + (newOrder.shippingCost ?? 0);
@@ -226,12 +222,7 @@ export async function buildReallocatePaymentQueries(
   }
 
   for (const alloc of allocations) {
-    queries.push(
-      database
-        .update(paymentAllocations)
-        .set({ orderId: newOrder.id })
-        .where(eq(paymentAllocations.id, alloc.id))
-    );
+    queries.push(reallocateAllocationQuery(database, alloc.id, newOrder.id));
   }
 
   const bill = newOrder.totalAmount + (newOrder.shippingCost ?? 0);

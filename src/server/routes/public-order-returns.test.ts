@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test";
 import { Hono } from "hono";
-import { publicOrderReturnsRouter } from "./public-order-returns";
+import { publicOrdersRouter } from "./public-orders";
 
 describe("public-order-returns router", () => {
   const app = new Hono();
-  app.route("/api/public/orders", publicOrderReturnsRouter);
+  app.route("/api/public/orders", publicOrdersRouter);
 
   it("validates cancel-withdrawal input schema", async () => {
     const res = await app.request("/api/public/orders/cancel-withdrawal", {

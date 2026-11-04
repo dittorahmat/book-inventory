@@ -92,4 +92,12 @@ describe("BookReturnSearchStep", () => {
     expect(button.disabled).toBe(true);
     expect(button.getAttribute("title")).toContain("sudah dikirim");
   });
+
+  it("menonaktifkan pesanan yang sudah tertimpa (superseded)", () => {
+    renderStep({ orders: [order({ fulfillmentStatus: "superseded" })] });
+    expect(screen.getByText("Tertimpa (Superseded)")).toBeTruthy();
+    const button = screen.getByRole("button", { name: /ajukan refund/i }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("title")).toContain("digantikan oleh pesanan revisi");
+  });
 });
