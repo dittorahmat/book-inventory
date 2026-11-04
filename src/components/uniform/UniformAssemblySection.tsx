@@ -8,10 +8,10 @@ import {
 } from "./uniform-admin-api";
 
 interface UniformAssemblySectionProps {
-  vYear?: string;
+  defaultAcademicYear?: string;
 }
 
-export function UniformAssemblySection({ vYear = "2026/2027" }: UniformAssemblySectionProps) {
+export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: UniformAssemblySectionProps) {
   const [packages, setPackages] = useState<UniformPackageRow[]>([]);
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +20,7 @@ export function UniformAssemblySection({ vYear = "2026/2027" }: UniformAssemblyS
 
   const [pCode, setPCode] = useState("");
   const [pName, setPName] = useState("");
+  const [academicYear, setAcademicYear] = useState(defaultAcademicYear);
   const [pItems, setPItems] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [asmQty, setAsmQty] = useState<Record<string, string>>({});
   const [asmSize, setAsmSize] = useState<Record<string, string>>({});
@@ -74,7 +75,7 @@ export function UniformAssemblySection({ vYear = "2026/2027" }: UniformAssemblyS
 
         <div className="rounded-xl border border-[#E4E6EB] bg-[#F8F9FA] p-3 space-y-3">
           <h4 className="text-xs font-bold text-[#050505]">Buat Definisi Paket Seragam Baru</h4>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Kode Paket (Unik)</label>
               <input
@@ -90,6 +91,15 @@ export function UniformAssemblySection({ vYear = "2026/2027" }: UniformAssemblyS
                 placeholder="Contoh: Paket Seragam Lengkap SD Putra (Kain + Olahraga)"
                 value={pName}
                 onChange={(e) => setPName(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Tahun Ajaran</label>
+              <input
+                placeholder="2026/2027"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
                 className={inputCls}
               />
             </div>
@@ -160,14 +170,14 @@ export function UniformAssemblySection({ vYear = "2026/2027" }: UniformAssemblyS
 
           <button
             type="button"
-            disabled={busy || !pCode.trim() || !pName.trim() || pItems.length === 0}
+            disabled={busy || !pCode.trim() || !pName.trim() || !academicYear.trim() || pItems.length === 0}
             onClick={() =>
               run(
                 () =>
                   createUniformPackage({
                     code: pCode.trim(),
                     name: pName.trim(),
-                    academicYear: vYear,
+                    academicYear: academicYear.trim(),
                     items: pItems,
                   }).then(() => {
                     setPCode("");

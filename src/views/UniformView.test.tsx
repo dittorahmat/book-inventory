@@ -105,5 +105,21 @@ describe("UniformView", () => {
 
     expect(screen.getByText(/PO ke Konveksi/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Buat PO/i })).toBeDefined();
+
+    const packagesTab = screen.getByRole("button", { name: /Paket & Rakit Seragam/i });
+    await act(async () => {
+      fireEvent.click(packagesTab);
+    });
+
+    expect(screen.getByText(/Tambah Paket & Rakit Paket Seragam/i)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Simpan Definisi Paket/i })).toBeDefined();
+
+    const catalogTab = screen.getByRole("button", { name: /Katalog Seragam/i });
+    await act(async () => {
+      fireEvent.click(catalogTab);
+    });
+
+    expect(screen.getByText(/Tambah Varian/i)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Simpan Varian/i })).toBeDefined();
   });
 });

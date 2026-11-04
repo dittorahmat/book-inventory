@@ -47,3 +47,7 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Master paket buku bersifat global tanpa `school_id`; mutasi master paket (`POST`, `PUT`, `DELETE` di `/api/packages`) wajib dilindungi secara ketat oleh `resolveBookLogisticsActor` (`central_admin`, `warehouse_admin`, `warehouse_books_admin`). Role cabang atau admin seragam dilarang memutasi master paket buku.
    - Di UI frontend (`PackagesView`, `PackageCard`), aksi edit dan buat paket wajib disaring oleh predikat `isBookWarehouseStaffRole(userRole)`.
    - Mutasi update/delete paket wajib didelegasikan ke domain service kanonik (`src/server/services/package-mutation.ts`) sebagai deep module atomik yang membongkar bundel fisik aktif (`unbundleAllActiveBundles`) sebelum memperbarui BOM dan menghitung ulang harga paket secara otomatis via `recalcPackagePrice`. Dilarang mengeksekusi multiple unbatched SQL queries di handler router.
+5. **Dekomposisi Sub-Navigasi Tab Gudang Seragam (Anti-Cluttering)**:
+   - Sub-tab di `UniformView` memisahkan secara modular: `Katalog Seragam` (`UniformCatalogSection`), `Paket & Rakit Seragam` (`UniformAssemblySection`), dan `PO Konveksi` (`UniformProcurementSection`), eksklusif untuk peran logistik (`isLogisticsRole`).
+   - Form perakitan paket seragam mandiri wajib menyediakan input tahun ajaran (`academicYear`) tanpa bergantung pada state eksternal atau default statis tak terganti.
+   - Setiap pemisahan sub-tab wajib disertai pengujian unit peralihan sub-tab (`UniformView.test.tsx`) yang mencakup seluruh tab aktif.
