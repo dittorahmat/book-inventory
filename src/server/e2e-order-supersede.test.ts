@@ -2,15 +2,13 @@ import { describe, it, expect, beforeAll, afterEach } from "bun:test";
 import { db } from "../db";
 import { mockActor, restoreActor } from "./routes/test-actor";
 import {
-  schools,
-  students,
   studentBookOrders,
-  bookPackages,
   refundSlips,
 } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { publicOrdersRouter } from "./routes/public-orders";
 import { studentOrdersRouter } from "./routes/student-orders";
+import { createTestBook, createTestPackage, createTestSchool, createTestStudent } from "./lib/test-fixtures";
 
 describe("E2E Order Replacement & Supersede Flow (ADR-0021)", () => {
   const schoolId = "sch-e2e-supersede";
@@ -23,16 +21,18 @@ describe("E2E Order Replacement & Supersede Flow (ADR-0021)", () => {
   });
 
   beforeAll(async () => {
-    const now = new Date().toISOString();
-    await db.insert(schools).values({
+    await createTestSchool(db, {
       id: schoolId,
       name: "Sekolah E2E Supersede",
       code: "E2E-SUP",
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
+    });
 
-    await db.insert(students).values({
+    await createTestBook(db, {
+      id: "book-e2e-1",
+      title: "Buku Cambridge 1",
+    });
+
+    await createTestStudent(db, {
       id: studentId,
       schoolId,
       name: "Ananda E2E",
@@ -41,15 +41,10 @@ describe("E2E Order Replacement & Supersede Flow (ADR-0021)", () => {
       gradeLevel: "1",
       academicYear: "2026/2027",
       curriculumType: "international",
-      parentName: "Ortu E2E",
-      parentEmail: "ortu.e2e@example.com",
-      parentPhone: "08123456789",
       status: "active",
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
+    });
 
-    await db.insert(bookPackages).values({
+    await createTestPackage(db, {
       id: oldPkgId,
       code: "PKG-E2E-OLD",
       academicYear: "2026/2027",
@@ -57,11 +52,9 @@ describe("E2E Order Replacement & Supersede Flow (ADR-0021)", () => {
       curriculumType: "international",
       name: "Paket Lama Cambridge",
       price: 1500000,
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
+    });
 
-    await db.insert(bookPackages).values({
+    await createTestPackage(db, {
       id: newPkgId,
       code: "PKG-E2E-NEW",
       academicYear: "2026/2027",
@@ -69,9 +62,7 @@ describe("E2E Order Replacement & Supersede Flow (ADR-0021)", () => {
       curriculumType: "national",
       name: "Paket Baru Nasional",
       price: 1000000,
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
+    });
   });
 
   it("completes full cycle: order gantung -> deteksi gantung -> submit penggantian -> realokasi & refund -> audit view staf", async () => {
