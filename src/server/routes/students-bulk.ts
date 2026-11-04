@@ -40,7 +40,8 @@ studentsBulkRouter.post("/parse-drive-url", zValidator("json", parseDriveUrlPayl
       });
     }
 
-    const parseResult = parseStudentData(res.data.csvText);
+    const payload = res.data.buffer ?? res.data.csvText ?? "";
+    const parseResult = parseStudentData(payload);
     return c.json({
       success: true,
       type: "sheet",

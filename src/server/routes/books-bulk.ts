@@ -28,6 +28,7 @@ const bookImportItemSchema = z
     isbn: z.string().optional(),
     gradeLevel: z.string().optional(),
     curriculumType: z.enum(["international", "national"]).optional(),
+    semester: z.string().optional(),
     academicYear: z.string().optional(),
   })
   .strict();
@@ -73,7 +74,8 @@ bookBulkRouter.post("/parse-drive-url", zValidator("json", parseDriveUrlPayloadS
       });
     }
 
-    const parseResult = parseBookCatalogData(res.data.csvText);
+    const payload = res.data.buffer ?? res.data.csvText ?? "";
+    const parseResult = parseBookCatalogData(payload);
     return c.json({
       success: true,
       type: "sheet",
