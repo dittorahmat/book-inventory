@@ -1,19 +1,27 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
 import type { ParsedBookRow } from "../../lib/book-import-parser";
+import { calculateDedupMetrics } from "../../lib/intake-dedup";
 
 interface BookImportPreviewProps {
   parsedBooks: ParsedBookRow[];
   sheetName: string;
   totalRawRead?: number;
+  skippedCount?: number;
 }
 
-export function BookImportPreview({ parsedBooks, sheetName, totalRawRead }: BookImportPreviewProps) {
+export function BookImportPreview({
+  parsedBooks,
+  sheetName,
+  totalRawRead,
+  skippedCount = 0,
+}: BookImportPreviewProps) {
   if (parsedBooks.length === 0) return null;
 
-  const duplicatesSkipped =
-    typeof totalRawRead === "number" && totalRawRead > parsedBooks.length
-      ? totalRawRead - parsedBooks.length
-      : 0;
+  const { duplicateCount } = calculateDedupMetrics(
+    totalRawRead,
+    parsedBooks.length,
+    skippedCount
+  );
 
   return (
     <div className="space-y-2">
@@ -23,9 +31,9 @@ export function BookImportPreview({ parsedBooks, sheetName, totalRawRead }: Book
         </span>
         <div className="text-right">
           <span className="text-emerald-600 font-bold">{parsedBooks.length} judul buku unik siap diimpor</span>
-          {duplicatesSkipped > 0 && (
+          {duplicateCount > 0 && (
             <div className="text-[10px] text-[#65676B]">
-              ({duplicatesSkipped} duplikat judul & kelas otomatis diabaikan)
+              ({duplicateCount} duplikat judul & kelas otomatis diabaikan)
             </div>
           )}
         </div>

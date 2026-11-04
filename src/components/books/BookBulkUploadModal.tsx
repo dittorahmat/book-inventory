@@ -94,11 +94,12 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
     });
 
     const newBooks = resp.data.validBooks || [];
-    if (newBooks.length === 0) {
+    const newSkipped = resp.data.skippedRows || [];
+    if (newBooks.length === 0 && newSkipped.length === 0) {
       return { count: 0, warning: "Tidak ada baris buku valid" };
     }
 
-    setTotalRawRead((prev) => prev + newBooks.length);
+    setTotalRawRead((prev) => prev + newBooks.length + newSkipped.length);
     setParsedBooks((prev) => {
       const existingKeys = new Set(prev.map((b) => `${b.title.toLowerCase()}_${b.gradeLevel}`));
       const nonDuplicate = newBooks.filter(
@@ -107,8 +108,8 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       return [...prev, ...nonDuplicate];
     });
 
-    if (resp.data.skippedRows?.length) {
-      setSkippedRows((prev) => [...prev, ...resp.data.skippedRows]);
+    if (newSkipped.length) {
+      setSkippedRows((prev) => [...prev, ...newSkipped]);
     }
 
     return { count: newBooks.length };
@@ -255,6 +256,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             <div className="space-y-3">
               <DriveFolderBatchRunner
                 files={folderFiles}
+                rawItemsCount={totalRawRead}
                 uniqueItemsCount={parsedBooks.length}
                 onProcessFile={handleBatchProcessFile}
                 onComplete={() => {
@@ -281,6 +283,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             parsedBooks={parsedBooks}
             sheetName={sheetName}
             totalRawRead={totalRawRead}
+            skippedCount={skippedRows.length}
           />
 
 

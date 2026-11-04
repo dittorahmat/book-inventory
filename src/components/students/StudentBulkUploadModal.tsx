@@ -107,19 +107,20 @@ export function StudentBulkUploadModal({
     });
 
     const newStudents = resp.data.validStudents || [];
-    if (newStudents.length === 0) {
+    const newSkipped = resp.data.skippedRows || [];
+    if (newStudents.length === 0 && newSkipped.length === 0) {
       return { count: 0, warning: "Tidak ada baris siswa valid" };
     }
 
-    setTotalRawRead((prev) => prev + newStudents.length);
+    setTotalRawRead((prev) => prev + newStudents.length + newSkipped.length);
     setParsedStudents((prev) => {
       const existingNis = new Set(prev.map((s) => s.nis));
       const nonDuplicate = newStudents.filter((s) => !existingNis.has(s.nis));
       return [...prev, ...nonDuplicate];
     });
 
-    if (resp.data.skippedRows?.length) {
-      setSkippedRows((prev) => [...prev, ...resp.data.skippedRows]);
+    if (newSkipped.length) {
+      setSkippedRows((prev) => [...prev, ...newSkipped]);
     }
 
     return { count: newStudents.length };
@@ -274,6 +275,7 @@ export function StudentBulkUploadModal({
             <div className="space-y-3">
               <DriveFolderBatchRunner
                 files={folderFiles}
+                rawItemsCount={totalRawRead}
                 uniqueItemsCount={parsedStudents.length}
                 onProcessFile={handleBatchProcessFile}
                 onComplete={() => {
