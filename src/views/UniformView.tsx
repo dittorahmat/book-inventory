@@ -1,10 +1,20 @@
 import { useState } from "react";
-import { Shirt, Send, PackagePlus, ArrowLeftRight, BarChart3 } from "lucide-react";
+import {
+  Shirt,
+  Send,
+  BookOpen,
+  Package,
+  ShoppingBag,
+  ArrowLeftRight,
+  BarChart3,
+} from "lucide-react";
 import type { School } from "../types";
 import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { SegmentedSubNav, type SegmentedSubNavItem } from "../components/ui/SegmentedSubNav";
 import { UniformShipmentSection } from "../components/uniform/UniformShipmentSection";
 import { UniformCatalogSection } from "../components/uniform/UniformCatalogSection";
+import { UniformAssemblySection } from "../components/uniform/UniformAssemblySection";
+import { UniformProcurementSection } from "../components/uniform/UniformProcurementSection";
 import { UniformReturnsSection } from "../components/uniform/UniformReturnsSection";
 import { UniformReportSection } from "../components/uniform/UniformReportSection";
 
@@ -15,7 +25,13 @@ interface UniformViewProps {
   userSchoolId: string | null;
 }
 
-type UniformSubSection = "kirim" | "katalog" | "retur" | "laporan";
+export type UniformSubSection =
+  | "kirim"
+  | "katalog"
+  | "packages"
+  | "procurement"
+  | "retur"
+  | "laporan";
 
 export function UniformView({ schools, activeSchool, userRole, userSchoolId }: UniformViewProps) {
   const isGlobal = isCentralRole(userRole) || isLogisticsRole(userRole);
@@ -25,7 +41,13 @@ export function UniformView({ schools, activeSchool, userRole, userSchoolId }: U
 
   const subTabs: readonly SegmentedSubNavItem<UniformSubSection>[] = [
     { id: "kirim" as const, label: "Pengiriman Seragam", icon: Send },
-    ...(logistics ? [{ id: "katalog" as const, label: "Katalog & PO Konveksi", icon: PackagePlus }] : []),
+    ...(logistics
+      ? [
+          { id: "katalog" as const, label: "Katalog Seragam", icon: BookOpen },
+          { id: "packages" as const, label: "Paket & Rakit Seragam", icon: Package },
+          { id: "procurement" as const, label: "PO Konveksi", icon: ShoppingBag },
+        ]
+      : []),
     { id: "retur" as const, label: "Tukar & Refund", icon: ArrowLeftRight },
     { id: "laporan" as const, label: "Laporan & Rekap", icon: BarChart3 },
   ];
@@ -51,6 +73,8 @@ export function UniformView({ schools, activeSchool, userRole, userSchoolId }: U
       <div>
         {section === "kirim" && <UniformShipmentSection schools={schools} lockedSchoolId={lockedSchoolId} />}
         {section === "katalog" && logistics && <UniformCatalogSection />}
+        {section === "packages" && logistics && <UniformAssemblySection />}
+        {section === "procurement" && logistics && <UniformProcurementSection />}
         {section === "retur" && <UniformReturnsSection schools={schools} lockedSchoolId={lockedSchoolId} logistics={logistics} />}
         {section === "laporan" && <UniformReportSection schools={schools} lockedSchoolId={lockedSchoolId} logistics={logistics} />}
       </div>

@@ -1,24 +1,21 @@
 import { useEffect, useState } from "react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import { getJson } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
-  fetchUniformVariants, createUniformVariant,
-  fetchUniformPackages,
-  fetchUniformPos, createUniformPo, receiveUniformPo, adjustUniformStock,
-  fetchUniformRejects, createUniformReject, type UniformRejectRow,
-  type UniformVariantRow, type UniformPackageRow,
+  fetchUniformVariants,
+  createUniformVariant,
+  adjustUniformStock,
+  fetchUniformRejects,
+  createUniformReject,
+  type UniformRejectRow,
+  type UniformVariantRow,
 } from "./uniform-admin-api";
-import { UniformAssemblySubSection } from "./UniformAssemblySubSection";
 
 const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
 const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
 
 export function UniformCatalogSection() {
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
-  const [packages, setPackages] = useState<UniformPackageRow[]>([]);
-  const [pos, setPos] = useState<Array<{ id: string; poNumber: string; status: string; totalAmount: number }>>([]);
-  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,9 +30,6 @@ export function UniformCatalogSection() {
   const [vSizes, setVSizes] = useState("");
   const [vChart, setVChart] = useState("");
 
-  const [poSupplier, setPoSupplier] = useState("");
-  const [poLines, setPoLines] = useState<Array<{ variantId: string; size: string; qty: string; price: string }>>([]);
-
   const [stVariant, setStVariant] = useState("");
   const [stSize, setStSize] = useState("");
   const [stQty, setStQty] = useState("0");
@@ -49,15 +43,11 @@ export function UniformCatalogSection() {
 
   const reload = async () => {
     try {
-      const [v, p, o, s, r] = await Promise.all([
-        fetchUniformVariants(), fetchUniformPackages(), fetchUniformPos(),
-        getJson<Array<{ id: string; name: string }>>("/api/procurement/suppliers", "Gagal memuat supplier."),
+      const [v, r] = await Promise.all([
+        fetchUniformVariants(),
         fetchUniformRejects().catch(() => [] as UniformRejectRow[]),
       ]);
       setVariants(v);
-      setPackages(p);
-      setPos(o);
-      setSuppliers(s);
       setRejects(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat data seragam.");
@@ -89,7 +79,10 @@ export function UniformCatalogSection() {
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">{notice}</div>}
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <h3 className="text-sm font-bold">Tambah Varian</h3>
+        <div>
+          <h3 className="text-sm font-bold text-[#050505]">Tambah Varian Seragam</h3>
+          <p className="text-xs text-[#65676B]">Daftarkan kain harian atau seragam olahraga baru ke dalam katalog sekolah.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div><label className={labelCls}>Kode</label><input value={vCode} onChange={(e) => setVCode(e.target.value)} className={inputCls} /></div>
           <div className="sm:col-span-2"><label className={labelCls}>Nama</label><input value={vName} onChange={(e) => setVName(e.target.value)} className={inputCls} /></div>
@@ -226,84 +219,6 @@ export function UniformCatalogSection() {
             <div key={r.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-2">
               <span className="font-semibold">{r.size} × {r.quantity} — {r.reason}</span>
               <span className="text-[#65676B]">{r.createdAt.slice(0, 10)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <UniformAssemblySubSection
-        packages={packages}
-        variants={variants}
-        vYear={vYear}
-        busy={busy}
-        onRefresh={() =>
-          fetchUniformPackages()
-            .then(setPackages)
-            .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat paket seragam."))
-        }
-        run={run}
-      />
-
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <h3 className="text-sm font-bold">PO ke Konveksi</h3>
-        <div>
-          <SearchableSingleSelect
-            label="Supplier"
-            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-            value={poSupplier}
-            onChange={setPoSupplier}
-            placeholder="— Pilih supplier —"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {variants.map(({ variant: v }) => (
-            <button
-              key={v.id} type="button"
-              onClick={() => setPoLines((prev) => (prev.some((l) => l.variantId === v.id) ? prev : [...prev, { variantId: v.id, size: "", qty: "1", price: String(v.price) }]))}
-              className="px-3 py-1.5 rounded-full border border-[#CED0D4] text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98]"
-            >
-              + {v.name} ({v.code})
-            </button>
-          ))}
-        </div>
-        {poLines.map((l, idx) => (
-          <div key={l.variantId} className="grid grid-cols-4 gap-2 items-center text-xs">
-            <span className="font-semibold truncate">{variants.find((x) => x.variant.id === l.variantId)?.variant.code}</span>
-            <input value={l.size} placeholder="Size" onChange={(e) => setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))} className={inputCls} />
-            <input value={l.qty} inputMode="numeric" placeholder="Qty" onChange={(e) => setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} className={inputCls} />
-            <input value={l.price} inputMode="numeric" placeholder="Harga" onChange={(e) => setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)))} className={inputCls} />
-          </div>
-        ))}
-        <button
-          type="button" disabled={busy || !poSupplier || poLines.length === 0}
-          onClick={() => run(() => createUniformPo({
-            supplierId: poSupplier,
-            lines: poLines.map((l) => ({ variantId: l.variantId, size: l.size.trim() || undefined, quantityOrdered: Number(l.qty) || 0, unitPrice: Number(l.price) || 0 })),
-          }).then(() => setPoLines([])), "PO tersimpan.")}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
-        >
-          Buat PO
-        </button>
-        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB]">
-          {pos.map((p) => (
-            <div key={p.id} className="px-4 py-3 text-xs flex items-center justify-between gap-2">
-              <div><span className="font-semibold">{p.poNumber}</span> <span className="text-[#65676B]">· {p.status} · {formatRupiah(p.totalAmount)}</span></div>
-              {(p.status === "draft" || p.status === "partially_received") && (
-                <button
-                  type="button" disabled={busy}
-                  onClick={() => {
-                    const lines = poLines.filter((l) => l.qty).map((l) => ({ variantId: l.variantId, size: l.size.trim() || undefined, quantity: Number(l.qty) || 0 }));
-                    if (lines.length === 0) {
-                      setError("Isi baris penerimaan (tambah varian di atas lalu Terima).");
-                      return;
-                    }
-                    run(() => receiveUniformPo(p.id, lines), "Penerimaan tercatat.");
-                  }}
-                  className="px-4 py-1.5 bg-[#F0F2F5] rounded-xl text-xs font-semibold hover:bg-[#E4E6EB] active:scale-[0.98]"
-                >
-                  Terima
-                </button>
-              )}
             </div>
           ))}
         </div>
