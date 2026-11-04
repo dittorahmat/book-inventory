@@ -51,6 +51,9 @@ runBun("type-check");
 runBun("check:imports");
 runBun("check:api-contract");
 runBun("check:lanes");
+if (has(/^(AGENTS\.md|docs\/rules\/)/)) {
+  runBun("check:rule-pointers");
+}
 
 if (has(/^src\//)) {
   runBun("check:clean-artifacts");
