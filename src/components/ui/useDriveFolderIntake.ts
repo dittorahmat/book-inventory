@@ -45,7 +45,9 @@ export function useDriveFolderIntake<TValid, TSkipped>({
       });
 
       if (resp.type === "folder" && resp.data.files) {
-        setFolderFiles(resp.data.files);
+        // Hanya masukkan item yang berjenis spreadsheet (abaikan subfolder agar tidak dicoba fetch sebagai sheet)
+        const spreadsheetFiles = resp.data.files.filter((f) => f.type === "spreadsheet");
+        setFolderFiles(spreadsheetFiles);
       } else if (resp.type === "sheet") {
         const validItems = (resp.data.validBooks || resp.data.validStudents || []) as TValid[];
         onSingleSheetParsed({

@@ -18,7 +18,7 @@ describe("student-import-parser", () => {
     expect(csvUrl).toBe("https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv&gid=0");
 
     const simpleUrl = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit";
-    expect(normalizeGoogleSheetsUrl(simpleUrl)).toBe("https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv");
+    expect(normalizeGoogleSheetsUrl(simpleUrl)).toBe("https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=xlsx");
 
     expect(normalizeGoogleSheetsUrl("https://example.com/sheet")).toBeNull();
   });

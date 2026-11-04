@@ -5,8 +5,10 @@ import * as schema from "../db/schema";
 
 export function resolveAuthSecret(): string {
   const secret = process.env.BETTER_AUTH_SECRET;
-  // Di Cloudflare Workers, process.env.BETTER_AUTH_SECRET mungkin tidak terpopulasi di module top-level startup build check
-  return secret || "book-inventory-prod-secret-2026-auth-xyz";
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("BETTER_AUTH_SECRET environment variable is strictly required in production mode.");
+  }
+  return secret || "book-inventory-dev-secret-2026-auth-xyz";
 }
 
 export const auth = betterAuth({

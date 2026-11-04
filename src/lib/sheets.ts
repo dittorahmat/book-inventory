@@ -23,6 +23,16 @@ export function isGoogleDriveFolderUrl(url: string): boolean {
  * Mengekstrak berkas spreadsheet yang ada di dalam HTML publik folder Google Drive.
  */
 export function parseGoogleDriveFolderHtml(html: string): GoogleDriveFolderFile[] {
+  // 1. Ekstrak folder ID dan nama secara deterministik dari elemen baris dan aria-label
+  const folderNames = new Set<string>();
+  const folderAriaRegex = /aria-label="([^"]+?)\s*(?:Shared folder|Folder|Folder dibagikan|Google Drive Folder)"/gi;
+  let ariaMatch: RegExpExecArray | null;
+  while ((ariaMatch = folderAriaRegex.exec(html)) !== null) {
+    if (ariaMatch[1]) {
+      folderNames.add(ariaMatch[1].trim());
+    }
+  }
+
   const regex = /\[\[null,"([a-zA-Z0-9_-]{25,})"\][^]*?\[\[\["([^"]+)"/g;
   const unique = new Map<string, GoogleDriveFolderFile>();
   let m: RegExpExecArray | null;
@@ -38,10 +48,12 @@ export function parseGoogleDriveFolderHtml(html: string): GoogleDriveFolderFile[
       !name.includes("Modified") &&
       !name.includes("Size:")
     ) {
+      // Menghindari false positive pada judul berkas yang memuat kata 'folder'
+      const isFolder = folderNames.has(name.trim());
       unique.set(id, {
         id,
         name,
-        type: name.toLowerCase().includes("folder") ? "folder" : "spreadsheet",
+        type: isFolder ? "folder" : "spreadsheet",
       });
     }
   }
