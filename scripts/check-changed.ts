@@ -88,6 +88,7 @@ if (has(/^drizzle\/.*\.sql$/)) {
 
 if (has(/^(src\/.*\.test\.tsx?$|src\/test-dom|test\/|bunfig\.toml)/)) {
   runBun("check:test-isolation");
+  runBun("check:test-dom");
 }
 
 console.log("\nGate file berubah OK.");
