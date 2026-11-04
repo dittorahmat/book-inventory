@@ -1,0 +1,60 @@
+# Aturan Testing, CI & Otomasi
+
+Dokumen ini memuat aturan kanonik dan mandat anti-kambuh untuk pengujian unit/E2E, isolasi test, otomasi browser Playwright, performa gate CLI, dan disiplin tooling.
+
+---
+
+## Mandat Anti-Kambuh
+
+### §0.13. Disiplin PowerShell & Shell Tools
+Saat menjalankan perintah CLI yang menulis teks multibaris / markdown bertanda backtick (misal `gh pr create --body`), hindari interpolasi string inline langsung di PowerShell pwsh karena karakter backtick ` dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`) atau single-quoted here-string (`@' ... '@`).
+
+### §0.17. Disiplin Artefak Bersih & Anti-Blob Liar
+Dilarang melakukan commit atas file biner liar atau dokumen presentasi/ekspor PDF/DOCX (`*.pdf`, `*.docx`, dsb.) ke dalam tree git; dokumentasi spesifikasi dan skenario sistem wajib berformat teks markdown murni (`.md`). Ditegakkan mekanis oleh `check:clean-artifacts`.
+
+### §0.18. Integritas Test E2E & Validasi Alur Mutasi Aktif
+Integration test E2E skenario bisnis dilarang hanya membaca data pasif (`GET` assertions belaka); setiap skenario operasional (seperti PO pengadaan, transfer shipment kirim-terima, tukar seragam, penolakan bukti bayar, dan pembatalan pesanan) wajib menguji mutasi alur (`POST`/`DELETE`/`PATCH`) hingga status akhir dokumen tervalidasi.
+
+### §0.23. Disiplin Kompilasi Inkremental & Timeout Pre-Commit
+`tsconfig.json` wajib mengaktifkan `"incremental": true` dengan `tsBuildInfoFile` terabaikan git (`tsconfig.tsbuildinfo`). Pada Windows pwsh, tipe-checking dan pre-commit hook harus memanfaatkan cache inkremental agar tidak melampaui ambang batas timeout eksekusi tools CLI.
+
+### §0.24. Disiplin Regression Test Delegasi Router-ke-Seam
+Setiap ekstraksi logika bisnis dari router Hono ke modul domain/seam (`services/*`) wajib mempertahankan atau menambahkan test di level route (`*.test.ts`) yang memverifikasi pemetaan status HTTP dan payload respons secara eksplisit (termasuk kasus error 400/404/409 dan delegasi parameter alias).
+
+### §0.25. Disiplin Browser Automation & Otomasi E2E
+Script otomasi browser (Playwright dsb.) dilarang hanya melakukan inspeksi pasif (sekadar cek tombol atau navigasi tab belaka); setiap skenario wajib mengeksekusi mutasi aktif/aksi form (isi input, klik submit, unggah dokumen), menyimpan bukti tangkapan layar (screenshot visual) pada checkpoint hasil, dan menghindari sleep arbitrer (`waitForTimeout` membabi-buta) dengan mengutamakan asersi web eksplisit (`waitForLoadState`, `toBeVisible`, atau penantian elemen spesifik).
+
+### §0.32. Disiplin Asinkron Tooling & Anti Polling/Looping
+Hindari perulangan aktif / polling status berulang-ulang pada background tasks (`manage_task status` / `manage_task kill`) atau command shell. Sistem otomatis memberikan notifikasi saat background task selesai. Bila menjalankan perintah shell yang diharapkan terminasi cepat (termasuk `bun run check:fast` atau `git commit`), gunakan nilai `WaitMsBeforeAsync: 10000` (10 detik) agar selesai secara sinkron dalam satu turn tanpa memicu siklus polling status background task yang membuang kuota pesan dan token context. Untuk pencarian teks di Windows pwsh, gunakan `git grep` atau `rg` native langsung, dilarang membungkus dengan syntax `rtk proxy` yang tidak kompatibel dengan flag sub-tools.
+
+### §0.33. Pencegahan File-Size Overflow Saat Penambahan Route Actions
+Route file (`src/server/routes/*.ts`) yang telah mendekati batas 400 baris (>=350 baris) dilarang langsung ditambahi logika endpoint baru; pecah endpoint ke sub-router fungsional (misal `*-actions.ts` atau delegasi penuh ke `services/`) sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket. Ditegakkan mekanis dengan peringatan dini otomatis oleh gate `check:file-size`.
+
+### §0.36. Disiplin Navigasi & Persistensi Spesifikasi Desain
+Spesifikasi arsitektur atau rencana implementasi yang dihasilkan dari skill perancangan (`/improve-codebase-architecture`, `/plan`, dsb.) dilarang hanya ditinggalkan pada file temp sistem operasi (`%TEMP%` / `/tmp`) yang rentan terhapus atau sulit dijangkau sub-agent review; sertakan tautan / ringkasan spesifikasi di commit message awal atau simpan artefak rencana di `.scratch/` / `openspec/changes/` agar sub-agent peninjau spesifikasi (`/code-review` spec axis) memiliki akses langsung ke dokumen acuan kebenaran (*single source of truth*).
+
+### §0.37. Ekonomi Eksekusi Test & Gate pada Pengembangan Aktif
+Selama siklus perubahan aktif per tiket, prioritaskan `bun test <file>` dan `bun run check:fast` (yang mengeksekusi gate inkremental secara instan); hindari menjalankan `bun test` penuh atau `check:all` di setiap iterasi kecil karena suite 550+ test membutuhkan waktu ~60 detik dan berpotensi menghabiskan batas asinkron shell. Jalankan `check:all` penuh hanya sekali pada tahap verifikasi akhir sebelum commit atau pembukaan Pull Request.
+
+### §0.40. Integritas Penegakan Asersi E2E & Isolasi Actor Test
+Pengujian mutasi aktif skenario bisnis (E2E) dilarang membungkus asersi mutasi utama dalam pengkondisian pasif (`if (collection.length > 0)`) yang berpotensi dilewati diam-diam (*silent skip*); susun precondition data (misal binding paket fisik atau kuantitas stok awal) secara deterministik dan lakukan asersi mutasi saldo/kolom secara langsung. Selain itu, pemanggilan `mockActor` di suite test wajib mendampingkan `restoreActor()` di hook siklus hidup `afterEach()` atau blok `finally` guna mencegah kebocoran sesi otentikasi antar berkas test. Ditegakkan mekanis oleh gate `check:test-isolation`.
+
+### §0.41. Disiplin Skema Input Ketat & Anti-Silent Drop (Zod Strict)
+Endpoint intake publik yang menerima dokumen/bukti (seperti komplain retur atau pembatalan pengunduran diri) wajib menggunakan `.strict()` pada schema validator Zod agar kesalahan ketik nama kunci payload (typo key) ditolak secara eksplisit dengan status 400 Bad Request, bukan dilewati diam-diam menjadi `undefined`. Selain itu, loop `check:fast` wajib menjalankan linting inkremental pada berkas yang diubah guna mencegah alokasi memori heap berlebih (out-of-memory).
+
+### §0.42. Disiplin Otomasi Browser & Autentikasi Reset Demo
+Skrip otomasi browser Playwright (`scripts/demo-scenarios/*`) dilarang hanya mengisi input tanpa men-submit form atau membiarkan mutasi aktif berhenti di level screenshot belaka; setiap alur formulir (murid baru, retur komplain, pembatalan pengunduran diri, serah terima, dan approval retur) wajib mengeksekusi klik submit/konfirmasi. Pemanggilan endpoint reset database demo (`POST /api/demo/seed`) wajib menyertakan otentikasi sesi Central Admin sah via browser context (`page.request.post`), dilarang menggunakan fetch mentah tanpa header yang berujung pada penolakan 401/403.
+
+### §0.43. Verifikasi Lingkungan Bersih & Zero-Error-Banner pada Otomasi Demo
+Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend + klien frontend aktif yang terhubung (port 5173 dengan proxy API 3000), dengan pre-flight check sinkronisasi database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`) tanpa toleransi silent-catch. Seluruh tangkapan layar hasil di `test-results/demo-screenshots/` wajib terbebas dari banner/alert kegagalan server ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"). Runner wajib memasang response error interceptor (`attachErrorFailFast`) di tingkat `BrowserContext` (agar mencakup seluruh tab, popup, dan halaman baru) dengan objek error terstruktur (`InterceptedError`) yang memicu error fail-fast langsung (`immediateThrow: true`) seketika terdeteksi HTTP >= 500 atau unhandled page crash, dilarang menunda atau men-swallow kegagalan server. Pada modal serah-terima buku (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip otomasi wajib menginput kode cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol aktif via `waitForFunction` tanpa memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
+
+### §0.49. Hardening Keamanan Otentikasi, Asal Muasal (Origins), dan Intake Publik
+1. **Anti-Wildcard Trusted Origins**: `trustedOrigins` pada konfigurasi auth (Better-Auth) wajib berupa daftar literal domain eksplisit (misal `http://localhost:5173`, domain workers/pages produksi), dilarang menggunakan wildcard regex (`/^https:\/\/.*\.workers\.dev$/`) yang mempercayai domain pihak ketiga sembarangan.
+2. **Penutupan Total Self-Registration Publik**: pencegahan registrasi mandiri publik di route handler auth (`/api/auth/sign-up/*`) wajib mencakup seluruh metode HTTP (`app.all(...)` atau intersepsi fail-closed) dengan status 403 Forbidden.
+3. **Disiplin Batas Karakter & Ukuran Upload Base64 (Anti-Memory DoS Worker)**: seluruh schema input publik yang menerima payload base64 dokumen/bukti (buku, seragam, pembatalan, dan retur) wajib memakai validator kanonik `base64UploadSchema` dengan batas eksplisit `MAX_BASE64_UPLOAD_CHARS` (maksimal 7.000.000 karakter / ~5MB decoded binary) guna melindungi alokasi memori heap Cloudflare Worker (128MB). Konstanta batas panjang string karakter wajib dinamai secara presisi (`_CHARS`/`_STRING_LEN`), bukan `_BYTES`.
+4. **Fail-Closed Secret Produksi**: helper auth wajib memverifikasi ketersediaan secret server (`BETTER_AUTH_SECRET`) pada mode produksi (`NODE_ENV === "production"`) dan melempar error fail-fast tanpa fallback ke nilai rahasia development statis.
+
+### §0.51. Disiplin Eksekusi Test Terfokus & Ekosistem Unit Test Komponen
+1. **Target File Eksplisit pada Test Runner**: eksekusi test pada siklus iterasi aktif wajib selalu menargetkan berkas secara eksplisit (`bun test <path/file.test.ts>`), dilarang menjalankan `bun test -t <pattern>` tanpa argumen path file karena akan memicu seluruh test suite (550+ test) dan berisiko timeout asinkron shell.
+2. **Shim DOM Wajib pada Test Komponen (`*.test.tsx`)**: setiap pengujian komponen React yang merender DOM (`render(...)`) wajib mengimpor shim DOM kanonik (`import "../../test-dom"`) pada baris pertama dan melakukan dynamic import `@testing-library/react` guna mencegah runtime error `document is not defined` di lingkungan Bun.
+3. **Disiplin Deklarasi Path Tooling**: pemanggilan tool manipulasi berkas (`read_file`, `write_file`, dsb.) wajib selalu menggunakan path absolut lengkap (berbasis root project `D:\development\book-inventory\...`), dilarang mengoper path relatif yang memicu error permission.

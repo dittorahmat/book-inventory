@@ -1,6 +1,6 @@
 // Memblokir pola darurat string-packing domain fields (seperti [WA: ...] atau
 // [PENGUNDURAN DIRI]) ke dalam kolom teks catatan/alasan bebas, sesuai Mandat
-// Anti-Kambuh AGENTS.md §0.10: field domain wajib kolom skema resmi.
+// Anti-Kambuh docs/rules/database-d1.md §0.10: field domain wajib kolom skema resmi.
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
@@ -64,7 +64,7 @@ if (violations.length > 0) {
   for (const v of violations) {
     console.error(`  ${v.file}:${v.line} -> ${v.match}`);
   }
-  console.error("\nMandat AGENTS.md §0.10: Alokasikan field domain ke kolom skema resmi atau objek terstruktur, jangan dipadatkan ke catatan/notes.");
+  console.error("\nMandat docs/rules/database-d1.md §0.10: Alokasikan field domain ke kolom skema resmi atau objek terstruktur, jangan dipadatkan ke catatan/notes.");
   process.exit(1);
 }
 

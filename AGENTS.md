@@ -1,571 +1,126 @@
 # Coding & Workflow Conventions for Book Inventory
 
-Berkas ini mengarahkan **implementasi**. Standar yang dibaca **saat review**
-(katalog gate, smell baseline, checklist UI, rasional insiden) ada di
-`CODING_STANDARDS.md` — jangan diduplikasi di sini.
+Berkas ini adalah panduan implementasi terpusat dan navigasi aturan kanonik untuk agen dan developer. Standar yang dibaca **saat review** (katalog gate, smell baseline, checklist UI, rasional insiden) ada di [CODING_STANDARDS.md](./CODING_STANDARDS.md) — jangan diduplikasi di sini.
 
 ---
 
-## 0. Mandat anti-kambuh
+## 0. Navigasi Aturan Domain (Context Pointers)
 
-Aturan anti-kambuh (Okt 2026). Yang mekanis ditutup gate/tipe, bukan disiplin;
-rincian kepemilikan tiap modul ada di `CODING_STANDARDS.md` §10.
+Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokumen tematik di `docs/rules/`. Ditegakkan mekanis oleh `check:rule-pointers` (panjang file AGENTS.md maks. 150 baris). Sebelum mengimplementasikan fitur atau memodifikasi file pada path tertentu, agen **wajib membaca dokumen aturan terkait**:
 
-1. **Kontrak path API.** Setiap literal `/api/...` di klien wajib menunjuk route
-   yang terdaftar, dan portal publik hanya boleh memanggil `/api/public/*`.
-   Ditegakkan `bun run check:api-contract` (pre-commit, CI, `check:all`). Menambah
-   endpoint berarti: daftarkan di router, lalu pakai path itu dari klien.
-2. **Navigasi data-driven.** Daftar tab/nav wajib array data (`PUBLIC_TABS`,
-   `DESKTOP_TABS`), bukan JSX inline. Tab baru = entry array + test yang mengunci
-   daftar (`PortalTabs.test.tsx`, `staff-tabs.test.ts`). JSX inline membuat tab
-   rusak/hilang lolos `type-check`, `lint`, dan `build`.
-3. **Fitur baru wajib punya pintu masuk yang teruji.** Sebelum lapor selesai,
-   buktikan jalur yang membuka UI itu ada (tab, tautan, atau URL→tab mapping di
-   `src/lib/public-portal-url.ts`) dan punya test. Komponen yang tidak bisa
-   dicapai dari UI = fitur belum jadi, walau semua gate hijau.
-4. **Struk Bayar** — satu pembentuk baris (`payment-ledger`) dan satu pembaca;
-   baris `payment_receipts`/`payment_allocations` hanya lewat modul itu
-   (`check:single-writer`). Duplikat bank + referensi = 409.
-5. **Kelayakan order** — satu aturan untuk buku dan seragam
-   (`student-eligibility`); pencarian portal membawa `canOrder` yang sama dengan
-   penegakan submit.
-6. **Tab staf** — `TAB_IDS` + `STAFF_TAB_RENDERERS` berpasangan; `Record<ActiveTab,
-   …>` membuat tab tanpa renderer gagal `type-check`.
-7. **Stok seragam** — semua mutasi lewat `uniform/stock`
-   (`check:single-writer`), dengan kebijakan `require`/`create`/`skip` eksplisit.
-8. **Draf portal** — state + transisi di `useOrderDraft`; step menerima
-   `{ draft, actions }`, bukan belasan pasangan nilai/setter. Server tetap
-   otoritas validasi terakhir.
-9. **Lokasi & Branch Roaming Gudang** — header (`AppHeader.tsx`) tetap badge
-   identitas murni tanpa mutasi global lokasi transaksi; pemilihan cabang untuk
-   role gudang/logistik dilakukan di tingkat view/tab transaksi spesifik (filter
-   view, form pengiriman, dan selector query), bukan menimpa state penugasan akun.
-10. **Integritas Skema & Anti-String-Packing** — data terstruktur domain (seperti
-    nomor WA manual, tautan dokumen finance) wajib dialokasikan di kolom skema
-    resmi atau objek terstruktur, dilarang dipadatkan (packed) ke dalam string
-    catatan bebas (`notes`) dengan tag parsing darurat (`[WA: ...]`).
-11. **Disiplin Validasi Bukti Dokumen** — input bukti dokumen (seperti Surat Jalan
-    atau surat rekomendasi) wajib menyediakan alur upload file (data-URL/blob/storage)
-    dan penambahan validasi wajib tidak boleh merusak pemanggil lama tanpa migrasi
-    lengkap di diff yang sama.
-12. **Anti Parameter Inversion pada API Client** — endpoint klien dengan 2+ parameter
-    primitif (terutama kombinasi string `query` dan `schoolId`) wajib menerima objek
-    parameter terstruktur (misal `{ query, schoolId }`). Setiap custom hook data-fetching
-    portal wajib memiliki unit regression test (`use*.test.ts`) yang memverifikasi query
-    string URL terkirim dengan parameter yang tepat.
-13. **Disiplin PowerShell & Shell Tools** — saat menjalankan perintah CLI yang menulis
-    teks multibaris / markdown bertanda backtick (misal `gh pr create --body`), hindari
-    interpolasi string inline langsung di PowerShell pwsh karena karakter backtick `
-    dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`)
-    atau single-quoted here-string (`@' ... '@`).
-14. **Intake Seam Portal Tunggal** — seluruh alur pencarian dan identifikasi murid
-    portal (buku, seragam, dsb.) wajib memakai modul hook intake kanonik
-    `useStudentSearch` (`src/components/portal/useStudentSearch.ts`), dilarang
-    membuat state search/debouncing inline di view atau menduplikasi modal murid baru.
-15. **Seam Alokasi Stok Terpadu** — alokasi fisik berbasis FIFO (`allocateInventoryStock`
-    di `src/server/services/stock/allocation.ts`) adalah titik masuk tunggal untuk
-    unit satuan maupun bundel paket; hindari percabangan pemanggil langsung ke implementasi
-    tabel terpisah.
-16. **Otoritas Server pada Audit Rekonsiliasi** — alur Berita Acara / Rekonsiliasi
-    akhir periode (`term-reconciliation`) wajib server-authoritative; input fisik
-    dapat disubmit mandiri tanpa mewajibkan kalkulasi delta atau penarikan ulang angka
-    inbound di sisi klien.
-17. **Disiplin Artefak Bersih & Anti-Blob Liar** — dilarang melakukan commit atas
-    file biner liar atau dokumen presentasi/ekspor PDF/DOCX (`*.pdf`, `*.docx`, dsb.)
-    ke dalam tree git; dokumentasi spesifikasi dan skenario sistem wajib berformat teks
-    markdown murni (`.md`). Ditegakkan mekanis oleh `check:clean-artifacts`.
-18. **Integritas Test E2E & Validasi Alur Mutasi Aktif** — integration test E2E
-    skenario bisnis dilarang hanya membaca data pasif (`GET` assertions belaka); setiap
-    skenario operasional (seperti PO pengadaan, transfer shipment kirim-terima,
-    tukar seragam, penolakan bukti bayar, dan pembatalan pesanan) wajib menguji
-    mutasi alur (`POST`/`DELETE`/`PATCH`) hingga status akhir dokumen tervalidasi.
-19. **Disiplin Batching D1 pada Seeder** — seluruh penambahan data di seeder (`seed.ts`
-    maupun `seed-demo/*.ts`) wajib mematuhi batas chunking D1 (maksimal 10 baris per
-    statement `INSERT ... VALUES` via `chunkRows` atau `runWriteBatch`), dilarang
-    melakukan perulangan insert satu per satu (`insert().values({ ... })` tunggal).
-20. **Kontrak Status & Skema Transfer Logistics** — status seragam kanonik pada
-    level backend adalah `sudah_dikirim` (bilingual guard: hindari inferensi enum bahasa
-    Inggris `shipped` pada seragam); transfer buku internal (`/api/shipments`)
-    menghasilkan nomor dokumen berprefix `TRF-*` (`shipmentNumber`), dan payload draft
-    items wajib menyertakan discriminator `{ itemType: "loose" | "package", ... }`.
-21. **Disiplin Seam Tinjau Pembayaran & Kasir** — seluruh mutasi pembayaran kasir
-    manual dan verifikasi klaim bukti transfer (buku maupun seragam) wajib memusat
-    ke `order-payment-review` (`src/server/services/order-payment-review.ts`). Parameter
-    alokasi kanonik pada level service adalah `allocationAmount` (alias backward-compatible
-    `bookAllocationAmount` dinormalisasi di pintu masuk schema validator tanpa membiarkan
-    primitive obsession merembes ke domain internal).
-22. **Integritas Seam Siklus Hidup Murid & Verifikasi** — seluruh transisi status
-    pendaftaran siswa (`new_pending` → `active`/`rejected`) dan penegakan keunikan NIS
-    resmi wajib tinggal di balik modul layanan `student-lifecycle` (`src/server/services/student-lifecycle.ts`),
-    dilarang melakukan query mutasi SQL langsung (`UPDATE students`) dari handler router.
-23. **Disiplin Kompilasi Inkremental & Timeout Pre-Commit** — `tsconfig.json` wajib
-    mengaktifkan `"incremental": true` dengan `tsBuildInfoFile` terabaikan git
-    (`tsconfig.tsbuildinfo`). Pada Windows pwsh, tipe-checking dan pre-commit hook
-    harus memanfaatkan cache inkremental agar tidak melampaui ambang batas timeout eksekusi tools CLI.
-24. **Disiplin Regression Test Delegasi Router-ke-Seam** — setiap ekstraksi logika bisnis
-    dari router Hono ke modul domain/seam (`services/*`) wajib mempertahankan atau menambahkan
-    test di level route (`*.test.ts`) yang memverifikasi pemetaan status HTTP dan payload
-    respons secara eksplisit (termasuk kasus error 400/404/409 dan delegasi parameter alias).
-25. **Disiplin Browser Automation & Otomasi E2E** — script otomasi browser (Playwright dsb.)
-    dilarang hanya melakukan inspeksi pasif (sekadar cek tombol atau navigasi tab belaka);
-    setiap skenario wajib mengeksekusi mutasi aktif/aksi form (isi input, klik submit, unggah dokumen),
-    menyimpan bukti tangkapan layar (screenshot visual) pada checkpoint hasil, dan menghindari
-    sleep arbitrer (`waitForTimeout` membabi-buta) dengan mengutamakan asersi web eksplisit
-    (`waitForLoadState`, `toBeVisible`, atau penantian elemen spesifik).
-26. **Integritas Penamaan Entitas & Anti-Residual Identifier** — saat melakukan perubahan identitas
-    nama data demo/domain (seperti nama siswa, kode akun, atau nomor referensi), lakukan penyelarasan
-    menyeluruh hingga ke ID slug seeded (`id`, `orderId`, `receiptId`) untuk mencegah bau kode
-    leaky identifier / mismatch kognitif antara nama tampilan dan kunci relasi database. Ditegakkan
-    mekanis oleh gate `check:seed-integrity`.
-27. **Disiplin Batch Updates Mutasi Masal D1** — seluruh operasi pembaruan masal multi-baris
-    (seperti kenaikan kelas murid `batchPromoteStudents`, mutasi status katalog, atau pengalihan lokasi)
-    wajib mengelompokkan ID target ke dalam chunk aman D1 (`chunkRows` dari `src/server/lib/d1-write.ts`)
-    dan menggunakan predikat set `inArray(table.id, chunk)` atau `db.batch()`, dilarang mengeksekusi
-    perulangan `database.update().where(eq(id))` satu per satu.
-28. **Integritas Sinkronisasi Harga Paket & WPR BOM** — setiap paket buku yang mengandung WPR
-    di BOM (`book-wpr-weekly-report`) wajib menghitung total harga paket (`book_packages.price`)
-    secara all-in melalui seam `recalcPackagePrice` (SUM seluruh harga jual komponen termasuk WPR);
-    pada penyajian publik (portal murid/wali), item WPR wajib menyajikan judul resmi
-    `Weekly Progress Report (WPR)` dan dilarang disamarkan menjadi teks generik (`Buku Paket`).
-    Penyedia baris buku wajib (`ensureWprBook`) wajib idempoten dengan `onConflictDoUpdate` agar
-    kolom `publicTitle` dan harga selalu tersinkronkan pada database lama maupun baru. Setiap
-    perubahan mapping DTO katalog publik wajib disertai unit regression test di `public-orders.test.ts`.
-29. **Disiplin Rekonsiliasi Mandiri & Guard Serah Terima Buku (ADR-0018)** — intake pesanan buku portal
-    publik (`/api/public/orders/submit`) berfungsi sebagai self-service confirmation & reconciliation ledger:
-    alokasi transfer penuh langsung berstatus `paid` (dengan nominal `paidAmount` riil alokasi yang dibayar),
-    alokasi sebagian langsung berstatus `partial` (cicilan), dan beasiswa valid langsung `scholarship_approved`.
-    Aturan kelayakan penyerahan buku fisik wajib memusat ke helper kanonik tunggal `canHandoverBookOrder`
-    (`src/lib/order-handover-guard.ts`) yang dipakai bersama oleh server (`order-handover.ts`) dan klien UI
-    (`StudentOrdersTable.tsx`), dilarang menduplikasi predikat status inline di view maupun handler.
-    Ditegakkan mekanis oleh `check:canonical-helpers`.
-    Penyerahan fisik diizinkan bagi pemegang Bukti Pengambilan dengan status `paid`, `partial`,
-    `scholarship_approved`, atau diskresi finance; status `unpaid` murni (tanpa bukti bayar/diskresi) tetap ditahan.
-30. **Disiplin Sinkronisasi Skema Remote D1 & Anti-Drift** — setiap penambahan atau modifikasi migrasi
-    SQL di folder `drizzle/*.sql` wajib diverifikasi kelengkapannya ke remote Cloudflare D1
-    (`bun run check:d1-drift` dan `wrangler d1 execute book-inventory-db --remote`) sebelum menguji endpoint
-    produksi atau membuat PR. Skrip `check:fast` secara otomatis memicu alarm drift bila ada berkas migrasi
-    yang berubah, dan runner `bun run deploy` otomatis mengeksekusi gate `check:d1-drift` sebelum deploy worker.
-    Dilarang membiarkan perbedaan kolom antara schema kode TypeScript dan SQLite remote.
-31. **Integritas Alur Retur & Pembatalan Pengunduran Diri (ADR-0019)** — pembatalan pesanan akibat
-    siswa mengundurkan diri (buku maupun seragam) wajib memisahkan wewenang fisik dan finansial:
-    verifikasi bukti fisik / resi kurir / surat resmi berada di bawah wewenang Gudang, sedangkan pencairan
-    dana refund berada di bawah wewenang Finance via modul kanonik `payment-ledger` berbasis Slip Bukti
-    Pengembalian resmi (`RET-B-*` / `RET-U-*`). Metadata pelacakan retur dokumen/resi dilarang dipadatkan
-    ke string `notes` atau `reason` (patuh §0.10). Pada pembatalan buku yang belum diserahterimakan,
-    alokasi fisik (paket `package_items` maupun buku satuan `book_items`) wajib di-unassign menjadi stok
-    bebas cabang secara otomatis dalam batch transaksi yang sama. Komponen klien yang memanggil endpoint
-    alamat atau informasi gudang dilarang melakukan silent-catch (`.catch(() => {})`) dan wajib menampilkan
-    pesan error yang ramah pengguna. Ditegakkan mekanis oleh `check:no-silent-catch`.
-32. **Disiplin Asinkron Tooling & Anti Polling/Looping** — hindari perulangan aktif / polling status
-    berulang-ulang pada background tasks (`manage_task status` / `manage_task kill`) atau command shell.
-    Sistem otomatis memberikan notifikasi saat background task selesai. Bila menjalankan perintah shell
-    yang diharapkan terminasi cepat (termasuk `bun run check:fast` atau `git commit`), gunakan nilai
-    `WaitMsBeforeAsync: 10000` (10 detik) agar selesai secara sinkron dalam satu turn tanpa memicu siklus
-    polling status background task yang membuang kuota pesan dan token context. Untuk pencarian teks di
-    Windows pwsh, gunakan `git grep` atau `rg` native langsung, dilarang membungkus dengan syntax `rtk proxy`
-    yang tidak kompatibel dengan flag sub-tools.
-33. **Pencegahan File-Size Overflow Saat Penambahan Route Actions** — route file (`src/server/routes/*.ts`)
-    yang telah mendekati batas 400 baris (>=350 baris) dilarang langsung ditambahi logika endpoint baru;
-    pecah endpoint ke sub-router fungsional (misal `*-actions.ts` atau delegasi penuh ke `services/`)
-    sebelum mendaftarkan route baru, guna mencegah refactoring darurat di akhir tiket. Ditegakkan mekanis
-    dengan peringatan dini otomatis oleh gate `check:file-size`.
-34. **Disiplin Whitelist Single-Writer Gate & Integritas Seeder** — pengecualian pada gate `check:single-writer`
-    hanya diizinkan untuk baseline seeder utama (`src/server/seed.ts`) atau file seeder demo spesifik yang
-    tercantum secara eksplisit (*exact whitelist*, misal `seed-demo/orders.ts`); dilarang menggunakan wildcard
-    atau prefix glob/directory sweeping (`startsWith("src/server/seed-demo/")`) yang dapat melemahkan
-    penegakan arsitektur single-writer secara tidak sengaja di seluruh seeder baru.
-35. **Integritas Resolusi Foreign Key Pembatalan Dokumen (ADR-0019)** — pada pembuatan baris dokumen retur/batal
-    (`book_returns`) akibat siswa mengundurkan diri yang belum memiliki alokasi fisik, kolom `defectiveBookId`
-    wajib diisi melalui resolusi deterministik: BOM paket pertama bila ada, baris satuan pertama bila ada,
-    atau fallback komponen wajib katalog (`WPR_BOOK_ID`) untuk menjamin kepatuhan Foreign Key integritas relasional
-    tanpa memasukkan ID arbitrer atau string kosong.
-36. **Disiplin Navigasi & Persistensi Spesifikasi Desain** — spesifikasi arsitektur atau rencana implementasi
-    yang dihasilkan dari skill perancangan (`/improve-codebase-architecture`, `/plan`, dsb.) dilarang hanya
-    ditinggalkan pada file temp sistem operasi (`%TEMP%` / `/tmp`) yang rentan terhapus atau sulit dijangkau
-    sub-agent review; sertakan tautan / ringkasan spesifikasi di commit message awal atau simpan artefak rencana
-    di `.scratch/` / `openspec/changes/` agar sub-agent peninjau spesifikasi (`/code-review` spec axis) memiliki
-    akses langsung ke dokumen acuan kebenaran (*single source of truth*).
-37. **Ekonomi Eksekusi Test & Gate pada Pengembangan Aktif** — selama siklus perubahan aktif per tiket,
-    prioritaskan `bun test <file>` dan `bun run check:fast` (yang mengeksekusi gate inkremental secara instan);
-    hindari menjalankan `bun test` penuh atau `check:all` di setiap iterasi kecil karena suite 550+ test membutuhkan
-    waktu ~60 detik dan berpotensi menghabiskan batas asinkron shell. Jalankan `check:all` penuh hanya sekali
-    pada tahap verifikasi akhir sebelum commit atau pembukaan Pull Request.
-38. **Seam Terpadu Pengunduran Diri Murid (ADR-0019)** — seluruh intake pembatalan pesanan akibat murid mengundurkan
-    diri (buku maupun seragam) wajib memusat ke seam polimorfik `requestStudentWithdrawal`
-    (`src/server/services/student-withdrawal.ts`), dilarang membuat handler intake pembatalan terpisah langsung
-    di router ataupun memanggil sub-layanan spesifik buku/seragam secara terisolasi. Seam terpadu ini wajib
-    menjadi otoritas validasi domain kanonik bersama (misal keabsahan data murid dan panjang alasan pembatalan)
-    sehingga bertindak sebagai deep module substantif dan bukan sekadar *middle-man pass-through*.
-39. **Dekomposisi Sub-Router & Pemisahan Komponen Rekonsiliasi** — route publik yang memuat intake komplain/retur
-    wajib didelegasikan ke sub-router fungsional (`public-order-returns.ts`); tampilan Berita Acara / audit rekonsiliasi
-    akhir periode wajib memisahkan state/mutasi ke custom hook (`useTermReconciliation.ts`) dan tabel audit ke
-    sub-komponen (`AuditCountsTable.tsx`) agar view orchestrator tetap ramping (<200 baris) dan mematuhi gate file-size §7.
-    Objek agregat audit rekonsiliasi wajib diikat ke tipe terstruktur terpadu (`AuditTotals`) guna mencegah bau kode *data clumps*.
-40. **Integritas Penegakan Asersi E2E & Isolasi Actor Test** — pengujian mutasi aktif skenario bisnis (E2E) dilarang
-    membungkus asersi mutasi utama dalam pengkondisian pasif (`if (collection.length > 0)`) yang berpotensi dilewati diam-diam
-    (*silent skip*); susun precondition data (misal binding paket fisik atau kuantitas stok awal) secara deterministik dan
-    lakukan asersi mutasi saldo/kolom secara langsung. Selain itu, pemanggilan `mockActor` di suite test wajib mendampingkan
-    `restoreActor()` di hook siklus hidup `afterEach()` atau blok `finally` guna mencegah kebocoran sesi otentikasi antar berkas test.
-    Ditegakkan mekanis oleh gate `check:test-isolation`.
-41. **Disiplin Skema Input Ketat & Anti-Silent Drop (Zod Strict)** — endpoint intake publik yang menerima dokumen/bukti
-    (seperti komplain retur atau pembatalan pengunduran diri) wajib menggunakan `.strict()` pada schema validator Zod agar
-    kesalahan ketik nama kunci payload (typo key) ditolak secara eksplisit dengan status 400 Bad Request, bukan dilewati
-    diam-diam menjadi `undefined`. Selain itu, loop `check:fast` wajib menjalankan linting inkremental pada berkas yang diubah
-    guna mencegah alokasi memori heap berlebih (out-of-memory).
-42. **Disiplin Otomasi Browser & Autentikasi Reset Demo** — skrip otomasi browser Playwright (`scripts/demo-scenarios/*`)
-    dilarang hanya mengisi input tanpa men-submit form atau membiarkan mutasi aktif berhenti di level screenshot belaka;
-    setiap alur formulir (murid baru, retur komplain, pembatalan pengunduran diri, serah terima, dan approval retur) wajib
-    mengeksekusi klik submit/konfirmasi. Pemanggilan endpoint reset database demo (`POST /api/demo/seed`) wajib menyertakan
-    otentikasi sesi Central Admin sah via browser context (`page.request.post`), dilarang menggunakan fetch mentah tanpa header
-    yang berujung pada penolakan 401/403.
-43. **Verifikasi Lingkungan Bersih & Zero-Error-Banner pada Otomasi Demo** — eksekusi otomasi demo (`demo:automate`)
-    wajib dijalankan di atas server backend + klien frontend aktif yang terhubung (port 5173 dengan proxy API 3000),
-    dengan pre-flight check sinkronisasi database SQLite lokal tersinkronisasi penuh (`bun run db:push:bun --all`) tanpa
-    toleransi silent-catch. Seluruh tangkapan layar hasil di `test-results/demo-screenshots/` wajib terbebas dari banner/alert
-    kegagalan server ("Terjadi kendala pada server" atau "Dashboard gagal dimuat"). Runner wajib memasang response error interceptor
-    (`attachErrorFailFast`) di tingkat `BrowserContext` (agar mencakup seluruh tab, popup, dan halaman baru) dengan objek error
-    terstruktur (`InterceptedError`) yang memicu error fail-fast langsung (`immediateThrow: true`) seketika terdeteksi HTTP >= 500
-    atau unhandled page crash, dilarang menunda atau men-swallow kegagalan server. Pada modal serah-terima buku
-    (`OrderHandoverModal.tsx`), tombol konfirmasi disabled hingga kode pengambilan diisi cocok; skrip otomasi wajib menginput kode
-    cross-check secara deterministik (`waitFor({ state: "visible" })`) dan menunggu tombol aktif via `waitForFunction` tanpa
-    memakai `waitForTimeout` arbitrer atau guard kondisional pasif yang berisiko silent-skip (§0.25, §0.40).
-44. **Disiplin Scoping Global & Anti-Locking Lokasi pada View Transaksi (ADR-0020)** —
-    role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
-    berhak melihat pesanan dan transaksi seluruh cabang secara terpusat (*cross-branch roaming*):
-    (a) Pada level backend router (`/api/student-orders`, `/api/uniforms/orders`), jika `c.req.query("schoolId")`
-    kosong, filter partisi sekolah dilarang dipaksa menyempit ke cabang tunggal (`!isGlobal && scope.length === 1`),
-    agar instalasi dengan 1 cabang atau database baru tidak mendegradasi query global menjadi scoped query secara sepihak.
-    (b) Pada level UI view (`StudentOrdersView.tsx`, `UniformView.tsx`, `UniformShipmentSection.tsx`), role global
-    wajib mengaktifkan opsi `"Semua Cabang"` sebagai default view dengan `lockedSchoolId: null`, dan pemilihan cabang
-    dilakukan mandiri di filter tingkat transaksi/view tanpa membatasi roaming akun atau menimpa penugasan identitas global.
-    (c) Seluruh test suite yang menguji pemanggilan fetch atau custom hook data-fetching wajib menggunakan pengetikan
-    struktural (`typeof fetch` / `unknown` narrowing), dilarang menggunakan type assertion `as any` (§check:no-any).
-    (d) Saat membuka worktree baru (`git worktree add`), gunakan script otomatisasi `bun run worktree:create <branch>`
-    untuk memastikan junction dependency `node_modules` terhubung otomatis di Windows pwsh tanpa memicu kegagalan import modul.
-    Pada pemisahan lokasi (`src/lib/location-helpers.ts`), lokasi bertipe `warehouse` dilarang diperlakukan sebagai cabang sekolah
-    murid aktif (`isWarehouseLocation(school)` wajib memicu fallback filter view `"all"`).
-    (e) Pada seluruh modal intake murid (`StudentFormModal`, `StudentBulkUploadModal`, `BatchPromoteModal`), daftar pilihan
-    sekolah wajib disaring dengan `filterBranchSchools` agar entitas gudang logistik tidak dapat dipilih sebagai sekolah murid.
-    (f) State filter lokasi view transaksi (`selectedSchoolId`) hanya diinisialisasi sekali dari helper kanonik saat mount;
-    dilarang memasang `useEffect` yang menimpa ulang `selectedSchoolId` pada setiap render/prop reference update agar pilihan cabang
-    manual pengguna tidak ter-reset secara tidak sengaja di tengah sesi.
-45. **Integritas Alur Sign Out & Transisi Otentikasi Sesi** —
-    proses sign out staf wajib mengarahkan pengguna kembali ke halaman login staf (`/login` / `LoginView`),
-    bukan dibiarkan menggantung atau terlempar ke portal publik:
-    (a) Tombol sign out di komponen layout (`AppHeader.tsx`) wajib memiliki state proteksi `isSigningOut` / `disabled`
-    guna mencegah re-entry atau klik ganda saat request jaringan berlangsung.
-    (b) Handler sign out (`handleSignOut`) dilarang menduplikasi mutasi state navigasi (`setShowStaffLogin`, `setIsPublicMode`,
-    `pushState`) di kedua blok `onSuccess` dan `finally`; tempatkan transisi penataan state secara bersih pada blok
-    penyelesaian (`finally`) agar selalu tereksekusi tepat satu kali baik saat response sign-out berhasil maupun saat
-    terjadi kegagalan jaringan (resilient offline fallback).
-46. **Disiplin Universal No-Silent-Catch & Penanganan Error UI** —
-    seluruh pemanggilan data fetching asinkron (`fetch`, `getJson`, dsb.) di komponen antarmuka staf maupun portal
-    publik (`src/components/**`, `src/views/**`) dilarang menggunakan *silent-catch* (`.catch(() => {})`, `.catch(() => undefined)`),
-    karena menutupi kegagalan backend dan membuat status tampilan menjadi zombie/stale:
-    (a) Setiap kegagalan wajib ditangkap ke state error lokal/toast yang ramah pengguna agar kesalahan sistem selalu tampak.
-    (b) Ditegakkan mekanis di pre-commit dan CI oleh gate `check:no-silent-catch` yang memindai seluruh direktori UI komponen.
-47. **Kanonikalisasi Sub-Navigasi Segmented & Reaktivitas Sub-Seksi View** —
-    view yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
-    (a) Wajib menggunakan komponen sub-navigasi kanonik bersama `SegmentedSubNav` (`src/components/ui/SegmentedSubNav.tsx`),
-    dilarang menduplikasi styling navigasi pil/segmented inline.
-    (b) State sub-seksi internal (`activeSection`) yang menerima prop `defaultSection` dari luar (dashboard link/delegated route)
-    wajib menyinkronkan perubahan via `useEffect(() => { setActiveSection(defaultSection); }, [defaultSection])` guna
-    mencegah bug desync navigasi saat view induk tetap berstatus terpasang (*mounted*).
-48. **Disiplin Konsumsi Helper Intake & Anti-Tautologi Predikat UI** —
-    (a) Seluruh fungsi helper domain/filter yang dibuat di bawah `src/lib/` (seperti `filterBranchSchools`) wajib
-    dikonsumsi secara aktif oleh pemanggil fitur di view/komponen terkait dalam diff yang sama; dilarang meninggalkan helper
-    hanya terhubung ke file unit test-nya sendiri (*speculative generality / dead code*).
-    (b) Pada percabangan rendering form/modal intake (seperti pemilih cabang di `StudentBulkUploadModal`), predikat kondisi
-    wajib diekspresikan secara ketat (`(!initialSchoolId || initialSchoolId === "all") && schools.length > 0`), dilarang
-    memasang disjungsi longgar (`|| schools.length > 0`) yang membuat percabangan bersifat tautologis.
-49. **Hardening Keamanan Otentikasi, Asal Muasal (Origins), dan Intake Publik** —
-    (a) **Anti-Wildcard Trusted Origins**: `trustedOrigins` pada konfigurasi auth (Better-Auth) wajib berupa daftar literal domain eksplisit (misal `http://localhost:5173`, domain workers/pages produksi), dilarang menggunakan wildcard regex (`/^https:\/\/.*\.workers\.dev$/`) yang mempercayai domain pihak ketiga sembarangan.
-    (b) **Penutupan Total Self-Registration Publik**: pencegahan registrasi mandiri publik di route handler auth (`/api/auth/sign-up/*`) wajib mencakup seluruh metode HTTP (`app.all(...)` atau intersepsi fail-closed) dengan status 403 Forbidden.
-    (c) **Disiplin Batas Karakter & Ukuran Upload Base64 (Anti-Memory DoS Worker)**: seluruh schema input publik yang menerima payload base64 dokumen/bukti (buku, seragam, pembatalan, dan retur) wajib memakai validator kanonik `base64UploadSchema` dengan batas eksplisit `MAX_BASE64_UPLOAD_CHARS` (maksimal 7.000.000 karakter / ~5MB decoded binary) guna melindungi alokasi memori heap Cloudflare Worker (128MB). Konstanta batas panjang string karakter wajib dinamai secara presisi (`_CHARS`/`_STRING_LEN`), bukan `_BYTES`.
-    (d) **Fail-Closed Secret Produksi**: helper auth wajib memverifikasi ketersediaan secret server (`BETTER_AUTH_SECRET`) pada mode produksi (`NODE_ENV === "production"`) dan melempar error fail-fast tanpa fallback ke nilai rahasia development statis.
-50. **Disiplin Formatter Error Validasi & Fleksibilitas Identifikasi Katalog** —
-    (a) **Ekstraksi Error Validasi Zod Ramah Pengguna**: seam fetch klien (`readJson` di `src/lib/api.ts`) wajib mengekstrak issue validasi terstruktur (`error.issues` / `payload.issues`) menjadi pesan teks kalimat yang ramah pembaca (`field: message; ...`), dilarang membiarkan objek error terevaluasi menjadi string default `[object Object]` pada alert atau modal antarmuka pengguna.
-    (b) **Kanonikalisasi Fallback Identifier Buku (ISBN)**: input nomor ISBN katalog bersifat opsional bagi pengguna dengan format fleksibel (tidak kaku 10/13 digit); bila dikosongkan, resolusi identifier wajib memusat ke helper kanonik `resolveBookIsbn` (`src/lib/isbn.ts`) yang menghasilkan prefix `AUTO-${stamp}-${serial}` secara deterministik guna menjaga keunikan constraint relasional SQLite/D1 (`books.isbn NOT NULL UNIQUE`) tanpa perakitan string inline di handler router.
-51. **Disiplin Eksekusi Test Terfokus & Ekosistem Unit Test Komponen** —
-    (a) **Target File Eksplisit pada Test Runner**: eksekusi test pada siklus iterasi aktif wajib selalu menargetkan berkas secara eksplisit (`bun test <path/file.test.ts>`), dilarang menjalankan `bun test -t <pattern>` tanpa argumen path file karena akan memicu seluruh test suite (550+ test) dan berisiko timeout asinkron shell.
-    (b) **Shim DOM Wajib pada Test Komponen (`*.test.tsx`)**: setiap pengujian komponen React yang merender DOM (`render(...)`) wajib mengimpor shim DOM kanonik (`import "../../test-dom"`) pada baris pertama dan melakukan dynamic import `@testing-library/react` guna mencegah runtime error `document is not defined` di lingkungan Bun.
-    (c) **Disiplin Deklarasi Path Tooling**: pemanggilan tool manipulasi berkas (`read_file`, `write_file`, dsb.) wajib selalu menggunakan path absolut lengkap (berbasis root project `D:\development\book-inventory\...`), dilarang mengoper path relatif yang memicu error permission.
-52. **Disiplin Seam Impor Masal & Netralitas Utility Spreadsheet** —
-    (a) **Seam Layanan Impor Masal Katalog Buku**: operasi impor masal buku (`/api/books/bulk-import`) wajib didelegasikan ke modul domain service kanonik (`src/server/services/book-catalog-import.ts`), dilarang mengeksekusi perulangan query SQL/Drizzle satu per satu di handler router (§0.27); kueri pencarian eksisting dan batch insert wajib dikelompokkan dalam chunk aman (`chunkRows` dari `src/server/lib/d1-write.ts`).
-    (b) **Pemisahan Utility Netral Spreadsheet**: helper tautan Google Sheets atau parser spreadsheet bersama (`normalizeGoogleSheetsUrl` dsb.) wajib berada di modul utilitas bersama yang netral (`src/lib/sheets.ts`), dilarang diimpor lintas domain entitas (misal mengimpor helper URL Google Sheets dari parser siswa ke modal buku) guna mencegah bau kode *Feature Envy / Inappropriate Intimacy*.
-    (c) **Disiplin Kebersihan Artefak Migrasi & Skrip Generator Ad-hoc**: dilarang melakukan commit atas berkas generator dump SQL sementara (`scripts/export-*-sql.ts`, `drizzle/students-d1.sql`, dsb.) ke dalam tree git; skrip pembersihan (`scripts/purge-d1.ts`) wajib mempertahankan pengetikan fail-closed (`catch (e: unknown)`) tanpa menggunakan tipe `any`.
-    (d) **Penegakan Mekanis Anti-Loop Mutasi Router**: gate `check:d1-writes` memvalidasi aturan R3 (menolak loop `for`/`for-of` di file rute yang mengeksekusi mutasi Drizzle per baris) agar seluruh mutasi masal selalu didelegasikan ke service seam ter-chunk. Eksekusi remote D1 dilarang memanggil subprocess python atau shell ad-hoc; gunakan runner resmi `bun scripts/d1-remote.ts --command="..."` atau `--file="..."`.
-53. **Integritas Alur Penggantian Pesanan Gantung & Realokasi Pembayaran (ADR-0021)** —
-    (a) **Kepatuhan Single-Writer pada Realokasi Alokasi Dana**: mutasi kolom `orderId` pada tabel `payment_allocations` wajib memusat ke helper kanonik `reallocateAllocationQuery` di modul pemilik tunggal `payment-ledger.ts`, dilarang mengeksekusi `database.update(paymentAllocations)` secara langsung di luar modul ledger. Ditegakkan mekanis oleh `check:single-writer`.
-    (b) **Anti-Error Swallowing pada Handler Router Penggantian**: pemanggilan orchestrator penggantian pesanan (`handleOrderReplacement`) pada router intake publik (`/api/public/orders/submit` dan `/api/public/uniform-orders/orders`) wajib memeriksa status hasil (`rep.ok`); bila proses supersede atau realokasi gagal, handler dilarang mengabaikan error dan wajib mengembalikan response HTTP error eksplisit (400/404/409).
-    (c) **Kohesi Route Pre-Order Intake**: endpoint pendeteksian pesanan gantung (`GET /check-pending/:studentId`) adalah alur intake pemesanan baru, wajib didaftarkan di router intake pesanan (`publicOrdersRouter`), dilarang ditempatkan di sub-router komplain retur (`publicOrderReturnsRouter`).
-    (d) **Kelengkapan UI Dialog Konfirmasi & Filter Staf**: alur wizard intake portal publik (buku dan seragam) wajib mengintegrasikan dialog konfirmasi (`PendingOrderConfirmModal`) saat terdeteksi pesanan gantung untuk memberi pilihan eksplisit "Ganti Pesanan Lama" atau "Buat Pesanan Baru". Tampilan tabel staf (`StudentOrdersTable` dan `UniformShipmentSection`) wajib menyediakan filter dan badge status `superseded`.
-54. **Disiplin Navigasi Skema Relasi & Factory Test Fixtures** —
-    (a) **Pemisahan Scope Skema Global vs Cabang**: entitas katalog terpusat (`books`, `book_packages`, `uniform_variants`, `uniform_packages`) dilarang diasumsikan memiliki kolom `school_id`; konsultasikan `src/db/SCHEMA_OVERVIEW.md` sebelum merakit query atau fixtures baru.
-    (b) **Penggunaan Factory Test Fixtures Kanonik**: penyusunan data awal pengujian (test fixtures) wajib memanfaatkan helper kanonik di `src/server/lib/test-fixtures.ts` (`createTestSchool`, `createTestStudent`, `createTestBookOrder`, `createTestPackage`, `createTestBook`) alih-alih merakit baris mentah `insert().values({...})` yang rentan terhadap kegagalan kolom `NOT NULL` SQLite.
-    (c) **Kelengkapan Antarmuka Pengguna pada Fitur Intake**: penambahan alur intake atau percabangan submit baru di backend tidak boleh berhenti di layer API/state belaka; implementasi dinyatakan selesai (*Definition of Done*) hanya jika telah menyediakan komponen antarmuka pengguna visual (modal/dialog/form) yang teruji secara interaktif.
-55. **Disiplin Layanan Integrasi Cloud & In-Memory Stream (Cloudflare Workers)** —
-    (a) **Seam Layanan Drive Tunggal**: pembacaan berkas atau resource Google Drive / Google Sheets (`/api/books/parse-drive-url` dan `/api/students/parse-drive-url`) wajib didelegasikan ke seam terpusat `drive-service.ts` (`src/server/services/drive-service.ts`), dilarang menduplikasi logika proxy parsing URL Google Drive/Sheets di handler router.
-    (b) **Kompatibilitas Cloudflare Workers (No-Filesystem)**: integrasi pihak ketiga pada server backend wajib murni berbasis Web Standard API (`fetch`, `Response.text()`, `Response.arrayBuffer()`, memory stream) tanpa ketergantungan pada modul sistem operasi atau disk filesystem Node (`fs`, `tmp`, `curl`). Seluruh manipulasi berkas eksternal di runtime harus in-memory stream agar 100% kompatibel saat dideploy ke Cloudflare Workers (`worker.dev`).
-    (c) **Penegakan Sinkronisasi Harga Paket Otomatis**: setiap import katalog buku yang mengaktifkan auto-bundling paket (`autoCreatePackages: true`) wajib mengeksekusi seam kanonik `recalcPackagePrice(database, packageId)` (§0.28) seketika BOM terbentuk agar total harga paket buku selalu tersinkronisasi all-in di database.
-    (d) **Kanonikalisasi Penerbit Al-Wildan & Guard Batch Selesai**: inferensi cerdas katalog buku wajib memetakan varian Al-Wildan secara kanonik ke `"Al-Wildan Press"` (publisher consistency); batch folder runner (`DriveFolderBatchRunner`) dilarang memicu `onComplete()` jika seluruh berkas gagal atau menghasilkan 0 baris valid guna mencegah penyelesaian prematur modal intake.
-    (e) **Seam Hook Koordinasi Drive Intake & Penegakan Mekanis Test-DOM**: koordinasi state dan pengambilan berkas Google Drive di modal frontend wajib memusat ke custom hook kanonik `useDriveFolderIntake` (`src/components/ui/useDriveFolderIntake.ts`), dilarang menduplikasi pasangan state `sheetsUrl`/`folderFiles`/`isParsingDrive` di masing-masing modal. Seluruh pengujian komponen antarmuka React (`*.test.tsx`) yang merender DOM wajib memakai shim `test-dom` dan dynamic import `@testing-library/react`, ditegakkan secara mekanis di pre-commit dan CI oleh gate `check:test-dom`.
-56. **Integritas Metrik Deduplikasi & Pemisahan Baris Cacat (Anti-Conflation)** —
-    (a) **Pemisahan Baris Cacat vs Baris Duplikat**: kalkulasi counter data unik vs duplikat pada pratinjau import masal (katalog buku, data murid, dsb.) dilarang mencampurkan baris tidak valid / dilewati (`skippedRows`) ke dalam hitungan baris duplikat; metrik deduplikasi wajib memusat ke helper kanonik `calculateDedupMetrics` (`src/lib/intake-dedup.ts`) dengan rumus `max(0, rawReadCount - (uniqueCount + skippedInvalidCount))`. Ditegakkan mekanis oleh gate `check:canonical-helpers`.
-    (b) **Konsistensi Akumulasi Baris Mentah Batch Runner**: penghitungan akumulasi baris mentah (`totalRawRead`) saat memproses berkas masal di modal intake wajib konsisten antara mode berkas tunggal dan folder batch (keduanya memperhitungkan `validItems.length + skippedRows.length`). Komponen `DriveFolderBatchRunner` wajib mengekspos prop `rawItemsCount` secara eksplisit dan memprioritaskannya di atas akumulasi internal bila disediakan.
-    (c) **Disiplin Uji Batas Komponen Preview**: setiap unit test komponen pratinjau import (`BookImportPreview`, `StudentImportPreview`) wajib memuat skenario uji dengan `skippedRows > 0` untuk memvalidasi bahwa baris cacat tidak bocor ke badge notifikasi duplikat. Rincian domain tersimpan di `docs/agents/rules-intake.md`.
+| Domain / Area Modifikasi | Path Target Kode | File Aturan Wajib | Cakupan Mandat Anti-Kambuh & Invarian |
+|---|---|---|---|
+| **Portal Publik & UI Klien** | `src/components/portal/**`, `src/server/routes/public-*`, `src/lib/public-portal-url.ts` | [`docs/rules/portal-client.md`](./docs/rules/portal-client.md) | Kontrak API publik `/api/public/*`, tab data-driven, draf pesanan, intake seam murid, transisi login/logout staf, anti-tautologi predikat UI, penanganan error no-silent-catch (§0.1–§0.3, §0.6, §0.8, §0.12, §0.14, §0.45–§0.48). |
+| **Pesanan, Kasir & Keuangan** | `src/server/services/payment-ledger.ts`, `src/server/services/order-*`, `src/views/OrdersView.tsx` | [`docs/rules/orders-payments.md`](./docs/rules/orders-payments.md) | Single-writer struk/ledger (`payment-ledger`), kelayakan order, review kasir & klaim bayar, sinkronisasi WPR, guard serah terima fisik, alur retur & pembatalan pengunduran diri, realokasi penggantian pesanan (§0.4, §0.5, §0.21, §0.22, §0.28, §0.29, §0.31, §0.35, §0.38, §0.50, §0.53). |
+| **Gudang, Seragam & Logistik** | `src/server/services/stock/**`, `src/server/services/uniform/**`, `src/views/Uniform*.tsx` | [`docs/rules/logistics-stock.md`](./docs/rules/logistics-stock.md) | Single-writer stok seragam (`uniform/stock`), roaming lokasi transaksi gudang, alokasi stok FIFO terpadu, audit rekonsiliasi term BA, status transfer internal, scoping global multi-cabang (§0.7, §0.9, §0.15, §0.16, §0.20, §0.39, §0.44, §0.52, §0.56). |
+| **Database & Cloudflare D1** | `src/db/**`, `drizzle/**`, `src/server/lib/d1-*`, `src/server/seed*.ts` | [`docs/rules/database-d1.md`](./docs/rules/database-d1.md) | Integritas skema & anti-string-packing, batching seeder & mutasi masal D1, anti-drift migrasi remote D1, validasi file bukti dokumen, factory test fixtures, integrasi drive stream in-memory (§0.10, §0.11, §0.19, §0.26, §0.27, §0.30, §0.34, §0.54, §0.55). Detail teknis batasan D1 §10 juga tinggal di sini. |
+| **Testing, CI & Otomasi** | `test/**`, `scripts/**`, `playwright.config.ts`, `tsconfig.json` | [`docs/rules/testing-tooling.md`](./docs/rules/testing-tooling.md) | Disiplin shell pwsh, artefak bersih anti-blob, test E2E mutasi aktif, isolasi actor test, kompilasi inkremental, otomasi demo Playwright tanpa error banner, batasan ukuran upload base64, target test eksplisit (§0.13, §0.17, §0.18, §0.23–§0.25, §0.32, §0.33, §0.36, §0.37, §0.40–§0.43, §0.49, §0.51). |
+| **Standar Review Arsitektur** | — (Dibaca saat review PR) | [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) | Katalog gate mekanis, smell baseline, checklist UI, lane ownership, dan matriks kepemilikan single-writer. |
 
 ---
 
 ## 1. Post-Modification Quality Checklist
 
-1. **Loop per tiket**: `bun test <file>` untuk umpan balik cepat, lalu
-   `bun run check:fast` sebelum commit. `check:fast` menjalankan
-   `scripts/check-changed.ts` untuk seluruh file berubah (gate yang sama dengan
-   pre-commit, termasuk `check:dead` dan `check:single-writer`). Jangan
-   menjalankan `check:all` setiap commit — suite penuh sekali per PR. Daftar gate
-   dan urutannya adalah field `check:all` di `package.json` (CI memakai urutan
-   yang sama di `.github/workflows/checks.yml`); arti tiap gate ada di
-   `CODING_STANDARDS.md` §1.
-2. **Skema berubah** → `bun run db:push` (lokal, idempoten; `--all` untuk DB baru)
-   lalu migrasi remote D1: `bun run db:generate` → terapkan file SQL ke
-   `book-inventory-db --remote` → verifikasi. Bukti tanpa tebak: `bun run check:d1-drift`
-   wajib hijau sebelum merge yang menyentuh skema (alarm cron harian menutup celah
-   "tidak ada yang menjalankannya"). Baca data lokal dengan `bun run db:query`
-   (baca-saja) alih-alih skrip sekali-pakai.
-3. **Migrasi destruktif** (`DROP`, ubah kolom yang mematahkan kode lama) dilarang
-   diterapkan ke remote sebelum PR merge **dan** deploy — urutannya dua PR
-   (kode berhenti memakai → merge/deploy → PR drop). Sebut perubahan destruktif di
-   deskripsi PR. Detail: ADR-0013.
-4. **Tipe** — `bun run type-check` nol error. `AppDatabase` schema-aware: biarkan
-   inferensi, jangan anotasi `$inferSelect` manual pada JOIN, jangan tutup celah
-   dengan `any`/cast baru.
-5. **API & validator** — identifier entity memakai `idSchema`
-   (`src/server/lib/validators.ts`), bukan `z.string().uuid()`; setiap endpoint
-   mutasi punya test dengan ID slug seeded maupun UUID. Setiap file route wajib
-   berpasangan `*.test.ts`, dan setiap bug API yang diperbaiki wajib menambah
-   skenario di sana.
-6. **Frontend** — dilarang `fetch` tanpa penanganan kegagalan: setiap respons
-   `!ok`/`success: false` wajib menampilkan pesan yang mengekstrak `message`/`error`
-   (pakai `lib/api.ts`; error-nya `ApiError` bertipe). `required` pada
-   `SearchableSingleSelect`/`SearchableMultiSelect` wajib didampingi guard JS +
-   pesan inline, dan label lama dihapus (dilarang label ganda). Test komponen UI
-   meniru `src/components/portal/StudentSearchStep.test.tsx` (shim `test-dom` +
-   dynamic import `@testing-library/react`); `@testing-library/user-event` tidak
-   terinstal.
-7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan
-   isi bagian **“Perubahan perilaku”** di PR (kosong untuk refactor murni; lihat
-   `CODING_STANDARDS.md` §10).
+1. **Loop per tiket**: `bun test <file>` untuk umpan balik cepat, lalu `bun run check:fast` sebelum commit. `check:fast` menjalankan `scripts/check-changed.ts` untuk seluruh file berubah (gate yang sama dengan pre-commit, termasuk `check:dead` dan `check:single-writer`). Jangan menjalankan `check:all` setiap commit — suite penuh sekali per PR.
+2. **Skema berubah** → `bun run db:push` (lokal, idempoten; `--all` untuk DB baru) lalu migrasi remote D1: `bun run db:generate` → terapkan SQL ke `book-inventory-db --remote` → verifikasi. `bun run check:d1-drift` wajib hijau sebelum merge yang menyentuh skema. Baca data lokal via `bun run db:query` (baca-saja).
+3. **Migrasi destruktif** (`DROP`, ubah kolom breaking) dilarang diterapkan ke remote sebelum PR merge **dan** deploy (pola expand-contract dua PR). Sebut perubahan destruktif di deskripsi PR (ADR-0013).
+4. **Tipe** — `bun run type-check` nol error. `AppDatabase` schema-aware: biarkan inferensi, jangan anotasi `$inferSelect` manual pada JOIN, jangan tutup celah dengan `any`/cast baru.
+5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap bug API wajib menambah skenario di sana.
+6. **Frontend** — dilarang `fetch` tanpa penanganan kegagalan: setiap respons `!ok`/`success: false` wajib menampilkan pesan yang mengekstrak `message`/`error` (pakai `lib/api.ts`). Test komponen UI meniru `StudentSearchStep.test.tsx` (shim `test-dom` + dynamic import `@testing-library/react`).
+7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan isi bagian **“Perubahan perilaku”** di PR.
 
 ---
 
 ## 2. Technology Stack Standards
 
-- **Runtime/PM**: Bun (Node.js fallback). **Backend**: Hono + TypeScript.
-  **DB**: Drizzle ORM di atas SQLite — D1 di Cloudflare, SQLite file untuk
-  produksi mandiri. **Frontend**: React + Vite. **Storage**: R2/S3-compatible.
-- **Shell**: PowerShell 7+ (`pwsh`). Tanpa `head`/`awk`/`wc`/`printf`/`cat`/`grep`/
-  `tail`/`rm`; untuk pencarian teks cepat pakai `rg` (ripgrep) atau `Select-String`,
-  `Select-Object`/`Measure-Object`, `Remove-Item`, dan tool `Grep`/`Read`. `mkdir`
-  satu direktori per perintah; glob tidak mengembang di argumen skrip — tulis path
-  eksplisit. Skrip sekali-pakai ditulis via tool `Write` lalu `bun <file>`, bukan `bun -e`
-  berkutip bersarang.
+- **Runtime/PM**: Bun (Node.js fallback). **Backend**: Hono + TypeScript. **DB**: Drizzle ORM di atas SQLite (D1 Cloudflare, SQLite file untuk produksi lokal). **Frontend**: React + Vite. **Storage**: R2/S3-compatible.
+- **Shell**: PowerShell 7+ (`pwsh`). Tanpa `head`/`awk`/`wc`/`printf`/`cat`/`grep`/`tail`/`rm`; untuk pencarian teks cepat pakai `rg` (ripgrep) atau `Select-String`, `Select-Object`/`Measure-Object`, `Remove-Item`, dan tool `Grep`/`Read`. Tulis path eksplisit; skrip sekali-pakai ditulis via tool `Write` lalu `bun <file>`.
 
 ---
 
-## 3. Architecture & Domain Rules
+## 3. Architecture & Domain Invariants
 
-1. **Physical Unit Tracking**: buku dilacak per eksemplar (`book_items`) dengan
-   barcode unik, kondisi fisik, dan penugasan sekolah.
-2. **Branch Isolation**: admin cabang hanya mengakses inventori sekolahnya
-   (`current_school_id = branch_id`).
-3. **Inter-school Transfers**: perpindahan buku lewat shipment formal
-   (`draft` → `pending_dispatch` → `in_transit` → `completed`/`discrepancy`).
-4. **Staff Roles & Navigation Boundaries** — kanonik, dilarang routing ad-hoc:
-   - backend: `src/server/services/access-scope.ts` (`STAFF_ROLES`,
-     `LOGISTICS_ROLES`, `resolveRequestActor`);
-   - frontend: `src/lib/staff-roles.ts` (`getDefaultTabForRole`,
-     `getRoleBadgeLabel`, `is*Role`);
-   - tab: `src/components/layout/staff-tabs.ts` (`TAB_IDS`, `ActiveTab`,
-     `DESKTOP_TABS`, `getVisibleTabsForRole`) dirender oleh
-     `components/layout/AppTabsNavigation.tsx` (komponen saja).
+1. **Physical Unit Tracking**: buku dilacak per eksemplar (`book_items`) dengan barcode unik, kondisi fisik, dan penugasan sekolah.
+2. **Branch Isolation**: admin cabang hanya mengakses inventori sekolahnya (`current_school_id = branch_id`).
+3. **Inter-school Transfers**: perpindahan buku lewat shipment formal (`draft` → `pending_dispatch` → `in_transit` → `completed`/`discrepancy`).
+4. **Staff Roles & Navigation Boundaries**:
+   - backend: `src/server/services/access-scope.ts` (`STAFF_ROLES`, `LOGISTICS_ROLES`, `resolveRequestActor`);
+   - frontend: `src/lib/staff-roles.ts` (`getDefaultTabForRole`, `getRoleBadgeLabel`, `is*Role`);
+   - tab: `src/components/layout/staff-tabs.ts` (`TAB_IDS`, `ActiveTab`, `DESKTOP_TABS`, `getVisibleTabsForRole`) dirender oleh `components/layout/AppTabsNavigation.tsx`.
 
 ---
 
 ## 4. Agent Workflow (Delegation, Lanes, CI)
 
-1. **Satu kali retry, lalu kerjakan sendiri**: delegasi gagal → coba ulang 1×,
-   setelah itu implementasi langsung. Jangan biarkan user menunggu.
+1. **Satu kali retry, lalu kerjakan sendiri**: delegasi gagal → coba ulang 1×, setelah itu implementasi langsung.
 2. **Default sekuensial**: satu tiket per commit, satu integration branch.
-3. **4.4 Paralel hanya bila manifest ada**: fan-out diizinkan tanpa izin per-sesi
-   bila lane file-disjoint di **satu working tree** dan `docs/agents/lanes.json`
-   dideklarasikan. Worktree terpisah tetap dilarang (biaya install + merge).
-4. **4.5 Aturan lane** (rincian: `CODING_STANDARDS.md` §8): file bersama
-   (`schema.ts`, `public-orders.ts`, `settings*.ts`, `drizzle/**`) milik satu lane;
-   lane dilarang `git add/commit/checkout` dan dilarang `lint`/`build`/`bun test`
-   penuh — hanya `bun test <file>`; `type-check` read-only boleh, perbaiki hanya
-   file lane sendiri dan laporkan sisanya. Commit + gate repo-wide dijalankan
-   serial oleh agent utama, yang wajib menutup dengan `check:all`.
-5. **Pengecualian**: refactor cross-cutting yang menyentuh file bersama boleh satu
-   commit agar tiap commit tetap buildable.
-6. **Pantau CI dengan cek singkat berinterval** — satu `gh pr checks` tiap
-   beberapa menit, bukan polling panjang yang memblokir.
-7. **4.8 Dilarang commit ke `main`/`master`**: mendarat lewat branch + PR,
-   ditegakkan branch guard di `scripts/githooks/pre-commit` (bypass sengaja:
-   `ALLOW_MAIN_COMMIT=1`). Verifikasi branch aktif (`git branch --show-current`)
-   sebelum git commit pertama di sesi kerja.
+3. **Paralel hanya bila manifest ada**: fan-out diizinkan bila lane file-disjoint di **satu working tree** dan `docs/agents/lanes.json` dideklarasikan.
+4. **Aturan lane** (`CODING_STANDARDS.md` §8): file bersama (`schema.ts`, `public-orders.ts`, dsb.) milik satu lane. Commit + gate repo-wide dijalankan serial oleh agent utama yang wajib menutup dengan `check:all`.
+5. **Pantau CI dengan cek singkat berinterval**: satu `gh pr checks` tiap beberapa menit, bukan polling panjang yang memblokir.
+6. **Dilarang commit ke `main`/`master`**: mendarat lewat branch + PR, ditegakkan branch guard di pre-commit hook (bypass darurat: `ALLOW_MAIN_COMMIT=1`).
 
 ---
 
 ## 5. Bun Version & Lockfile
 
-Cloudflare build memakai `bun@1.2.15` (`packageManager`) + `--frozen-lockfile`;
-lockfile v2 dari bun lebih baru gagal dibaca. Perintah pengubah lockfile:
-`npx -y bun@1.2.15 install`. Rincian: `CODING_STANDARDS.md` §5.
+Cloudflare build memakai `bun@1.2.15` (`packageManager`) + `--frozen-lockfile`; lockfile v2 dari bun lebih baru gagal dibaca. Perintah pengubah lockfile: `npx -y bun@1.2.15 install`. Rincian: `CODING_STANDARDS.md` §5.
 
 ---
 
 ## 6. Test Isolation & Disiplin Tulis D1 Production
 
-1. `bun test` wajib di DB sementara terisolasi (`test/setup.ts` via preload
-   `bunfig.toml`); dilarang mengarahkan test ke D1 (remote/lokal) atau mematikan
-   preload — ditegakkan `check:test-isolation`. Test baru wajib mandiri (seed ID
-   unik, bersihkan di `finally`/`cleanup`) agar run berulang tidak menumpuk baris.
-2. **Dilarang** QA manual/skrip/test ke API production (`*.workers.dev`) yang
-   membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dan pola
-   sejenis; QA destruktif hanya di dev lokal. Pola-uji kanonik:
-   `isTestSeedValue` (`src/server/lib/validators.ts`); ekspor seed fail-closed;
-   alarm remote `bun run check:d1-junk` + cron harian (`d1-junk-alert.ts`,
-   `d1-drift-alert.ts`, kunci sidik di `system_settings`).
-3. `wrangler d1 execute ... --remote` yang menulis (terutama `DELETE` massal)
-   wajib didahului: verifikasi target (`database_name`/`database_id`),
-   `SELECT COUNT(*)` + contoh baris berpredikat sama, dan cek nol relasi anak.
+1. `bun test` wajib di DB sementara terisolasi (`test/setup.ts` via preload `bunfig.toml`); dilarang mengarahkan test ke D1 atau mematikan preload (`check:test-isolation`). Test baru wajib mandiri (seed ID unik, bersihkan di `finally`/`cleanup`).
+2. **Dilarang** QA manual/skrip/test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dsb. Pola-uji kanonik: `isTestSeedValue` (`src/server/lib/validators.ts`). Alarm remote: `bun run check:d1-junk` + cron harian.
+3. `wrangler d1 execute ... --remote` yang menulis (terutama `DELETE` massal) wajib didahului: verifikasi target, `SELECT COUNT(*)` contoh baris, dan cek nol relasi anak.
 
 ---
 
 ## 7. Code Maintainability & File-Size Gate
 
-Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`,
-`src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`). File yang melebihi batas
-wajib dipecah sebelum lapor selesai: view → sub-komponen di
-`src/components/<fitur>/` + hook `use<Fitur>` + API layer + tipe di
-`src/lib/<fitur>-types.ts`; route Hono → logika ke `src/server/services/`.
-Utang lama terdaftar di `GRANDFATHERED` (`scripts/check-file-size.ts`) dan hanya
-boleh menyusut — kode fitur **baru** wajib lahir di file baru yang patuh batas.
-Verifikasi: `check:file-size` (diff-scoped; `--all` di CI).
+Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`, `src/db/schema.ts`, `src/server/seed.ts`, `*.d.ts`). File melebihi batas wajib dipecah: view → sub-komponen + hook + tipe; route Hono → logika ke `src/server/services/`. Utang lama terdaftar di `GRANDFATHERED` (`scripts/check-file-size.ts`) dan hanya boleh menyusut. Verifikasi: `check:file-size`.
 
 ---
 
-## 8. YAGNI & One-Liner Discipline
+## 8. YAGNI, One-Liner Discipline & Single-Writer
 
-- Dilarang speculative generality: factory/provider/class wrapper sekali pakai
-  wajib jadi fungsi polos atau inline.
-- Helper duplikat dikanonikalisasi ke pemilik tunggal: `lib/transfer-pricing.ts`
-  (rupiah/total), `lib/book-pricing.ts` (client-safe) + `server/services/pricing.ts`
-  (server), `lib/api.ts` (fetch), `lib/staff-roles.ts`,
-  `components/layout/staff-tabs.ts` (`ActiveTab`, `getVisibleTabsForRole`), dan
-  `lib/book-return.ts` (batas foto + status refund). Daftar pemilik modul baru +
-  pola tulis terlarang: `CODING_STANDARDS.md` §10; penegak mekanisnya
-  `check:canonical-helpers` + `check:single-writer`.
-- Kode mati dihapus beserta test-nya, bukan dikomentari (`check:dead`). Ekspor
-  baru wajib segera dihubungkan ke pemanggil (call-site) atau diuji agar tidak
-  mematahkan gate `check:dead` saat refactor bertahap.
-- Prefer one-liner: guard/loop verbose yang setara `map`/`filter`/`reduce`/`??`/
-  ternary satu baris bila perilakunya sama.
-- **Pengecualian D1**: `Promise.all` hanya untuk query BACA independen; TULIS
-  wajib sekuensial atau satu `db.batch()` (§10).
-- Refactor dilarang mengubah perilaku. Perubahan perilaku yang disengaja wajib
-  dipisah dari refactor, dicatat di bagian “Perubahan perilaku” PR, dan dikunci
-  test skenario baru (`CODING_STANDARDS.md` §10). Alias tipis dipertahankan bila
-  public API dipakai route/test.
+- Dilarang speculative generality: wrapper sekali pakai wajib jadi fungsi polos atau inline.
+- Helper duplikat dikanonikalisasi ke pemilik tunggal (`lib/transfer-pricing.ts`, `lib/book-pricing.ts`, `lib/api.ts`, `lib/staff-roles.ts`, `lib/book-return.ts`, dsb.). Penegak mekanis: `check:canonical-helpers` + `check:single-writer`.
+- Kode mati dihapus beserta test-nya (`check:dead`).
+- Prefer one-liner ekspresif (`map`/`filter`/`reduce`/`??`). Pengecualian D1: `Promise.all` hanya untuk query BACA independen; TULIS wajib sekuensial atau satu `db.batch()`.
+- Refactor dilarang mengubah perilaku tanpa test baru dan catatan eksplisit di PR.
 
 ---
 
 ## 9. Code Smell & Tech Debt Elimination
 
-1. Setiap sesi yang menyentuh `src/` diawali pemindaian smell read-only
-   (`Grep`/`rg`, tanpa edit) dan diakhiri eliminasi sesuai scope yang disepakati.
-2. Katalog smell, daftar helper kanonik, dan sinyal review ada di
-   `CODING_STANDARDS.md` §2 dan §7 — periksa semuanya, jangan hanya yang diingat.
-3. Perbaikan: kanonikalisasi ke modul yang ada, satu perilaku per perubahan,
-   setiap bug yang diperbaiki disertai regression test.
-4. Dilarang menambah utang baru: `any`, helper duplikat, `@ts-ignore`/
-   `eslint-disable` baru, `console.log` produksi, atau silent-catch = belum boleh
-   lapor selesai (`check:no-any`, `check:canonical-helpers`).
+1. Sesi yang menyentuh `src/` diawali pemindaian smell read-only dan diakhiri eliminasi sesuai scope.
+2. Katalog smell dan sinyal review ada di `CODING_STANDARDS.md` §2 dan §7.
+3. Dilarang menambah utang baru: `any`, helper duplikat, `@ts-ignore`/`eslint-disable` baru, `console.log` produksi, atau silent-catch (`check:no-any`, `check:canonical-helpers`, `check:no-silent-catch`).
 
 ---
 
-## 10. Cloudflare D1 & Workers Write Discipline
+## 10. Cloudflare D1 & Search Discipline
 
-Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
-
-1. Satu statement `INSERT ... VALUES` maksimal **10 baris**, dieksekusi
-   sekuensial (chunked).
-2. `Promise.all` **dilarang** untuk tulis; pakai sekuensial atau `db.batch()`.
-3. Alur induk + anak wajib atomik (`db.batch()` di D1, fallback sekuensial di
-   bun-sqlite) atau idempoten dengan validasi pra-tulis yang mengembalikan 400.
-4. Constraint (`UNIQUE`/`FOREIGN KEY`) wajib dipetakan ke 4xx lewat
-   `d1WriteErrorStatus()` (`src/server/lib/d1-write.ts`); kegagalan infra
-   (`D1_ERROR`) wajib dilempar ulang agar menjadi 500 + ref, bukan 400 palsu.
-5. Endpoint tulis bervolume wajib diuji ≥30 baris sekaligus di
-   `src/server/routes/*.test.ts`.
+- **Aturan Tulis D1**: Chunking maksimal 10 baris per `INSERT`, dilarang `Promise.all` untuk tulis, mutasi induk-anak atomik via `db.batch()`, error constraint dipetakan lewat `d1WriteErrorStatus()`. Detail lengkap di [`docs/rules/database-d1.md`](./docs/rules/database-d1.md).
+- **Search Discipline**: Dilarang `SELECT`-all + filter JS (filter wajib di `WHERE` SQL). Substring `%q%` publik wajib terpartisi `school_id = ?` + `LIMIT 10–50` + indeks komposit (`check:plans`). Detail teknis di `CODING_STANDARDS.md` §6.
 
 ---
 
-## 11. Search Discipline (Anti Full-Scan)
+## 11. Edit Anchor Discipline
 
-Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
-
-1. Dilarang `SELECT`-all + filter JS; filter wajib di `WHERE` SQL. Katalog kecil
-   (<2rb baris: `books`, `packages`) boleh difilter di frontend.
-2. Substring `%q%` endpoint publik wajib terpartisi `school_id = ?`; endpoint
-   staf sentral boleh global tetapi tetap `WHERE` SQL + `LIMIT 50`.
-3. Setiap endpoint search: filter partisi + `LIMIT` 10–50 + indeks komposit
-   dengan kolom partisi sebagai kolom **pertama** (diperiksa `check:plans` lewat
-   `PRAGMA`, bukan teks schema). Pengecualian didaftarkan beralasan di
-   `REGISTERED_UNPARTITIONED`/`REGISTERED_UNBOUNDED_READS`.
-4. FTS5 hanya tahap 2 setelah `EXPLAIN QUERY PLAN` masih `SCAN` dan p95 >500ms;
-   query FTS wajib token-prefix (`salsa*`), bukan `%...%`.
-5. Query search baru/ubah wajib didaftarkan di `QUERIES` +
-   `REGISTERED_SEARCH_SOURCES` (`scripts/explain-plan.ts`) dan diuji volumenya.
-
----
-
-## 12. Edit Anchor Discipline
-
-1. Jangkar `oldString` minimal 3 baris dengan pengenal unik (nama fungsi, string
-   khas, komentar sekitar) sehingga hanya cocok di satu lokasi.
+1. Jangkar `oldString` minimal 3 baris dengan pengenal unik (nama fungsi, string khas, komentar sekitar).
 2. Dilarang jangkar generik satu baris (`});`, `}`, `return ...`, baris kosong).
-   Tool menolak karena multi-match → perluas konteks, jangan persempit.
-3. `replaceAll` path bertingkat: sertakan kutip penutup dan ganti path terpanjang
-   lebih dulu; ditegakkan `check:imports`.
+3. `replaceAll` path bertingkat: sertakan kutip penutup dan ganti path terpanjang lebih dulu (`check:imports`).
 
 ---
 
 ## Agent skills & navigation pointers
 
-- **Standar review**: `CODING_STANDARDS.md` (katalog gate, smell, checklist UI,
-  rasional insiden).
-- **Issue tracker**: GitHub Issues via `gh` (`dittorahmat/book-inventory`) —
-  `docs/agents/issue-tracker.md`; label triage: `docs/agents/triage-labels.md`.
+- **Standar review**: `CODING_STANDARDS.md` (katalog gate, smell, checklist UI, rasional insiden).
+- **Issue tracker**: GitHub Issues via `gh` (`dittorahmat/book-inventory`) — `docs/agents/issue-tracker.md`; label triage: `docs/agents/triage-labels.md`.
 - **Domain docs**: `GLOSSARY.md` + `docs/adr/` (`docs/agents/domain.md`).
-- **Skill lokal**: satu pohon kanonik `.agents/skills/` (isinya bisa lebih banyak
-  dari yang diiklankan tool). `skills/` dan `.claude/skills/` adalah junction;
-  folder tool lain (`.opencode/`, `.gemini/`, …) mirror — jangan disalin.
-- **Portal publik**: URL→tab di `src/lib/public-portal-url.ts`; daftar tab di
-  `src/components/portal/portal-tabs.ts`; state alur di
-  `src/components/portal/use*.ts`; adapter HTTP tunggal
-  `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`
-  (semua route publik memusat di `/api/public/orders/*` via `public-orders.ts` & `public-order-returns.ts`,
-  serta `/api/public/uniforms/*` via `public-uniform-orders.ts`).
-- **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di
-  `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`);
-  scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam
-  tinggal di direktori (misal `services/return/index.ts`, `services/order-intake/index.ts`,
-  `services/uniform/index.ts`), bukan file datar — bila `<nama>.ts` tak ada, coba
-  `<nama>/index.ts` sebelum grep luas.
-- **Sub-Agent & Asynchronous Execution**: hindari polling loop (`schedule` timer pendek / `manage_subagents list`)
-  saat menunggu sub-agent aktif. Sistem runtime otomatis membangkitkan parent agent (*reactive wakeup*) seketika
-  sub-agent mengirimkan pesan (`send_message`). Cukup akhiri turn tanpa menjadwalkan timer buatan.
-- **Schema & Upload Gate Enforcement**: seluruh field base64 route publik (`*Base64`, `*Proof*`) wajib memakai
-  `base64UploadSchema` atau `.max(...)`. Ditegakkan mekanis oleh gate `check:base64-schemas`.
+- **Skill lokal**: pohon kanonik `.agents/skills/`. `skills/` dan `.claude/skills/` adalah junction.
+- **Portal publik**: URL→tab di `src/lib/public-portal-url.ts`; daftar tab di `src/components/portal/portal-tabs.ts`; state alur di `src/components/portal/use*.ts`; adapter HTTP tunggal `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`.
+- **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam tinggal di direktori (`services/<domain>/index.ts`).
+- **Sub-Agent & Asynchronous Execution**: hindari polling loop (`schedule` timer pendek / `manage_subagents list`). Sistem runtime otomatis membangkitkan parent agent (*reactive wakeup*) seketika sub-agent mengirimkan pesan (`send_message`). Cukup akhiri turn tanpa timer buatan.
+- **Schema & Upload Gate**: seluruh field base64 route publik (`*Base64`, `*Proof*`) wajib memakai `base64UploadSchema` atau `.max(...)` (`check:base64-schemas`).

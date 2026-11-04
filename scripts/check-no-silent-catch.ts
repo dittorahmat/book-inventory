@@ -1,6 +1,6 @@
 // Memeriksa bahwa pemanggilan asynchronous fetch di komponen portal publik,
 // views, dan komponen staf tidak menggunakan silent-catch (.catch(() => {}))
-// tanpa penanganan error pengguna, sesuai Mandat Anti-Kambuh AGENTS.md §0.31.
+// tanpa penanganan error pengguna, sesuai Mandat Anti-Kambuh docs/rules/portal-client.md §0.46 (ADR-0019/§0.31).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -50,7 +50,7 @@ if (violations.length > 0) {
   for (const v of violations) {
     console.error(`  ${v.file}:${v.line} -> ${v.match}`);
   }
-  console.error("\nMandat AGENTS.md §0.31: Dilarang silent-catch (.catch(() => {})), tampilkan pesan kegagalan ramah pengguna.");
+  console.error("\nMandat docs/rules/portal-client.md §0.46: Dilarang silent-catch (.catch(() => {})), tampilkan pesan kegagalan ramah pengguna.");
   process.exit(1);
 }
 

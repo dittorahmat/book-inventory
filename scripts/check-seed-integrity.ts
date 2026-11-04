@@ -30,7 +30,7 @@ try {
   }
 
   if (hasError) {
-    console.error("\nSilakan selaraskan ID dan nama tampilan pada seeder demo (lihat AGENTS.md §0.26).");
+    console.error("\nSilakan selaraskan ID dan nama tampilan pada seeder demo (lihat docs/rules/database-d1.md §0.26).");
     process.exit(1);
   }
 
