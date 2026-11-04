@@ -20,4 +20,13 @@ describe("book isbn helper", () => {
     expect(resolveBookIsbn(undefined)).toMatch(/^AUTO-/);
     expect(resolveBookIsbn(null)).toMatch(/^AUTO-/);
   });
+
+  test("resolveBookIsbn menghasilkan kode internal berbasis judul dan kelas jika diberikan", () => {
+    const code = resolveBookIsbn(undefined, undefined, undefined, "Akidah Akhlak 1", "1");
+    expect(code).toBe("BK-SD1-AKIDAH-AKHLAK-1");
+
+    const codeMath = resolveBookIsbn(null, undefined, undefined, "Prime Math 1A Coursebook", "1");
+    expect(codeMath).toBe("BK-SD1-PRIME-MATH-1A-COURSEBOOK");
+  });
+
 });

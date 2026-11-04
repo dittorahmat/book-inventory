@@ -51,12 +51,13 @@ export async function importBookCatalog(
   // 1. Ekstrak ISBN dan cari buku yang sudah ada dengan batch chunking D1
   const normalizedItems = items.map((item) => ({
     ...item,
-    resolvedIsbn: resolveBookIsbn(item.isbn),
+    resolvedIsbn: resolveBookIsbn(item.isbn, undefined, undefined, item.title, item.gradeLevel),
     effectivePrice: Math.round(item.sellPrice ?? item.price ?? 0),
     effectiveBuyPrice: Math.round(item.buyPrice ?? item.price ?? 0),
     gradeLevel: item.gradeLevel || "1",
     curriculumType: item.curriculumType || "international",
   }));
+
 
   const allIsbns = normalizedItems.map((i) => i.resolvedIsbn);
   const existingMap = new Map<string, string>(); // isbn -> id

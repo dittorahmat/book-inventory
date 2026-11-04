@@ -4,7 +4,7 @@ import { apiEnvelope } from "../../lib/api";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { SchoolOption } from "./students-api";
 import { StudentImportPreview } from "./StudentImportPreview";
-import { normalizeGoogleSheetsUrl } from "../../lib/sheets";
+import { DriveFileList, type DriveFolderItem } from "../ui/DriveFileList";
 import {
   parseStudentData,
   type ParsedStudentRow,
@@ -17,6 +17,7 @@ interface StudentBulkUploadModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
 
 export function StudentBulkUploadModal({
   schoolId: initialSchoolId,
@@ -38,6 +39,7 @@ export function StudentBulkUploadModal({
   const [parsedStudents, setParsedStudents] = useState<ParsedStudentRow[]>([]);
   const [skippedRows, setSkippedRows] = useState<SkippedStudentRow[]>([]);
   const [sheetName, setSheetName] = useState<string>("");
+  const [folderFiles, setFolderFiles] = useState<DriveFolderItem[]>([]);
 
   const downloadSampleTemplate = () => {
     const csvContent =
@@ -58,6 +60,7 @@ export function StudentBulkUploadModal({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     setResultMsg(null);
+    setFolderFiles([]);
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -81,35 +84,77 @@ export function StudentBulkUploadModal({
 
   const handleFetchGoogleSheets = async () => {
     if (!sheetsUrl.trim()) {
-      setError("Masukkan URL Google Sheets terlebih dahulu.");
-      return;
-    }
-
-    const exportUrl = normalizeGoogleSheetsUrl(sheetsUrl);
-    if (!exportUrl) {
-      setError("URL tidak valid. Pastikan link berasal dari Google Sheets (docs.google.com/spreadsheets/d/...).");
+      setError("Masukkan URL Google Drive folder atau Sheets terlebih dahulu.");
       return;
     }
 
     setIsParsing(true);
     setError(null);
     setResultMsg(null);
+    setFolderFiles([]);
 
     try {
-      const resp = await fetch(exportUrl);
-      if (!resp.ok) {
-        throw new Error("Gagal mengunduh spreadsheet. Pastikan akses Google Sheets diatur publik (view).");
+      const resp = await apiEnvelope<{
+        success: boolean;
+        type: "folder" | "sheet";
+        data: {
+          files?: DriveFolderItem[];
+          validStudents?: ParsedStudentRow[];
+          skippedRows?: SkippedStudentRow[];
+          sheetName?: string;
+        };
+      }>("/api/students/parse-drive-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: sheetsUrl }),
+      });
+
+      if (resp.type === "folder" && resp.data.files) {
+        setFolderFiles(resp.data.files);
+        setFileName(`Folder Google Drive (${resp.data.files.length} berkas)`);
+        setParsedStudents([]);
+      } else if (resp.type === "sheet" && resp.data.validStudents) {
+        setParsedStudents(resp.data.validStudents);
+        setSkippedRows(resp.data.skippedRows || []);
+        setSheetName(resp.data.sheetName || "");
+        setFileName("Google Sheets Data");
       }
-      const csvText = await resp.text();
-      const res = parseStudentData(csvText);
-      setParsedStudents(res.validStudents);
-      setSkippedRows(res.skippedRows);
-      setSheetName(res.sheetName);
-      setFileName("Google Sheets Data");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal memproses Google Sheets");
+      setError(err instanceof Error ? err.message : "Gagal memproses Google Drive URL");
       setParsedStudents([]);
       setSkippedRows([]);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleSelectFolderFile = async (file: DriveFolderItem) => {
+    setIsParsing(true);
+    setError(null);
+    try {
+      const fileUrl = `https://docs.google.com/spreadsheets/d/${file.id}/edit`;
+      const resp = await apiEnvelope<{
+        success: boolean;
+        type: "sheet";
+        data: {
+          validStudents: ParsedStudentRow[];
+          skippedRows: SkippedStudentRow[];
+          sheetName: string;
+        };
+      }>("/api/students/parse-drive-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: fileUrl }),
+      });
+
+      if (resp.data.validStudents) {
+        setParsedStudents(resp.data.validStudents);
+        setSkippedRows(resp.data.skippedRows || []);
+        setSheetName(resp.data.sheetName || "");
+        setFileName(file.name);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : `Gagal memuat berkas ${file.name}`);
     } finally {
       setIsParsing(false);
     }
@@ -162,6 +207,7 @@ export function StudentBulkUploadModal({
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -227,7 +273,7 @@ export function StudentBulkUploadModal({
               }`}
             >
               <Link2 className="w-4 h-4" />
-              Link Google Sheets
+              Link Google Sheets / Drive Folder
             </button>
           </div>
 
@@ -244,29 +290,33 @@ export function StudentBulkUploadModal({
             </div>
           ) : (
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-[#050505] block">Tautan Google Sheets Publik</label>
+              <label className="text-xs font-semibold text-[#050505] block">Tautan Google Sheets atau Folder Google Drive Publik</label>
               <div className="flex gap-2">
                 <input
                   type="url"
                   value={sheetsUrl}
                   onChange={(e) => setSheetsUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  placeholder="https://drive.google.com/drive/folders/... atau https://docs.google.com/spreadsheets/d/..."
                   className="flex-1 px-3 py-2 text-xs border border-[#CED0D4] rounded-xl focus:outline-none focus:border-[#1877F2]"
                 />
                 <button
                   type="button"
                   onClick={handleFetchGoogleSheets}
                   disabled={isParsing || !sheetsUrl}
-                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] text-xs font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
                   {isParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Muat Data"}
                 </button>
               </div>
               <div className="text-[11px] text-[#65676B] flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-[#1877F2]" />
-                Pastikan akses berbagi disetel ke "Siapa saja yang memiliki link".
+                <Info className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
+                Dapat berupa link spreadsheet tunggal atau link folder Google Drive publik.
               </div>
             </div>
+          )}
+
+          {folderFiles.length > 0 && (
+            <DriveFileList files={folderFiles} onSelect={handleSelectFolderFile} />
           )}
 
           {isParsing && (
@@ -275,6 +325,7 @@ export function StudentBulkUploadModal({
               <span>Sedang memproses dan memetakan kolom data...</span>
             </div>
           )}
+
 
           <StudentImportPreview parsedStudents={parsedStudents} skippedRows={skippedRows} sheetName={sheetName} />
 
