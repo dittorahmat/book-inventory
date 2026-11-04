@@ -2,7 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { bookPackageItems, bookPackages, books } from "../../db/schema";
 import { resolveBookIsbn } from "../../lib/isbn";
 import { chunkRows } from "../lib/d1-write";
+import { recalcPackagePrice } from "./pricing";
 import type { AppDatabase } from "../../db";
+
 
 export interface BookImportRow {
   id?: string;
@@ -203,8 +205,12 @@ export async function importBookCatalog(
       for (const bChunk of bomChunks) {
         await database.insert(bookPackageItems).values(bChunk);
       }
+
+      // Selaraskan harga all-in paket melalui seam kanonik recalcPackagePrice (§0.28)
+      await recalcPackagePrice(database, pkgId);
     }
   }
+
 
   return {
     insertedCount,

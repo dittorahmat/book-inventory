@@ -5,14 +5,11 @@ import { db } from "../../db";
 import { requireScopedActor, accessErrorResponse } from "../services/access-scope";
 import { idSchema } from "../lib/validators";
 import { importBookCatalog } from "../services/book-catalog-import";
-import {
-  isGoogleDriveFolderUrl,
-  normalizeGoogleSheetsUrl,
-  parseGoogleDriveFolderHtml,
-} from "../../lib/sheets";
 import { parseBookCatalogData } from "../../lib/book-import-parser";
+import { fetchGoogleDriveResource } from "../services/drive-service";
 
 export const bookBulkRouter = new Hono();
+
 
 const bookImportItemSchema = z
   .object({
@@ -62,46 +59,31 @@ bookBulkRouter.post("/parse-drive-url", zValidator("json", parseDriveUrlPayloadS
     }
 
     const { url } = c.req.valid("json");
+    const res = await fetchGoogleDriveResource(url);
 
-    // Kasus 1: URL adalah Google Drive Folder
-    if (isGoogleDriveFolderUrl(url)) {
-      const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-      if (!resp.ok) {
-        return c.json({ success: false, message: "Gagal mengakses folder Google Drive. Pastikan izin diatur publik (Anyone with link)." }, 400);
-      }
-      const html = await resp.text();
-      const files = parseGoogleDriveFolderHtml(html);
+    if (!res.success) {
+      return c.json({ success: false, message: res.message }, res.status);
+    }
+
+    if (res.type === "folder") {
       return c.json({
         success: true,
         type: "folder",
-        data: {
-          files,
-          totalFiles: files.length,
-        },
+        data: res.data,
       });
     }
 
-    // Kasus 2: URL adalah Google Sheets langsung
-    const exportUrl = normalizeGoogleSheetsUrl(url);
-    if (exportUrl) {
-      const resp = await fetch(exportUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-      if (!resp.ok) {
-        return c.json({ success: false, message: "Gagal mengunduh Google Sheets. Pastikan akses diatur publik." }, 400);
-      }
-      const csvText = await resp.text();
-      const parseResult = parseBookCatalogData(csvText);
-      return c.json({
-        success: true,
-        type: "sheet",
-        data: parseResult,
-      });
-    }
-
-    return c.json({ success: false, message: "URL bukan Google Sheets maupun Google Drive Folder yang valid." }, 400);
+    const parseResult = parseBookCatalogData(res.data.csvText);
+    return c.json({
+      success: true,
+      type: "sheet",
+      data: parseResult,
+    });
   } catch (err: unknown) {
     return accessErrorResponse(c, err);
   }
 });
+
 
 bookBulkRouter.post("/bulk-import", zValidator("json", bulkImportBooksPayloadSchema), async (c) => {
   try {
