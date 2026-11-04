@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, ChevronUp, Layers, Package, Send, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, Edit3, Layers, Package, Send, Trash2 } from "lucide-react";
 import type { Book } from "../../types";
 import type { StockPotential } from "../../types/stock-summary";
 import { calcLooseOrderTotal, effectiveSellPrice } from "../../lib/book-pricing";
@@ -13,6 +13,7 @@ interface PackageCardProps {
   onToggleExpand: () => void;
   onOpenBundling: (mode: "bundle" | "unbundle") => void;
   onOpenTransfer?: () => void;
+  onOpenEdit?: () => void;
   deletePackage: (packageId: string) => Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export function PackageCard({
   onToggleExpand,
   onOpenBundling,
   onOpenTransfer,
+  onOpenEdit,
   deletePackage,
 }: PackageCardProps) {
   const readyCount = stock?.readyBundleCount ?? 0;
@@ -145,6 +147,17 @@ export function PackageCard({
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               <span>{isExpanded ? "Tutup" : `Lihat ${pkg.totalItemsCount} Buku`}</span>
             </button>
+
+            {onOpenEdit && (
+              <button
+                onClick={onOpenEdit}
+                title="Edit spesifikasi paket & komponen BOM"
+                className="px-3 py-2 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-[#1877F2]" />
+                Edit Paket
+              </button>
+            )}
 
             <button
               onClick={handleDelete}

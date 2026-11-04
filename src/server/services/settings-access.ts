@@ -8,7 +8,7 @@ import { requireCentralAdmin, resolveLogisticsActor, resolveRequestActor } from 
  * Dipindah dari route agar cut-off vs notifikasi berbagi satu seam
  * dan route pengaturan tinggal memilih area.
  */
-export const assertSettingsAdmin = async (c: Context, area: "cutoff" | "notif"): Promise<void> => {
+export const assertSettingsAdmin = async (c: Context, area: "cutoff" | "notif" | "pricing"): Promise<void> => {
   if (area === "notif") requireCentralAdmin(await resolveRequestActor(c));
   else await resolveLogisticsActor(c);
 };

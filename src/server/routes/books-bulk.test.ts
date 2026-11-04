@@ -156,14 +156,17 @@ describe("POST /api/books/bulk-import", () => {
       .from(bookPackages)
       .where(eq(bookPackages.code, "PKG-SD1-INT-2026-2027"));
     expect(pkg).toBeDefined();
-    expect(pkg.price).toBe(250000);
+    // 250.000 (buku pelajaran) + 750.000 (WPR) = 1.000.000 (§0.28)
+    expect(pkg.price).toBe(1000000);
 
-    // Verify BOM items
+    // Verify BOM items (2 buku pelajaran + 1 WPR)
     const boms = await db
       .select()
       .from(bookPackageItems)
       .where(eq(bookPackageItems.packageId, pkg.id));
-    expect(boms.length).toBe(2);
+    expect(boms.length).toBe(3);
+    const { WPR_BOOK_ID } = await import("../../lib/wpr");
+    expect(boms.some((b) => b.bookId === WPR_BOOK_ID)).toBe(true);
 
     // Clean up
     await db.delete(bookPackages).where(eq(bookPackages.id, pkg.id));

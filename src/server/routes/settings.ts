@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
+import { getWprPriceSetting, saveWprPriceSetting } from "../services/wpr";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   getMetaView,
@@ -122,6 +123,33 @@ settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.
     await assertSettingsAdmin(c, "cutoff");
     const { open } = await setUniformSatuanEnabled(db, c.req.valid("json").enabled);
     return c.json({ success: true, message: `Pembelian satuan seragam ${open ? "dibuka" : "ditutup"}.`, data: { open } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET nominal harga WPR
+settingsRouter.get("/wpr-price", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "pricing");
+    const price = await getWprPriceSetting(db);
+    return c.json({ success: true, data: { price } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST simpan nominal harga WPR
+settingsRouter.post("/wpr-price", zValidator("json", z.object({ price: z.number().int().positive("Nominal WPR harus lebih dari 0") })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "pricing");
+    const { price } = c.req.valid("json");
+    const { updatedPackagesCount } = await saveWprPriceSetting(db, price);
+    return c.json({
+      success: true,
+      message: `Nominal WPR berhasil diubah menjadi Rp ${price.toLocaleString("id-ID")}${updatedPackagesCount > 0 ? ` (${updatedPackagesCount} paket disinkronkan)` : ""}.`,
+      data: { price, updatedPackagesCount },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

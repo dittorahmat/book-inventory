@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Building2, Users, Mail, CalendarClock, MessageSquare, Shirt } from "lucide-react";
 import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSettings";
 import { UniformSatuanToggle } from "../components/settings/UniformSatuanToggle";
+import { WprPriceSettings } from "../components/settings/WprPriceSettings";
 import { UniformNumberingSettings } from "../components/settings/UniformNumberingSettings";
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { MetaWhatsAppSettingsSection } from "../components/settings/MetaWhatsAppSettingsSection";
@@ -156,6 +157,7 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
           </div>
           <SatuanCutoffSettings academicYear={cutoffYear} />
           <UniformSatuanToggle />
+          <WprPriceSettings />
           <div className="pt-4 border-t border-[#E4E6EB]">
             <WarehouseReturnAddressSettings />
           </div>

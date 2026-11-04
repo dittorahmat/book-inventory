@@ -374,6 +374,54 @@ describe("Otorisasi pengaturan cut-off (spec: public-order-satuan)", () => {
     });
     expect(badOverride.status).toBe(400);
   });
+
+  it("membaca dan menyimpan nominal dinamis WPR di pengaturan", async () => {
+    mockActor("central_admin");
+
+    const getRes = await settingsRouter.request("/wpr-price", { method: "GET" });
+    expect(getRes.status).toBe(200);
+    const getJson = await getRes.json();
+    expect(typeof getJson.data.price).toBe("number");
+
+    // Simpan nominal baru
+    const postRes = await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 800000 }),
+    });
+    expect(postRes.status).toBe(200);
+    const postJson = await postRes.json();
+    expect(postJson.data.price).toBe(800000);
+
+    // Ambil ulang memastikan tersimpan
+    const getAgain = await settingsRouter.request("/wpr-price", { method: "GET" });
+    expect((await getAgain.json()).data.price).toBe(800000);
+
+    // Kembalikan ke 750000
+    await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 750000 }),
+    });
+  });
+
+  it("menolak nominal WPR tidak valid", async () => {
+    mockActor("central_admin");
+
+    const negRes = await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: -100 }),
+    });
+    expect(negRes.status).toBe(400);
+
+    const zeroRes = await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 0 }),
+    });
+    expect(zeroRes.status).toBe(400);
+  });
 });
 
 describe("Katalog satuan terpadu cut-off (spec: c4-single-capability)", () => {
