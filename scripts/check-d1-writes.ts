@@ -12,7 +12,7 @@ import { join } from "node:path";
 interface Exception {
   /** Path relatif ber-garis-miring, mis. `src/server/services/foo.ts`. */
   file: string;
-  rule: "R1" | "R2";
+  rule: "R1" | "R2" | "R3";
   /** Alasan pembenaran — tanpa ini, jangan tambahkan pengecualian. */
   reason: string;
 }
@@ -223,6 +223,46 @@ const findConcurrencyViolations = (code: string): Violation[] => {
   return out;
 };
 
+/**
+ * Aturan R3 (§0.27 / §0.52): mendeteksi perulangan loop `for (...)` di dalam router
+ * yang mengeksekusi mutasi langsung Drizzle (.insert / .update).
+ */
+const findRouteLoopMutations = (file: string, code: string): Array<{ rule: "R3"; index: number; detail: string }> => {
+  if (!file.startsWith("src/server/routes/")) return [];
+  const out: Array<{ rule: "R3"; index: number; detail: string }> = [];
+
+  for (const m of code.matchAll(/\bfor\s*\(([^)]*)\)\s*\{/g)) {
+    const loopHeader = m[1];
+    // Abaikan iterasi chunking aman D1 (misal for (const chunk of chunks))
+    if (/chunk/i.test(loopHeader)) continue;
+
+    const openBrace = m.index + m[0].length - 1;
+    let depth = 1;
+    let end = -1;
+    for (let i = openBrace + 1; i < code.length; i++) {
+      if (code[i] === "{") depth++;
+      else if (code[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end < 0) continue;
+    const loopBody = code.slice(openBrace + 1, end);
+    const write = WRITE_CALL.exec(loopBody);
+    if (write) {
+      out.push({
+        rule: "R3",
+        index: m.index,
+        detail: `Loop di file router mengeksekusi mutasi Drizzle (\`${write[0].replace(/\s*\($/, "(")}\`) per baris. Wajib delegasikan ke modul domain service dengan chunkRows / db.batch (§0.27, §0.52).`,
+      });
+    }
+  }
+  return out;
+};
+
 const walk = (dir: string, out: string[] = []): string[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -242,7 +282,7 @@ const lineOf = (src: string, index: number): number => src.slice(0, index).split
 interface Finding {
   file: string;
   line: number;
-  rule: "R1" | "R2";
+  rule: "R1" | "R2" | "R3";
   detail: string;
 }
 
@@ -253,7 +293,7 @@ for (const file of files) {
   const mask = buildMask(src);
   const code = visibleText(src, mask, CODE);
   const content = visibleText(src, mask, STRING);
-  for (const v of [...findChunkViolations(code, content), ...findConcurrencyViolations(code)]) {
+  for (const v of [...findChunkViolations(code, content), ...findConcurrencyViolations(code), ...findRouteLoopMutations(file, code)]) {
     if (REGISTERED_EXCEPTIONS.some((e) => e.file === file && e.rule === v.rule)) continue;
     findings.push({ file, line: lineOf(src, v.index), rule: v.rule, detail: v.detail });
   }
