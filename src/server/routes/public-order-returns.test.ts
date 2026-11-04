@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test";
 import { Hono } from "hono";
-import { publicOrderReturnsRouter } from "./public-order-returns";
+import { publicOrdersRouter } from "./public-orders";
 
 describe("public-order-returns router", () => {
   const app = new Hono();
-  app.route("/api/public/orders", publicOrderReturnsRouter);
+  app.route("/api/public/orders", publicOrdersRouter);
 
   it("validates cancel-withdrawal input schema", async () => {
     const res = await app.request("/api/public/orders/cancel-withdrawal", {
@@ -60,5 +60,16 @@ describe("public-order-returns router", () => {
       }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it("checks pending orders via check-pending endpoint", async () => {
+    const res = await app.request("/api/public/orders/check-pending/std-dummy", {
+      method: "GET",
+    });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: { bookOrder: unknown; uniformOrder: unknown } };
+    expect(json.success).toBe(true);
+    expect(json.data.bookOrder).toBeNull();
+    expect(json.data.uniformOrder).toBeNull();
   });
 });

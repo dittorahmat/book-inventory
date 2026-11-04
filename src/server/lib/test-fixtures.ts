@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../../db";
-import { schools, students, studentBookOrders } from "../../db/schema";
+import { schools, students, studentBookOrders, bookPackages, books } from "../../db/schema";
 
 export interface TestSchoolOverrides {
   id?: string;
@@ -77,6 +77,7 @@ export interface TestBookOrderOverrides {
   totalAmount?: number;
   paidAmount?: number;
   packageId?: string | null;
+  assignedPackageItemId?: string | null;
 }
 
 export async function createTestBookOrder(
@@ -107,9 +108,76 @@ export async function createTestBookOrder(
     totalAmount: overrides.totalAmount ?? 500000,
     paidAmount: overrides.paidAmount ?? 500000,
     packageId: overrides.packageId ?? null,
+    assignedPackageItemId: overrides.assignedPackageItemId ?? null,
     createdAt: now,
     updatedAt: now,
   };
   await database.insert(studentBookOrders).values(row);
+  return row;
+}
+
+export interface TestPackageOverrides {
+  id?: string;
+  code?: string;
+  name?: string;
+  gradeLevel?: string;
+  curriculumType?: "international" | "national";
+  academicYear?: string;
+  price?: number;
+}
+
+export async function createTestPackage(
+  database: AppDatabase,
+  overrides: TestPackageOverrides = {}
+) {
+  const stamp = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+  const row = {
+    id: overrides.id ?? `pkg-test-${stamp}`,
+    code: overrides.code ?? `PKG-${stamp.slice(-6).toUpperCase()}`,
+    name: overrides.name ?? `Paket Uji ${stamp}`,
+    gradeLevel: overrides.gradeLevel ?? "1",
+    curriculumType: overrides.curriculumType ?? ("international" as const),
+    academicYear: overrides.academicYear ?? "2026/2027",
+    price: overrides.price ?? 500000,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await database.insert(bookPackages).values(row).onConflictDoNothing();
+  return row;
+}
+
+export interface TestBookOverrides {
+  id?: string;
+  isbn?: string;
+  title?: string;
+  author?: string;
+  publisher?: string;
+  gradeLevel?: string;
+  curriculumType?: "international" | "national";
+  academicYear?: string;
+  sellPrice?: number;
+}
+
+export async function createTestBook(
+  database: AppDatabase,
+  overrides: TestBookOverrides = {}
+) {
+  const stamp = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+  const row = {
+    id: overrides.id ?? `book-test-${stamp}`,
+    isbn: overrides.isbn ?? `ISBN-${stamp.slice(-6).toUpperCase()}`,
+    title: overrides.title ?? `Buku Uji ${stamp}`,
+    author: overrides.author ?? "Penulis Uji",
+    publisher: overrides.publisher ?? "Penerbit Uji",
+    gradeLevel: overrides.gradeLevel ?? "1",
+    curriculumType: overrides.curriculumType ?? ("international" as const),
+    academicYear: overrides.academicYear ?? "2026/2027",
+    sellPrice: overrides.sellPrice ?? 100000,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await database.insert(books).values(row).onConflictDoNothing();
   return row;
 }

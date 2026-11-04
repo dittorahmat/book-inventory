@@ -55,6 +55,15 @@ export const bookReturnStatus = (status: string): BookReturnStatusView => {
       blockedReason: "Pengajuan refund untuk pesanan ini sudah dikirim dan sedang diperiksa logistik.",
     };
   }
+  if (status === "superseded") {
+    return {
+      text: "Tertimpa (Superseded)",
+      cls: "text-slate-700 bg-slate-100 border-slate-200",
+      returnable: false,
+      withdrawable: false,
+      blockedReason: "Pesanan ini sudah digantikan oleh pesanan revisi yang baru.",
+    };
+  }
   return {
     text: "Belum diserahkan",
     cls: "text-amber-700 bg-amber-50 border-amber-200",

@@ -6,6 +6,7 @@ export interface OrderTotalsInput {
   studentId: string;
   packageMode: boolean;
   packageId?: string;
+  replacePendingOrderId?: string | null;
   packagePrice: number;
   looseItems: Array<{ bookId: string; quantity: number }>;
   looseTotal: number;
@@ -66,6 +67,7 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
 
   return {
     studentId: input.studentId,
+    ...(input.replacePendingOrderId ? { replacePendingOrderId: input.replacePendingOrderId } : {}),
     ...(input.packageMode ? { packageId: input.packageId } : { looseItems }),
     ...(input.homeAddress?.trim() ? { homeAddress: input.homeAddress.trim() } : {}),
     orderType: input.orderType,

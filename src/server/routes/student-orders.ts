@@ -93,6 +93,7 @@ studentOrdersRouter.get("/", async (c) => {
       shippingResi: studentBookOrders.shippingResi,
       invoiceSentAt: studentBookOrders.invoiceSentAt,
       scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
+      supersededByOrderId: studentBookOrders.supersededByOrderId,
       notes: studentBookOrders.notes,
       createdAt: studentBookOrders.createdAt,
     })

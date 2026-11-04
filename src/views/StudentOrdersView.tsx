@@ -120,6 +120,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
               { value: "all", label: "Semua Status Buku" },
               { value: "waiting_preparation", label: "Belum Diambil" },
               { value: "picked_up", label: "Sudah Diambil" },
+              { value: "superseded", label: "Tertimpa (Superseded)" },
             ]}
             value={fulfillmentFilter}
             onChange={setFulfillmentFilter}

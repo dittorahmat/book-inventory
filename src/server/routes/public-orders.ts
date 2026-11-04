@@ -23,6 +23,8 @@ import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema, base64UploadSchema } from "../lib/validators";
 import { getWarehouseReturnAddress } from "../services/return-address";
+import { handleOrderReplacement } from "../services/order-reallocation";
+import { findPendingOrdersForStudent } from "../services/order-supersede";
 import {
   searchVerifiedStudents,
   toBookSearchView,
@@ -31,6 +33,16 @@ import {
 import { publicOrderReturnsRouter } from "./public-order-returns";
 export const publicOrdersRouter = new Hono();
 publicOrdersRouter.route("/", publicOrderReturnsRouter);
+
+// Pengecekan pesanan gantung murid sebelum submit portal (ADR-0021)
+publicOrdersRouter.get("/check-pending/:studentId", async (c) => {
+  const studentId = c.req.param("studentId");
+  if (!studentId) {
+    return c.json({ success: false, message: "ID murid wajib diisi" }, 400);
+  }
+  const pending = await findPendingOrdersForStudent(db, studentId);
+  return c.json({ success: true, data: pending });
+});
 
 // Schema for student search
 const searchStudentSchema = z.object({
@@ -71,6 +83,7 @@ const submitOrderSchema = z
     scholarshipProofBase64: base64UploadSchema, // For scholarship 100% discount
     financeProofBase64: base64UploadSchema, // Surat Keterangan Finance
     parentPhoneManual: z.string().min(6, "Nomor WhatsApp pembayar wajib diisi minimal 6 karakter").optional(),
+    replacePendingOrderId: idSchema.optional(),
     // Optional payment info submitted immediately
     payment: z
       .object({
@@ -205,6 +218,18 @@ publicOrdersRouter.post("/submit", zValidator("json", submitOrderSchema), async 
     return c.json({ success: false, message: result.message }, result.status);
   }
 
+  // Jika opsi penggantian pesanan lama dipilih (ADR-0021)
+  if (body.replacePendingOrderId) {
+    const rep = await handleOrderReplacement(db, {
+      kind: "buku",
+      oldOrderId: body.replacePendingOrderId,
+      newOrderId: result.data.order.id,
+    });
+    if (!rep.ok) {
+      return c.json({ success: false, message: rep.message ?? "Gagal mengganti pesanan lama" }, rep.status ?? 400);
+    }
+  }
+
   // Notifikasi WhatsApp ke orang tua: ditunggu hasilnya dan dilaporkan ke
   // pemanggil (bukan fire-and-forget). Kegagalan notifikasi TIDAK menggagalkan
   // pesanan yang sudah terbentuk — hanya tercatat di respons.
@@ -296,6 +321,7 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
       handoverDate: studentBookOrders.handoverDate,
       handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
       handoverRecipient: studentBookOrders.handoverRecipient,
+      supersededByOrderId: studentBookOrders.supersededByOrderId,
     })
     .from(studentBookOrders)
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))

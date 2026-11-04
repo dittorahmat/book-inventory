@@ -239,6 +239,9 @@ export const buildReceiptDraft = (
   };
 };
 
+export const allocationInsertQueries = (database: AppDatabase, allocations: AllocationRow[]) =>
+  chunkRows(allocations).map((rows) => database.insert(paymentAllocations).values(rows));
+
 /**
  * Query insert kanonik untuk satu draft struk. Pemanggil menempelkannya ke
  * batch atomiknya sendiri (order + struk), jadi hanya modul ini yang merakit
@@ -246,7 +249,7 @@ export const buildReceiptDraft = (
  */
 export const receiptWriteQueries = (database: AppDatabase, draft: ReceiptDraft) => [
   database.insert(paymentReceipts).values(draft.receipt),
-  ...chunkRows(draft.allocations).map((rows) => database.insert(paymentAllocations).values(rows)),
+  ...allocationInsertQueries(database, draft.allocations),
 ];
 
 /** Duplikat identitas struk (bank + nomor referensi) = 409, bukan 400 generik. */
@@ -296,6 +299,20 @@ export const receiptNumberConflict = (err: unknown): boolean => {
   const message = err instanceof Error ? err.message : String(err);
   return /UNIQUE/i.test(message) && /payment_receipts/i.test(message);
 };
+
+/**
+ * Satu-satunya pembuat query mutasi alokasi untuk pemindahan/realokasi order
+ * (ADR-0021). Menjaga kepatuhan single-writer pada tabel payment_allocations.
+ */
+export const reallocateAllocationQuery = (
+  database: AppDatabase,
+  allocationId: string,
+  newOrderId: string
+) =>
+  database
+    .update(paymentAllocations)
+    .set({ orderId: newOrderId })
+    .where(eq(paymentAllocations.id, allocationId));
 
 /** Siklus hidup struk: rejected > verified > pending. Murni. */
 export type PaymentRowStatus = "pending" | "verified" | "rejected";

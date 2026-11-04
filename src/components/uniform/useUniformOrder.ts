@@ -1,4 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { checkPendingOrders, type PendingOrderSummary } from "../portal/portal-api";
 import { gradeToJenjang, type UniformCatalog, type UniformStudent } from "../../lib/uniform-types";
 import type { SchoolOption } from "../../lib/portal-types";
 import {
@@ -30,10 +31,25 @@ export function useUniformOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ orderNumber: string; total: number } | null>(null);
+  const [pendingUniformOrder, setPendingUniformOrder] = useState<PendingOrderSummary | null>(null);
+  const [pendingStudentTarget, setPendingStudentTarget] = useState<UniformStudent | null>(null);
+  const [replacePendingOrderId, setReplacePendingOrderId] = useState<string | null>(null);
 
   const search = useStudentSearch<UniformStudent>({
     schools,
-    onSelectStudent: (s) => selectStudent(s),
+    onSelectStudent: async (s) => {
+      try {
+        const pending = await checkPendingOrders(s.id);
+        if (pending.uniformOrder) {
+          setPendingStudentTarget(s);
+          setPendingUniformOrder(pending.uniformOrder);
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+      selectStudent(s);
+    },
     onError: setError,
     searchFn: searchUniformStudents,
   });
@@ -185,6 +201,7 @@ export function useUniformOrder() {
         items,
         sizeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
         notes: notes.trim() || undefined,
+        ...(replacePendingOrderId ? { replacePendingOrderId } : {}),
         ...(orderType === "scholarship" ? { orderType, scholarshipProofBase64: scholarshipProof } : {}),
       });
       setSuccess({ orderNumber: res.order.orderNumber, total: res.totalAmount });
@@ -204,6 +221,27 @@ export function useUniformOrder() {
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
+    pendingUniformOrder,
+    confirmReplaceOrder: () => {
+      if (pendingStudentTarget && pendingUniformOrder) {
+        setReplacePendingOrderId(pendingUniformOrder.id);
+        selectStudent(pendingStudentTarget);
+        setPendingUniformOrder(null);
+        setPendingStudentTarget(null);
+      }
+    },
+    confirmKeepAndAddOrder: () => {
+      if (pendingStudentTarget) {
+        setReplacePendingOrderId(null);
+        selectStudent(pendingStudentTarget);
+        setPendingUniformOrder(null);
+        setPendingStudentTarget(null);
+      }
+    },
+    cancelPendingModal: () => {
+      setPendingUniformOrder(null);
+      setPendingStudentTarget(null);
+    },
   };
 }
 

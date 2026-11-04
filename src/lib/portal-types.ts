@@ -77,7 +77,7 @@ export interface PortalOrderLookup {
   schoolName: string;
   packageId: string | null;
   packageName: string | null;
-  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress";
+  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress" | "superseded";
   paymentStatus: string;
   handoverDate: string | null;
   handoverDeliveryNumber: string | null;

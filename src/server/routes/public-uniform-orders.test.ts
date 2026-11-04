@@ -342,4 +342,33 @@ describe("Portal retur seragam mandiri", () => {
     expect(rfRow.courierResi).toBe("JNE-RETI-00129");
     expect(rfRow.letterProofUrl).toBeTruthy();
   });
+
+  it("replaces pending uniform order on submit (ADR-0021)", async () => {
+    const stamp = `u_rep_${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const { kainId } = await seedCatalog(stamp);
+    await seedPriorOrder(schoolId, studentId, stamp);
+
+    const addr = "Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418";
+    // Order 1 (gantung)
+    const first = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+    });
+    expect(first.status).toBe(201);
+    const firstId = (await first.json()).data.order.id as string;
+
+    // Order 2 menggantikan order 1
+    const second = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 2 }],
+      replacePendingOrderId: firstId,
+    });
+    expect(second.status).toBe(201);
+    const secondId = (await second.json()).data.order.id as string;
+
+    const [oldOrder] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, firstId));
+    expect(oldOrder.shipmentStatus).toBe("superseded");
+    expect(oldOrder.supersededByOrderId).toBe(secondId);
+  });
 });

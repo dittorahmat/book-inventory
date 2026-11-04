@@ -146,7 +146,19 @@ export function StudentOrdersTable({
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      {isPickedUp ? (                        <div>
+                      {o.fulfillmentStatus === "superseded" ? (
+                        <div>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700">
+                            TERTIMPA (SUPERSEDED)
+                          </span>
+                          {o.supersededByOrderId && (
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              Digantikan: #{o.supersededByOrderId.slice(-6).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                      ) : isPickedUp ? (
+                        <div>
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800">
                             SUDAH DIAMBIL
                           </span>

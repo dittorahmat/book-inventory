@@ -24,6 +24,7 @@ export interface OrderDraft {
   paketKirim: boolean;
   hasTakenPackage: boolean | null;
   wprPrice: number;
+  replacePendingOrderId?: string | null;
 }
 
 /** Tiga slot bukti dokumen portal; satu pintu lampiran, bukan tiga setter. */
@@ -56,6 +57,8 @@ export interface OrderDraftActions {
   setPaketKirim: (value: boolean) => void;
   /** Harga WPR hasil kelayakan murid. */
   setWprPrice: (price: number) => void;
+  /** Pilih merevisi/menggantikan pesanan gantung lama (ADR-0021). */
+  setReplacePendingOrderId: (orderId: string | null) => void;
 }
 
 const EMPTY_DRAFT: OrderDraft = {
@@ -74,6 +77,7 @@ const EMPTY_DRAFT: OrderDraft = {
   paketKirim: false,
   hasTakenPackage: null,
   wprPrice: 0,
+  replacePendingOrderId: null,
 };
 
 export function useOrderDraft(initialWprPrice: number) {
@@ -96,6 +100,7 @@ export function useOrderDraft(initialWprPrice: number) {
       setHasTakenPackage: (hasTakenPackage) => setDraft((previous) => ({ ...previous, hasTakenPackage })),
       setPaketKirim: (paketKirim) => setDraft((previous) => ({ ...previous, paketKirim })),
       setWprPrice: (wprPrice) => setDraft((previous) => ({ ...previous, wprPrice })),
+      setReplacePendingOrderId: (replacePendingOrderId) => setDraft((previous) => ({ ...previous, replacePendingOrderId })),
     }),
     []
   );

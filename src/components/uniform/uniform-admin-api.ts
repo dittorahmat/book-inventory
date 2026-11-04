@@ -20,7 +20,7 @@ export interface UniformOrderRow {
   gradeLevel: string;
   schoolId: string;
   schoolName: string;
-  shipmentStatus: "belum_dikirim" | "sudah_dikirim";
+  shipmentStatus: "belum_dikirim" | "sudah_dikirim" | "superseded";
   shippedAt: string | null;
   totalAmount: number;
   paidAmount?: number;

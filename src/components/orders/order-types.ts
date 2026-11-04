@@ -15,7 +15,8 @@ export interface StudentOrder {
   packageCode?: string;
   orderType: "regular" | "scholarship";
   paymentStatus: "unpaid" | "partial" | "paid" | "scholarship_pending" | "scholarship_approved" | "scholarship_rejected";
-  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress";
+  fulfillmentStatus: "waiting_preparation" | "ready_for_pickup" | "picked_up" | "return_in_progress" | "superseded";
+  supersededByOrderId?: string | null;
   totalAmount: number;
   paidAmount: number;
   handoverDeliveryNumber?: string;

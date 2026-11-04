@@ -32,6 +32,7 @@ const actions: OrderDraftActions = {
   setHasTakenPackage: noop,
   setPaketKirim: noop,
   setWprPrice: noop,
+  setReplacePendingOrderId: noop,
 };
 
 const draft = (overrides: Partial<OrderDraft> = {}): OrderDraft => ({

@@ -6,6 +6,7 @@ import { db } from "../../db";
 import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
 import { matchLower } from "../lib/partitioned-search";
 import { idSchema, academicYearSchema, base64UploadSchema } from "../lib/validators";
+import { handleOrderReplacement } from "../services/order-reallocation";
 import {
   findUniformExchange,
   listUniformPackages,
@@ -47,6 +48,7 @@ const submitUniformOrderSchema = z
     notes: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
     scholarshipProofBase64: base64UploadSchema,
+    replacePendingOrderId: idSchema.optional(),
   })
   .refine((v) => v.items.every((i) => (i.packageId ? 1 : 0) + (i.variantId ? 1 : 0) === 1), {
     message: "Tiap baris wajib paket atau satuan, bukan keduanya",
@@ -90,8 +92,21 @@ publicUniformOrdersRouter.get("/satuan-status", async (c) => {
 });
 
 publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderSchema), async (c) => {
-  const result = await submitUniformOrder(db, c.req.valid("json"));
+  const body = c.req.valid("json");
+  const result = await submitUniformOrder(db, body);
   if (!result.ok) return c.json({ success: false, message: result.message }, result.status);
+
+  if (body.replacePendingOrderId) {
+    const rep = await handleOrderReplacement(db, {
+      kind: "seragam",
+      oldOrderId: body.replacePendingOrderId,
+      newOrderId: result.data.order.id,
+    });
+    if (!rep.ok) {
+      return c.json({ success: false, message: rep.message ?? "Gagal mengganti pesanan lama" }, rep.status ?? 400);
+    }
+  }
+
   return c.json({ success: true, data: result.data }, 201);
 });
 
@@ -136,6 +151,7 @@ publicUniformOrdersRouter.get("/lookup-order", zValidator("query", lookupQuerySc
       academicYear: uniformOrders.academicYear,
       shipmentStatus: uniformOrders.shipmentStatus,
       shippedAt: uniformOrders.shippedAt,
+      supersededByOrderId: uniformOrders.supersededByOrderId,
       totalAmount: uniformOrders.totalAmount,
       createdAt: uniformOrders.createdAt,
     })

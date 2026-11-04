@@ -57,6 +57,7 @@ export interface SubmitPublicOrderInput {
   parentPhoneManual?: string;
   payment?: PaymentSubmissionInput;
   notes?: string;
+  replacePendingOrderId?: string;
 }
 
 export type SubmitPublicOrderResult =
