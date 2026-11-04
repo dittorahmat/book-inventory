@@ -102,28 +102,29 @@ booksRouter.get("/", async (c) => {
   try {
     await resolveLogisticsActor(c);
     const allBooks: Array<typeof books.$inferSelect> = await db.select().from(books);
-  const links: Array<{ bookId: string; supplierId: string }> =
-    allBooks.length === 0
-      ? []
-      : await db
+    const byBook = new Map<string, string[]>();
+
+    if (allBooks.length > 0) {
+      // Chunking agar tidak melanggar batas variabel SQLite / D1 parameter limit saat katalog memuat ratusan buku
+      const bookIds = allBooks.map((b: typeof books.$inferSelect) => b.id);
+      for (const idChunk of chunkRows(bookIds, 50)) {
+        const links: Array<{ bookId: string; supplierId: string }> = await db
           .select({ bookId: bookSuppliers.bookId, supplierId: bookSuppliers.supplierId })
           .from(bookSuppliers)
-          .where(
-            inArray(
-              bookSuppliers.bookId,
-              allBooks.map((b: typeof books.$inferSelect) => b.id)
-            )
-          );
-  const byBook = new Map<string, string[]>();
-  for (const l of links) {
-    const list = byBook.get(l.bookId) ?? [];
-    list.push(l.supplierId);
-    byBook.set(l.bookId, list);
-  }
-  return c.json({
-    success: true,
-    data: allBooks.map((b: typeof books.$inferSelect) => ({ ...withEffectivePrices(b), supplierIds: byBook.get(b.id) ?? [] })),
-  });
+          .where(inArray(bookSuppliers.bookId, idChunk));
+
+        for (const l of links) {
+          const list = byBook.get(l.bookId) ?? [];
+          list.push(l.supplierId);
+          byBook.set(l.bookId, list);
+        }
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: allBooks.map((b: typeof books.$inferSelect) => ({ ...withEffectivePrices(b), supplierIds: byBook.get(b.id) ?? [] })),
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
