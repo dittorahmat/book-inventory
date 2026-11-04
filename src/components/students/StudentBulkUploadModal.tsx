@@ -39,6 +39,7 @@ export function StudentBulkUploadModal({
   const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   const [parsedStudents, setParsedStudents] = useState<ParsedStudentRow[]>([]);
+  const [totalRawRead, setTotalRawRead] = useState<number>(0);
   const [skippedRows, setSkippedRows] = useState<SkippedStudentRow[]>([]);
   const [sheetName, setSheetName] = useState<string>("");
 
@@ -55,6 +56,7 @@ export function StudentBulkUploadModal({
     endpoint: "/api/students/parse-drive-url",
     onSingleSheetParsed: ({ validItems, skippedRows: sk, sheetName: sName }) => {
       setParsedStudents(validItems);
+      setTotalRawRead(validItems.length + sk.length);
       setSkippedRows(sk);
       setSheetName(sName);
       setFileName("Google Sheets Data");
@@ -75,11 +77,13 @@ export function StudentBulkUploadModal({
       const buffer = await file.arrayBuffer();
       const res = parseStudentData(buffer);
       setParsedStudents(res.validStudents);
+      setTotalRawRead(res.validStudents.length + res.skippedRows.length);
       setSkippedRows(res.skippedRows);
       setSheetName(res.sheetName);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal memproses berkas");
       setParsedStudents([]);
+      setTotalRawRead(0);
       setSkippedRows([]);
     } finally {
       setIsParsingFile(false);
@@ -107,6 +111,7 @@ export function StudentBulkUploadModal({
       return { count: 0, warning: "Tidak ada baris siswa valid" };
     }
 
+    setTotalRawRead((prev) => prev + newStudents.length);
     setParsedStudents((prev) => {
       const existingNis = new Set(prev.map((s) => s.nis));
       const nonDuplicate = newStudents.filter((s) => !existingNis.has(s.nis));
@@ -269,6 +274,7 @@ export function StudentBulkUploadModal({
             <div className="space-y-3">
               <DriveFolderBatchRunner
                 files={folderFiles}
+                uniqueItemsCount={parsedStudents.length}
                 onProcessFile={handleBatchProcessFile}
                 onComplete={() => {
                   setFileName(`Semua Berkas Folder (${folderFiles.length} file)`);
@@ -291,7 +297,12 @@ export function StudentBulkUploadModal({
             </div>
           )}
 
-          <StudentImportPreview parsedStudents={parsedStudents} skippedRows={skippedRows} sheetName={sheetName} />
+          <StudentImportPreview
+            parsedStudents={parsedStudents}
+            skippedRows={skippedRows}
+            sheetName={sheetName}
+            totalRawRead={totalRawRead}
+          />
 
           {(error || driveError) && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700">
@@ -328,7 +339,7 @@ export function StudentBulkUploadModal({
                 <span>Menyimpan ke Database...</span>
               </>
             ) : (
-              <span>Simpan {parsedStudents.length > 0 ? `${parsedStudents.length} Siswa` : ""}</span>
+              <span>Simpan {parsedStudents.length > 0 ? `${parsedStudents.length} Data Siswa` : ""}</span>
             )}
           </button>
         </div>

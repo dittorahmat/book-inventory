@@ -24,6 +24,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
   const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   const [parsedBooks, setParsedBooks] = useState<ParsedBookRow[]>([]);
+  const [totalRawRead, setTotalRawRead] = useState<number>(0);
   const [skippedRows, setSkippedRows] = useState<SkippedBookRow[]>([]);
   const [sheetName, setSheetName] = useState<string>("");
   const [autoCreatePackages, setAutoCreatePackages] = useState<boolean>(true);
@@ -42,6 +43,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
     endpoint: "/api/books/parse-drive-url",
     onSingleSheetParsed: ({ validItems, skippedRows: sk, sheetName: sName }) => {
       setParsedBooks(validItems);
+      setTotalRawRead(validItems.length + sk.length);
       setSkippedRows(sk);
       setSheetName(sName);
       setFileName("Google Sheets Catalog");
@@ -62,11 +64,13 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       const buffer = await file.arrayBuffer();
       const res = parseBookCatalogData(buffer);
       setParsedBooks(res.validBooks);
+      setTotalRawRead(res.validBooks.length + res.skippedRows.length);
       setSkippedRows(res.skippedRows);
       setSheetName(res.sheetName);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal membaca berkas katalog");
       setParsedBooks([]);
+      setTotalRawRead(0);
       setSkippedRows([]);
     } finally {
       setIsParsingFile(false);
@@ -94,6 +98,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       return { count: 0, warning: "Tidak ada baris buku valid" };
     }
 
+    setTotalRawRead((prev) => prev + newBooks.length);
     setParsedBooks((prev) => {
       const existingKeys = new Set(prev.map((b) => `${b.title.toLowerCase()}_${b.gradeLevel}`));
       const nonDuplicate = newBooks.filter(
@@ -250,6 +255,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             <div className="space-y-3">
               <DriveFolderBatchRunner
                 files={folderFiles}
+                uniqueItemsCount={parsedBooks.length}
                 onProcessFile={handleBatchProcessFile}
                 onComplete={() => {
                   setFileName(`Semua Berkas Folder (${folderFiles.length} file)`);
@@ -271,7 +277,11 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             </div>
           )}
 
-          <BookImportPreview parsedBooks={parsedBooks} sheetName={sheetName} />
+          <BookImportPreview
+            parsedBooks={parsedBooks}
+            sheetName={sheetName}
+            totalRawRead={totalRawRead}
+          />
 
 
           {skippedRows.length > 0 && (
@@ -325,7 +335,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
                 <span>Menyimpan ke Katalog...</span>
               </>
             ) : (
-              <span>Simpan {parsedBooks.length > 0 ? `${parsedBooks.length} Buku` : ""}</span>
+              <span>Simpan {parsedBooks.length > 0 ? `${parsedBooks.length} Judul Buku` : ""}</span>
             )}
           </button>
         </div>

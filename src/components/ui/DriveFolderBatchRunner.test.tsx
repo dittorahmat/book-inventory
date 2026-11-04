@@ -89,4 +89,27 @@ describe("DriveFolderBatchRunner", () => {
 
     expect(completed).toBe(false);
   });
+
+  it("displays clear breakdown when uniqueItemsCount has duplicates", async () => {
+    render(
+      <DriveFolderBatchRunner
+        files={dummyFiles}
+        uniqueItemsCount={6}
+        onProcessFile={async () => ({ count: 5 })}
+        onComplete={() => {}}
+      />
+    );
+
+    const startBtn = screen.getByText("Mulai Proses Semua");
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeDefined();
+    });
+
+    // Total rows = 10, unique = 6, duplicates = 4
+    expect(screen.getByText(/Total akumulasi data terbaca:/)).toBeDefined();
+    expect(screen.getByText(/Disaring menjadi/)).toBeDefined();
+    expect(screen.getByText(/4 duplikat otomatis diabaikan/)).toBeDefined();
+  });
 });

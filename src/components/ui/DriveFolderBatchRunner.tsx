@@ -16,6 +16,7 @@ interface DriveFolderBatchRunnerProps {
   onProcessFile: (file: DriveFolderItem) => Promise<{ count: number; warning?: string }>;
   onComplete: () => void;
   title?: string;
+  uniqueItemsCount?: number;
 }
 
 export function DriveFolderBatchRunner({
@@ -23,6 +24,7 @@ export function DriveFolderBatchRunner({
   onProcessFile,
   onComplete,
   title = "Proses Semua Berkas Folder",
+  uniqueItemsCount,
 }: DriveFolderBatchRunnerProps) {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -152,10 +154,20 @@ export function DriveFolderBatchRunner({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-[#65676B] pt-1">
-            <span>
-              Total akumulasi data terbaca: <strong className="text-[#050505]">{totalItemsCount}</strong> item
-            </span>
+          <div className="flex flex-col gap-1 text-[11px] text-[#65676B] pt-1">
+            <div>
+              Total akumulasi data terbaca: <strong className="text-[#050505]">{totalItemsCount}</strong> baris
+            </div>
+            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount < totalItemsCount && (
+              <div className="text-emerald-700 font-medium">
+                → Disaring menjadi <strong>{uniqueItemsCount}</strong> item unik ({totalItemsCount - uniqueItemsCount} duplikat otomatis diabaikan)
+              </div>
+            )}
+            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount === totalItemsCount && (
+              <div className="text-[#65676B]">
+                (Seluruh {uniqueItemsCount} item unik tanpa duplikat)
+              </div>
+            )}
           </div>
 
           <div className="max-h-36 overflow-y-auto border border-blue-200 bg-white rounded-lg divide-y divide-[#E4E6EB]">
