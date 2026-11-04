@@ -4,10 +4,16 @@ import type { ParsedBookRow } from "../../lib/book-import-parser";
 interface BookImportPreviewProps {
   parsedBooks: ParsedBookRow[];
   sheetName: string;
+  totalRawRead?: number;
 }
 
-export function BookImportPreview({ parsedBooks, sheetName }: BookImportPreviewProps) {
+export function BookImportPreview({ parsedBooks, sheetName, totalRawRead }: BookImportPreviewProps) {
   if (parsedBooks.length === 0) return null;
+
+  const duplicatesSkipped =
+    typeof totalRawRead === "number" && totalRawRead > parsedBooks.length
+      ? totalRawRead - parsedBooks.length
+      : 0;
 
   return (
     <div className="space-y-2">
@@ -15,7 +21,14 @@ export function BookImportPreview({ parsedBooks, sheetName }: BookImportPreviewP
         <span className="font-semibold text-[#050505]">
           Pratinjau Hasil Pembacaan {sheetName && `(Sheet: ${sheetName})`}
         </span>
-        <span className="text-emerald-600 font-bold">{parsedBooks.length} judul siap diimpor</span>
+        <div className="text-right">
+          <span className="text-emerald-600 font-bold">{parsedBooks.length} judul buku unik siap diimpor</span>
+          {duplicatesSkipped > 0 && (
+            <div className="text-[10px] text-[#65676B]">
+              ({duplicatesSkipped} duplikat judul & kelas otomatis diabaikan)
+            </div>
+          )}
+        </div>
       </div>
       <div className="border border-[#E4E6EB] rounded-xl overflow-hidden max-h-40 overflow-y-auto text-[11px]">
         <table className="w-full text-left">

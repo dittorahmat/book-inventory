@@ -5,13 +5,20 @@ interface StudentImportPreviewProps {
   parsedStudents: ParsedStudentRow[];
   skippedRows: SkippedStudentRow[];
   sheetName: string;
+  totalRawRead?: number;
 }
 
 export function StudentImportPreview({
   parsedStudents,
   skippedRows,
   sheetName,
+  totalRawRead,
 }: StudentImportPreviewProps) {
+  const duplicatesSkipped =
+    typeof totalRawRead === "number" && totalRawRead > parsedStudents.length
+      ? totalRawRead - parsedStudents.length
+      : 0;
+
   return (
     <div className="space-y-3">
       {parsedStudents.length > 0 && (
@@ -20,9 +27,16 @@ export function StudentImportPreview({
             <span className="font-semibold text-[#050505]">
               Pratinjau Hasil Pembacaan {sheetName && `(Sheet: ${sheetName})`}
             </span>
-            <span className="text-emerald-600 font-bold">
-              {parsedStudents.length} siswa siap diimpor
-            </span>
+            <div className="text-right">
+              <span className="text-emerald-600 font-bold">
+                {parsedStudents.length} siswa unik siap diimpor
+              </span>
+              {duplicatesSkipped > 0 && (
+                <div className="text-[10px] text-[#65676B]">
+                  ({duplicatesSkipped} duplikat NIS otomatis diabaikan)
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="border border-[#E4E6EB] rounded-xl overflow-hidden max-h-40 overflow-y-auto text-[11px]">

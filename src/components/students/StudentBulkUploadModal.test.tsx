@@ -2,6 +2,7 @@ import "../../test-dom";
 import { afterEach, describe, it, expect } from "bun:test";
 const { cleanup, render, screen } = await import("@testing-library/react");
 import { StudentBulkUploadModal } from "./StudentBulkUploadModal";
+import { StudentImportPreview } from "./StudentImportPreview";
 
 afterEach(() => {
   cleanup();
@@ -21,5 +22,30 @@ describe("StudentBulkUploadModal", () => {
     expect(screen.getByText("Format CSV")).toBeDefined();
     expect(screen.getByText("Upload Berkas (.xlsx / .xlsm / .csv)")).toBeDefined();
     expect(screen.getByText("Link Google Sheets / Drive Folder")).toBeDefined();
+  });
+
+  it("renders preview with unique badge and duplicate count breakdown", () => {
+    render(
+      <StudentImportPreview
+        parsedStudents={[
+          {
+            nis: "1001",
+            name: "Ahmad",
+            gradeLevel: "1",
+            academicYear: "2026/2027",
+            curriculumType: "national",
+            gender: "male",
+            parentName: "Ayah",
+            parentPhone: "0812345678",
+          },
+        ]}
+        skippedRows={[]}
+        sheetName="Kelas 1"
+        totalRawRead={3}
+      />
+    );
+
+    expect(screen.getByText("1 siswa unik siap diimpor")).toBeDefined();
+    expect(screen.getByText("(2 duplikat NIS otomatis diabaikan)")).toBeDefined();
   });
 });
