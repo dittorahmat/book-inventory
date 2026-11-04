@@ -4,8 +4,6 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
 import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
 import { getWprPriceSetting, saveWprPriceSetting } from "../services/wpr";
-import { recalcPackagesUsingBook } from "../services/pricing";
-import { WPR_BOOK_ID } from "../../lib/wpr";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   getMetaView,
@@ -133,7 +131,7 @@ settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.
 // GET nominal harga WPR
 settingsRouter.get("/wpr-price", async (c) => {
   try {
-    await assertSettingsAdmin(c, "cutoff");
+    await assertSettingsAdmin(c, "pricing");
     const price = await getWprPriceSetting(db);
     return c.json({ success: true, data: { price } });
   } catch (err) {
@@ -144,15 +142,13 @@ settingsRouter.get("/wpr-price", async (c) => {
 // POST simpan nominal harga WPR
 settingsRouter.post("/wpr-price", zValidator("json", z.object({ price: z.number().int().positive("Nominal WPR harus lebih dari 0") })), async (c) => {
   try {
-    await assertSettingsAdmin(c, "cutoff");
+    await assertSettingsAdmin(c, "pricing");
     const { price } = c.req.valid("json");
-    await saveWprPriceSetting(db, price);
-    // Sinkronkan harga all-in seluruh paket buku yang mengandung WPR (§0.28)
-    const updatedCount = await recalcPackagesUsingBook(db, WPR_BOOK_ID);
+    const { updatedPackagesCount } = await saveWprPriceSetting(db, price);
     return c.json({
       success: true,
-      message: `Nominal WPR berhasil diubah menjadi Rp ${price.toLocaleString("id-ID")}${updatedCount > 0 ? ` (${updatedCount} paket disinkronkan)` : ""}.`,
-      data: { price, updatedPackagesCount: updatedCount },
+      message: `Nominal WPR berhasil diubah menjadi Rp ${price.toLocaleString("id-ID")}${updatedPackagesCount > 0 ? ` (${updatedPackagesCount} paket disinkronkan)` : ""}.`,
+      data: { price, updatedPackagesCount },
     });
   } catch (err) {
     return accessErrorResponse(c, err);

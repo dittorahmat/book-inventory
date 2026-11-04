@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { apiEnvelope, postJson } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { WPR_PRICE } from "../../lib/wpr";
 
 /** Pengaturan nominal WPR (Weekly Progress Report) tahunan buku Al-Wildan. */
 export function WprPriceSettings() {
-  const [price, setPrice] = useState<number>(750000);
-  const [inputVal, setInputVal] = useState<string>("750000");
+  const [price, setPrice] = useState<number>(WPR_PRICE);
+  const [inputVal, setInputVal] = useState<string>(String(WPR_PRICE));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);

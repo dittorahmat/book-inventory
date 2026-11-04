@@ -4,6 +4,7 @@ import { bookPackageItems, books, studentBookOrders, systemSettings } from "../.
 import { WPR_BOOK_ID, WPR_ISBN, WPR_PRICE, WPR_TITLE } from "../../lib/wpr";
 import { newWriteId, writeNow, type WriteDeps } from "../lib/d1-write";
 import { readSettingsMap } from "./settings-map";
+import { recalcPackagesUsingBook } from "./pricing";
 
 export const WPR_PRICE_SETTING_KEY = "book_wpr_price";
 
@@ -16,12 +17,12 @@ export const getWprPriceSetting = async (database: AppDatabase): Promise<number>
   return Number.isFinite(parsed) && parsed > 0 ? parsed : WPR_PRICE;
 };
 
-/** Simpan nominal harga WPR ke system_settings dan sinkronkan ke katalog buku WPR (idempoten). */
+/** Simpan nominal harga WPR ke system_settings, sinkronkan ke katalog buku WPR, dan hitung ulang seluruh paket buku yang memuat WPR (idempoten). */
 export const saveWprPriceSetting = async (
   database: AppDatabase,
   price: number,
   deps?: WriteDeps
-): Promise<number> => {
+): Promise<{ price: number; updatedPackagesCount: number }> => {
   if (!Number.isFinite(price) || price <= 0) {
     throw new Error("Nominal WPR harus berupa angka positif.");
   }
@@ -41,7 +42,11 @@ export const saveWprPriceSetting = async (
 
   // Sinkronkan ke baris buku WPR
   await ensureWprBook(database, deps, price);
-  return price;
+
+  // Perambatan harga all-in ke seluruh paket buku yang memakai WPR (§0.28)
+  const updatedPackagesCount = await recalcPackagesUsingBook(database, WPR_BOOK_ID, deps);
+
+  return { price, updatedPackagesCount };
 };
 
 /** Pastikan baris buku WPR ada dan tersinkronkan atribut publiknya (idempoten). */
