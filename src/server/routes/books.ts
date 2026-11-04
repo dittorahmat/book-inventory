@@ -26,7 +26,7 @@ import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { chunkRows, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, runWriteBatch, selectInChunks } from "../lib/d1-write";
 
 /** Tulis ulang relasi Book–supplier secara atomik (chunk ≤10, sekuensial di D1). */
 async function replaceBookSuppliers(database: typeof db, bookId: string, supplierIds: string[], now: string) {
@@ -107,17 +107,17 @@ booksRouter.get("/", async (c) => {
     if (allBooks.length > 0) {
       // Chunking agar tidak melanggar batas variabel SQLite / D1 parameter limit saat katalog memuat ratusan buku
       const bookIds = allBooks.map((b: typeof books.$inferSelect) => b.id);
-      for (const idChunk of chunkRows(bookIds, 50)) {
-        const links: Array<{ bookId: string; supplierId: string }> = await db
+      const links = await selectInChunks(bookIds, (idChunk) =>
+        db
           .select({ bookId: bookSuppliers.bookId, supplierId: bookSuppliers.supplierId })
           .from(bookSuppliers)
-          .where(inArray(bookSuppliers.bookId, idChunk));
+          .where(inArray(bookSuppliers.bookId, idChunk))
+      );
 
-        for (const l of links) {
-          const list = byBook.get(l.bookId) ?? [];
-          list.push(l.supplierId);
-          byBook.set(l.bookId, list);
-        }
+      for (const l of links) {
+        const list = byBook.get(l.bookId) ?? [];
+        list.push(l.supplierId);
+        byBook.set(l.bookId, list);
       }
     }
 

@@ -14,7 +14,7 @@ import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, selectInChunks } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { planVendorReturnDispose } from "../services/stock";
 
@@ -58,19 +58,21 @@ vendorReturnsRouter.get("/", async (c) => {
 
     const returnIds = returns.map((r: { id: string }) => r.id);
     const allItems = returnIds.length > 0
-      ? await db
-          .select({
-            id: vendorReturnItems.id,
-            vendorReturnId: vendorReturnItems.vendorReturnId,
-            bookId: vendorReturnItems.bookId,
-            bookTitle: books.title,
-            isbn: books.isbn,
-            quantity: vendorReturnItems.quantity,
-            reason: vendorReturnItems.reason,
-          })
-          .from(vendorReturnItems)
-          .innerJoin(books, eq(vendorReturnItems.bookId, books.id))
-          .where(inArray(vendorReturnItems.vendorReturnId, returnIds))
+      ? await selectInChunks(returnIds, (chunk) =>
+          db
+            .select({
+              id: vendorReturnItems.id,
+              vendorReturnId: vendorReturnItems.vendorReturnId,
+              bookId: vendorReturnItems.bookId,
+              bookTitle: books.title,
+              isbn: books.isbn,
+              quantity: vendorReturnItems.quantity,
+              reason: vendorReturnItems.reason,
+            })
+            .from(vendorReturnItems)
+            .innerJoin(books, eq(vendorReturnItems.bookId, books.id))
+            .where(inArray(vendorReturnItems.vendorReturnId, chunk))
+        )
       : [];
 
     type ItemRow = (typeof allItems)[number];

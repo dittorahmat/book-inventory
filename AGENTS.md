@@ -102,6 +102,7 @@ Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`, `sr
 ## 10. Cloudflare D1 & Search Discipline
 
 - **Aturan Tulis D1**: Chunking maksimal 10 baris per `INSERT`, dilarang `Promise.all` untuk tulis, mutasi induk-anak atomik via `db.batch()`, error constraint dipetakan lewat `d1WriteErrorStatus()`. Detail lengkap di [`docs/rules/database-d1.md`](./docs/rules/database-d1.md).
+- **Aturan Baca D1**: Query `inArray(col, ids)` berpotensi meluap di production (>100 params); wajib pakai `selectInChunks` (`d1-write.ts`). Cold-start worker dilarang melempar error saat bundling (`wrangler deploy --dry-run`).
 - **Search Discipline**: Dilarang `SELECT`-all + filter JS (filter wajib di `WHERE` SQL). Substring `%q%` publik wajib terpartisi `school_id = ?` + `LIMIT 10–50` + indeks komposit (`check:plans`). Detail teknis di `CODING_STANDARDS.md` §6.
 
 ---
