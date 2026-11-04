@@ -133,6 +133,14 @@ export function requireLogisticsRole(actor: AccessActor | null): void {
   }
 }
 
+/** Throw unless the actor holds a book logistics role (central_admin, warehouse_admin, warehouse_books_admin). */
+export function requireBookLogisticsRole(actor: AccessActor | null): void {
+  if (!actor) return;
+  if (actor.role !== "central_admin" && actor.role !== "warehouse_admin" && actor.role !== "warehouse_books_admin") {
+    throw new AccessHttpError(403, "Hanya central admin atau admin gudang buku yang berhak mengelola master paket buku");
+  }
+}
+
 /**
  * Resolve + authenticate + authorize logistics in one call. Prefer this over
  * chaining the three guards verbatim: passing the nullable resolve result
@@ -143,6 +151,17 @@ export async function resolveLogisticsActor(c: {
 }): Promise<AccessActor> {
   const actor = requireAuthenticatedActor(await resolveRequestActor(c));
   requireLogisticsRole(actor);
+  return actor;
+}
+
+/**
+ * Resolve + authenticate + authorize book logistics actor (central + admin gudang buku).
+ */
+export async function resolveBookLogisticsActor(c: {
+  req: { raw: { headers: Headers } };
+}): Promise<AccessActor> {
+  const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+  requireBookLogisticsRole(actor);
   return actor;
 }
 

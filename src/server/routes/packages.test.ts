@@ -556,5 +556,30 @@ describe("Packages & Bundling/Unbundling API", () => {
     await db.delete(books).where(inArray(books.id, [bookId1, bookId2, bookId3]));
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
+
+  it("PUT /:id menolak akses jika peran bukan logistik buku (auth guard)", async () => {
+    // Role branch_admin dilarang mengubah master paket buku
+    mockActor("branch_admin", "school-1");
+    try {
+      const res = await packagesRouter.request("/any-pkg-id", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: "PKG-X",
+          name: "Paket X",
+          gradeLevel: "1",
+          curriculumType: "international",
+          academicYear: "2026/2027",
+          items: [{ bookId: "any-book", quantity: 1 }],
+        }),
+      });
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.message).toContain("Hanya central admin atau admin gudang buku");
+    } finally {
+      mockActor("central_admin", null);
+    }
+  });
 });
 

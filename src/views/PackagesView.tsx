@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { School } from "../types";
+import { isBookWarehouseStaffRole, type StaffRole } from "../lib/staff-roles";
 import { usePackagesData, type PackageRow } from "../components/packages/usePackagesData";
 import { usePackagesFilter } from "../components/packages/usePackagesFilter";
 import { PackageCard } from "../components/packages/PackageCard";
@@ -13,10 +14,11 @@ type BookPackage = PackageRow;
 
 interface PackagesViewProps {
   activeSchool: School | null;
+  userRole?: StaffRole;
 }
 
 /** Orkestrator tipis (cerminan CatalogView): data-hook + filter-hook + kartu + modal. */
-export function PackagesView({ activeSchool }: PackagesViewProps) {
+export function PackagesView({ activeSchool, userRole }: PackagesViewProps) {
   const {
     packages,
     catalogBooks,
@@ -41,6 +43,8 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
 
   // Edit Package Modal State
   const [editingPkg, setEditingPkg] = useState<BookPackage | null>(null);
+
+  const canManagePackages = !userRole || isBookWarehouseStaffRole(userRole);
 
   return (
     <div className="space-y-5">
@@ -154,7 +158,7 @@ export function PackagesView({ activeSchool }: PackagesViewProps) {
                 setModalPkg(pkg);
                 setModalMode(mode);
               }}
-              onOpenEdit={() => setEditingPkg(pkg)}
+              onOpenEdit={canManagePackages ? () => setEditingPkg(pkg) : undefined}
               deletePackage={deletePackage}
             />
           ))}

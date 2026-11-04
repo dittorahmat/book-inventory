@@ -77,7 +77,9 @@ export function BookWarehouseView({
             userSchoolId={context.userSchoolId}
           />
         )}
-        {activeSection === "packages" && <PackagesView activeSchool={context.activeSchool} />}
+        {activeSection === "packages" && (
+          <PackagesView activeSchool={context.activeSchool} userRole={context.userRole} />
+        )}
         {activeSection === "inventory" && <InventoryView activeSchool={context.activeSchool} />}
         {activeSection === "catalog" && <CatalogView />}
         {activeSection === "procurement" && (
