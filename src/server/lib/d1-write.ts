@@ -10,6 +10,9 @@ import type { AppDatabase } from "../../db";
 /** Maksimal baris per statement INSERT: budget ~100 bound-parameter D1 (±9 kolom × 10 baris). */
 export const D1_WRITE_CHUNK_SIZE = 10;
 
+/** Maksimal baris per statement INSERT untuk tabel berkolom banyak (>=10 kolom, misal students 12 kolom: 5 × 12 = 60 < 100). */
+export const D1_WIDE_INSERT_CHUNK_SIZE = 5;
+
 /**
  * Injeksi deterministik untuk tulis: jam dan generator ID. Satu bentuk
  * kanonik dipakai semua modul tulis agar test deterministik tanpa
