@@ -2,7 +2,7 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
 import { studentBookOrders, students } from "../../db/schema";
-import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, D1_WIDE_INSERT_CHUNK_SIZE, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../lib/document-number";
 
 export type LifecycleError = { ok: false; status: ContentfulStatusCode; message: string };
@@ -110,8 +110,7 @@ export async function importStudents(
     // D1 limit (§10): Maks 100 parameter terikat per statement.
     // Skema tabel students memiliki 12 kolom per baris (5 baris × 12 kolom = 60 params < 100).
     // Tulis dilakukan sekuensial per chunk untuk mencegah timeout batch statement D1.
-    const STUDENT_INSERT_CHUNK_SIZE = 5;
-    for (const chunk of chunkRows(insertRows, STUDENT_INSERT_CHUNK_SIZE)) {
+    for (const chunk of chunkRows(insertRows, D1_WIDE_INSERT_CHUNK_SIZE)) {
       await runWriteBatch(database, [database.insert(students).values(chunk)]);
     }
 

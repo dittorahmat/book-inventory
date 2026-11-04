@@ -71,8 +71,9 @@ Cloudflare build memakai `bun@1.2.15` (`packageManager`) + `--frozen-lockfile`; 
 
 1. `bun test` wajib di DB sementara terisolasi (`test/setup.ts` via preload `bunfig.toml`); dilarang mengarahkan test ke D1 atau mematikan preload (`check:test-isolation`). Test baru wajib mandiri (seed ID unik, bersihkan di `finally`/`cleanup`).
 2. **Dilarang** QA manual/skrip/test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dsb. Pola-uji kanonik: `isTestSeedValue` (`src/server/lib/validators.ts`). Alarm remote: `bun run check:d1-junk` + cron harian.
-3. **Akses Remote D1**: Query langsung ke D1 remote mengandalkan sesi login Wrangler (`npx wrangler whoami`). Jika sesi belum login atau kedaluwarsa, agen wajib segera memberitahu pengguna agar login di terminal interaktif (`npx wrangler login`), bukan memaksakan pembuatan token manual jika pengguna sudah terbiasa login browser.
+3. **Akses Remote D1**: Query langsung ke D1 remote mengandalkan sesi login Wrangler (`npx wrangler whoami`). Jika sesi belum login atau kedaluwarsa, agen wajib segera memberitahu pengguna agar login di terminal interaktif (`npx wrangler login`). Input secret wrangler non-interaktif wajib lewat pipe: `echo "val" | npx wrangler secret put KEY`.
 4. `wrangler d1 execute ... --remote` yang menulis (terutama `DELETE` massal) wajib didahului: verifikasi target, `SELECT COUNT(*)` contoh baris, dan cek nol relasi anak.
+5. **Worktree & Node Modules**: Pembuatan git worktree di Windows wajib segera menghubungkan dependensi via junction (`cmd /c mklink /J <worktree>\node_modules <main>\node_modules`) agar tool test dan compile tidak gagal menemukan modul.
 
 ---
 

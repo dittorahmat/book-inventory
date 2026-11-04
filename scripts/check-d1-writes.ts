@@ -198,9 +198,22 @@ const findChunkViolations = (code: string, content: string): Violation[] => {
     out.push({
       rule: "R1",
       index: m.index,
-      detail: `.values([...]) berisi ${elements} baris > ${MAX_ROWS_PER_INSERT} — potong dengan chunkRows() (D1_WRITE_CHUNK_SIZE) dari server/lib/d1-write (§10.1).`,
+      detail: `.values([...]) berisi ${elements} baris > ${MAX_ROWS_PER_INSERT} — potong dengan chunkRows() (D1_WRITE_CHUNK_SIZE atau D1_WIDE_INSERT_CHUNK_SIZE) dari server/lib/d1-write (§10.1).`,
     });
   }
+
+  // R1b: Penegakan chunking tabel lebar (students) tidak boleh melebihi 5 baris
+  for (const m of code.matchAll(/chunkRows\s*\(\s*insertRows\s*(?:,\s*(\d+))?\s*\)/g)) {
+    const customSize = m[1] ? parseInt(m[1], 10) : 10;
+    if (customSize > 5 && code.includes("insert(students)")) {
+      out.push({
+        rule: "R1",
+        index: m.index,
+        detail: `Insert tabel students memiliki 12 kolom dan melebihi budget 100 bound parameters D1 jika chunk > 5 (${customSize} × 12 = ${customSize * 12} > 100). Wajib gunakan D1_WIDE_INSERT_CHUNK_SIZE (5) (§10.1 / docs/rules/database-d1.md).`,
+      });
+    }
+  }
+
   return out;
 };
 
