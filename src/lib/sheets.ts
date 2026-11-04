@@ -67,7 +67,8 @@ export function normalizeGoogleSheetsUrl(url: string): string | null {
     if (gid && /^\d+$/.test(gid)) {
       return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
     }
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    // Jika tidak ada gid spesifik, ekspor seluruh workbook multi-sheet sebagai xlsx agar sheet numerik terbaca
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
   } catch {
     return null;
   }

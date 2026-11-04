@@ -7,7 +7,7 @@ import {
 
 export type DriveResourceResult =
   | { success: true; type: "folder"; data: { files: GoogleDriveFolderFile[]; totalFiles: number } }
-  | { success: true; type: "sheet"; data: { csvText: string } }
+  | { success: true; type: "sheet"; data: { csvText?: string; buffer?: ArrayBuffer } }
   | { success: false; message: string; status: 400 | 502 };
 
 /**
@@ -43,13 +43,13 @@ export async function fetchGoogleDriveResource(url: string): Promise<DriveResour
       };
     }
 
-    // 2. Google Sheets publik (ekspor ke CSV)
+    // 2. Google Sheets publik (ekspor ke XLSX multi-sheet atau CSV)
     const exportUrl = normalizeGoogleSheetsUrl(url);
     if (exportUrl) {
       const resp = await fetch(exportUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "text/csv,text/plain,*/*",
+          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,*/*",
         },
       });
       if (!resp.ok) {
@@ -59,11 +59,15 @@ export async function fetchGoogleDriveResource(url: string): Promise<DriveResour
           status: 400,
         };
       }
-      const csvText = await resp.text();
+      const isXlsx = exportUrl.includes("format=xlsx");
+      const dataPayload = isXlsx ? await resp.arrayBuffer() : await resp.text();
       return {
         success: true,
         type: "sheet",
-        data: { csvText },
+        data: {
+          csvText: typeof dataPayload === "string" ? dataPayload : undefined,
+          buffer: typeof dataPayload !== "string" ? dataPayload : undefined,
+        },
       };
     }
 
