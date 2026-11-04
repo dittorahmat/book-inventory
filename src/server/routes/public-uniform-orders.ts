@@ -148,6 +148,7 @@ publicUniformOrdersRouter.get("/lookup-order", zValidator("query", lookupQuerySc
       academicYear: uniformOrders.academicYear,
       shipmentStatus: uniformOrders.shipmentStatus,
       shippedAt: uniformOrders.shippedAt,
+      supersededByOrderId: uniformOrders.supersededByOrderId,
       totalAmount: uniformOrders.totalAmount,
       createdAt: uniformOrders.createdAt,
     })

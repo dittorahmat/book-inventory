@@ -307,6 +307,7 @@ publicOrdersRouter.get("/lookup-order", async (c) => {
       handoverDate: studentBookOrders.handoverDate,
       handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
       handoverRecipient: studentBookOrders.handoverRecipient,
+      supersededByOrderId: studentBookOrders.supersededByOrderId,
     })
     .from(studentBookOrders)
     .innerJoin(students, eq(studentBookOrders.studentId, students.id))

@@ -73,4 +73,31 @@ describe("StudentOrdersTable", () => {
     expect(screen.getByText("Sekolah / Cabang")).toBeDefined();
     expect(screen.getByText("SD Utama")).toBeDefined();
   });
+
+  it("renders superseded status badge and reference to new order", () => {
+    const supersededOrder: StudentOrder = {
+      ...dummyOrder,
+      id: "ord-old-123",
+      fulfillmentStatus: "superseded",
+      supersededByOrderId: "ord-new-456",
+    };
+
+    render(
+      <StudentOrdersTable
+        orders={[supersededOrder]}
+        onOpenPayment={mock()}
+        onOpenScholarship={mock()}
+        onOpenHandover={mock()}
+        onOpenDiscretion={mock()}
+        onDeleteOrder={mock()}
+        onMarkSatuanShipped={mock()}
+        onOpenShipping={mock()}
+        onSendInvoice={mock()}
+        onReviewPayments={mock()}
+      />
+    );
+
+    expect(screen.getByText(/TERTIMPA/i)).toBeDefined();
+    expect(screen.getByText(/Digantikan: #EW-456/i)).toBeDefined();
+  });
 });
