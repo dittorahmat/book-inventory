@@ -77,6 +77,7 @@ export interface TestBookOrderOverrides {
   totalAmount?: number;
   paidAmount?: number;
   packageId?: string | null;
+  assignedPackageItemId?: string | null;
 }
 
 export async function createTestBookOrder(
@@ -107,6 +108,7 @@ export async function createTestBookOrder(
     totalAmount: overrides.totalAmount ?? 500000,
     paidAmount: overrides.paidAmount ?? 500000,
     packageId: overrides.packageId ?? null,
+    assignedPackageItemId: overrides.assignedPackageItemId ?? null,
     createdAt: now,
     updatedAt: now,
   };

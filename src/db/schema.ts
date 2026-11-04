@@ -282,8 +282,9 @@ export const studentBookOrders = sqliteTable("student_book_orders", {
     enum: ["unpaid", "partial", "paid", "scholarship_pending", "scholarship_approved", "scholarship_rejected"] 
   }).notNull().default("unpaid"),
   fulfillmentStatus: text("fulfillment_status", { 
-    enum: ["waiting_preparation", "ready_for_pickup", "picked_up", "return_in_progress"] 
+    enum: ["waiting_preparation", "ready_for_pickup", "picked_up", "return_in_progress", "superseded"] 
   }).notNull().default("waiting_preparation"),
+  supersededByOrderId: text("superseded_by_order_id"),
   totalAmount: integer("total_amount").notNull().default(0),
   paidAmount: integer("paid_amount").notNull().default(0),
   assignedPackageItemId: text("assigned_package_item_id").references(() => packageItems.id),
@@ -632,7 +633,8 @@ export const uniformOrders = sqliteTable("uniform_orders", {
   schoolId: text("school_id").notNull().references(() => schools.id),
   academicYear: text("academic_year").notNull(),
   homeAddressSnapshot: text("home_address_snapshot").notNull(),
-  shipmentStatus: text("shipment_status", { enum: ["belum_dikirim", "sudah_dikirim"] }).notNull().default("belum_dikirim"),
+  shipmentStatus: text("shipment_status", { enum: ["belum_dikirim", "sudah_dikirim", "superseded"] }).notNull().default("belum_dikirim"),
+  supersededByOrderId: text("superseded_by_order_id"),
   shippedAt: text("shipped_at"),
   shippingCost: integer("shipping_cost").notNull().default(0),
   shippingResi: text("shipping_resi"),
