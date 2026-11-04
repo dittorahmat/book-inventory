@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { CreateSupplierModal } from "../procurement/CreateSupplierModal";
 import { getJson } from "../../lib/api";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import {
@@ -16,6 +18,7 @@ export function UniformProcurementSection() {
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [pos, setPos] = useState<Array<{ id: string; poNumber: string; status: string; totalAmount: number }>>([]);
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,7 +31,7 @@ export function UniformProcurementSection() {
       const [v, o, s] = await Promise.all([
         fetchUniformVariants(),
         fetchUniformPos(),
-        getJson<Array<{ id: string; name: string }>>("/api/procurement/suppliers", "Gagal memuat supplier."),
+        getJson<Array<{ id: string; name: string }>>("/api/procurement/suppliers?type=uniform", "Gagal memuat supplier konveksi."),
       ]);
       setVariants(Array.isArray(v) ? v : []);
       setPos(Array.isArray(o) ? o : []);
@@ -68,13 +71,25 @@ export function UniformProcurementSection() {
           <p className="text-xs text-[#65676B]">Buat pesanan produksi bahan/kain atau seragam jadi ke mitra konveksi supplier.</p>
         </div>
         <div>
-          <SearchableSingleSelect
-            label="Supplier"
-            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-            value={poSupplier}
-            onChange={setPoSupplier}
-            placeholder="— Pilih supplier —"
-          />
+          <label className="block text-xs font-semibold text-[#050505] mb-1">Supplier / Mitra Konveksi *</label>
+          <div className="flex gap-2 items-center">
+            <div className="flex-1">
+              <SearchableSingleSelect
+                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                value={poSupplier}
+                onChange={setPoSupplier}
+                placeholder={suppliers.length === 0 ? "Belum ada mitra konveksi (Klik + Tambah)" : "— Pilih mitra konveksi —"}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSupplierModalOpen(true)}
+              className="inline-flex items-center gap-1 px-3 py-2 border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] rounded-xl text-xs font-semibold text-[#050505] shrink-0 active:scale-[0.98] transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Konveksi</span>
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {variants.map(({ variant: v }) => (
@@ -175,6 +190,21 @@ export function UniformProcurementSection() {
           ))}
         </div>
       </div>
+
+      {isSupplierModalOpen && (
+        <CreateSupplierModal
+          title="Tambah Mitra Konveksi Baru"
+          defaultType="uniform"
+          codePlaceholder="mis. KNV-BDG, JKT-JAYA"
+          namePlaceholder="mis. CV Konveksi Mandiri"
+          onClose={() => setIsSupplierModalOpen(false)}
+          onCreated={async (newId) => {
+            setIsSupplierModalOpen(false);
+            await reload();
+            setPoSupplier(newId);
+          }}
+        />
+      )}
     </div>
   );
 }

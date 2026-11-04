@@ -105,6 +105,7 @@ describe("UniformView", () => {
 
     expect(screen.getByText(/PO ke Konveksi/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Buat PO/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Tambah Konveksi/i })).toBeDefined();
 
     const packagesTab = screen.getByRole("button", { name: /Paket & Rakit Seragam/i });
     await act(async () => {

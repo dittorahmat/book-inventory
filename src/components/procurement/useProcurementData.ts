@@ -15,7 +15,7 @@ export function useProcurementData() {
   const [defaultSupplierId, setDefaultSupplierId] = useState("");
 
   const loadSuppliers = useCallback(async (): Promise<Supplier[]> => {
-    const list = await getJson<Supplier[]>("/api/procurement/suppliers", "Gagal memuat daftar supplier.");
+    const list = await getJson<Supplier[]>("/api/procurement/suppliers?type=book", "Gagal memuat daftar supplier buku.");
     setSuppliers(list);
     return list;
   }, []);
