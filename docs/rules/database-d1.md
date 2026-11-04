@@ -51,3 +51,4 @@ Latar dan bukti: `CODING_STANDARDS.md` §6. Aturan yang mengikat:
 3. Alur mutasi induk + anak wajib atomik (`db.batch()` di D1, fallback sekuensial di bun-sqlite) atau idempoten dengan validasi pra-tulis yang mengembalikan 400.
 4. Constraint SQLite (`UNIQUE`/`FOREIGN KEY`) wajib dipetakan ke status HTTP 4xx lewat `d1WriteErrorStatus()` (`src/server/lib/d1-write.ts`); kegagalan infra (`D1_ERROR`) wajib dilempar ulang agar menjadi 500 + ref, bukan 400 palsu.
 5. Endpoint tulis bervolume wajib diuji ≥30 baris sekaligus di `src/server/routes/*.test.ts`.
+6. Eksekusi SQL remote manual atau seeder masal ke Cloudflare D1 wajib memakai runner kanonik `bun scripts/d1-remote.ts --command="..."` atau `--file="..."`, selalu menyediakan timestamp audit lengkap (`created_at` dan `updated_at`), dan menyisipkan data induk sebelum data anak ber-foreign-key (`books`/`book_packages` sebelum `book_package_items`).
