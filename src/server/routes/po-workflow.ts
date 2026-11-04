@@ -74,6 +74,7 @@ poWorkflowRouter.post("/purchase-orders/:id/signed-doc", async (c) => {
 const updateSupplierSchema = z.object({
   code: z.string().min(1, "Kode supplier wajib diisi").optional(),
   name: z.string().min(1, "Nama supplier wajib diisi").optional(),
+  type: z.enum(["book", "uniform", "all"]).optional(),
   contactPerson: z.string().optional(),
   email: z.string().email("Format email tidak valid").optional(),
   phone: z.string().optional(),
@@ -104,6 +105,7 @@ poWorkflowRouter.patch("/suppliers/:id", zValidator("json", updateSupplierSchema
       .set({
         ...(body.code !== undefined ? { code: body.code } : {}),
         ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.type !== undefined ? { type: body.type } : {}),
         ...(body.contactPerson !== undefined ? { contactPerson: body.contactPerson || null } : {}),
         ...(body.email !== undefined ? { email: body.email || null } : {}),
         ...(body.phone !== undefined ? { phone: body.phone || null } : {}),

@@ -451,7 +451,47 @@ describe("Supplier Procurement & Purchase Order API", () => {
     expect(orphanItems.length).toBe(0);
   });
 
-  it("blocks deleting a purchase order that has received goods", async () => {    const stamp = Date.now();
+  it("filters suppliers by type query (book vs uniform vs all)", async () => {
+    const stamp = Date.now();
+    const supBook = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-B-${stamp}`, name: `Book Vendor ${stamp}`, type: "book" }),
+    });
+    const supUniform = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-U-${stamp}`, name: `Uniform Vendor ${stamp}`, type: "uniform" }),
+    });
+    const supAll = await procurementRouter.request("/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: `SUP-A-${stamp}`, name: `All Vendor ${stamp}`, type: "all" }),
+    });
+
+    const bookId = (await supBook.json()).data.id;
+    const uniformId = (await supUniform.json()).data.id;
+    const allId = (await supAll.json()).data.id;
+
+    try {
+      const bookRes = await (await procurementRouter.request("/suppliers?type=book")).json();
+      const bookIds = (bookRes.data as Array<{ id: string }>).map((s) => s.id);
+      expect(bookIds).toContain(bookId);
+      expect(bookIds).toContain(allId);
+      expect(bookIds).not.toContain(uniformId);
+
+      const unifRes = await (await procurementRouter.request("/suppliers?type=uniform")).json();
+      const unifIds = (unifRes.data as Array<{ id: string }>).map((s) => s.id);
+      expect(unifIds).toContain(uniformId);
+      expect(unifIds).toContain(allId);
+      expect(unifIds).not.toContain(bookId);
+    } finally {
+      await db.delete(suppliers).where(inArray(suppliers.id, [bookId, uniformId, allId]));
+    }
+  });
+
+  it("blocks deleting a purchase order that has received goods", async () => {
+    const stamp = Date.now();
     const now = new Date().toISOString();
     const bookId = `b-rec-${stamp}`;
     await db.insert(books).values({

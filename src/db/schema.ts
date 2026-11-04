@@ -175,6 +175,7 @@ export const suppliers = sqliteTable("suppliers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
+  type: text("type", { enum: ["book", "uniform", "all"] }).notNull().default("book"),
   contactPerson: text("contact_person"),
   email: text("email"),
   phone: text("phone"),
