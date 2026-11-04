@@ -444,5 +444,142 @@ describe("Packages & Bundling/Unbundling API", () => {
     await db.delete(bookPackages).where(eq(bookPackages.id, created.id));
     await db.delete(books).where(eq(books.id, bookId));
   });
+
+  it("PUT /:id mengupdate metadata, merombak BOM dan auto-unbundle bundel fisik aktif", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-school-edit-${stamp}`;
+    const bookId1 = `test-book-edit-1-${stamp}`;
+    const bookId2 = `test-book-edit-2-${stamp}`;
+    const bookId3 = `test-book-edit-3-${stamp}`;
+    const pkgCode = `PKG-EDIT-${stamp}`;
+
+    await db.insert(schools).values({
+      id: schoolId, name: "Gudang Edit", code: `GE-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(books).values([
+      { id: bookId1, isbn: `ISBN-E1-${stamp}`, title: "Buku 1", author: "A", publisher: "P", price: 30000, sellPrice: 30000, createdAt: now, updatedAt: now },
+      { id: bookId2, isbn: `ISBN-E2-${stamp}`, title: "Buku 2", author: "A", publisher: "P", price: 40000, sellPrice: 40000, createdAt: now, updatedAt: now },
+      { id: bookId3, isbn: `ISBN-E3-${stamp}`, title: "Buku 3", author: "A", publisher: "P", price: 50000, sellPrice: 50000, createdAt: now, updatedAt: now },
+    ]);
+
+    // Masukkan eksemplar fisik buku 1 & 2 untuk dirakit
+    const itemIds = [
+      `item-e1-1-${stamp}`, `item-e1-2-${stamp}`,
+      `item-e2-1-${stamp}`, `item-e2-2-${stamp}`,
+    ];
+    await db.insert(bookItems).values([
+      { id: itemIds[0], bookId: bookId1, currentSchoolId: schoolId, barcode: `BC-E1-1-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now },
+      { id: itemIds[1], bookId: bookId1, currentSchoolId: schoolId, barcode: `BC-E1-2-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now },
+      { id: itemIds[2], bookId: bookId2, currentSchoolId: schoolId, barcode: `BC-E2-1-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now },
+      { id: itemIds[3], bookId: bookId2, currentSchoolId: schoolId, barcode: `BC-E2-2-${stamp}`, condition: "new", status: "in_stock", createdAt: now, updatedAt: now },
+    ]);
+
+    // 1. Buat paket awal dengan Buku 1 & Buku 2
+    const createRes = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: pkgCode,
+        name: "Paket Awal",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        items: [
+          { bookId: bookId1, quantity: 1 },
+          { bookId: bookId2, quantity: 1 },
+        ],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const createdPkg = (await createRes.json()).data as { id: string; price: number };
+
+    // 2. Rakit 2 bundel fisik
+    const bundleRes = await packagesRouter.request(`/${createdPkg.id}/bundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, quantity: 2 }),
+    });
+    expect(bundleRes.status).toBe(200);
+
+    const activeBundlesBefore = await db.select().from(packageItems).where(eq(packageItems.packageId, createdPkg.id));
+    expect(activeBundlesBefore.length).toBe(2);
+
+    // 3. Update paket: Ubah nama, ganti Buku 2 dengan Buku 3
+    const updateRes = await packagesRouter.request(`/${createdPkg.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `${pkgCode}-REV`,
+        name: "Paket Revisi Baru",
+        gradeLevel: "2",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        description: "Deskripsi revisi",
+        items: [
+          { bookId: bookId1, quantity: 2 },
+          { bookId: bookId3, quantity: 1 },
+        ],
+      }),
+    });
+    expect(updateRes.status).toBe(200);
+    const updateJson = await updateRes.json();
+    expect(updateJson.success).toBe(true);
+    expect(updateJson.unbundledCount).toBe(2);
+    expect(updateJson.data.name).toBe("Paket Revisi Baru");
+    expect(updateJson.data.code).toBe(`${pkgCode}-REV`);
+
+    // Pastikan 2 bundel lama otomatis dibongkar (package_items menjadi 0)
+    const activeBundlesAfter = await db.select().from(packageItems).where(eq(packageItems.packageId, createdPkg.id));
+    expect(activeBundlesAfter.length).toBe(0);
+
+    // Buku satuan baru hasil unbundle di-restore ke stok
+    const restoredItems = await db.select().from(bookItems).where(eq(bookItems.currentSchoolId, schoolId));
+    expect(restoredItems.some((it) => it.bookId === bookId1 && it.status === "in_stock")).toBe(true);
+    expect(restoredItems.some((it) => it.bookId === bookId2 && it.status === "in_stock")).toBe(true);
+
+    // Pastikan BOM baru terdaftar dengan benar (termasuk auto WPR)
+    const newBom = await db.select().from(bookPackageItems).where(eq(bookPackageItems.packageId, createdPkg.id));
+    expect(newBom.some((b) => b.bookId === bookId1 && b.quantity === 2)).toBe(true);
+    expect(newBom.some((b) => b.bookId === bookId3 && b.quantity === 1)).toBe(true);
+    expect(newBom.some((b) => b.bookId === bookId2)).toBe(false);
+    expect(newBom.some((b) => b.bookId === "book-wpr-weekly-report")).toBe(true);
+
+    // Harga paket: 2*30.000 (buku 1) + 1*50.000 (buku 3) + 750.000 (WPR) = 860.000
+    expect(updateJson.data.price).toBe(2 * 30000 + 50000 + 750000);
+
+    // Cleanup
+    await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, createdPkg.id));
+    await db.delete(bookPackages).where(eq(bookPackages.id, createdPkg.id));
+    await db.delete(bookItems).where(inArray(bookItems.id, itemIds));
+    await db.delete(books).where(inArray(books.id, [bookId1, bookId2, bookId3]));
+    await db.delete(schools).where(eq(schools.id, schoolId));
+  });
+
+  it("PUT /:id menolak akses jika peran bukan logistik buku (auth guard)", async () => {
+    // Role branch_admin dilarang mengubah master paket buku
+    mockActor("branch_admin", "school-1");
+    try {
+      const res = await packagesRouter.request("/any-pkg-id", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: "PKG-X",
+          name: "Paket X",
+          gradeLevel: "1",
+          curriculumType: "international",
+          academicYear: "2026/2027",
+          items: [{ bookId: "any-book", quantity: 1 }],
+        }),
+      });
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.message).toContain("Hanya central admin atau admin gudang buku");
+    } finally {
+      mockActor("central_admin", null);
+    }
+  });
 });
 

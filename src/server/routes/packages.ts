@@ -10,9 +10,11 @@ import {
   assertLocationAllowed,
   requireScopedActor,
   requireScopedLogisticsActor,
+  resolveBookLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { assemblePackageBundles, disassemblePackageBundles, deletePackageWithAutoUnbundle } from "../services/package-assembly";
+import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
+import { deletePackageWithAutoUnbundle, updatePackageWithAutoUnbundle } from "../services/package-mutation";
 import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
@@ -248,10 +250,33 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
   }
 });
 
+// PUT Update existing Package (metadata & BOM) with auto-unbundle of ready bundles
+packagesRouter.put("/:id", zValidator("json", createPackageSchema), async (c) => {
+  try {
+    await resolveBookLogisticsActor(c);
+    const packageId = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const result = await updatePackageWithAutoUnbundle(db, packageId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `Paket berhasil diperbarui.${result.unbundledCount > 0 ? ` ${result.unbundledCount} bundel fisik lama dibongkar ke stok satuan.` : ""}`,
+      data: result.data,
+      unbundledCount: result.unbundledCount,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 // DELETE Package with auto-unbundle of ready bundles
 packagesRouter.delete("/:id", async (c) => {
   try {
-    await resolveLogisticsActor(c);
+    await resolveBookLogisticsActor(c);
     const packageId = c.req.param("id");
 
     const result = await deletePackageWithAutoUnbundle(db, packageId);

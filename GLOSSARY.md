@@ -4,6 +4,10 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Master Paket Buku (Book Package BOM)**:
+Definisi katalog terpusat komponen bahan ajar per jenjang & kurikulum yang memetakan daftar buku komponen beserta kuantitasnya (Bill of Materials / BOM). Perubahan komponen buku memicu rekalkulasi harga paket terkomputasi dan secara otomatis membongkar (*auto-unbundle*) bundel fisik lama yang belum terdistribusi menjadi stok buku satuan lepas di rak gudang agar fisik barang tidak mengalami mismatch dengan BOM terbaru.
+_Avoid_: Paket dinamis tanpa BOM, bundel mismatch
+
 **Pesanan Tertimpa (Superseded Order)**:
 Status pesanan gantung (buku atau seragam) yang secara resmi digantikan oleh pesanan baru dari murid yang sama (berdasarkan NIS dan domain yang sama) akibat perubahan kurikulum, ukuran, atau revisi pemesanan. Pesanan lama kehilangan alokasi fisik barangnya, dan statusnya dikunci menjadi riwayat tanpa di-hard delete.
 _Avoid_: Pesanan terhapus, pesanan overwrite liar

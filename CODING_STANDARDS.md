@@ -68,6 +68,7 @@ helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali.
   untuk satu kontrol (termasuk file upload).
 - Kontras WCAG AA (≥4.5:1 teks normal).
 - State lengkap: loading, empty edukatif, error inline eksplisit.
+- Otorisasi tombol aksi: setiap tombol mutasi administratif pada kartu/tabel (buat, edit, hapus paket/buku) wajib disaring dengan predikat peran kanonik (`isBookWarehouseStaffRole`, `isUniformStaffRole`, atau `isCentralRole`) di level view pemanggil, bukan hanya mengandalkan pengecekan backend.
 - Dilarang merombak layout kontainer (mis. grid → scrollable flex) kecuali
   disyaratkan spec.
 - Navigasi data-driven: daftar tab wajib array (`PUBLIC_TABS`, `DESKTOP_TABS`)
@@ -152,6 +153,7 @@ dilarang dirakit ulang. `check:single-writer` menjaga dua tabel berisiko;
 | Aturan alokasi | `src/lib/order-allocation.ts` | `allocationViolation` | guard alokasi lokal di klien/server |
 | Struk Bayar | `src/server/services/payment-ledger.ts` | `buildReceiptDraft`, `receiptWriteQueries`, `listPaymentRows`, `creditParts` | `.insert(paymentReceipts|paymentAllocations)` di file lain |
 | Kelayakan order | `src/server/services/student-eligibility.ts` | `evaluateStudentEligibility` | cek `status` murid ad-hoc |
+| Mutasi paket buku | `src/server/services/package-mutation.ts` | `updatePackageWithAutoUnbundle`, `deletePackageWithAutoUnbundle` | `.update/.delete(bookPackages|bookPackageItems)` langsung di route |
 | Stok seragam | `src/server/services/uniform/stock.ts` | `adjustVariantStockQuery`, `adjustPackageStockQuery`, `setVariantStockQuery` | `.insert/.update(uniformStock|uniformPackageStock)` di file lain |
 | Tab staf | `src/components/layout/staff-tab-views.tsx` | `STAFF_TAB_RENDERERS` | JSX `activeTab === ...` di `App.tsx` |
 | Draf portal | `src/components/portal/useOrderDraft.ts` | `{ draft, actions }` | belasan prop nilai/setter di step |
