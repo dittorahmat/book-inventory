@@ -43,6 +43,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "adjustPackageStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
   { name: "setVariantStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
   { name: "calculateDedupMetrics", owner: "src/lib/intake-dedup.ts", module: "lib/intake-dedup" },
+  { name: "selectInChunks", owner: "src/server/lib/d1-write.ts", module: "server/lib/d1-write" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */

@@ -107,5 +107,9 @@ jobs:
       - name: Production build check
         run: bun run build
 
+      - name: Cloudflare Workers dry-run validation
+        # Verifikasi cold start bundle worker tanpa runtime ENV secret (mencegah Error 10021 pada deploy).
+        run: bunx wrangler deploy --dry-run
+
       - name: Test suite
         run: bun test
