@@ -71,7 +71,8 @@ Cloudflare build memakai `bun@1.2.15` (`packageManager`) + `--frozen-lockfile`; 
 
 1. `bun test` wajib di DB sementara terisolasi (`test/setup.ts` via preload `bunfig.toml`); dilarang mengarahkan test ke D1 atau mematikan preload (`check:test-isolation`). Test baru wajib mandiri (seed ID unik, bersihkan di `finally`/`cleanup`).
 2. **Dilarang** QA manual/skrip/test ke API production (`*.workers.dev`) yang membuat data bernama `*Test*`, `Sekolah school-*`, `SUP-WF-*`, dsb. Pola-uji kanonik: `isTestSeedValue` (`src/server/lib/validators.ts`). Alarm remote: `bun run check:d1-junk` + cron harian.
-3. `wrangler d1 execute ... --remote` yang menulis (terutama `DELETE` massal) wajib didahului: verifikasi target, `SELECT COUNT(*)` contoh baris, dan cek nol relasi anak.
+3. **Akses Remote D1**: Query langsung ke D1 remote mengandalkan sesi login Wrangler (`npx wrangler whoami`). Jika sesi belum login atau kedaluwarsa, agen wajib segera memberitahu pengguna agar login di terminal interaktif (`npx wrangler login`), bukan memaksakan pembuatan token manual jika pengguna sudah terbiasa login browser.
+4. `wrangler d1 execute ... --remote` yang menulis (terutama `DELETE` massal) wajib didahului: verifikasi target, `SELECT COUNT(*)` contoh baris, dan cek nol relasi anak.
 
 ---
 
@@ -122,7 +123,7 @@ Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`, `sr
 - **Domain docs**: `GLOSSARY.md` + `docs/adr/` (`docs/agents/domain.md`).
 - **Skill lokal**: pohon kanonik `.agents/skills/`. `skills/` dan `.claude/skills/` adalah junction.
 - **Portal publik**: URL→tab di `src/lib/public-portal-url.ts`; daftar tab di `src/components/portal/portal-tabs.ts`; state alur di `src/components/portal/use*.ts`; adapter HTTP tunggal `src/components/portal/portal-api.ts`; route di `src/server/routes/public-*.ts`.
-- **Master & Paket Buku**: mutasi BOM & lifecycle paket di `src/server/services/package-mutation.ts`; kitting fisik di `src/server/services/package-assembly.ts`; otorisasi buku di `resolveBookLogisticsActor` / `isBookWarehouseStaffRole`.
+- **Master & Paket Buku**: mutasi BOM & lifecycle paket di `src/server/services/package-mutation.ts`; kitting fisik di `src/server/services/package-assembly.ts`; otorisasi buku di `resolveBookLogisticsActor` / `isBookWarehouseStaffRole`. Pembedaan tab UI: **Gudang Buku** (`/books`) adalah master buku satuan (`books`), sedangkan **Paket Buku** adalah master paket bundling BOM (`book_packages`).
 - **Lokasi & auth (staf)**: lokasi transaksi dikunci ke penugasan akun di `src/App.tsx`; header hanya badge (`src/components/layout/AppHeader.tsx`); scope server di `src/server/services/access-scope.ts`. Modul layanan ber-seam tinggal di direktori (`services/<domain>/index.ts`).
 - **Sub-Agent & Asynchronous Execution**: hindari polling loop (`schedule` timer pendek / `manage_subagents list`). Sistem runtime otomatis membangkitkan parent agent (*reactive wakeup*) seketika sub-agent mengirimkan pesan (`send_message`). Cukup akhiri turn tanpa timer buatan.
 - **Schema & Upload Gate**: seluruh field base64 route publik (`*Base64`, `*Proof*`) wajib memakai `base64UploadSchema` atau `.max(...)` (`check:base64-schemas`).
