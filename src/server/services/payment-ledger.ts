@@ -239,6 +239,9 @@ export const buildReceiptDraft = (
   };
 };
 
+export const allocationInsertQueries = (database: AppDatabase, allocations: AllocationRow[]) =>
+  chunkRows(allocations).map((rows) => database.insert(paymentAllocations).values(rows));
+
 /**
  * Query insert kanonik untuk satu draft struk. Pemanggil menempelkannya ke
  * batch atomiknya sendiri (order + struk), jadi hanya modul ini yang merakit
@@ -246,7 +249,7 @@ export const buildReceiptDraft = (
  */
 export const receiptWriteQueries = (database: AppDatabase, draft: ReceiptDraft) => [
   database.insert(paymentReceipts).values(draft.receipt),
-  ...chunkRows(draft.allocations).map((rows) => database.insert(paymentAllocations).values(rows)),
+  ...allocationInsertQueries(database, draft.allocations),
 ];
 
 /** Duplikat identitas struk (bank + nomor referensi) = 409, bukan 400 generik. */
