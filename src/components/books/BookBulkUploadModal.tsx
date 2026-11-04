@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { X, Upload, Download, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet, Link2, Info, Package } from "lucide-react";
+import { X, Upload, Download, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet, Link2, Info } from "lucide-react";
 import { apiEnvelope } from "../../lib/api";
 import { parseBookCatalogData, type ParsedBookRow, type SkippedBookRow } from "../../lib/book-import-parser";
 import { DriveFileList, type DriveFolderItem } from "../ui/DriveFileList";
+import { DriveFolderBatchRunner } from "../ui/DriveFolderBatchRunner";
 import { BookImportPreview } from "./BookImportPreview";
+import { BookAutoPackageOptions } from "./BookAutoPackageOptions";
+import { downloadSampleBookTemplate, submitBooksInChunks } from "./book-import-helpers";
 
 interface BookBulkUploadModalProps {
   onClose: () => void;
@@ -26,21 +29,6 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
   const [folderFiles, setFolderFiles] = useState<DriveFolderItem[]>([]);
   const [autoCreatePackages, setAutoCreatePackages] = useState<boolean>(true);
   const [academicYear, setAcademicYear] = useState<string>("2026/2027");
-
-  const downloadSampleTemplate = () => {
-    const csvContent =
-      "isbn,judul,kelas,harga_jual,harga_beli,penerbit\n" +
-      "978-0132350884,Clean Code,1,150000,100000,Prentice Hall\n" +
-      "978-0201616224,The Pragmatic Programmer,2,175000,120000,Addison-Wesley\n";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "template_import_katalog_buku.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -145,6 +133,42 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
     }
   };
 
+  const handleBatchProcessFile = async (file: DriveFolderItem) => {
+    const fileUrl = `https://docs.google.com/spreadsheets/d/${file.id}/edit`;
+    const resp = await apiEnvelope<{
+      success: boolean;
+      type: "sheet";
+      data: {
+        validBooks: ParsedBookRow[];
+        skippedRows: SkippedBookRow[];
+        sheetName: string;
+      };
+    }>("/api/books/parse-drive-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: fileUrl }),
+    });
+
+    const newBooks = resp.data.validBooks || [];
+    if (newBooks.length === 0) {
+      return { count: 0, warning: "Tidak ada baris buku valid" };
+    }
+
+    setParsedBooks((prev) => {
+      const existingKeys = new Set(prev.map((b) => `${b.title.toLowerCase()}_${b.gradeLevel}`));
+      const nonDuplicate = newBooks.filter(
+        (b) => !existingKeys.has(`${b.title.toLowerCase()}_${b.gradeLevel}`)
+      );
+      return [...prev, ...nonDuplicate];
+    });
+
+    if (resp.data.skippedRows?.length) {
+      setSkippedRows((prev) => [...prev, ...resp.data.skippedRows]);
+    }
+
+    return { count: newBooks.length };
+  };
+
   const handleUpload = async () => {
     if (parsedBooks.length === 0) {
       setError("Belum ada data buku valid untuk diimpor.");
@@ -155,33 +179,11 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       setIsSubmitting(true);
       setError(null);
 
-      const CHUNK_SIZE = 50;
-      let totalInserted = 0;
-      let totalUpdated = 0;
-      let totalPackages = 0;
-
-      for (let i = 0; i < parsedBooks.length; i += CHUNK_SIZE) {
-        const batch = parsedBooks.slice(i, i + CHUNK_SIZE);
-        const res = await apiEnvelope<{
-          success: boolean;
-          message: string;
-          data: { insertedCount: number; updatedCount: number; packagesCreatedCount?: number };
-        }>("/api/books/bulk-import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            books: batch,
-            autoCreatePackages,
-            academicYear,
-          }),
-        });
-
-        if (res.data) {
-          totalInserted += res.data.insertedCount;
-          totalUpdated += res.data.updatedCount;
-          totalPackages += res.data.packagesCreatedCount || 0;
-        }
-      }
+      const { totalInserted, totalUpdated, totalPackages } = await submitBooksInChunks({
+        books: parsedBooks,
+        autoCreatePackages,
+        academicYear,
+      });
 
       const pkgNote = totalPackages > 0 ? ` & ${totalPackages} paket dibuat` : "";
       setResultMsg(`Berhasil mengimpor ${parsedBooks.length} buku! (${totalInserted} baru, ${totalUpdated} diperbarui${pkgNote}).`);
@@ -220,7 +222,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             </div>
             <button
               type="button"
-              onClick={downloadSampleTemplate}
+              onClick={downloadSampleBookTemplate}
               className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-gray-50 active:scale-[0.98] text-[#050505] rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm shrink-0"
             >
               <Download className="w-3.5 h-3.5 text-[#1877F2]" />
@@ -290,34 +292,24 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
           )}
 
           {/* Opsi Auto-Bundling BOM Paket */}
-          <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#050505]">
-              <input
-                type="checkbox"
-                checked={autoCreatePackages}
-                onChange={(e) => setAutoCreatePackages(e.target.checked)}
-                className="w-4 h-4 text-[#1877F2] rounded focus:ring-0 cursor-pointer"
-              />
-              <span className="flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5 text-[#1877F2]" />
-                Otomatis buat Paket Bundling Buku (BOM) per Tingkat Kelas
-              </span>
-            </label>
-            {autoCreatePackages && (
-              <div className="flex items-center gap-2 text-xs pt-1">
-                <span className="text-[#65676B]">Tahun Ajaran Paket:</span>
-                <input
-                  type="text"
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  className="px-2 py-1 text-xs border border-[#CED0D4] rounded-lg w-28 bg-white font-medium"
-                />
-              </div>
-            )}
-          </div>
+          <BookAutoPackageOptions
+            autoCreatePackages={autoCreatePackages}
+            onAutoCreateChange={setAutoCreatePackages}
+            academicYear={academicYear}
+            onAcademicYearChange={setAcademicYear}
+          />
 
           {folderFiles.length > 0 && (
-            <DriveFileList files={folderFiles} onSelect={handleSelectFolderFile} />
+            <div className="space-y-3">
+              <DriveFolderBatchRunner
+                files={folderFiles}
+                onProcessFile={handleBatchProcessFile}
+                onComplete={() => {
+                  setFileName(`Semua Berkas Folder (${folderFiles.length} file)`);
+                }}
+              />
+              <DriveFileList files={folderFiles} onSelect={handleSelectFolderFile} />
+            </div>
           )}
 
           {isParsing && (
