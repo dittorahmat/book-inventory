@@ -214,6 +214,15 @@ function parseSingleSheet(
       price = parseFloat(cleanNum) || 0;
     }
 
+    if (price <= 0) {
+      skippedRows.push({
+        rowNumber: r + 1,
+        raw: rawObj,
+        reason: `Harga buku tidak boleh Rp 0 atau kosong: ${rawTitle} (Kelas ${gradeLevel})`,
+      });
+      continue;
+    }
+
     // Harga beli
     let buyPrice: number | undefined;
     if (buyPriceIdx !== -1 && row[buyPriceIdx] !== undefined) {

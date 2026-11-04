@@ -41,6 +41,22 @@ describe("book-import-parser", () => {
     expect(inferBookPublisher("Buku Cerita Bergambar")).toBe("Al-Wildan Press");
   });
 
+  it("skips rows with price <= 0 or empty price", () => {
+    const csv = [
+      "judul,kelas,harga",
+      "Buku Gratis,1,0",
+      "Buku Valid,1,50000",
+      "Buku Kosong,1,",
+      "Buku Nol Format,1,Rp 0",
+    ].join("\n");
+
+    const result = parseBookCatalogData(csv);
+    expect(result.validBooks.length).toBe(1);
+    expect(result.validBooks[0].title).toBe("Buku Valid");
+    expect(result.skippedRows.length).toBe(3);
+    expect(result.skippedRows[0].reason).toContain("Harga buku tidak boleh Rp 0 atau kosong");
+  });
+
 
   it("parses multi-sheet Al-Wildan workbook layout with newline headers and summary sheet correctly", () => {
     const wb = XLSX.utils.book_new();
