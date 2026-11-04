@@ -10,6 +10,7 @@ import {
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
 import { refundSlipInsertQuery } from "./refund-slip";
+import { supersedeBookOrder, supersedeUniformOrder } from "./order-supersede";
 
 export type PaymentKind = "buku" | "seragam";
 
@@ -21,6 +22,45 @@ export interface PaymentReallocationResult {
   newOrderPaidAmount?: number;
   refundPendingAmount?: number;
   refundSlipNumber?: string;
+}
+
+/**
+ * Orchestrator kanonik untuk menggantikan pesanan gantung murid dengan pesanan baru (ADR-0021):
+ * 1. Mark pesanan lama sebagai `superseded` & unassign stok fisik lama ke stok bebas
+ * 2. Realokasi alokasi dana `payment_allocations` ke pesanan baru
+ * 3. Jika lebih bayar, catat refund pending slip di `refund_slips`
+ * 4. Jika beasiswa, teruskan status beasiswa & bukti dokumen ke pesanan baru
+ */
+export async function handleOrderReplacement(
+  database: AppDatabase,
+  input: {
+    kind: PaymentKind;
+    oldOrderId: string;
+    newOrderId: string;
+  },
+  deps: WriteDeps = {}
+): Promise<PaymentReallocationResult> {
+  // 1. Supersede pesanan lama & unassign stok
+  if (input.kind === "buku") {
+    const supRes = await supersedeBookOrder(database, {
+      orderId: input.oldOrderId,
+      supersededByOrderId: input.newOrderId,
+    }, deps);
+    if (!supRes.ok) {
+      return { ok: false, status: supRes.status ?? 400, message: supRes.message ?? "Gagal supersede pesanan buku lama" };
+    }
+  } else {
+    const supRes = await supersedeUniformOrder(database, {
+      orderId: input.oldOrderId,
+      supersededByOrderId: input.newOrderId,
+    }, deps);
+    if (!supRes.ok) {
+      return { ok: false, status: supRes.status ?? 400, message: supRes.message ?? "Gagal supersede pesanan seragam lama" };
+    }
+  }
+
+  // 2. Realokasi pembayaran & beasiswa
+  return reallocatePaymentToOrder(database, input, deps);
 }
 
 /**

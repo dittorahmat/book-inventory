@@ -1825,4 +1825,105 @@ describe("Struk bayar ganda di intake publik", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("checks pending orders for student and supports replacement on submit (ADR-0021)", async () => {
+    const stamp = `chk_pend_${Date.now()}`;
+    const schoolId = `sch_${stamp}`;
+    const studentId = `std_${stamp}`;
+    const oldOrderId = `ord_old_${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      code: `SCH-${stamp}`,
+      name: `Sekolah ${stamp}`,
+      address: "Jl. Pendidikan",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      name: `Siswa Pending ${stamp}`,
+      nis: `NIS-${stamp}`,
+      status: "active",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(studentBookOrders).values({
+      id: oldOrderId,
+      orderNumber: `ORD-OLD-${stamp}`,
+      studentId,
+      schoolId,
+      paymentStatus: "paid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 200000,
+      paidAmount: 200000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      // 1. Cek pending orders via endpoint /check-pending/:studentId
+      const checkRes = await publicOrdersRouter.request(`/check-pending/${studentId}`, { method: "GET" });
+      expect(checkRes.status).toBe(200);
+      const checkJson = (await checkRes.json()) as { success: boolean; data: { bookOrder: { id: string } | null } };
+      expect(checkJson.success).toBe(true);
+      expect(checkJson.data.bookOrder?.id).toBe(oldOrderId);
+
+      // 2. Submit order baru dengan replacePendingOrderId
+      const samplePng =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+      // Buat paket buku untuk dipesan
+      const pkgId = `pkg_sub_${stamp}`;
+      await db.insert(bookPackages).values({
+        id: pkgId,
+        code: `PKG-SUB-${stamp}`,
+        name: "Paket Kelas 1 SD",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        price: 150000,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const submitRes = await publicOrdersRouter.request("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          packageId: pkgId,
+          orderType: "regular",
+          replacePendingOrderId: oldOrderId,
+          parentPhoneManual: "081234567890",
+          payment: {
+            transferAmount: 150000,
+            allocationAmount: 150000,
+            bankName: "BCA",
+            referenceNumber: `REF-NEW-${stamp}`,
+            paymentProofBase64: samplePng,
+          },
+        }),
+      });
+
+      expect(submitRes.status).toBe(201);
+      const submitJson = (await submitRes.json()) as { success: boolean; data: { order: { id: string } } };
+      expect(submitJson.success).toBe(true);
+
+      // Verifikasi order lama berubah status menjadi superseded
+      const [oldOrder] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, oldOrderId));
+      expect(oldOrder.fulfillmentStatus).toBe("superseded");
+      expect(oldOrder.supersededByOrderId).toBe(submitJson.data.order.id);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.studentId, studentId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

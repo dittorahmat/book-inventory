@@ -61,4 +61,15 @@ describe("public-order-returns router", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("checks pending orders via check-pending endpoint", async () => {
+    const res = await app.request("/api/public/orders/check-pending/std-dummy", {
+      method: "GET",
+    });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: { bookOrder: unknown; uniformOrder: unknown } };
+    expect(json.success).toBe(true);
+    expect(json.data.bookOrder).toBeNull();
+    expect(json.data.uniformOrder).toBeNull();
+  });
 });

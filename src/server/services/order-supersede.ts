@@ -205,6 +205,82 @@ export async function supersedeUniformOrder(
   }
 }
 
+export interface PendingStudentOrders {
+  bookOrder: {
+    id: string;
+    orderNumber: string;
+    totalAmount: number;
+    paidAmount: number;
+    paymentStatus: string;
+    fulfillmentStatus: string;
+    createdAt: string;
+  } | null;
+  uniformOrder: {
+    id: string;
+    orderNumber: string;
+    totalAmount: number;
+    paidAmount: number;
+    paymentStatus: string;
+    shipmentStatus: string;
+    createdAt: string;
+  } | null;
+}
+
+/**
+ * Mencari pesanan aktif gantung (buku dan/atau seragam) untuk seorang siswa.
+ * Dipakai oleh intake portal publik sebelum submit untuk mendeteksi revisi pesanan gantung.
+ */
+export async function findPendingOrdersForStudent(
+  database: AppDatabase,
+  studentId: string
+): Promise<PendingStudentOrders> {
+  const bookOrders = await database
+    .select({
+      id: studentBookOrders.id,
+      orderNumber: studentBookOrders.orderNumber,
+      totalAmount: studentBookOrders.totalAmount,
+      paidAmount: studentBookOrders.paidAmount,
+      paymentStatus: studentBookOrders.paymentStatus,
+      fulfillmentStatus: studentBookOrders.fulfillmentStatus,
+      createdAt: studentBookOrders.createdAt,
+    })
+    .from(studentBookOrders)
+    .where(eq(studentBookOrders.studentId, studentId));
+
+  const pendingBook = bookOrders.find((o) => isBookOrderPending(o)) ?? null;
+
+  const uniformOrdersList = await database
+    .select({
+      id: uniformOrders.id,
+      orderNumber: uniformOrders.orderNumber,
+      totalAmount: uniformOrders.totalAmount,
+      paidAmount: uniformOrders.paidAmount,
+      paymentStatus: uniformOrders.paymentStatus,
+      shipmentStatus: uniformOrders.shipmentStatus,
+      shippingResi: uniformOrders.shippingResi,
+      createdAt: uniformOrders.createdAt,
+    })
+    .from(uniformOrders)
+    .where(eq(uniformOrders.studentId, studentId));
+
+  const pendingUniform = uniformOrdersList.find((o) => isUniformOrderPending(o)) ?? null;
+
+  return {
+    bookOrder: pendingBook,
+    uniformOrder: pendingUniform
+      ? {
+          id: pendingUniform.id,
+          orderNumber: pendingUniform.orderNumber,
+          totalAmount: pendingUniform.totalAmount,
+          paidAmount: pendingUniform.paidAmount,
+          paymentStatus: pendingUniform.paymentStatus,
+          shipmentStatus: pendingUniform.shipmentStatus,
+          createdAt: pendingUniform.createdAt,
+        }
+      : null,
+  };
+}
+
 /**
  * Helper predikat kanonik untuk memeriksa apakah pesanan buku masih gantung (layak diganti).
  */
