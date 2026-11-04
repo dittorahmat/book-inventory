@@ -4,6 +4,18 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Pesanan Tertimpa (Superseded Order)**:
+Status pesanan gantung (buku atau seragam) yang secara resmi digantikan oleh pesanan baru dari murid yang sama (berdasarkan NIS dan domain yang sama) akibat perubahan kurikulum, ukuran, atau revisi pemesanan. Pesanan lama kehilangan alokasi fisik barangnya, dan statusnya dikunci menjadi riwayat tanpa di-hard delete.
+_Avoid_: Pesanan terhapus, pesanan overwrite liar
+
+**Penggantian Pesanan Gantung (Order Revision / Replacement)**:
+Alur konfirmasi eksplisit di portal publik ketika murid dengan pesanan gantung (belum serah terima untuk buku, belum dikirim/belum ada resi untuk seragam) mengajukan pesanan baru. Pemesan memilih secara sadar untuk merevisi/mengganti pesanan lama atau membuat pesanan tambahan baru.
+_Avoid_: Otomatis timpa tanpa tanya, pesanan ganda diam-diam
+
+**Realokasi Pembayaran Antar-Pesanan (Payment Re-allocation)**:
+Pemindahan alokasi dana sah (struk bank di `payment_receipts`) dari pesanan lama yang digantikan ke pesanan baru via `payment-ledger`. Jika pesanan baru lebih mahal, pesanan berstatus `partial`; jika lebih murah, selisih lebih bayar dicatat sebagai antrean refund (Refund Pending) Finance.
+_Avoid_: Uang menguap, double bayar, hapus struk bank
+
 **Surat Pengunduran Diri Murid**:
 Dokumen resmi pengunduran diri siswa yang wajib diunggah oleh orang tua/wali murid saat mengajukan pembatalan pesanan buku atau seragam di portal publik; menjadi syarat mutlak bagi verifikasi gudang sebelum pelepasan alokasi fisik barang.
 _Avoid_: Surat keterangan biasa, form pembatalan lisan
