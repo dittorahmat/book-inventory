@@ -13,6 +13,7 @@ import {
   resolveRequestActor,
 } from "../services/access-scope";
 import { epochTimeFragment } from "../lib/document-number";
+import { chunkRows } from "../lib/d1-write";
 
 export const bookItemsRouter = new Hono();
 
@@ -129,29 +130,28 @@ bookItemsRouter.post("/batch-generate", zValidator("json", batchGenerateCopiesSc
     const now = new Date().toISOString();
     const timestampPart = epochTimeFragment(Date.now(), 4);
 
-  const inserted = [];
-  for (let i = 1; i <= body.count; i++) {
-    const id = crypto.randomUUID();
-    const barcode = `${body.barcodePrefix}-${timestampPart}-${Math.floor(1000 + Math.random() * 9000)}-${i}`;
-
-    const [row] = await db
-      .insert(bookItems)
-      .values({
-        id,
+    const rowsToInsert = Array.from({ length: body.count }, (_, idx) => {
+      const i = idx + 1;
+      return {
+        id: crypto.randomUUID(),
         bookId: body.bookId,
         currentSchoolId: body.schoolId,
-        barcode,
+        barcode: `${body.barcodePrefix}-${timestampPart}-${Math.floor(1000 + Math.random() * 9000)}-${i}`,
         condition: body.condition,
-        status: "in_stock",
+        status: "in_stock" as const,
         createdAt: now,
         updatedAt: now,
-      })
-      .returning();
+      };
+    });
 
-    inserted.push(row);
-  }
+    const inserted: Array<typeof bookItems.$inferSelect> = [];
+    const chunks = chunkRows(rowsToInsert, 10);
+    for (const chunk of chunks) {
+      const chunkResult = await db.insert(bookItems).values(chunk).returning();
+      inserted.push(...chunkResult);
+    }
 
-  return c.json({ success: true, count: inserted.length, data: inserted }, 201);
+    return c.json({ success: true, count: inserted.length, data: inserted }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);
   }

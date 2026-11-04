@@ -3,6 +3,7 @@ import { useCatalogData } from "../components/catalog/useCatalogData";
 import { CatalogToolbar } from "../components/catalog/CatalogToolbar";
 import { CreateBookForm } from "../components/catalog/CreateBookForm";
 import { CatalogBookList } from "../components/catalog/CatalogBookList";
+import { BookBulkUploadModal } from "../components/books/BookBulkUploadModal";
 import type { NewBookPayload } from "../components/catalog/catalog-intent";
 import type { Book } from "../types";
 
@@ -11,6 +12,7 @@ export function CatalogView() {
   const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook } = useCatalogData();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const handleCreate = async (payload: NewBookPayload, coverFile: File | null) => {
     await createBook(payload, coverFile);
@@ -53,6 +55,7 @@ export function CatalogView() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onAdd={() => setIsAdding(true)}
+        onBulkUpload={() => setShowBulkUpload(true)}
       />
 
       {loadError && (
@@ -75,6 +78,15 @@ export function CatalogView() {
       )}
 
       {isAdding && <CreateBookForm onClose={() => setIsAdding(false)} onCreate={handleCreate} />}
+      {showBulkUpload && (
+        <BookBulkUploadModal
+          onClose={() => setShowBulkUpload(false)}
+          onSuccess={() => {
+            setShowBulkUpload(false);
+            loadCatalog();
+          }}
+        />
+      )}
 
       <CatalogBookList
         books={filteredBooks}
