@@ -67,14 +67,14 @@ for (const file of candidates) {
   if (lines > MAX_LINES) {
     offenders.push({ file, lines });
   } else if (lines >= 350 && file.includes("/routes/")) {
-    // Peringatan dini sebelum melanggar aturan AGENTS.md §0.33
+    // Peringatan dini sebelum melanggar aturan docs/rules/testing-tooling.md §0.33
     warnings.push({ file, lines });
   }
 }
 
 if (warnings.length > 0) {
   console.warn(
-    `File-size gate WARNING (route file mendekati batas ${MAX_LINES} baris, patuhi AGENTS §0.33):`
+    `File-size gate WARNING (route file mendekati batas ${MAX_LINES} baris, patuhi docs/rules/testing-tooling.md §0.33):`
   );
   for (const w of warnings.sort((a, b) => b.lines - a.lines)) {
     console.warn(`  ${w.lines}  ${w.file} (segera dekomposisi ke sub-router fungsional)`);
