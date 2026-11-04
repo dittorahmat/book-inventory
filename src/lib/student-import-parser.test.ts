@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { normalizeAlWildanClass, normalizeGoogleSheetsUrl, parseStudentData } from "./student-import-parser";
 
 describe("student-import-parser", () => {
@@ -42,8 +42,12 @@ describe("student-import-parser", () => {
     expect(result.skippedRows[0].reason).toContain("Cuti");
   });
 
-  it("successfully parses real .xlsm file with 714 students", () => {
+  it("successfully parses real .xlsm file with 714 students if file exists locally", () => {
     const filePath = "D:\\development\\DATA SISWA SD AL-WILDAN 1 TP. 2026-2027.xlsm";
+    if (!existsSync(filePath)) {
+      // Di CI / lingkungan Linux, berkas lokal di drive D: host Windows tidak ada
+      return;
+    }
     const buffer = readFileSync(filePath);
     const result = parseStudentData(buffer.buffer);
 
