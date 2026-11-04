@@ -14,32 +14,41 @@ import { parseBookCatalogData } from "../../lib/book-import-parser";
 
 export const bookBulkRouter = new Hono();
 
-const bookImportItemSchema = z.object({
-  id: idSchema.optional(),
-  title: z.string().min(1, "Judul buku wajib diisi"),
-  author: z.string().optional().default("Tim Al-Wildan"),
-  publisher: z.string().optional().default("Penerbit Al-Wildan"),
-  publishYear: z.number().int().optional().default(new Date().getFullYear()),
-  category: z.string().optional(),
-  description: z.string().optional(),
-  price: z.number().nonnegative().default(0),
-  buyPrice: z.number().nonnegative().optional(),
-  sellPrice: z.number().nonnegative().optional(),
-  isbn: z.string().optional(),
-  gradeLevel: z.string().optional(),
-  curriculumType: z.enum(["international", "national"]).optional(),
-  academicYear: z.string().optional(),
-});
+const bookImportItemSchema = z
+  .object({
+    id: idSchema.optional(),
+    title: z.string().min(1, "Judul buku wajib diisi"),
+    author: z.string().optional().default("Tim Al-Wildan"),
+    publisher: z.string().optional().default("Penerbit Al-Wildan"),
+    publishYear: z.number().int().optional().default(new Date().getFullYear()),
+    category: z.string().optional(),
+    description: z.string().optional(),
+    subject: z.string().optional(),
+    price: z.number().nonnegative().default(0),
 
-const bulkImportBooksPayloadSchema = z.object({
-  books: z.array(bookImportItemSchema).min(1, "Minimal 1 data buku untuk diimpor"),
-  autoCreatePackages: z.boolean().optional().default(false),
-  academicYear: z.string().optional().default("2026/2027"),
-});
+    buyPrice: z.number().nonnegative().optional(),
+    sellPrice: z.number().nonnegative().optional(),
+    isbn: z.string().optional(),
+    gradeLevel: z.string().optional(),
+    curriculumType: z.enum(["international", "national"]).optional(),
+    academicYear: z.string().optional(),
+  })
+  .strict();
 
-const parseDriveUrlPayloadSchema = z.object({
-  url: z.string().url("URL tidak valid"),
-});
+const bulkImportBooksPayloadSchema = z
+  .object({
+    books: z.array(bookImportItemSchema).min(1, "Minimal 1 data buku untuk diimpor"),
+    autoCreatePackages: z.boolean().optional().default(false),
+    academicYear: z.string().optional().default("2026/2027"),
+  })
+  .strict();
+
+const parseDriveUrlPayloadSchema = z
+  .object({
+    url: z.string().url("URL tidak valid"),
+  })
+  .strict();
+
 
 /**
  * Endpoint server-side untuk parsing Google Drive Folder atau Google Sheets URL.

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { resolveBookIsbn } from "./isbn";
 
 export interface ParsedBookRow {
   title: string;
@@ -38,7 +39,7 @@ export function inferBookPublisher(title: string): string {
     t.includes("cambridge") ||
     t.includes("marshall cavendish")
   ) {
-    return "Cambridge University Press / Marshall Cavendish";
+    return "Cambridge";
   }
   if (
     t.includes("akidah") ||
@@ -56,9 +57,10 @@ export function inferBookPublisher(title: string): string {
     t.includes("qoidah") ||
     t.includes("berdzikir")
   ) {
-    return "Al-Wildan Press / Tim Diniyyah";
+    return "Al-Wildan Press";
   }
   return "Penerbit Al-Wildan";
+
 }
 
 /**
@@ -220,8 +222,10 @@ function parseSingleSheet(
       buyPrice = parseFloat(cleanNum) || 0;
     }
 
-    const isbn = isbnIdx !== -1 && row[isbnIdx] ? String(row[isbnIdx]).trim() : undefined;
+    const rawIsbn = isbnIdx !== -1 && row[isbnIdx] ? String(row[isbnIdx]).trim() : undefined;
+    const isbn = resolveBookIsbn(rawIsbn, undefined, undefined, rawTitle, gradeLevel);
     const subject = subjIdx !== -1 && row[subjIdx] ? String(row[subjIdx]).trim() : "Umum";
+
     const publisher =
       pubIdx !== -1 && row[pubIdx] && String(row[pubIdx]).trim() !== ""
         ? String(row[pubIdx]).trim()

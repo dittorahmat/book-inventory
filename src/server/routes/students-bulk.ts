@@ -8,9 +8,12 @@ import { parseStudentData } from "../../lib/student-import-parser";
 
 export const studentsBulkRouter = new Hono();
 
-const parseDriveUrlPayloadSchema = z.object({
-  url: z.string().url("URL tidak valid"),
-});
+const parseDriveUrlPayloadSchema = z
+  .object({
+    url: z.string().url("URL tidak valid"),
+  })
+  .strict();
+
 
 /**
  * Endpoint server-side untuk parsing Google Drive Folder atau Google Sheets URL murid.

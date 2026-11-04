@@ -34,12 +34,13 @@ describe("book-import-parser", () => {
   });
 
   it("infers smart publishers correctly based on title keywords", () => {
-    expect(inferBookPublisher("Prime Math 1A Coursebook")).toContain("Cambridge");
-    expect(inferBookPublisher("English Student Book+Workbook 1")).toContain("Cambridge");
-    expect(inferBookPublisher("Akidah Akhlak 1")).toContain("Al-Wildan Press");
-    expect(inferBookPublisher("Weekly Progress Report 1 Tahun")).toContain("Al-Wildan Press");
+    expect(inferBookPublisher("Prime Math 1A Coursebook")).toBe("Cambridge");
+    expect(inferBookPublisher("English Student Book+Workbook 1")).toBe("Cambridge");
+    expect(inferBookPublisher("Akidah Akhlak 1")).toBe("Al-Wildan Press");
+    expect(inferBookPublisher("Weekly Progress Report 1 Tahun")).toBe("Al-Wildan Press");
     expect(inferBookPublisher("Buku Cerita Bergambar")).toBe("Penerbit Al-Wildan");
   });
+
 
   it("parses multi-sheet Al-Wildan workbook layout with newline headers and summary sheet correctly", () => {
     const wb = XLSX.utils.book_new();
