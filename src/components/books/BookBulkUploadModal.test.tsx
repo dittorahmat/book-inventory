@@ -26,10 +26,29 @@ describe("BookBulkUploadModal", () => {
         ]}
         sheetName="Kelas 1-2"
         totalRawRead={5}
+        skippedCount={0}
       />
     );
 
     expect(screen.getByText("2 judul buku unik siap diimpor")).toBeDefined();
     expect(screen.getByText("(3 duplikat judul & kelas otomatis diabaikan)")).toBeDefined();
+  });
+
+  it("does not count skipped invalid rows as duplicates in preview", () => {
+    // 5 baris total dibaca: 2 buku valid, 3 baris judul cacat/dilewati, 0 duplikat
+    render(
+      <BookImportPreview
+        parsedBooks={[
+          { title: "Buku A", gradeLevel: "1", price: 50000, publisher: "Press A" },
+          { title: "Buku B", gradeLevel: "2", price: 60000, publisher: "Press B" },
+        ]}
+        sheetName="Kelas 1-2"
+        totalRawRead={5}
+        skippedCount={3}
+      />
+    );
+
+    expect(screen.getByText("2 judul buku unik siap diimpor")).toBeDefined();
+    expect(screen.queryByText(/duplikat judul & kelas otomatis diabaikan/)).toBeNull();
   });
 });

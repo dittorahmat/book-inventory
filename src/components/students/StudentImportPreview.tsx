@@ -1,5 +1,6 @@
 import type { ParsedStudentRow, SkippedStudentRow } from "../../lib/student-import-parser";
 import { AlertCircle } from "lucide-react";
+import { calculateDedupMetrics } from "../../lib/intake-dedup";
 
 interface StudentImportPreviewProps {
   parsedStudents: ParsedStudentRow[];
@@ -14,10 +15,11 @@ export function StudentImportPreview({
   sheetName,
   totalRawRead,
 }: StudentImportPreviewProps) {
-  const duplicatesSkipped =
-    typeof totalRawRead === "number" && totalRawRead > parsedStudents.length
-      ? totalRawRead - parsedStudents.length
-      : 0;
+  const { duplicateCount } = calculateDedupMetrics(
+    totalRawRead,
+    parsedStudents.length,
+    skippedRows.length
+  );
 
   return (
     <div className="space-y-3">
@@ -31,9 +33,9 @@ export function StudentImportPreview({
               <span className="text-emerald-600 font-bold">
                 {parsedStudents.length} siswa unik siap diimpor
               </span>
-              {duplicatesSkipped > 0 && (
+              {duplicateCount > 0 && (
                 <div className="text-[10px] text-[#65676B]">
-                  ({duplicatesSkipped} duplikat NIS otomatis diabaikan)
+                  ({duplicateCount} duplikat NIS otomatis diabaikan)
                 </div>
               )}
             </div>

@@ -112,4 +112,27 @@ describe("DriveFolderBatchRunner", () => {
     expect(screen.getByText(/Disaring menjadi/)).toBeDefined();
     expect(screen.getByText(/4 duplikat otomatis diabaikan/)).toBeDefined();
   });
+
+  it("prioritizes explicit rawItemsCount prop when supplied", async () => {
+    render(
+      <DriveFolderBatchRunner
+        files={dummyFiles}
+        rawItemsCount={20}
+        uniqueItemsCount={15}
+        onProcessFile={async () => ({ count: 5 })}
+        onComplete={() => {}}
+      />
+    );
+
+    const startBtn = screen.getByText("Mulai Proses Semua");
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeDefined();
+    });
+
+    expect(screen.getByText("20")).toBeDefined();
+    expect(screen.getByText("15")).toBeDefined();
+    expect(screen.getByText(/5 duplikat otomatis diabaikan/)).toBeDefined();
+  });
 });

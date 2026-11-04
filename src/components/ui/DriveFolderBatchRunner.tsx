@@ -16,6 +16,7 @@ interface DriveFolderBatchRunnerProps {
   onProcessFile: (file: DriveFolderItem) => Promise<{ count: number; warning?: string }>;
   onComplete: () => void;
   title?: string;
+  rawItemsCount?: number;
   uniqueItemsCount?: number;
 }
 
@@ -24,6 +25,7 @@ export function DriveFolderBatchRunner({
   onProcessFile,
   onComplete,
   title = "Proses Semua Berkas Folder",
+  rawItemsCount,
   uniqueItemsCount,
 }: DriveFolderBatchRunnerProps) {
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -39,6 +41,8 @@ export function DriveFolderBatchRunner({
   ).length;
 
   const percent = Math.round((completedCount / files.length) * 100);
+
+  const effectiveRawCount = typeof rawItemsCount === "number" && rawItemsCount > 0 ? rawItemsCount : totalItemsCount;
 
   const handleStart = async () => {
     setIsRunning(true);
@@ -156,14 +160,14 @@ export function DriveFolderBatchRunner({
 
           <div className="flex flex-col gap-1 text-[11px] text-[#65676B] pt-1">
             <div>
-              Total akumulasi data terbaca: <strong className="text-[#050505]">{totalItemsCount}</strong> baris
+              Total akumulasi data terbaca: <strong className="text-[#050505]">{effectiveRawCount}</strong> baris
             </div>
-            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount < totalItemsCount && (
+            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount < effectiveRawCount && (
               <div className="text-emerald-700 font-medium">
-                → Disaring menjadi <strong>{uniqueItemsCount}</strong> item unik ({totalItemsCount - uniqueItemsCount} duplikat otomatis diabaikan)
+                → Disaring menjadi <strong>{uniqueItemsCount}</strong> item unik ({effectiveRawCount - uniqueItemsCount} duplikat otomatis diabaikan)
               </div>
             )}
-            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount === totalItemsCount && (
+            {typeof uniqueItemsCount === "number" && uniqueItemsCount > 0 && uniqueItemsCount === effectiveRawCount && (
               <div className="text-[#65676B]">
                 (Seluruh {uniqueItemsCount} item unik tanpa duplikat)
               </div>
