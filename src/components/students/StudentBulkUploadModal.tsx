@@ -5,6 +5,8 @@ import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import type { SchoolOption } from "./students-api";
 import { StudentImportPreview } from "./StudentImportPreview";
 import { DriveFileList, type DriveFolderItem } from "../ui/DriveFileList";
+import { DriveFolderBatchRunner } from "../ui/DriveFolderBatchRunner";
+import { downloadSampleStudentTemplate, submitStudentsInChunks } from "./student-import-helpers";
 import {
   parseStudentData,
   type ParsedStudentRow,
@@ -40,22 +42,6 @@ export function StudentBulkUploadModal({
   const [skippedRows, setSkippedRows] = useState<SkippedStudentRow[]>([]);
   const [sheetName, setSheetName] = useState<string>("");
   const [folderFiles, setFolderFiles] = useState<DriveFolderItem[]>([]);
-
-  const downloadSampleTemplate = () => {
-    const csvContent =
-      "nis,nama,kelas,jk,tahun_ajaran\n" +
-      "262710001,ABIZAR ZAFRAN BINTORO,1.INTER 1,Male,2026/2027\n" +
-      "262710002,ABQARY SALAHUDDIN WIBOWO,1.INTER 1,Male,2026/2027\n" +
-      "262710003,FATIMAH AZZAHRA,2.MQ 1,Female,2026/2027\n";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "template_import_siswa.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -160,6 +146,40 @@ export function StudentBulkUploadModal({
     }
   };
 
+  const handleBatchProcessFile = async (file: DriveFolderItem) => {
+    const fileUrl = `https://docs.google.com/spreadsheets/d/${file.id}/edit`;
+    const resp = await apiEnvelope<{
+      success: boolean;
+      type: "sheet";
+      data: {
+        validStudents: ParsedStudentRow[];
+        skippedRows: SkippedStudentRow[];
+        sheetName: string;
+      };
+    }>("/api/students/parse-drive-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: fileUrl }),
+    });
+
+    const newStudents = resp.data.validStudents || [];
+    if (newStudents.length === 0) {
+      return { count: 0, warning: "Tidak ada baris siswa valid" };
+    }
+
+    setParsedStudents((prev) => {
+      const existingNis = new Set(prev.map((s) => s.nis));
+      const nonDuplicate = newStudents.filter((s) => !existingNis.has(s.nis));
+      return [...prev, ...nonDuplicate];
+    });
+
+    if (resp.data.skippedRows?.length) {
+      setSkippedRows((prev) => [...prev, ...resp.data.skippedRows]);
+    }
+
+    return { count: newStudents.length };
+  };
+
   const handleUpload = async () => {
     if (!selectedSchoolId) {
       setError("Pilih sekolah cabang tujuan terlebih dahulu sebelum mengimpor siswa.");
@@ -174,27 +194,10 @@ export function StudentBulkUploadModal({
       setIsSubmitting(true);
       setError(null);
 
-      const CHUNK_SIZE = 100;
-      let totalInserted = 0;
-      let totalUpdated = 0;
-
-      for (let i = 0; i < parsedStudents.length; i += CHUNK_SIZE) {
-        const batch = parsedStudents.slice(i, i + CHUNK_SIZE);
-        const res = await apiEnvelope<{
-          success: boolean;
-          message: string;
-          data: { insertedCount: number; updatedCount: number };
-        }>("/api/students/bulk-import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ schoolId: selectedSchoolId, students: batch }),
-        });
-
-        if (res.data) {
-          totalInserted += res.data.insertedCount;
-          totalUpdated += res.data.updatedCount;
-        }
-      }
+      const { totalInserted, totalUpdated } = await submitStudentsInChunks({
+        schoolId: selectedSchoolId,
+        students: parsedStudents,
+      });
 
       setResultMsg(`Berhasil mengimpor ${parsedStudents.length} siswa! (${totalInserted} baru, ${totalUpdated} diperbarui).`);
       setTimeout(() => {
@@ -233,7 +236,7 @@ export function StudentBulkUploadModal({
             </div>
             <button
               type="button"
-              onClick={downloadSampleTemplate}
+              onClick={downloadSampleStudentTemplate}
               className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-gray-50 active:scale-[0.98] text-[#050505] rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm shrink-0"
             >
               <Download className="w-3.5 h-3.5 text-[#1877F2]" />
@@ -316,7 +319,17 @@ export function StudentBulkUploadModal({
           )}
 
           {folderFiles.length > 0 && (
-            <DriveFileList files={folderFiles} onSelect={handleSelectFolderFile} />
+            <div className="space-y-3">
+              <DriveFolderBatchRunner
+                files={folderFiles}
+                onProcessFile={handleBatchProcessFile}
+                onComplete={() => {
+                  setFileName(`Semua Berkas Folder (${folderFiles.length} file)`);
+                }}
+                title="Proses Semua Berkas Siswa di Folder"
+              />
+              <DriveFileList files={folderFiles} onSelect={handleSelectFolderFile} />
+            </div>
           )}
 
           {isParsing && (
