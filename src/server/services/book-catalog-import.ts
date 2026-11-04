@@ -3,6 +3,7 @@ import { bookPackageItems, bookPackages, books } from "../../db/schema";
 import { resolveBookIsbn } from "../../lib/isbn";
 import { chunkRows } from "../lib/d1-write";
 import { recalcPackagePrice } from "./pricing";
+import { ensurePackageHasWpr } from "./wpr";
 import type { AppDatabase } from "../../db";
 
 
@@ -205,6 +206,9 @@ export async function importBookCatalog(
       for (const bChunk of bomChunks) {
         await database.insert(bookPackageItems).values(bChunk);
       }
+
+      // WPR wajib ada di semua BOM paket (§0.28)
+      await ensurePackageHasWpr(database, pkgId);
 
       // Selaraskan harga all-in paket melalui seam kanonik recalcPackagePrice (§0.28)
       await recalcPackagePrice(database, pkgId);
