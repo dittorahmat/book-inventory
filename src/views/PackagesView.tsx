@@ -14,11 +14,12 @@ type BookPackage = PackageRow;
 
 interface PackagesViewProps {
   activeSchool: School | null;
+  schools?: School[];
   userRole?: StaffRole;
 }
 
 /** Orkestrator tipis (cerminan CatalogView): data-hook + filter-hook + kartu + modal. */
-export function PackagesView({ activeSchool, userRole }: PackagesViewProps) {
+export function PackagesView({ activeSchool, schools = [], userRole }: PackagesViewProps) {
   const {
     packages,
     catalogBooks,
@@ -169,6 +170,7 @@ export function PackagesView({ activeSchool, userRole }: PackagesViewProps) {
       {editingPkg && (
         <EditPackageModal
           pkg={editingPkg}
+          schools={schools}
           readyBundleCount={stockMap[editingPkg.id]?.readyBundleCount ?? 0}
           catalogBooks={catalogBooks}
           updatePackage={updatePackage}

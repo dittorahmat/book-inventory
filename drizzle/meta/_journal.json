@@ -302,6 +302,13 @@
       "when": 1793767284092,
       "tag": "0042_mighty_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1793859514309,
+      "tag": "0043_unique_warhawk",
+      "breakpoints": true
     }
   ]
 }

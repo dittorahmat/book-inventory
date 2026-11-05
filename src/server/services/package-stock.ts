@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { bookItems, bookPackageItems, bookPackages, books, packageItems } from "../../db/schema";
+import { bookItems, bookPackageItems, bookPackageSchools, bookPackages, books, packageItems } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
 import {
   AVAILABLE_LOOSE_STATUSES,
@@ -36,26 +36,38 @@ export const PACKAGE_LIST_LIMIT = 50;
 export async function listPackagesWithBom(
   database: AppDatabase,
   limit: number = PACKAGE_LIST_LIMIT
-): Promise<Array<typeof bookPackages.$inferSelect & { items: PackageBomItem[]; totalItemsCount: number }>> {
+): Promise<Array<typeof bookPackages.$inferSelect & { items: PackageBomItem[]; schoolIds: string[]; totalItemsCount: number }>> {
   const pkgs: Array<typeof bookPackages.$inferSelect> = await database.select().from(bookPackages).limit(limit);
   if (pkgs.length === 0) return [];
-  const bom = await database
-    .select({
-      packageId: bookPackageItems.packageId,
-      id: bookPackageItems.id,
-      bookId: books.id,
-      title: books.title,
-      publicTitle: books.publicTitle,
-      isbn: books.isbn,
-      author: books.author,
-      category: books.category,
-      quantity: bookPackageItems.quantity,
-      price: books.price,
-      sellPrice: books.sellPrice,
-    })
-    .from(bookPackageItems)
-    .innerJoin(books, eq(bookPackageItems.bookId, books.id))
-    .where(inArray(bookPackageItems.packageId, pkgs.map((p: typeof bookPackages.$inferSelect) => p.id)));
+
+  const pkgIds = pkgs.map((p: typeof bookPackages.$inferSelect) => p.id);
+  const [bom, pkgSchools] = await Promise.all([
+    database
+      .select({
+        packageId: bookPackageItems.packageId,
+        id: bookPackageItems.id,
+        bookId: books.id,
+        title: books.title,
+        publicTitle: books.publicTitle,
+        isbn: books.isbn,
+        author: books.author,
+        category: books.category,
+        quantity: bookPackageItems.quantity,
+        price: books.price,
+        sellPrice: books.sellPrice,
+      })
+      .from(bookPackageItems)
+      .innerJoin(books, eq(bookPackageItems.bookId, books.id))
+      .where(inArray(bookPackageItems.packageId, pkgIds)),
+    database
+      .select({
+        packageId: bookPackageSchools.packageId,
+        schoolId: bookPackageSchools.schoolId,
+      })
+      .from(bookPackageSchools)
+      .where(inArray(bookPackageSchools.packageId, pkgIds)),
+  ]);
+
   const bomByPkg = new Map<string, PackageBomItem[]>();
   for (const row of bom) {
     const list = bomByPkg.get(row.packageId) ?? [];
@@ -73,9 +85,18 @@ export async function listPackagesWithBom(
     });
     bomByPkg.set(row.packageId, list);
   }
+
+  const schoolsByPkg = new Map<string, string[]>();
+  for (const row of pkgSchools) {
+    const list = schoolsByPkg.get(row.packageId) ?? [];
+    list.push(row.schoolId);
+    schoolsByPkg.set(row.packageId, list);
+  }
+
   return pkgs.map((pkg: typeof bookPackages.$inferSelect) => {
     const items = bomByPkg.get(pkg.id) ?? [];
-    return { ...pkg, items, totalItemsCount: items.reduce((sum, it) => sum + it.quantity, 0) };
+    const schoolIds = schoolsByPkg.get(pkg.id) ?? [];
+    return { ...pkg, items, schoolIds, totalItemsCount: items.reduce((sum, it) => sum + it.quantity, 0) };
   });
 }
 

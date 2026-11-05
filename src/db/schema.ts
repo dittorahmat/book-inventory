@@ -246,6 +246,16 @@ export const bookPackageItems = sqliteTable("book_package_items", {
   index("bom_package_idx").on(t.packageId),
 ]);
 
+/** Penugasan paket buku ke sekolah cabang: tanpa baris = universal untuk semua cabang. */
+export const bookPackageSchools = sqliteTable("book_package_schools", {
+  packageId: text("package_id").notNull().references(() => bookPackages.id, { onDelete: "cascade" }),
+  schoolId: text("school_id").notNull().references(() => schools.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("book_package_schools_school_idx").on(t.schoolId),
+  unique("book_package_schools_package_school_unq").on(t.packageId, t.schoolId),
+]);
+
 /** Relasi Book–supplier banyak-ke-banyak: tanpa baris = universal (semua supplier). */
 export const bookSuppliers = sqliteTable("book_suppliers", {
   bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),

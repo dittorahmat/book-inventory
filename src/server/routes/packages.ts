@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { bookPackages, bookPackageItems, packageItems, schools } from "../../db/schema";
+import { bookPackages, bookPackageItems, bookPackageSchools, packageItems, schools } from "../../db/schema";
 import { recalcPackagePrice } from "../services/pricing";
 import {
   accessErrorResponse,
@@ -31,6 +31,7 @@ const createPackageSchema = z.object({
   academicYear: z.string().min(1, "Academic year is required"),
   price: z.number().int().min(0).default(0),
   description: z.string().optional(),
+  schoolIds: z.array(z.string()).optional(),
   items: z.array(
     z.object({
       bookId: z.string().min(1, "Book ID is required"),
@@ -181,6 +182,17 @@ packagesRouter.post("/", zValidator("json", createPackageSchema), async (c) => {
   }));
   for (const rows of chunkRows(bomRows)) {
     await runWriteBatch(db, [db.insert(bookPackageItems).values(rows)]);
+  }
+
+  if (body.schoolIds && body.schoolIds.length > 0) {
+    const schoolRows = [...new Set(body.schoolIds)].map((schoolId) => ({
+      packageId,
+      schoolId,
+      createdAt: now,
+    }));
+    for (const rows of chunkRows(schoolRows)) {
+      await runWriteBatch(db, [db.insert(bookPackageSchools).values(rows)]);
+    }
   }
 
   // WPR wajib di semua BOM paket: tambah otomatis bila admin tidak menyertakan.
