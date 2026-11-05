@@ -18,23 +18,23 @@ export type DriveResourceResult =
 const folderCache = new Map<string, { data: { files: GoogleDriveFolderFile[]; totalFiles: number }; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchWithRetry(url: string, init: RequestInit, retries = 2): Promise<Response> {
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
   let attempt = 0;
-  while (attempt <= retries) {
+  while (true) {
     try {
       const resp = await fetch(url, init);
       if (resp.ok) return resp;
       // Jika Google mengembalikan 503 Service Unavailable / 429 Too Many Requests, tunggu sejenak lalu retry
-      if ((resp.status === 503 || resp.status === 429) && attempt < retries) {
+      if ((resp.status === 503 || resp.status === 429) && attempt < maxRetries) {
         attempt++;
         await delay(500 * Math.pow(2, attempt));
         continue;
       }
       return resp;
     } catch (err) {
-      if (attempt < retries) {
+      if (attempt < maxRetries) {
         attempt++;
         await delay(500 * Math.pow(2, attempt));
         continue;
@@ -42,7 +42,6 @@ async function fetchWithRetry(url: string, init: RequestInit, retries = 2): Prom
       throw err;
     }
   }
-  return fetch(url, init);
 }
 
 export async function fetchGoogleDriveResource(url: string): Promise<DriveResourceResult> {

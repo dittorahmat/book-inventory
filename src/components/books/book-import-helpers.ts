@@ -1,4 +1,5 @@
 import { apiEnvelope } from "../../lib/api";
+import { resolveBookIsbn } from "../../lib/isbn";
 import type { ParsedBookRow } from "../../lib/book-import-parser";
 
 export const SAMPLE_BOOK_CSV =
@@ -27,13 +28,14 @@ export async function submitBooksInChunks(params: {
   let totalUpdated = 0;
   let totalPackages = 0;
 
-  // Deduplikasi awal berdasarkan kombinasi title + gradeLevel agar batch chunk bebas konflik
-  const seen = new Set<string>();
+  // Deduplikasi chunk import berdasarkan kanonik identifier ISBN (anti-collision)
+  // Menjamin batch chunk bebas dari tabrakan UNIQUE constraint books.isbn di database D1
+  const seenIsbn = new Set<string>();
   const uniqueBooks: ParsedBookRow[] = [];
   for (const b of params.books) {
-    const key = `${b.title.trim().toLowerCase()}__${b.gradeLevel ?? ""}`;
-    if (!seen.has(key)) {
-      seen.add(key);
+    const canonicalIsbn = resolveBookIsbn(b.isbn, undefined, undefined, b.title, b.gradeLevel);
+    if (!seenIsbn.has(canonicalIsbn)) {
+      seenIsbn.add(canonicalIsbn);
       uniqueBooks.push(b);
     }
   }
