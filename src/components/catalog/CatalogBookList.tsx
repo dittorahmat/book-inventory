@@ -7,8 +7,8 @@ interface CatalogBookListProps {
   books: Book[];
   isEmptyCatalog: boolean;
   onUploadCover: (bookId: string, file: File) => void;
-  onRemove: (book: Book) => void;
-  onEdit: (book: Book) => void;
+  onRemove?: (book: Book) => void;
+  onEdit?: (book: Book) => void;
 }
 
 const emptyMessage = (isEmptyCatalog: boolean) =>
@@ -56,24 +56,30 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onEdit(book)}
-                  title="Ubah data buku"
-                  className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemove(book)}
-                  title="Hapus buku"
-                  className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+              {(onEdit || onRemove) && (
+                <div className="flex flex-col gap-1 shrink-0">
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(book)}
+                      title="Ubah data buku"
+                      className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(book)}
+                      title="Hapus buku"
+                      className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
@@ -130,22 +136,26 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(book)}
-                        title="Ubah data buku"
-                        className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRemove(book)}
-                        title="Hapus buku"
-                        className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(book)}
+                          title="Ubah data buku"
+                          className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {onRemove && (
+                        <button
+                          type="button"
+                          onClick={() => onRemove(book)}
+                          title="Hapus buku"
+                          className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

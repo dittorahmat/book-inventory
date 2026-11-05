@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookPackageItems, bookPackageSchools, bookPackages, packageItems, studentBookOrders } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
@@ -116,6 +116,21 @@ export async function deletePackageWithAutoUnbundle(
       ok: false,
       status: 400,
       message: `Paket "${pkg.name}" tidak dapat dihapus karena tercatat dalam pesanan siswa (${list}).`,
+    };
+  }
+
+  // Guard fisik paket yang pernah didistribusikan / bukan status ready unbundle
+  const nonReadyItems = await database
+    .select({ barcode: packageItems.barcode, status: packageItems.status })
+    .from(packageItems)
+    .where(and(eq(packageItems.packageId, packageId), sql`${packageItems.status} NOT IN ('in_stock', 'reserved')`))
+    .limit(5);
+
+  if (nonReadyItems.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Paket "${pkg.name}" tidak dapat dihapus karena memiliki riwayat bundel fisik terdistribusi (misal barcode ${nonReadyItems[0].barcode} status ${nonReadyItems[0].status}).`,
     };
   }
 

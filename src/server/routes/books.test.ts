@@ -199,32 +199,16 @@ describe("Books Catalog API", () => {
 
   it("rejects deleting a book if it has physical inventory items (book_items)", async () => {
     const { bookItems, schools } = await import("../../db/schema");
+    const { createTestSchool, createTestBook } = await import("../lib/test-fixtures");
     const stamp = Date.now();
-    const testBookId = `test-item-book-${stamp}`;
-    const testSchoolId = `school-item-${stamp}`;
 
-    await db.insert(schools).values({
-      id: testSchoolId,
-      code: `SCH-ITEM-${stamp}`,
-      name: "Sekolah Item Test",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db.insert(books).values({
-      id: testBookId,
-      isbn: `978-PHYS-${stamp}`,
-      title: "Buku Fisik Tersimpan",
-      author: "Penulis Fisik",
-      publisher: "Penerbit Fisik",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    const school = await createTestSchool(db, { name: "Sekolah Item Test" });
+    const book = await createTestBook(db, { title: "Buku Fisik Tersimpan" });
 
     await db.insert(bookItems).values({
       id: `bi-phys-${stamp}`,
-      bookId: testBookId,
-      currentSchoolId: testSchoolId,
+      bookId: book.id,
+      currentSchoolId: school.id,
       barcode: `BC-PHYS-${stamp}`,
       status: "in_stock",
       createdAt: new Date().toISOString(),
@@ -232,7 +216,7 @@ describe("Books Catalog API", () => {
     });
 
     // Delete should fail because of physical copy
-    const delRes = await booksRouter.request(`/${testBookId}`, { method: "DELETE" });
+    const delRes = await booksRouter.request(`/${book.id}`, { method: "DELETE" });
     expect(delRes.status).toBe(400);
     const delJson = await delRes.json();
     expect(delJson.message).toContain("eksemplar fisik");
@@ -241,10 +225,10 @@ describe("Books Catalog API", () => {
     await db.delete(bookItems).where(eq(bookItems.id, `bi-phys-${stamp}`));
 
     // Now delete succeeds
-    const delSuccessRes = await booksRouter.request(`/${testBookId}`, { method: "DELETE" });
+    const delSuccessRes = await booksRouter.request(`/${book.id}`, { method: "DELETE" });
     expect(delSuccessRes.status).toBe(200);
 
-    await db.delete(schools).where(eq(schools.id, testSchoolId));
+    await db.delete(schools).where(eq(schools.id, school.id));
   });
 });
 

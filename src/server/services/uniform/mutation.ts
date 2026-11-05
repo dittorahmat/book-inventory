@@ -23,6 +23,7 @@ import {
 } from "../../lib/d1-write";
 import { adjustVariantStockQuery } from "./stock";
 import { KAIN_SIZE, UNIFORM_GENDERS, UNIFORM_JENJANG, UNIFORM_KINDS, type UniformError } from "./catalog";
+import { validateUniformSizeRemoval } from "./mutation-guard";
 
 const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
 
@@ -99,38 +100,8 @@ export async function updateUniformVariant(
     const removedSizes = currentSizes.filter((s) => !newSizes.includes(s));
 
     if (removedSizes.length > 0) {
-      // Cek apakah ada stok fisik > 0 di ukuran yang hendak dihapus
-      const stocks = await database
-        .select()
-        .from(uniformStock)
-        .where(
-          and(
-            eq(uniformStock.variantId, variantId),
-            inArray(uniformStock.size, removedSizes)
-          )
-        );
-      const hasStock = stocks.some((s) => s.quantity > 0);
-      if (hasStock) {
-        return invalid("Ukuran tidak dapat dihapus karena masih memiliki saldo stok fisik di gudang.");
-      }
-
-      // Cek apakah ada pesanan belum selesai yang memesan ukuran ini
-      const activeOrders = await database
-        .select({ id: uniformOrders.id, orderNumber: uniformOrders.orderNumber })
-        .from(uniformOrderItems)
-        .innerJoin(uniformOrders, eq(uniformOrderItems.orderId, uniformOrders.id))
-        .where(
-          and(
-            eq(uniformOrderItems.variantId, variantId),
-            inArray(uniformOrderItems.size, removedSizes),
-            eq(uniformOrders.shipmentStatus, "belum_dikirim")
-          )
-        )
-        .limit(1);
-
-      if (activeOrders.length > 0) {
-        return invalid(`Ukuran tidak dapat dihapus karena masih terikat pada pesanan pending (${activeOrders[0].orderNumber}).`);
-      }
+      const guardRes = await validateUniformSizeRemoval(database, variantId, removedSizes);
+      if (!guardRes.ok) return guardRes;
 
       // Aman hapus ukuran yang tidak ada di newSizes
       await database
@@ -272,10 +243,12 @@ export async function deleteUniformVariant(
     return invalid(`Varian ${existing.name} tidak dapat dihapus karena terikat pada riwayat penukaran seragam.`);
   }
 
-  // Bersihkan uniformStock & uniformSizes
-  await database.delete(uniformStock).where(eq(uniformStock.variantId, variantId));
-  await database.delete(uniformSizes).where(eq(uniformSizes.variantId, variantId));
-  await database.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
+  // Bersihkan uniformStock & uniformSizes & uniformVariants secara atomik via runWriteBatch
+  await runWriteBatch(database, [
+    database.delete(uniformStock).where(eq(uniformStock.variantId, variantId)),
+    database.delete(uniformSizes).where(eq(uniformSizes.variantId, variantId)),
+    database.delete(uniformVariants).where(eq(uniformVariants.id, variantId)),
+  ]);
 
   return { ok: true, data: { deleted: true } };
 }
@@ -388,10 +361,12 @@ export async function deleteUniformPackage(
     return invalid(`Paket ${existing.name} tidak dapat dihapus karena terikat pada riwayat pesanan seragam (${orderRefs[0].orderNumber}).`);
   }
 
-  // Hapus BOM, paket stock, dan paket
-  await database.delete(uniformPackageBom).where(eq(uniformPackageBom.packageId, packageId));
-  await database.delete(uniformPackageStock).where(eq(uniformPackageStock.packageId, packageId));
-  await database.delete(uniformPackages).where(eq(uniformPackages.id, packageId));
+  // Hapus BOM, paket stock, dan paket secara atomik via runWriteBatch
+  await runWriteBatch(database, [
+    database.delete(uniformPackageBom).where(eq(uniformPackageBom.packageId, packageId)),
+    database.delete(uniformPackageStock).where(eq(uniformPackageStock.packageId, packageId)),
+    database.delete(uniformPackages).where(eq(uniformPackages.id, packageId)),
+  ]);
 
   return { ok: true, data: { deleted: true } };
 }

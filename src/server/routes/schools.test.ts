@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { schoolsRouter } from "./schools";
 import { db } from "../../db";
-import { schools } from "../../db/schema";
+import { schools, books } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 
@@ -103,6 +103,7 @@ describe("Schools master RBAC (#43)", () => {
 
   it("supports managing allowed standalone books per school and grade", async () => {
     mockActor("central_admin", null);
+    const { createTestBook } = await import("../lib/test-fixtures");
     const stamp = Date.now();
     const schoolRes = await schoolsRouter.request("/", {
       method: "POST",
@@ -111,23 +112,13 @@ describe("Schools master RBAC (#43)", () => {
     });
     const school = (await schoolRes.json()).data;
 
-    const { books } = await import("../../db/schema");
-    const bookId = `book-allw-${stamp}`;
-    await db.insert(books).values({
-      id: bookId,
-      isbn: `978-ALW-${stamp}`,
-      title: "Buku Suplemen Khusus",
-      author: "Penulis Khusus",
-      publisher: "Penerbit Khusus",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    const book = await createTestBook(db, { title: "Buku Suplemen Khusus" });
 
     // Add allowed book
     const addRes = await schoolsRouter.request(`/${school.id}/allowed-books`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gradeLevel: "5", bookId }),
+      body: JSON.stringify({ gradeLevel: "5", bookId: book.id }),
     });
     expect(addRes.status).toBe(201);
     const added = (await addRes.json()).data;
@@ -136,7 +127,7 @@ describe("Schools master RBAC (#43)", () => {
     const listRes = await schoolsRouter.request(`/${school.id}/allowed-books?gradeLevel=5`);
     expect(listRes.status).toBe(200);
     const listJson = (await listRes.json()) as { data: Array<{ bookId: string }> };
-    expect(listJson.data.some((b) => b.bookId === bookId)).toBe(true);
+    expect(listJson.data.some((b) => b.bookId === book.id)).toBe(true);
 
     // Delete allowed book
     const delRes = await schoolsRouter.request(`/${school.id}/allowed-books/${added.id}`, {
@@ -145,7 +136,7 @@ describe("Schools master RBAC (#43)", () => {
     expect(delRes.status).toBe(200);
 
     // Cleanup
-    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(books).where(eq(books.id, book.id));
     await db.delete(schools).where(eq(schools.id, school.id));
   });
 });

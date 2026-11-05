@@ -81,7 +81,7 @@ export function BookWarehouseView({
           <PackagesView activeSchool={context.activeSchool} schools={context.schools} userRole={context.userRole} />
         )}
         {activeSection === "inventory" && <InventoryView activeSchool={context.activeSchool} />}
-        {activeSection === "catalog" && <CatalogView />}
+        {activeSection === "catalog" && <CatalogView userRole={context.userRole} />}
         {activeSection === "procurement" && (
           <ProcurementView activeSchool={context.activeSchool} userRole={context.userRole} />
         )}
