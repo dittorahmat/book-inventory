@@ -79,6 +79,11 @@ export function DriveFolderBatchRunner({
             message: res.warning || `${res.count} baris dibaca`,
           },
         }));
+
+        // Jeda waktu (pacing delay) antar-file agar Google tidak melakukan throttling / 503
+        if (i < files.length - 1 && !isCancelledRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
       } catch (err: unknown) {
         if (isCancelledRef.current) break;
         const errMsg = err instanceof Error ? err.message : "Gagal memproses";

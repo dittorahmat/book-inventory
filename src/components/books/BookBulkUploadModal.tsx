@@ -96,7 +96,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
     const newBooks = resp.data.validBooks || [];
     const newSkipped = resp.data.skippedRows || [];
     if (newBooks.length === 0 && newSkipped.length === 0) {
-      return { count: 0, warning: "Tidak ada baris buku valid" };
+      return { count: 0, warning: "Bukan format katalog buku satuan (dilewati)" };
     }
 
     setTotalRawRead((prev) => prev + newBooks.length + newSkipped.length);

@@ -27,8 +27,19 @@ export async function submitBooksInChunks(params: {
   let totalUpdated = 0;
   let totalPackages = 0;
 
-  for (let i = 0; i < params.books.length; i += CHUNK_SIZE) {
-    const batch = params.books.slice(i, i + CHUNK_SIZE);
+  // Deduplikasi awal berdasarkan kombinasi title + gradeLevel agar batch chunk bebas konflik
+  const seen = new Set<string>();
+  const uniqueBooks: ParsedBookRow[] = [];
+  for (const b of params.books) {
+    const key = `${b.title.trim().toLowerCase()}__${b.gradeLevel ?? ""}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueBooks.push(b);
+    }
+  }
+
+  for (let i = 0; i < uniqueBooks.length; i += CHUNK_SIZE) {
+    const batch = uniqueBooks.slice(i, i + CHUNK_SIZE);
     const res = await apiEnvelope<{
       success: boolean;
       message: string;
