@@ -7,6 +7,7 @@ import { idSchema } from "../lib/validators";
 import { importBookCatalog } from "../services/book-catalog-import";
 import { parseBookCatalogData } from "../../lib/book-import-parser";
 import { fetchGoogleDriveResource } from "../services/drive-service";
+import { d1WriteErrorStatus } from "../lib/d1-write";
 
 export const bookBulkRouter = new Hono();
 
@@ -124,6 +125,13 @@ bookBulkRouter.post("/bulk-import", zValidator("json", bulkImportBooksPayloadSch
       data: result,
     });
   } catch (err: unknown) {
+    const mapped = d1WriteErrorStatus(err, "impor katalog buku");
+    if (mapped) {
+      return c.json({ success: false, message: mapped.message }, mapped.status);
+    }
+    if (err instanceof Error && err.name !== "AccessHttpError") {
+      return c.json({ success: false, message: err.message }, 400);
+    }
     return accessErrorResponse(c, err);
   }
 });
