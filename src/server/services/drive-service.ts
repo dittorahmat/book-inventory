@@ -18,6 +18,32 @@ export type DriveResourceResult =
 const folderCache = new Map<string, { data: { files: GoogleDriveFolderFile[]; totalFiles: number }; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
+  let attempt = 0;
+  while (true) {
+    try {
+      const resp = await fetch(url, init);
+      if (resp.ok) return resp;
+      // Jika Google mengembalikan 503 Service Unavailable / 429 Too Many Requests, tunggu sejenak lalu retry
+      if ((resp.status === 503 || resp.status === 429) && attempt < maxRetries) {
+        attempt++;
+        await delay(500 * Math.pow(2, attempt));
+        continue;
+      }
+      return resp;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        attempt++;
+        await delay(500 * Math.pow(2, attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export async function fetchGoogleDriveResource(url: string): Promise<DriveResourceResult> {
   try {
     // 1. Google Drive Folder publik
@@ -32,7 +58,7 @@ export async function fetchGoogleDriveResource(url: string): Promise<DriveResour
         };
       }
 
-      const resp = await fetch(trimmedUrl, {
+      const resp = await fetchWithRetry(trimmedUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -63,7 +89,7 @@ export async function fetchGoogleDriveResource(url: string): Promise<DriveResour
     // 2. Google Sheets publik (ekspor ke XLSX multi-sheet atau CSV)
     const exportUrl = normalizeGoogleSheetsUrl(url);
     if (exportUrl) {
-      const resp = await fetch(exportUrl, {
+      const resp = await fetchWithRetry(exportUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,*/*",

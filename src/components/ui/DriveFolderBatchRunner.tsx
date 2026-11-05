@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
-import { Play, Square, CheckCircle2, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
+import { Play, Square, CheckCircle2, AlertTriangle, Loader2, FileSpreadsheet, RotateCcw } from "lucide-react";
 import type { DriveFolderItem } from "./DriveFileList";
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export type BatchItemStatus = "idle" | "processing" | "success" | "warning" | "error";
 
@@ -79,6 +81,11 @@ export function DriveFolderBatchRunner({
             message: res.warning || `${res.count} baris dibaca`,
           },
         }));
+
+        // Jeda waktu (pacing delay) antar-file agar Google tidak melakukan throttling / 503
+        if (i < files.length - 1 && !isCancelledRef.current) {
+          await delay(800);
+        }
       } catch (err: unknown) {
         if (isCancelledRef.current) break;
         const errMsg = err instanceof Error ? err.message : "Gagal memproses";
@@ -96,6 +103,41 @@ export function DriveFolderBatchRunner({
     setIsRunning(false);
     if (!isCancelledRef.current && accumulatedTotal > 0) {
       onComplete();
+    }
+  };
+
+  const handleRetryFile = async (file: DriveFolderItem) => {
+    if (isRunning) return;
+    setResults((prev) => ({
+      ...prev,
+      [file.id]: { fileId: file.id, status: "processing" },
+    }));
+
+    try {
+      const res = await onProcessFile(file);
+      setTotalItemsCount((prev) => prev + res.count);
+      setResults((prev) => ({
+        ...prev,
+        [file.id]: {
+          fileId: file.id,
+          status: res.warning ? "warning" : "success",
+          count: res.count,
+          message: res.warning || `${res.count} baris dibaca`,
+        },
+      }));
+      if (res.count > 0) {
+        onComplete();
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Gagal memproses";
+      setResults((prev) => ({
+        ...prev,
+        [file.id]: {
+          fileId: file.id,
+          status: "error",
+          message: errMsg,
+        },
+      }));
     }
   };
 
@@ -201,9 +243,19 @@ export function DriveFolderBatchRunner({
                       </span>
                     )}
                     {res?.status === "error" && (
-                      <span className="text-rose-600 flex items-center gap-1 font-semibold">
-                        Gagal: {res.message}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-rose-600 font-semibold">Gagal: {res.message}</span>
+                        {!isRunning && (
+                          <button
+                            type="button"
+                            onClick={() => handleRetryFile(file)}
+                            className="p-1 rounded text-rose-600 hover:bg-rose-100 transition-colors"
+                            title="Coba lagi berkas ini"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

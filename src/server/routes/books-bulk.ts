@@ -75,12 +75,28 @@ bookBulkRouter.post("/parse-drive-url", zValidator("json", parseDriveUrlPayloadS
     }
 
     const payload = res.data.buffer ?? res.data.csvText ?? "";
-    const parseResult = parseBookCatalogData(payload);
-    return c.json({
-      success: true,
-      type: "sheet",
-      data: parseResult,
-    });
+    try {
+      const parseResult = parseBookCatalogData(payload);
+      return c.json({
+        success: true,
+        type: "sheet",
+        data: parseResult,
+      });
+    } catch (parseErr: unknown) {
+      // Jika dokumen spreadsheet bukan format katalog buku satuan (misal lembar rekap harga paket),
+      // kembalikan respons graceful dengan validBooks kosong dan warning agar batch runner tidak melempar 500.
+      const errMsg = parseErr instanceof Error ? parseErr.message : "Gagal memproses spreadsheet";
+      return c.json({
+        success: true,
+        type: "sheet",
+        data: {
+          validBooks: [],
+          skippedRows: [],
+          sheetName: "Non-Catalog",
+          warning: errMsg,
+        },
+      });
+    }
   } catch (err: unknown) {
     return accessErrorResponse(c, err);
   }

@@ -25,8 +25,8 @@ Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokum
 2. **Skema berubah** → `bun run db:push` (lokal, idempoten; `--all` untuk DB baru) lalu migrasi remote D1: `bun run db:generate` → terapkan SQL ke `book-inventory-db --remote` → verifikasi. `bun run check:d1-drift` wajib hijau sebelum merge yang menyentuh skema. Baca data lokal via `bun run db:query` (baca-saja).
 3. **Migrasi destruktif** (`DROP`, ubah kolom breaking) dilarang diterapkan ke remote sebelum PR merge **dan** deploy (pola expand-contract dua PR). Sebut perubahan destruktif di deskripsi PR (ADR-0013).
 4. **Tipe** — `bun run type-check` nol error. `AppDatabase` schema-aware: biarkan inferensi, jangan anotasi `$inferSelect` manual pada JOIN, jangan tutup celah dengan `any`/cast baru.
-5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap bug API wajib menambah skenario di sana.
-6. **Frontend** — dilarang `fetch` tanpa penanganan kegagalan: setiap respons `!ok`/`success: false` wajib menampilkan pesan yang mengekstrak `message`/`error` (pakai `lib/api.ts`). Test komponen UI meniru `StudentSearchStep.test.tsx` (shim `test-dom` + dynamic import `@testing-library/react`).
+5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap modifikasi file route wajib menambah skenario di sana (`check:route-tests --diff` menegakkan kegagalan keras exit 1).
+6. **Frontend & Batch Intake** — dilarang `fetch` tanpa penanganan kegagalan: setiap respons `!ok`/`success: false` wajib menampilkan pesan yang mengekstrak `message`/`error` (pakai `lib/api.ts`). Loop batching intake eksternal wajib menerapkan jeda pacing (~800ms) dan menyediakan tombol retry per-item yang gagal. Test komponen UI meniru `StudentSearchStep.test.tsx` (shim `test-dom` + dynamic import `@testing-library/react`).
 7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan isi bagian **“Perubahan perilaku”** di PR.
 
 ---

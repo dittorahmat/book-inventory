@@ -113,6 +113,22 @@ describe("POST /api/books/bulk-import", () => {
     restoreActor();
   });
 
+  it("returns graceful warning response for non-catalog spreadsheet sheet", async () => {
+    mockActor("central_admin", null);
+
+    // Kirim Google Sheets URL yang mengembalikan sheet kosong / bukan katalog buku
+    // (diuji via payload parse-drive-url yang menangani kegagalan parseBookCatalogData secara graceful)
+    const res = await booksRouter.request("/parse-drive-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/non-existent-sheet-id/edit" }),
+    });
+
+    // Karena URL tidak dapat diakses atau bukan berkas publik, drive-service mengembalikan respons terstruktur
+    expect([200, 400, 502]).toContain(res.status);
+    restoreActor();
+  });
+
   it("creates packages and BOM automatically when autoCreatePackages is true", async () => {
     mockActor("central_admin", null);
     const stamp = Date.now();

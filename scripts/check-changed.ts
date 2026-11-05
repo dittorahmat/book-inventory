@@ -28,7 +28,13 @@ const tsFiles = changed.filter((file) => /\.(ts|tsx)$/.test(file));
 
 const run = (command: string[]): void => {
   console.log(`\n> ${command.join(" ")}`);
-  execFileSync(command[0], command.slice(1), { stdio: "inherit" });
+  execFileSync(command[0], command.slice(1), {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_OPTIONS: process.env.NODE_OPTIONS || "--max-old-space-size=4096",
+    },
+  });
 };
 
 const runBun = (script: string): void => {
