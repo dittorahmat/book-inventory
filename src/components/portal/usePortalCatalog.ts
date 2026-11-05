@@ -16,7 +16,7 @@ export function usePortalCatalog() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (params?: { schoolId?: string; gradeLevel?: string }) => {
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -25,7 +25,7 @@ export function usePortalCatalog() {
         fetchSchools(),
         fetchPackages(),
         // Gagal memuat status satuan tidak boleh memblokir pemesanan paket.
-        fetchSatuanCatalog().catch(() => ({ open: false as const, status: undefined as never, books: [] })),
+        fetchSatuanCatalog(params).catch(() => ({ open: false as const, status: undefined as never, books: [] })),
       ]);
       const schoolList = schoolRes.status === "fulfilled" ? schoolRes.value : ([] as SchoolOption[]);
       const packageList = packageRes.status === "fulfilled" ? packageRes.value : ([] as BookPackageOption[]);

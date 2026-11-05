@@ -100,4 +100,52 @@ describe("Schools master RBAC (#43)", () => {
     expect(firstId).toBeDefined();
     expect((await schoolsRouter.request(`/${firstId}`, { method: "GET" })).status).toBe(200);
   });
+
+  it("supports managing allowed standalone books per school and grade", async () => {
+    mockActor("central_admin", null);
+    const stamp = Date.now();
+    const schoolRes = await schoolsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `Sekolah Allowed ${stamp}`, code: `SAL-${stamp}`, type: "branch" }),
+    });
+    const school = (await schoolRes.json()).data;
+
+    const { books } = await import("../../db/schema");
+    const bookId = `book-allw-${stamp}`;
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `978-ALW-${stamp}`,
+      title: "Buku Suplemen Khusus",
+      author: "Penulis Khusus",
+      publisher: "Penerbit Khusus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Add allowed book
+    const addRes = await schoolsRouter.request(`/${school.id}/allowed-books`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gradeLevel: "5", bookId }),
+    });
+    expect(addRes.status).toBe(201);
+    const added = (await addRes.json()).data;
+
+    // List allowed books
+    const listRes = await schoolsRouter.request(`/${school.id}/allowed-books?gradeLevel=5`);
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as { data: Array<{ bookId: string }> };
+    expect(listJson.data.some((b) => b.bookId === bookId)).toBe(true);
+
+    // Delete allowed book
+    const delRes = await schoolsRouter.request(`/${school.id}/allowed-books/${added.id}`, {
+      method: "DELETE",
+    });
+    expect(delRes.status).toBe(200);
+
+    // Cleanup
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, school.id));
+  });
 });

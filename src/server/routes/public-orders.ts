@@ -124,7 +124,13 @@ publicOrdersRouter.get("/satuan-status", async (c) => {
 
 publicOrdersRouter.get("/satuan-catalog", async (c) => {
   const academicYear = c.req.query("academicYear")?.trim();
-  const catalog = await getSatuanCatalogIfOpen(db, academicYear || undefined);
+  const schoolId = c.req.query("schoolId")?.trim();
+  const gradeLevel = c.req.query("gradeLevel")?.trim();
+  const catalog = await getSatuanCatalogIfOpen(db, {
+    academicYear: academicYear || undefined,
+    schoolId: schoolId || undefined,
+    gradeLevel: gradeLevel || undefined,
+  });
   return c.json({ success: true, data: catalog });
 });
 

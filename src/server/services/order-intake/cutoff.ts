@@ -1,6 +1,13 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
-import { books, systemSettings } from "../../../db/schema";
+import {
+  books,
+  bookPackages,
+  bookPackageItems,
+  bookPackageSchools,
+  schoolGradeAllowedBooks,
+  systemSettings,
+} from "../../../db/schema";
 import { currentAcademicYear, isWIBOnOrAfter, todayWIB } from "../../../lib/wib-time";
 import { effectiveSellPrice } from "../../../lib/book-pricing";
 import type { SatuanOverride, SatuanStatus } from "../../../lib/portal-types";
@@ -107,18 +114,96 @@ export interface SatuanCatalog {
   books: SatuanCatalogBook[];
 }
 
+export interface SatuanCatalogQuery {
+  academicYear?: string;
+  schoolId?: string;
+  gradeLevel?: string;
+}
+
 /**
  * Kemampuan cut-off + katalog dalam satu panggilan: status dievaluasi sekali,
  * lalu buku di-query hanya saat terbuka — katalog basi setelah cut-off flip
  * tidak mungkin terjadi.
+ * Jika context schoolId & gradeLevel disertakan, pilihan dibatasi secara ketat
+ * hanya pada buku dalam BOM paket murid + whitelist override admin.
  */
-export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear?: string): Promise<SatuanCatalog> {
-  const year = academicYear?.trim() || currentAcademicYear(new Date());
+export async function getSatuanCatalogIfOpen(
+  database: AppDatabase,
+  queryOrYear?: string | SatuanCatalogQuery
+): Promise<SatuanCatalog> {
+  const query: SatuanCatalogQuery =
+    typeof queryOrYear === "string" ? { academicYear: queryOrYear } : (queryOrYear ?? {});
+  const year = query.academicYear?.trim() || currentAcademicYear(new Date());
   const status = await getSatuanStatus(database, year);
   if (!status.open) {
     return { open: false, status, books: [] };
   }
-  const rows = await database
+
+  let allowedBookIds: string[] | null = null;
+
+  if (query.schoolId && query.gradeLevel) {
+    // 1. Ambil paket-paket yang cocok dengan jenjang & tahun ajaran murid
+    const matchingPackages = await database
+      .select({ id: bookPackages.id })
+      .from(bookPackages)
+      .where(and(eq(bookPackages.gradeLevel, query.gradeLevel), eq(bookPackages.academicYear, year)));
+
+    const pkgIds = matchingPackages.map((p) => p.id);
+    let validPkgIds: string[] = [];
+
+    if (pkgIds.length > 0) {
+      // Periksa assignment sekolah (paket universal vs spesifik cabang)
+      const assignments = await database
+        .select({
+          packageId: bookPackageSchools.packageId,
+          schoolId: bookPackageSchools.schoolId,
+        })
+        .from(bookPackageSchools)
+        .where(inArray(bookPackageSchools.packageId, pkgIds));
+
+      const assignedPkgMap = new Map<string, string[]>();
+      for (const a of assignments) {
+        const list = assignedPkgMap.get(a.packageId) ?? [];
+        list.push(a.schoolId);
+        assignedPkgMap.set(a.packageId, list);
+      }
+
+      validPkgIds = pkgIds.filter((id) => {
+        const schoolsList = assignedPkgMap.get(id);
+        // Universal (tanpa baris sekolah) ATAU ditugaskan ke sekolah murid ini
+        return !schoolsList || schoolsList.length === 0 || schoolsList.includes(query.schoolId!);
+      });
+    }
+
+    const bomBookIds: string[] = [];
+    if (validPkgIds.length > 0) {
+      const bomItems = await database
+        .select({ bookId: bookPackageItems.bookId })
+        .from(bookPackageItems)
+        .where(inArray(bookPackageItems.packageId, validPkgIds));
+      bomBookIds.push(...bomItems.map((b) => b.bookId));
+    }
+
+    // 2. Ambil whitelist override admin untuk sekolah & jenjang ini
+    const overrideItems = await database
+      .select({ bookId: schoolGradeAllowedBooks.bookId })
+      .from(schoolGradeAllowedBooks)
+      .where(
+        and(
+          eq(schoolGradeAllowedBooks.schoolId, query.schoolId),
+          eq(schoolGradeAllowedBooks.gradeLevel, query.gradeLevel)
+        )
+      );
+
+    allowedBookIds = [...new Set([...bomBookIds, ...overrideItems.map((o) => o.bookId)])];
+  }
+
+  // Jika allowedBookIds ada tapi kosong (misal belum ada paket yang di-assign), return empty
+  if (allowedBookIds !== null && allowedBookIds.length === 0) {
+    return { open: true, status, books: [] };
+  }
+
+  const baseQuery = database
     .select({
       id: books.id,
       title: books.title,
@@ -126,8 +211,12 @@ export async function getSatuanCatalogIfOpen(database: AppDatabase, academicYear
       price: books.price,
       sellPrice: books.sellPrice,
     })
-    .from(books)
-    .orderBy(books.title);
+    .from(books);
+
+  const rows = allowedBookIds
+    ? await baseQuery.where(inArray(books.id, allowedBookIds)).orderBy(books.title)
+    : await baseQuery.orderBy(books.title);
+
   // Anti window-shopping: alias samaran saja (fallback generik), tanpa
   // ISBN/penulis/penerbit/cover.
   return {

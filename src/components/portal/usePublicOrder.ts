@@ -54,6 +54,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
       draftActions.setReplacePendingOrderId(replaceOrderId);
     }
     applyLockedPackage(st);
+    catalog.reload({ schoolId: st.schoolId, gradeLevel: st.targetGradeLevel });
     setStep(2);
   };
 

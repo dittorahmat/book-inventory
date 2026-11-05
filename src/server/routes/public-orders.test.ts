@@ -1926,4 +1926,88 @@ describe("Struk bayar ganda di intake publik", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("filters /satuan-catalog strictly by student's package BOM and allowed override books", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolA = `sch-sat-a-${stamp}`;
+    const schoolB = `sch-sat-b-${stamp}`;
+    const bookInPkg = `book-in-pkg-${stamp}`;
+    const bookOtherPkg = `book-other-pkg-${stamp}`;
+    const bookOverride = `book-override-${stamp}`;
+    const pkgA = `pkg-sat-a-${stamp}`;
+    const pkgB = `pkg-sat-b-${stamp}`;
+
+    await db.insert(schools).values([
+      { id: schoolA, name: "Sekolah Satuan A", code: `SSA-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: schoolB, name: "Sekolah Satuan B", code: `SSB-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+    ]);
+
+    for (const b of [
+      { id: bookInPkg, isbn: `978-IN-${stamp}`, title: "Buku Paket Kelas 2", price: 30000, sellPrice: 30000, author: "A", publisher: "P", createdAt: now, updatedAt: now },
+      { id: bookOtherPkg, isbn: `978-OT-${stamp}`, title: "Buku Paket Kelas Lain", price: 40000, sellPrice: 40000, author: "A", publisher: "P", createdAt: now, updatedAt: now },
+      { id: bookOverride, isbn: `978-OV-${stamp}`, title: "Buku Override Suplemen", price: 50000, sellPrice: 50000, author: "A", publisher: "P", createdAt: now, updatedAt: now },
+    ]) {
+      await db.insert(books).values(b);
+    }
+
+    await db.insert(bookPackages).values([
+      { id: pkgA, code: `PKG-A-${stamp}`, name: "Paket Kelas 2 SD", gradeLevel: "2", curriculumType: "international", academicYear: "2026/2027", createdAt: now, updatedAt: now },
+      { id: pkgB, code: `PKG-B-${stamp}`, name: "Paket Kelas 5 SD", gradeLevel: "5", curriculumType: "international", academicYear: "2026/2027", createdAt: now, updatedAt: now },
+    ]);
+
+    const { bookPackageItems, bookPackageSchools, schoolGradeAllowedBooks, systemSettings } = await import("../../db/schema");
+    // Ensure satuan is open for 2026/2027
+    await db.insert(systemSettings).values({
+      key: "satuan_override:2026/2027",
+      value: "open",
+      description: "Test open",
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: systemSettings.key,
+      set: { value: "open", updatedAt: now },
+    });
+
+    await db.insert(bookPackageItems).values([
+      { id: `bpi-a-${stamp}`, packageId: pkgA, bookId: bookInPkg, quantity: 1, createdAt: now },
+      { id: `bpi-b-${stamp}`, packageId: pkgB, bookId: bookOtherPkg, quantity: 1, createdAt: now },
+    ]);
+
+    await db.insert(bookPackageSchools).values({
+      packageId: pkgA,
+      schoolId: schoolA,
+      createdAt: now,
+    });
+
+    await db.insert(schoolGradeAllowedBooks).values({
+      id: `ovr-${stamp}`,
+      schoolId: schoolA,
+      gradeLevel: "2",
+      bookId: bookOverride,
+      createdAt: now,
+    });
+
+    // Query satuan catalog with schoolA and grade 2
+    const res = await publicOrdersRouter.request(
+      `/satuan-catalog?academicYear=2026/2027&schoolId=${schoolA}&gradeLevel=2`
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: { open: boolean; books: Array<{ id: string }> } };
+    expect(json.data.open).toBe(true);
+
+    const ids = json.data.books.map((b) => b.id);
+    // bookInPkg (from BOM) and bookOverride (from override) must be included
+    expect(ids).toContain(bookInPkg);
+    expect(ids).toContain(bookOverride);
+    // bookOtherPkg (from grade 5 package) must NOT be included
+    expect(ids).not.toContain(bookOtherPkg);
+
+    // Cleanup
+    await db.delete(schoolGradeAllowedBooks).where(eq(schoolGradeAllowedBooks.id, `ovr-${stamp}`));
+    await db.delete(bookPackageSchools).where(eq(bookPackageSchools.packageId, pkgA));
+    await db.delete(bookPackageItems).where(inArray(bookPackageItems.packageId, [pkgA, pkgB]));
+    await db.delete(bookPackages).where(inArray(bookPackages.id, [pkgA, pkgB]));
+    await db.delete(books).where(inArray(books.id, [bookInPkg, bookOtherPkg, bookOverride]));
+    await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+  });
 });
