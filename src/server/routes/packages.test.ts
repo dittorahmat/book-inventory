@@ -581,5 +581,96 @@ describe("Packages & Bundling/Unbundling API", () => {
       mockActor("central_admin", null);
     }
   });
+
+  it("POST / and PUT /:id store schoolIds assignment, and DELETE rejects if student orders exist", async () => {
+    const { studentBookOrders, bookPackageSchools } = await import("../../db/schema");
+    const { createTestSchool, createTestBook, createTestStudent } = await import("../lib/test-fixtures");
+    const stamp = Date.now();
+
+    const schA = await createTestSchool(db, { name: "Sekolah A" });
+    const schB = await createTestSchool(db, { name: "Sekolah B" });
+    const book = await createTestBook(db, { title: "Buku Paket Spesifik" });
+
+    // Create package with schoolIds assignment
+    const createRes = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `PKG-SPEC-${stamp}`,
+        name: "Paket Al-Wildan 1 Khusus",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        schoolIds: [schA.id],
+        items: [{ bookId: book.id, quantity: 1 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const { data: createdPkg } = await createRes.json();
+
+    // Verify school assignment saved
+    const assignedA = await db.select().from(bookPackageSchools).where(eq(bookPackageSchools.packageId, createdPkg.id));
+    expect(assignedA.map((r) => r.schoolId)).toEqual([schA.id]);
+
+    // Update package to assign to schoolB as well
+    const updateRes = await packagesRouter.request(`/${createdPkg.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `PKG-SPEC-${stamp}`,
+        name: "Paket Al-Wildan 1 & 4",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        schoolIds: [schA.id, schB.id],
+        items: [{ bookId: book.id, quantity: 1 }],
+      }),
+    });
+    expect(updateRes.status).toBe(200);
+
+    const assignedBoth = await db.select().from(bookPackageSchools).where(eq(bookPackageSchools.packageId, createdPkg.id));
+    expect(assignedBoth.length).toBe(2);
+
+    // Seed student order bound to this package
+    const { students } = await import("../../db/schema");
+    const student = await createTestStudent(db, { schoolId: schA.id, name: "Murid Paket Order" });
+
+    const orderId = `sbo-pkg-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: orderId,
+      orderNumber: `ORD-PKG-${stamp}`,
+      studentId: student.id,
+      schoolId: schA.id,
+      packageId: createdPkg.id,
+      orderType: "regular",
+      paymentStatus: "unpaid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 100000,
+      paidAmount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Delete should fail because order exists
+    const delFailRes = await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
+    expect(delFailRes.status).toBe(400);
+    const delFailJson = await delFailRes.json();
+    expect(delFailJson.message).toContain("pesanan siswa");
+
+    // Clean up order
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    await db.delete(students).where(eq(students.id, student.id));
+
+    // Delete succeeds now
+    const delSuccessRes = await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
+    expect(delSuccessRes.status).toBe(200);
+
+    // Verify relations cleared
+    const remainingSchools = await db.select().from(bookPackageSchools).where(eq(bookPackageSchools.packageId, createdPkg.id));
+    expect(remainingSchools.length).toBe(0);
+
+    await db.delete(books).where(eq(books.id, book.id));
+    await db.delete(schools).where(inArray(schools.id, [schA.id, schB.id]));
+  });
 });
 

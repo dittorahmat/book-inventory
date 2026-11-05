@@ -196,6 +196,40 @@ describe("Books Catalog API", () => {
     const checkRes = await booksRouter.request(`/${testBookId}`, { method: "GET" });
     expect(checkRes.status).toBe(404);
   });
+
+  it("rejects deleting a book if it has physical inventory items (book_items)", async () => {
+    const { bookItems, schools } = await import("../../db/schema");
+    const { createTestSchool, createTestBook } = await import("../lib/test-fixtures");
+    const stamp = Date.now();
+
+    const school = await createTestSchool(db, { name: "Sekolah Item Test" });
+    const book = await createTestBook(db, { title: "Buku Fisik Tersimpan" });
+
+    await db.insert(bookItems).values({
+      id: `bi-phys-${stamp}`,
+      bookId: book.id,
+      currentSchoolId: school.id,
+      barcode: `BC-PHYS-${stamp}`,
+      status: "in_stock",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Delete should fail because of physical copy
+    const delRes = await booksRouter.request(`/${book.id}`, { method: "DELETE" });
+    expect(delRes.status).toBe(400);
+    const delJson = await delRes.json();
+    expect(delJson.message).toContain("eksemplar fisik");
+
+    // Clean up physical item
+    await db.delete(bookItems).where(eq(bookItems.id, `bi-phys-${stamp}`));
+
+    // Now delete succeeds
+    const delSuccessRes = await booksRouter.request(`/${book.id}`, { method: "DELETE" });
+    expect(delSuccessRes.status).toBe(200);
+
+    await db.delete(schools).where(eq(schools.id, school.id));
+  });
 });
 
 describe("Books master RBAC (#43)", () => {

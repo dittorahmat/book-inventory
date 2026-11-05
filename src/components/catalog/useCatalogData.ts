@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Book } from "../../types";
-import { delJson, getJson, postForm, postJson } from "../../lib/api";
+import { delJson, getJson, patchJson, postForm, postJson } from "../../lib/api";
 import { createBookWithCover, buildCoverForm, type NewBookPayload } from "./catalog-intent";
 
 /** Data katalog: daftar + buat-bersama-cover + upload/hapus, satu seam uji. */
@@ -58,5 +58,13 @@ export function useCatalogData() {
     [loadCatalog]
   );
 
-  return { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook };
+  const updateBook = useCallback(
+    async (bookId: string, payload: Partial<NewBookPayload>) => {
+      await patchJson(`/api/books/${bookId}`, payload, "Gagal memperbarui data buku.");
+      await loadCatalog();
+    },
+    [loadCatalog]
+  );
+
+  return { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook, updateBook };
 }

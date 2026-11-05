@@ -6,6 +6,7 @@ import {
   fetchUniformPackages,
   fetchUniformVariants,
 } from "./uniform-admin-api";
+import { EditUniformPackageModal } from "./EditUniformPackageModal";
 
 interface UniformAssemblySectionProps {
   defaultAcademicYear?: string;
@@ -13,6 +14,7 @@ interface UniformAssemblySectionProps {
 
 export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: UniformAssemblySectionProps) {
   const [packages, setPackages] = useState<UniformPackageRow[]>([]);
+  const [editingPackage, setEditingPackage] = useState<UniformPackageRow | null>(null);
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -214,6 +216,13 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                     <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E7F3FF] text-[#1877F2]">
                       Stok Rakit Siap Kirim: {p.readyQty}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPackage(p)}
+                      className="px-2.5 py-1 border border-[#CED0D4] rounded-lg text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5]"
+                    >
+                      Edit
+                    </button>
                   </div>
                 </div>
 
@@ -298,6 +307,19 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
           )}
         </div>
       </div>
+
+      {editingPackage && (
+        <EditUniformPackageModal
+          packageRow={editingPackage}
+          variants={variants}
+          isOpen={true}
+          onClose={() => setEditingPackage(null)}
+          onSuccess={() => {
+            setNotice("Paket seragam berhasil diperbarui.");
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }

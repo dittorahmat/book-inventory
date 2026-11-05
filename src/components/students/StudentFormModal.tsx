@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Loader2, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
 
 interface StudentFormModalProps {
@@ -37,7 +38,25 @@ export function StudentFormModal({
   const [parentName, setParentName] = useState(initial?.parentName || "");
   const [parentEmail, setParentEmail] = useState(initial?.parentEmail || "");
   const [parentPhone, setParentPhone] = useState(initial?.parentPhone || "");
+  const [isScholarship, setIsScholarship] = useState(initial?.isScholarship || false);
+  const [activeOrders, setActiveOrders] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initial?.id) {
+      fetchStudentActiveOrders(initial.id)
+        .then((res) => {
+          if (res.hasActive) {
+            setActiveOrders(res.details);
+          }
+        })
+        .catch(() => {
+          // graceful fallback jika gagal periksa
+        });
+    }
+  }, [initial?.id]);
+
+  const hasActiveOrders = activeOrders.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +82,7 @@ export function StudentFormModal({
         parentEmail: parentEmail.trim() || undefined,
         parentPhone: parentPhone.trim() || undefined,
         status,
+        isScholarship,
       });
     } catch {
       setFormError("Gagal menyimpan. Periksa pesan error di halaman utama.");
@@ -94,6 +114,22 @@ export function StudentFormModal({
               {formError}
             </div>
           )}
+          {hasActiveOrders && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Siswa memiliki pesanan aktif yang belum selesai:</p>
+                <ul className="list-disc list-inside mt-0.5 space-y-0.5 text-[11px]">
+                  {activeOrders.map((ord, idx) => (
+                    <li key={idx}>{ord}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[11px] text-amber-700">
+                  Sekolah dan Kelas terkunci untuk mencegah mismatch alokasi barang. Selesaikan serah terima atau lakukan alur Ganti Pesanan di portal terlebih dahulu.
+                </p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <SearchableSingleSelect
@@ -103,6 +139,7 @@ export function StudentFormModal({
                 onChange={setSchoolId}
                 placeholder="Pilih sekolah..."
                 required
+                disabled={hasActiveOrders}
               />
             </div>
             <div>
@@ -132,6 +169,7 @@ export function StudentFormModal({
                 value={gradeLevel}
                 onChange={setGradeLevel}
                 placeholder="Pilih kelas..."
+                disabled={hasActiveOrders}
               />
             </div>
             <div>
@@ -164,6 +202,17 @@ export function StudentFormModal({
                 onChange={setStatus}
                 placeholder="Pilih status..."
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#050505]">
+                <input
+                  type="checkbox"
+                  checked={isScholarship}
+                  onChange={(e) => setIsScholarship(e.target.checked)}
+                  className="rounded border-[#CED0D4] text-[#1877F2] focus:ring-[#1877F2]"
+                />
+                <span>Penerima Beasiswa (Scholarship)</span>
+              </label>
             </div>
             <div>
               <label className={labelCls}>Nama Orang Tua</label>

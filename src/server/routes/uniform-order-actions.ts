@@ -2,9 +2,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
-import { resolveLogisticsActor, accessErrorResponse } from "../services/access-scope";
+import { resolveLogisticsActor, accessErrorResponse, requireScopedActor } from "../services/access-scope";
 import { sendUniformInvoice } from "../services/order-invoice";
 import { setUniformShipping } from "../services/order-shipping";
+import { getUniformSalesReport } from "../services/uniform";
+import { approveUniformWithdrawal } from "../services/uniform-withdrawal";
+import { findRefundSlip } from "../services/refund-slip";
 import {
   cashierPaymentSchema,
   recordCashierPayment,
@@ -15,6 +18,55 @@ import {
 import { fail } from "../lib/route-fail";
 
 export const uniformOrderActionsRouter = new Hono();
+
+// Approval seragam murid mundur & restock gudang pusat (ADR-0019)
+uniformOrderActionsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await approveUniformWithdrawal(db, c.req.param("id"));
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({ success: true, message: result.message, data: result.slip });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformOrderActionsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const slip = await findRefundSlip(db, c.req.param("slipNumber"));
+    if (!slip) return c.json({ success: false, message: "Slip bukti pengembalian seragam tidak ditemukan" }, 404);
+    return c.json({ success: true, data: slip });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Laporan penjualan seragam (terpisah dari buku): sekolah × jenjang × ukuran.
+uniformOrderActionsRouter.get("/reports/sales", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const queried = c.req.query("schoolId");
+    const schoolIds = scope.length === 1 ? scope : queried ? [queried] : scope;
+    const today = new Date().toISOString().slice(0, 10);
+    const report = await getUniformSalesReport({
+      database: db,
+      from: c.req.query("from") || `${today.slice(0, 7)}-01`,
+      to: c.req.query("to") || today,
+      schoolIds,
+      jenjang: c.req.query("jenjang") || undefined,
+      size: c.req.query("size") || undefined,
+      gender: c.req.query("gender") || undefined,
+      paymentStatus: c.req.query("paymentStatus") || undefined,
+      shipmentStatus: c.req.query("shipmentStatus") || undefined,
+    });
+    return c.json({ success: true, data: report });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
 
 // Kirim invoice WA (syarat ongkir sudah diinput).
 uniformOrderActionsRouter.post("/orders/:id/send-invoice", async (c) => {

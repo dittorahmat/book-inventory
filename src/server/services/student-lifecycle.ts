@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { studentBookOrders, students } from "../../db/schema";
+import { studentBookOrders, students, uniformOrders } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, D1_WIDE_INSERT_CHUNK_SIZE, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../lib/document-number";
 
@@ -278,16 +278,26 @@ export async function removeStudent(
     return { ok: false, status: 404, message: "Data siswa tidak ditemukan" };
   }
 
-  const existingOrders = await database
-    .select({ orderNumber: studentBookOrders.orderNumber })
-    .from(studentBookOrders)
-    .where(eq(studentBookOrders.studentId, studentId));
-  if (existingOrders.length > 0) {
-    const orderNumbers = existingOrders.map((o: { orderNumber: string }) => o.orderNumber).join(", ");
+  const [existingBookOrders, existingUniformOrders] = await Promise.all([
+    database
+      .select({ orderNumber: studentBookOrders.orderNumber })
+      .from(studentBookOrders)
+      .where(eq(studentBookOrders.studentId, studentId)),
+    database
+      .select({ orderNumber: uniformOrders.orderNumber })
+      .from(uniformOrders)
+      .where(eq(uniformOrders.studentId, studentId)),
+  ]);
+
+  if (existingBookOrders.length > 0 || existingUniformOrders.length > 0) {
+    const list = [
+      ...existingBookOrders.map((o: { orderNumber: string }) => `Buku #${o.orderNumber}`),
+      ...existingUniformOrders.map((o: { orderNumber: string }) => `Seragam #${o.orderNumber}`),
+    ].join(", ");
     return {
       ok: false,
       status: 400,
-      message: `Data siswa "${(existing as { name: string }).name}" tidak dapat dihapus karena memiliki riwayat pesanan buku: ${orderNumbers}. Silakan hapus pesanan tersebut terlebih dahulu di menu Pesanan Siswa.`,
+      message: `Data siswa "${(existing as { name: string }).name}" tidak dapat dihapus karena memiliki riwayat pesanan: ${list}. Ubah status menjadi graduated atau nonaktif jika siswa sudah lulus/pindah.`,
     };
   }
 
@@ -295,104 +305,45 @@ export async function removeStudent(
   return { ok: true, data: { studentId } };
 }
 
-export interface BatchPromoteInput {
-  schoolId: string;
-  targetAcademicYear: string;
-  excludeStudentIds?: string[];
-  maxGradeLevel?: number;
-}
-
-export interface BatchPromoteResult {
-  promotedCount: number;
-  graduatedCount: number;
-  skippedCount: number;
-}
-
 /**
- * Mempromosikan siswa secara masal ke tingkat kelas berikutnya:
- * - Siswa di kelas numerik dinaikkan 1 tingkat (misal 1 -> 2).
- * - Siswa yang mencapai maxGradeLevel (default 6 untuk SD) ditandai graduated (lulus).
- * - Status siswa menjadi 'promoted'.
- * - Siswa dalam excludeStudentIds (tinggal kelas) dilewati.
+ * Memeriksa apakah siswa memiliki pesanan aktif yang belum selesai/masih berjalan
+ * di sekolah dan kelas berjalan (buku belum diambil atau seragam belum dikirim).
  */
-export async function batchPromoteStudents(
+export async function getStudentActiveOrders(
   database: AppDatabase,
-  input: BatchPromoteInput,
-  now = new Date().toISOString()
-): Promise<{ ok: true; data: BatchPromoteResult } | { ok: false; status: ContentfulStatusCode; message: string }> {
-  const maxGrade = input.maxGradeLevel ?? 6;
-  const excluded = new Set(input.excludeStudentIds ?? []);
+  studentId: string
+): Promise<{ hasActive: boolean; details: string[] }> {
+  const [activeBooks, activeUniforms] = await Promise.all([
+    database
+      .select({ orderNumber: studentBookOrders.orderNumber, fulfillmentStatus: studentBookOrders.fulfillmentStatus })
+      .from(studentBookOrders)
+      .where(
+        and(
+          eq(studentBookOrders.studentId, studentId),
+          inArray(studentBookOrders.fulfillmentStatus, ["waiting_preparation", "ready_for_pickup"])
+        )
+      ),
+    database
+      .select({ orderNumber: uniformOrders.orderNumber, shipmentStatus: uniformOrders.shipmentStatus })
+      .from(uniformOrders)
+      .where(
+        and(
+          eq(uniformOrders.studentId, studentId),
+          eq(uniformOrders.shipmentStatus, "belum_dikirim")
+        )
+      ),
+  ]);
 
-  const eligibleStudents = await database
-    .select()
-    .from(students)
-    .where(and(eq(students.schoolId, input.schoolId), inArray(students.status, ["active", "promoted"])));
-
-  let promotedCount = 0;
-  let graduatedCount = 0;
-  let skippedCount = 0;
-
-  const toGraduateIds: string[] = [];
-  const toPromoteByGrade = new Map<string, string[]>();
-
-  for (const st of eligibleStudents) {
-    if (excluded.has(st.id)) {
-      skippedCount++;
-      continue;
-    }
-
-    const currentGrade = parseInt(st.gradeLevel, 10);
-    if (Number.isNaN(currentGrade)) {
-      skippedCount++;
-      continue;
-    }
-
-    if (currentGrade >= maxGrade) {
-      toGraduateIds.push(st.id);
-      graduatedCount++;
-    } else {
-      const nextGrade = (currentGrade + 1).toString();
-      const list = toPromoteByGrade.get(nextGrade) ?? [];
-      list.push(st.id);
-      toPromoteByGrade.set(nextGrade, list);
-      promotedCount++;
-    }
-  }
-
-  // Batch updates chunked to meet Cloudflare D1 discipline
-  if (toGraduateIds.length > 0) {
-    for (const chunk of chunkRows(toGraduateIds)) {
-      await database
-        .update(students)
-        .set({
-          status: "graduated",
-          academicYear: input.targetAcademicYear,
-          updatedAt: now,
-        })
-        .where(inArray(students.id, chunk));
-    }
-  }
-
-  for (const [nextGrade, ids] of toPromoteByGrade.entries()) {
-    for (const chunk of chunkRows(ids)) {
-      await database
-        .update(students)
-        .set({
-          gradeLevel: nextGrade,
-          status: "promoted",
-          academicYear: input.targetAcademicYear,
-          updatedAt: now,
-        })
-        .where(inArray(students.id, chunk));
-    }
-  }
+  const details = [
+    ...activeBooks.map((b: { orderNumber: string }) => `Pesanan Buku #${b.orderNumber} (belum diserahkan)`),
+    ...activeUniforms.map((u: { orderNumber: string }) => `Pesanan Seragam #${u.orderNumber} (belum dikirim)`),
+  ];
 
   return {
-    ok: true,
-    data: {
-      promotedCount,
-      graduatedCount,
-      skippedCount,
-    },
+    hasActive: details.length > 0,
+    details,
   };
 }
+
+export { batchPromoteStudents, type BatchPromoteInput, type BatchPromoteResult } from "./student-promotion";
+

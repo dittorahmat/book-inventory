@@ -2,16 +2,24 @@ import { useState } from "react";
 import { useCatalogData } from "../components/catalog/useCatalogData";
 import { CatalogToolbar } from "../components/catalog/CatalogToolbar";
 import { CreateBookForm } from "../components/catalog/CreateBookForm";
+import { EditBookModal } from "../components/catalog/EditBookModal";
 import { CatalogBookList } from "../components/catalog/CatalogBookList";
 import { BookBulkUploadModal } from "../components/books/BookBulkUploadModal";
+import { isBookWarehouseStaffRole, isCentralRole, type StaffRole } from "../lib/staff-roles";
 import type { NewBookPayload } from "../components/catalog/catalog-intent";
 import type { Book } from "../types";
 
+interface CatalogViewProps {
+  userRole?: StaffRole;
+}
+
 /** Orkestrasi katalog: hook data + toolbar + form + daftar; tanpa logika orphan/harga. */
-export function CatalogView() {
-  const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook } = useCatalogData();
+export function CatalogView({ userRole }: CatalogViewProps = {}) {
+  const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook, updateBook } = useCatalogData();
+  const canManageCatalog = !userRole || isCentralRole(userRole) || isBookWarehouseStaffRole(userRole);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const handleCreate = async (payload: NewBookPayload, coverFile: File | null) => {
@@ -78,6 +86,16 @@ export function CatalogView() {
       )}
 
       {isAdding && <CreateBookForm onClose={() => setIsAdding(false)} onCreate={handleCreate} />}
+      {editingBook && (
+        <EditBookModal
+          book={editingBook}
+          onClose={() => setEditingBook(null)}
+          onSave={async (bookId, payload) => {
+            await updateBook(bookId, payload);
+            setEditingBook(null);
+          }}
+        />
+      )}
       {showBulkUpload && (
         <BookBulkUploadModal
           onClose={() => setShowBulkUpload(false)}
@@ -92,7 +110,8 @@ export function CatalogView() {
         books={filteredBooks}
         isEmptyCatalog={books.length === 0}
         onUploadCover={handleUploadCover}
-        onRemove={handleRemove}
+        onRemove={canManageCatalog ? handleRemove : undefined}
+        onEdit={canManageCatalog ? (book) => setEditingBook(book) : undefined}
       />
     </div>
   );

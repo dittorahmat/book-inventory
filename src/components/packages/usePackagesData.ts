@@ -12,6 +12,7 @@ export interface PackageRow {
   academicYear: string;
   price: number;
   description?: string;
+  schoolIds?: string[];
   totalItemsCount: number;
   items: Array<{
     id: string;
@@ -32,6 +33,7 @@ export interface NewPackagePayload {
   academicYear: string;
   price: number;
   description?: string;
+  schoolIds?: string[];
   items: Array<{ bookId: string; quantity: number }>;
 }
 

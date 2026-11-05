@@ -45,6 +45,7 @@ export interface StudentFormPayload {
   parentEmail?: string;
   parentPhone?: string;
   status?: string;
+  isScholarship?: boolean;
 }
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
@@ -58,6 +59,14 @@ export const fetchStudents = (params: StudentListParams): Promise<StudentRecord[
       search: params.search?.trim() || undefined,
     }),
     "Gagal memuat data siswa."
+  );
+
+export const fetchStudentActiveOrders = (
+  id: string
+): Promise<{ hasActive: boolean; details: string[] }> =>
+  getJson<{ hasActive: boolean; details: string[] }>(
+    `/api/students/${encodeURIComponent(id)}/active-orders`,
+    "Gagal memeriksa pesanan aktif siswa."
   );
 
 export const createStudent = (payload: StudentFormPayload): Promise<StudentRecord> =>

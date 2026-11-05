@@ -4,6 +4,14 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Paket Khusus Cabang (Branch-Assigned Package)**:
+Penugasan paket buku ke satu atau beberapa sekolah cabang spesifik (`book_package_schools`). Paket tanpa relasi cabang berlaku universal untuk semua cabang; paket yang di-assign khusus hanya terlihat dan dapat dipesan oleh murid di sekolah cabang tersebut (contoh: paket Al-Wildan 1 berbeda kurikulum/komposisi dari Al-Wildan 4).
+_Avoid_: Paket hardcoded per sekolah, duplikasi redundan paket umum
+
+**Katalog Satuan Terkunci BOM (BOM-Locked Standalone Books)**:
+Batasan pilihan buku satuan pada portal pemesanan murid di mana daftar buku yang dapat dibeli eceran dibatasi secara ketat hanya pada buku-buku yang terdaftar dalam komponen (BOM) paket kelas & sekolah murid bersangkutan, ditambah buku satuan suplemen yang secara eksplisit di-override/diizinkan oleh admin untuk jenjang/sekolah tersebut (`school_grade_allowed_books`).
+_Avoid_: Katalog satuan terbuka bebas tanpa filter jenjang, pembelian buku lintas kurikulum
+
 **Master Paket Buku (Book Package BOM)**:
 Definisi katalog terpusat komponen bahan ajar per jenjang & kurikulum yang memetakan daftar buku komponen beserta kuantitasnya (Bill of Materials / BOM). Perubahan komponen buku memicu rekalkulasi harga paket terkomputasi dan secara otomatis membongkar (*auto-unbundle*) bundel fisik lama yang belum terdistribusi menjadi stok buku satuan lepas di rak gudang agar fisik barang tidak mengalami mismatch dengan BOM terbaru.
 _Avoid_: Paket dinamis tanpa BOM, bundel mismatch

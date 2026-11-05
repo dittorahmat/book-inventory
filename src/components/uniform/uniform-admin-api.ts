@@ -2,7 +2,7 @@
  * Adapter tipis staf seragam di atas fetch kanonik (`lib/api`).
  * Tanpa state — hanya pemetaan endpoint dengan pesan Indonesia.
  */
-import { buildQuery, getJson, postJson } from "../../lib/api";
+import { buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
 import {
   isPendingPayment,
   normalizePaymentRow,
@@ -63,8 +63,14 @@ export const fetchUniformVariants = (): Promise<UniformVariantRow[]> =>
 export const createUniformVariant = (payload: unknown): Promise<unknown> =>
   postJson("/api/uniforms/variants", payload, "Gagal membuat varian seragam.");
 
+export const updateUniformVariant = (id: string, payload: unknown): Promise<unknown> =>
+  putJson(`/api/uniforms/variants/${id}`, payload, "Gagal memperbarui varian seragam.");
+
+export const deleteUniformVariant = (id: string): Promise<unknown> =>
+  delJson(`/api/uniforms/variants/${id}`, "Gagal menghapus varian seragam.");
+
 export interface UniformPackageRow {
-  package: { id: string; code: string; name: string; academicYear: string; price: number };
+  package: { id: string; code: string; name: string; academicYear: string; price: number; description?: string | null };
   bom: Array<{ variantId: string; variantName: string; kind: string; size: string; quantity: number }>;
   readyQty: number;
 }
@@ -74,6 +80,12 @@ export const fetchUniformPackages = (): Promise<UniformPackageRow[]> =>
 
 export const createUniformPackage = (payload: unknown): Promise<unknown> =>
   postJson("/api/uniforms/packages", payload, "Gagal membuat paket seragam.");
+
+export const updateUniformPackage = (id: string, payload: unknown): Promise<unknown> =>
+  putJson(`/api/uniforms/packages/${id}`, payload, "Gagal memperbarui paket seragam.");
+
+export const deleteUniformPackage = (id: string): Promise<unknown> =>
+  delJson(`/api/uniforms/packages/${id}`, "Gagal menghapus paket seragam.");
 
 export const assembleUniformPackage = (id: string, quantity: number, sizeOverrides?: Record<string, string>): Promise<unknown> =>
   postJson(`/api/uniforms/packages/${id}/assemble`, { quantity, sizeOverrides }, "Gagal merakit paket.");

@@ -68,7 +68,8 @@ helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali.
   untuk satu kontrol (termasuk file upload).
 - Kontras WCAG AA (≥4.5:1 teks normal).
 - State lengkap: loading, empty edukatif, error inline eksplisit.
-- Otorisasi tombol aksi: setiap tombol mutasi administratif pada kartu/tabel (buat, edit, hapus paket/buku) wajib disaring dengan predikat peran kanonik (`isBookWarehouseStaffRole`, `isUniformStaffRole`, atau `isCentralRole`) di level view pemanggil, bukan hanya mengandalkan pengecekan backend.
+- Otorisasi tombol aksi: setiap tombol mutasi administratif pada kartu/tabel (buat, edit, hapus paket/buku/seragam) wajib disaring dengan predikat peran kanonik (`isBookWarehouseStaffRole`, `isUniformStaffRole`, atau `isCentralRole`) di level view pemanggil, bukan hanya mengandalkan pengecekan backend.
+- Kelengkapan visual entitas admin: setiap penambahan master/whitelist/pengaturan baru di backend wajib menyediakan antarmuka pengguna visual (modal/form/tabel di Settings atau tab terkait) yang terintegrasi penuh, dilarang berhenti pada level route backend semata.
 - Dilarang merombak layout kontainer (mis. grid → scrollable flex) kecuali
   disyaratkan spec.
 - Navigasi data-driven: daftar tab wajib array (`PUBLIC_TABS`, `DESKTOP_TABS`)

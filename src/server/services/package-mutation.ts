@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { bookPackageItems, bookPackages, packageItems } from "../../db/schema";
+import { bookPackageItems, bookPackageSchools, bookPackages, packageItems, studentBookOrders } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { recalcPackagePrice } from "./pricing";
 import { READY_BUNDLE_STATUSES } from "./stock";
@@ -36,6 +36,7 @@ export type UpdatePackagePayload = {
   curriculumType: "international" | "national";
   academicYear: string;
   description?: string | null;
+  schoolIds?: string[];
   items: Array<{ bookId: string; quantity: number }>;
 };
 
@@ -102,11 +103,43 @@ export async function deletePackageWithAutoUnbundle(
     return { ok: false, status: 404, message: "Package not found" };
   }
 
+  // Guard riwayat pesanan siswa
+  const existingOrders = await database
+    .select({ orderNumber: studentBookOrders.orderNumber })
+    .from(studentBookOrders)
+    .where(eq(studentBookOrders.packageId, packageId))
+    .limit(5);
+
+  if (existingOrders.length > 0) {
+    const list = existingOrders.map((o: { orderNumber: string }) => `#${o.orderNumber}`).join(", ");
+    return {
+      ok: false,
+      status: 400,
+      message: `Paket "${pkg.name}" tidak dapat dihapus karena tercatat dalam pesanan siswa (${list}).`,
+    };
+  }
+
+  // Guard fisik paket yang pernah didistribusikan / bukan status ready unbundle
+  const nonReadyItems = await database
+    .select({ barcode: packageItems.barcode, status: packageItems.status })
+    .from(packageItems)
+    .where(and(eq(packageItems.packageId, packageId), sql`${packageItems.status} NOT IN ('in_stock', 'reserved')`))
+    .limit(5);
+
+  if (nonReadyItems.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Paket "${pkg.name}" tidak dapat dihapus karena memiliki riwayat bundel fisik terdistribusi (misal barcode ${nonReadyItems[0].barcode} status ${nonReadyItems[0].status}).`,
+    };
+  }
+
   const unbundleRes = await unbundleAllActiveBundles(database, packageId, `Auto-unbundle saat penghapusan paket ${pkg.name}`, deps);
   if (!unbundleRes.ok) return unbundleRes;
 
   try {
     await runWriteBatch(database, [
+      database.delete(bookPackageSchools).where(eq(bookPackageSchools.packageId, packageId)),
       database.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId)),
       database.delete(bookPackages).where(eq(bookPackages.id, packageId)),
     ]);
@@ -178,11 +211,23 @@ export async function updatePackageWithAutoUnbundle(
       .where(eq(bookPackages.id, packageId));
 
     const deleteOldBom = database.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+    const deleteOldSchools = database.delete(bookPackageSchools).where(eq(bookPackageSchools.packageId, packageId));
 
-    await runWriteBatch(database, [updateHeader, deleteOldBom]);
+    await runWriteBatch(database, [updateHeader, deleteOldBom, deleteOldSchools]);
 
     for (const rows of chunkRows(bomRows)) {
       await runWriteBatch(database, [database.insert(bookPackageItems).values(rows)]);
+    }
+
+    if (payload.schoolIds && payload.schoolIds.length > 0) {
+      const schoolRows = [...new Set(payload.schoolIds)].map((schoolId) => ({
+        packageId,
+        schoolId,
+        createdAt: now,
+      }));
+      for (const rows of chunkRows(schoolRows)) {
+        await runWriteBatch(database, [database.insert(bookPackageSchools).values(rows)]);
+      }
     }
 
     // WPR wajib di semua BOM paket

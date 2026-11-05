@@ -7,6 +7,7 @@ import { UniformNumberingSettings } from "../components/settings/UniformNumberin
 import { SmtpSettingsSection } from "../components/settings/SmtpSettingsSection";
 import { MetaWhatsAppSettingsSection } from "../components/settings/MetaWhatsAppSettingsSection";
 import { WarehouseReturnAddressSettings } from "../components/settings/WarehouseReturnAddressSettings";
+import { SchoolGradeAllowedBooksSettings } from "../components/settings/SchoolGradeAllowedBooksSettings";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
 import { UsersSettingsTab } from "../components/settings/UsersSettingsTab";
 import { useSettingsData } from "../components/settings/useSettingsData";
@@ -161,6 +162,7 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
           <div className="pt-4 border-t border-[#E4E6EB]">
             <WarehouseReturnAddressSettings />
           </div>
+          <SchoolGradeAllowedBooksSettings schools={schoolsList} />
         </div>
       )}
     </div>

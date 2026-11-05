@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AlertTriangle, Package, Plus, Trash2, X } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import type { Book } from "../../types";
+import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
+import type { Book, School } from "../../types";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { WPR_BOOK_ID, WPR_PRICE } from "../../lib/wpr";
@@ -14,6 +15,7 @@ interface PackageItemInput {
 
 interface EditPackageModalProps {
   pkg: PackageRow;
+  schools?: School[];
   readyBundleCount: number;
   catalogBooks: Book[];
   updatePackage: (packageId: string, payload: NewPackagePayload) => Promise<void>;
@@ -24,6 +26,7 @@ interface EditPackageModalProps {
 /** Modal edit master paket buku: metadata + komposisi BOM + kalkulasi harga + guard auto-unbundle. */
 export function EditPackageModal({
   pkg,
+  schools = [],
   readyBundleCount,
   catalogBooks,
   updatePackage,
@@ -36,6 +39,7 @@ export function EditPackageModal({
   const [name, setName] = useState(pkg.name);
   const [academicYear, setAcademicYear] = useState(pkg.academicYear);
   const [description, setDescription] = useState(pkg.description || "");
+  const [schoolIds, setSchoolIds] = useState<string[]>(pkg.schoolIds || []);
 
   // Inisialisasi item BOM tanpa baris WPR (karena WPR otomatis di backend)
   const [items, setItems] = useState<PackageItemInput[]>(() => {
@@ -103,6 +107,7 @@ export function EditPackageModal({
         academicYear,
         price: computedPrice,
         description: description.trim() || undefined,
+        schoolIds,
         items,
       });
       alert(`Paket "${name}" berhasil diperbarui.`);
@@ -215,6 +220,19 @@ export function EditPackageModal({
                 <option value="national">Nasional</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <SearchableMultiSelect
+              label="Penugasan Sekolah Cabang (Kosong = Universal untuk semua cabang)"
+              options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+              values={schoolIds}
+              onChange={setSchoolIds}
+              placeholder="Pilih sekolah cabang khusus (opsional)..."
+            />
+            <p className="mt-1 text-[11px] text-[#65676B]">
+              Jika diisi, paket ini hanya muncul untuk murid di cabang yang dipilih (misal kurikulum Al-Wildan 1 berbeda dari Al-Wildan 4).
+            </p>
           </div>
 
           <div>

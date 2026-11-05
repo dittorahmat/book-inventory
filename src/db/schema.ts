@@ -246,6 +246,28 @@ export const bookPackageItems = sqliteTable("book_package_items", {
   index("bom_package_idx").on(t.packageId),
 ]);
 
+/** Penugasan paket buku ke sekolah cabang: tanpa baris = universal untuk semua cabang. */
+export const bookPackageSchools = sqliteTable("book_package_schools", {
+  packageId: text("package_id").notNull().references(() => bookPackages.id, { onDelete: "cascade" }),
+  schoolId: text("school_id").notNull().references(() => schools.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("book_package_schools_school_idx").on(t.schoolId),
+  unique("book_package_schools_package_school_unq").on(t.packageId, t.schoolId),
+]);
+
+/** Whitelist buku satuan tambahan per sekolah dan jenjang (override admin di luar BOM paket). */
+export const schoolGradeAllowedBooks = sqliteTable("school_grade_allowed_books", {
+  id: text("id").primaryKey(),
+  schoolId: text("school_id").notNull().references(() => schools.id, { onDelete: "cascade" }),
+  gradeLevel: text("grade_level").notNull(),
+  bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("school_grade_allowed_books_lookup_idx").on(t.schoolId, t.gradeLevel),
+  unique("school_grade_allowed_books_unq").on(t.schoolId, t.gradeLevel, t.bookId),
+]);
+
 /** Relasi Book–supplier banyak-ke-banyak: tanpa baris = universal (semua supplier). */
 export const bookSuppliers = sqliteTable("book_suppliers", {
   bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),

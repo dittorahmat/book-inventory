@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools } from "../../db/schema";
+import { books, schoolGradeAllowedBooks, schools } from "../../db/schema";
+import { idSchema } from "../lib/validators";
 import {
   accessErrorResponse,
   resolveLogisticsActor,
@@ -114,6 +115,91 @@ schoolsRouter.put("/:id", zValidator("json", updateSchoolSchema), async (c) => {
     .returning();
 
   return c.json({ success: true, data: updatedSchool });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const allowBookSchema = z.object({
+  gradeLevel: z.string().min(1, "Kelas wajib diisi"),
+  bookId: idSchema,
+});
+
+// GET allowed standalone books for a school
+schoolsRouter.get("/:id/allowed-books", async (c) => {
+  const schoolId = c.req.param("id");
+  const gradeLevel = c.req.query("gradeLevel");
+  const conditions = [eq(schoolGradeAllowedBooks.schoolId, schoolId)];
+  if (gradeLevel) conditions.push(eq(schoolGradeAllowedBooks.gradeLevel, gradeLevel));
+
+  const list = await db
+    .select({
+      id: schoolGradeAllowedBooks.id,
+      schoolId: schoolGradeAllowedBooks.schoolId,
+      gradeLevel: schoolGradeAllowedBooks.gradeLevel,
+      bookId: schoolGradeAllowedBooks.bookId,
+      bookTitle: books.title,
+      publicTitle: books.publicTitle,
+      price: books.price,
+      sellPrice: books.sellPrice,
+      createdAt: schoolGradeAllowedBooks.createdAt,
+    })
+    .from(schoolGradeAllowedBooks)
+    .innerJoin(books, eq(schoolGradeAllowedBooks.bookId, books.id))
+    .where(and(...conditions))
+    .limit(50);
+
+  return c.json({ success: true, data: list });
+});
+
+// POST add allowed standalone book for school & grade
+schoolsRouter.post("/:id/allowed-books", zValidator("json", allowBookSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const schoolId = c.req.param("id");
+    const { gradeLevel, bookId } = c.req.valid("json");
+    const now = new Date().toISOString();
+
+    const [existing] = await db
+      .select()
+      .from(schoolGradeAllowedBooks)
+      .where(
+        and(
+          eq(schoolGradeAllowedBooks.schoolId, schoolId),
+          eq(schoolGradeAllowedBooks.gradeLevel, gradeLevel),
+          eq(schoolGradeAllowedBooks.bookId, bookId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      return c.json({ success: true, data: existing });
+    }
+
+    const row = {
+      id: crypto.randomUUID(),
+      schoolId,
+      gradeLevel,
+      bookId,
+      createdAt: now,
+    };
+    await db.insert(schoolGradeAllowedBooks).values(row);
+    return c.json({ success: true, data: row }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// DELETE remove allowed standalone book
+schoolsRouter.delete("/:id/allowed-books/:allowedId", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const schoolId = c.req.param("id");
+    const allowedId = c.req.param("allowedId");
+    await db
+      .delete(schoolGradeAllowedBooks)
+      .where(and(eq(schoolGradeAllowedBooks.id, allowedId), eq(schoolGradeAllowedBooks.schoolId, schoolId)));
+    return c.json({ success: true, message: "Buku override satuan berhasil dihapus" });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

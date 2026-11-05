@@ -87,9 +87,20 @@ export interface SatuanBookOption {
   price?: number | null;
 }
 
-/** Katalog satuan; kosong saat periode tertutup. */
-export const fetchSatuanCatalog = (): Promise<{ open: boolean; status: SatuanStatus; books: SatuanBookOption[] }> =>
-  getJson("/api/public/orders/satuan-catalog", "Gagal memuat daftar buku satuan");
+/** Katalog satuan; kosong saat periode tertutup. Dapat difilter sesuai jenjang & sekolah murid. */
+export const fetchSatuanCatalog = (params?: {
+  schoolId?: string;
+  gradeLevel?: string;
+  academicYear?: string;
+}): Promise<{ open: boolean; status: SatuanStatus; books: SatuanBookOption[] }> =>
+  getJson(
+    buildQuery("/api/public/orders/satuan-catalog", {
+      schoolId: params?.schoolId,
+      gradeLevel: params?.gradeLevel,
+      academicYear: params?.academicYear,
+    }),
+    "Gagal memuat daftar buku satuan"
+  );
 
 export const submitFinalOrder = (payload: FinalOrderPayload): Promise<any> =>
   postJson("/api/public/orders/submit", payload, "Gagal memproses pesanan buku");
