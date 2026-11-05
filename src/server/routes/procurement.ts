@@ -13,6 +13,9 @@ import {
   resolveWarehouseTarget,
   sendPo,
 } from "../services/purchase-order";
+import {
+  calculateBookDemandSummary,
+} from "../services/purchase-order/demand";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -106,6 +109,30 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 
   const [created] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   return c.json({ success: true, data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const bookDemandQuerySchema = z.object({
+  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, "Format tahun ajaran harus 2026/2027").optional(),
+  bufferPercentage: z.coerce.number().min(0, "Buffer persentase tidak boleh negatif").max(100, "Buffer maksimal 100").optional(),
+  bookIds: z.string().optional(),
+});
+
+// Ringkasan kebutuhan buku untuk auto-fill Purchase Order
+procurementRouter.get("/book-demand-summary", zValidator("query", bookDemandQuerySchema), async (c) => {
+  try {
+    await requireScopedLogisticsActor(db, c);
+    const { academicYear, bufferPercentage, bookIds: bookIdsRaw } = c.req.valid("query");
+    const bookIds = bookIdsRaw ? bookIdsRaw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+    const data = await calculateBookDemandSummary(db, {
+      academicYear,
+      bufferPercentage,
+      bookIds,
+    });
+    return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

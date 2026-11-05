@@ -1,12 +1,20 @@
-import { useMemo, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, X } from "lucide-react";
 import type { Book } from "../../types";
-import { calcPoHeader, effectiveBookPrice } from "../../lib/book-pricing";
-import { postJson } from "../../lib/api";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { calcPoHeader } from "../../lib/book-pricing";
+import { getJson, postJson } from "../../lib/api";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { CreateSupplierModal } from "./CreateSupplierModal";
 import type { NewPOItemInput, Supplier } from "./procurement-types";
+import {
+  type BookDemandItemInfo,
+  buildSupplierPoItems,
+  buyPriceOfBook,
+  calcDemandQty,
+  makePoItemRow,
+} from "./po-demand-helpers";
+import { PoItemRow } from "./PoItemRow";
+import { PoHeaderFields } from "./PoHeaderFields";
 
 interface CreatePOModalProps {
   suppliers: Supplier[];
@@ -17,12 +25,9 @@ interface CreatePOModalProps {
   reloadSuppliers: () => Promise<Supplier[]>;
 }
 
-const blankRow = (bookId: string, unitPrice: number, qty: number): NewPOItemInput => ({
-  bookId,
-  quantityOrdered: qty,
-  unitPrice,
-  discountPercent: 0,
-});
+// ==========================================
+// CREATE PO MODAL
+// ==========================================
 
 /** Modal penerbitan PO: supplier, tanggal, item buku, ringkasan tiga angka. */
 export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onClose, onCreated, reloadSuppliers }: CreatePOModalProps) {
@@ -30,13 +35,10 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [poExpectedArrival, setPoExpectedArrival] = useState("");
   const [poNotes, setPoNotes] = useState("");
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
-    const eligible = !defaultSupplierId
-      ? catalogBooks
-      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
-    const source = eligible.length > 0 ? eligible : catalogBooks;
-    return source.length > 0 ? [blankRow(source[0].id, buyPriceOf(source[0].id), 20)] : [];
-  });
+  const [bufferPercent, setBufferPercent] = useState<number>(10);
+  const [demandMap, setDemandMap] = useState<Record<string, BookDemandItemInfo>>({});
+  const [editedBookIds, setEditedBookIds] = useState<Set<string>>(() => new Set());
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
 
@@ -49,23 +51,82 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     [catalogBooks, poSupplierId]
   );
 
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
+    const eligible = !defaultSupplierId
+      ? catalogBooks
+      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
+    return eligible.length > 0
+      ? buildSupplierPoItems(eligible, catalogBooks, {}, 10)
+      : [];
+  });
+
+  // Muat ringkasan demand siswa per buku dari server
+  useEffect(() => {
+    let active = true;
+    getJson<{ success: boolean; data: { bufferPercentage: number; items: Record<string, BookDemandItemInfo> } }>(
+      "/api/procurement/book-demand-summary"
+    )
+      .then((res) => {
+        if (!active || !res?.data) return;
+        setDemandMap(res.data.items || {});
+        if (typeof res.data.bufferPercentage === "number") {
+          setBufferPercent(res.data.bufferPercentage);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          const message = err instanceof Error ? err.message : "Gagal memuat rekomendasi kebutuhan siswa.";
+          setLoadError(message);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Update kuantitas buku saat demandMap atau bufferPercent termuat pertama kali
+  useEffect(() => {
+    if (Object.keys(demandMap).length === 0) return;
+    setPoItems((prev) => {
+      if (prev.length === 0) return prev;
+      return prev.map((item) => {
+        // Jangan timpa jika user sudah pernah mengedit manual baris buku ini
+        if (editedBookIds.has(item.bookId)) return item;
+        const d = demandMap[item.bookId];
+        if (!d) return item;
+        const autoQty = calcDemandQty(d.studentCount || 0, bufferPercent);
+        return item.quantityOrdered === 0 ? { ...item, quantityOrdered: autoQty } : item;
+      });
+    });
+  }, [demandMap, bufferPercent, editedBookIds]);
+
   function buyPriceOf(bookId: string, fallback = 0): number {
-    const b = catalogBooks.find((x) => x.id === bookId);
-    return b ? effectiveBookPrice(b).buy : fallback;
+    return buyPriceOfBook(catalogBooks, bookId, fallback);
   }
 
   const handleSupplierChange = (next: string) => {
     setPoSupplierId(next);
-    setPoItems((prev) => {
-      const kept = prev.filter((it) => {
-        const b = catalogBooks.find((x) => x.id === it.bookId);
-        return !b || !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next);
-      });
-      if (kept.length !== prev.length) {
-        alert(`${prev.length - kept.length} baris dihapus karena tidak tersedia dari supplier terpilih.`);
-      }
-      return kept;
-    });
+    setEditedBookIds(new Set());
+    const targetBooks = !next
+      ? catalogBooks
+      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next));
+    const newItems = buildSupplierPoItems(targetBooks, catalogBooks, demandMap, bufferPercent);
+    setPoItems(newItems);
+  };
+
+  const handleBufferPercentChange = (val: number) => {
+    const nextBuffer = Math.max(0, val || 0);
+    setBufferPercent(nextBuffer);
+    setPoItems((prev) =>
+      prev.map((item) => {
+        // Baris yang telah diedit manual oleh user dipertahankan, tidak ditimpa
+        if (editedBookIds.has(item.bookId)) return item;
+        const d = demandMap[item.bookId];
+        const studentCount = d?.studentCount ?? 0;
+        const autoQty = calcDemandQty(studentCount, nextBuffer);
+        return { ...item, quantityOrdered: autoQty };
+      })
+    );
   };
 
   const handleAddPOItemRow = () => {
@@ -74,19 +135,25 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
       return;
     }
     const defaultBook = eligibleBooks[0];
-    setPoItems((prev) => [...prev, blankRow(defaultBook.id, buyPriceOf(defaultBook.id), 10)]);
+    const d = demandMap[defaultBook.id];
+    const initialQty = calcDemandQty(d?.studentCount ?? 0, bufferPercent);
+    setPoItems((prev) => [...prev, makePoItemRow(defaultBook.id, buyPriceOf(defaultBook.id), initialQty > 0 ? initialQty : 10)]);
   };
 
   const handleRemovePOItemRow = (index: number) => {
     setPoItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleUpdatePOItem = (index: number, field: keyof NewPOItemInput, val: any) => {
+  const handleUpdatePOItem = (index: number, field: keyof NewPOItemInput, val: string | number) => {
     setPoItems((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
         if (field === "bookId") {
-          return { ...item, bookId: val, unitPrice: buyPriceOf(val, 0) };
+          const bId = String(val);
+          return { ...item, bookId: bId, unitPrice: buyPriceOf(bId, 0) };
+        }
+        if (field === "quantityOrdered") {
+          setEditedBookIds((old) => new Set(old).add(item.bookId));
         }
         const num = Math.max(0, Number(val) || 0);
         if (field === "discountPercent") return { ...item, discountPercent: Math.min(100, num) };
@@ -101,15 +168,13 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
       alert("Silakan pilih Supplier penerbit.");
       return;
     }
-    if (poItems.length === 0) {
-      alert("Tambahkan minimal 1 item buku pada PO.");
+    // Saring otomatis hanya item dengan qty > 0 (buku supplier dengan 0 siswa yang tidak dipesan diabaikan)
+    const validItems = poItems.filter((it) => it.quantityOrdered > 0);
+    if (validItems.length === 0) {
+      alert("Tambahkan minimal 1 item buku dengan jumlah pesanan lebih dari 0.");
       return;
     }
-    if (poItems.some((it) => it.quantityOrdered <= 0)) {
-      alert("Jumlah pesanan buku harus lebih dari 0.");
-      return;
-    }
-    if (poItems.some((it) => it.discountPercent < 0 || it.discountPercent > 100)) {
+    if (validItems.some((it) => it.discountPercent < 0 || it.discountPercent > 100)) {
       alert("Diskon per item harus antara 0 sampai 100 persen.");
       return;
     }
@@ -123,7 +188,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
           orderDate: poOrderDate,
           expectedArrivalDate: poExpectedArrival || undefined,
           notes: poNotes.trim() || undefined,
-          items: poItems,
+          items: validItems,
         },
         "Gagal menerbitkan Purchase Order."
       );
@@ -167,75 +232,37 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
         </div>
 
         <form onSubmit={handleSubmitCreatePO} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Supplier / Vendor Resmi *
-              </label>
-              <div className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <SearchableSingleSelect
-                    options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
-                    value={poSupplierId}
-                    onChange={handleSupplierChange}
-                    placeholder={suppliers.length === 0 ? "Belum ada supplier (Tambah baru)" : "Pilih supplier..."}
-                    required
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSupplierModalOpen(true)}
-                  className="px-2.5 py-2 border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] text-xs font-semibold shrink-0"
-                  title="Tambah Supplier Baru"
-                >
-                  + Baru
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <span className="block text-xs font-semibold text-[#050505] mb-1">
-                Tujuan Barang Masuk
-              </span>
-              <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-semibold text-[#050505]">
-                Gudang Logistik
-              </div>
-              <p className="text-[10px] text-[#65676B] mt-1">
-                PO selalu dipusatkan di Gudang Logistik, lalu diteruskan ke cabang lewat transfer.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Tanggal Order *
-              </label>
-              <input
-                type="date"
-                value={poOrderDate}
-                onChange={(e) => setPoOrderDate(e.target.value)}
-                required
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Estimasi Tiba di Gudang
-              </label>
-              <input
-                type="date"
-                value={poExpectedArrival}
-                onChange={(e) => setPoExpectedArrival(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              />
-            </div>
-          </div>
+          <PoHeaderFields
+            suppliers={suppliers}
+            supplierId={poSupplierId}
+            onSupplierChange={handleSupplierChange}
+            onOpenSupplierModal={() => setIsSupplierModalOpen(true)}
+            orderDate={poOrderDate}
+            onOrderDateChange={setPoOrderDate}
+            expectedArrival={poExpectedArrival}
+            onExpectedArrivalChange={setPoExpectedArrival}
+            loadError={loadError}
+          />
 
           <div className="pt-2 border-t border-[#E4E6EB]">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-bold text-[#050505]">
-                Daftar Item Buku Dipesan ({poItems.length} Judul)
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-3">
+                <label className="block text-xs font-bold text-[#050505]">
+                  Daftar Item Buku Dipesan ({poItems.length} Judul)
+                </label>
+                <div className="flex items-center gap-1.5 bg-[#F0F2F5] px-2.5 py-1 rounded-lg border border-[#E4E6EB]">
+                  <span className="text-[11px] font-semibold text-[#65676B]">Buffer (%):</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={bufferPercent}
+                    onChange={(e) => handleBufferPercentChange(Number(e.target.value))}
+                    className="w-12 px-1.5 py-0.5 bg-white border border-[#CED0D4] rounded text-xs text-center font-bold text-[#1877F2]"
+                    title="Persentase cadangan pesanan di atas jumlah siswa"
+                  />
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={handleAddPOItemRow}
@@ -259,72 +286,15 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
             ) : (
               <div className="space-y-2 pr-1">
                 {poItems.map((item, idx) => (
-                  <div
+                  <PoItemRow
                     key={idx}
-                    className="p-3 bg-[#F9FAFB] border border-[#E4E6EB] rounded-xl grid grid-cols-12 gap-2.5 items-center"
-                  >
-                    <div className="col-span-12 sm:col-span-5">
-                      <label className="block text-[10px] text-[#65676B] mb-0.5">Judul Buku</label>
-                      <SearchableSingleSelect
-                        options={eligibleBooks.map((b) => ({ value: b.id, label: b.title, hint: b.isbn }))}
-                        value={item.bookId}
-                        onChange={(val) => handleUpdatePOItem(idx, "bookId", val)}
-                        placeholder="Cari judul..."
-                      />
-                    </div>
-
-                    <div className="col-span-5 sm:col-span-2">
-                      <label className="block text-[10px] text-[#65676B] mb-0.5">Qty Pesan</label>
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="0"
-                        value={item.quantityOrdered === 0 ? "" : item.quantityOrdered}
-                        onChange={(e) => handleUpdatePOItem(idx, "quantityOrdered", e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2]"
-                      />
-                    </div>
-
-                    <div className="col-span-5 sm:col-span-2">
-                      <label className="block text-[10px] text-[#65676B] mb-0.5">
-                        Harga Satuan (Rp) <span className="text-[9px] text-[#8A8D91]">(Katalog)</span>
-                      </label>
-                      <input
-                        type="number"
-                        readOnly
-                        tabIndex={-1}
-                        placeholder="0"
-                        value={item.unitPrice === 0 ? "" : item.unitPrice}
-                        className="w-full px-2.5 py-1.5 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg text-xs font-semibold text-right text-[#65676B] cursor-not-allowed select-none"
-                        title="Harga satuan terkunci mengikuti harga beli di katalog"
-                      />
-                    </div>
-
-                    <div className="col-span-5 sm:col-span-2">
-                      <label className="block text-[10px] text-[#65676B] mb-0.5">Diskon (%)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        placeholder="0"
-                        value={item.discountPercent === 0 ? "" : item.discountPercent}
-                        onChange={(e) => handleUpdatePOItem(idx, "discountPercent", e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right"
-                      />
-                    </div>
-
-                    <div className="col-span-2 sm:col-span-1 flex justify-end pt-3 sm:pt-0">
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePOItemRow(idx)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus baris"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                    idx={idx}
+                    item={item}
+                    eligibleBooks={eligibleBooks}
+                    demand={demandMap[item.bookId]}
+                    onUpdate={handleUpdatePOItem}
+                    onRemove={handleRemovePOItemRow}
+                  />
                 ))}
               </div>
             )}

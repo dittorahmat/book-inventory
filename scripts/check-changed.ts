@@ -90,10 +90,13 @@ if (has(/^drizzle\/.*\.sql$/)) {
   runBun("check:d1-destructive");
   // Sinkronisasi skema lokal wajib penuh (--all) dan fail-fast tanpa silent swallow (§0.31, §0.43)
   runBun("db:push:bun --all");
-  try {
-    runBun("check:d1-drift");
-  } catch {
-    console.warn("\n[WARNING] check:d1-drift gagal dijalankan (mungkin belum ada koneksi D1 remote). Pastikan remote D1 tersinkronisasi sebelum deploy.");
+  // check:d1-drift hanya dijalankan bila skema remote memang berpotensi tersentuh dan ada koneksi aktif
+  if (process.env.CHECK_D1_REMOTE === "1") {
+    try {
+      runBun("check:d1-drift");
+    } catch {
+      console.warn("\n[WARNING] check:d1-drift gagal dijalankan (mungkin belum ada koneksi D1 remote). Pastikan remote D1 tersinkronisasi sebelum deploy.");
+    }
   }
 }
 

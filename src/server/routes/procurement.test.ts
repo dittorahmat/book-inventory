@@ -1064,4 +1064,94 @@ describe("PO supplier exclusivity (#143)", () => {
       await db.delete(suppliers).where(inArray(suppliers.id, [supA, supB]));
     }
   });
+
+  it("calculates book demand summary with student counts from BOM and buffer percentage", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const { students, bookPackages, bookPackageItems } = await import("../../db/schema");
+    const bookId = `b-demand-${stamp}`;
+    const packageId = `pkg-demand-${stamp}`;
+    const studentId = `std-demand-${stamp}`;
+    const schoolId = "school-alw-1";
+    const year = "2026/2027";
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-DEM-${stamp}`,
+      title: "Buku Uji Demand",
+      author: "Penulis",
+      publisher: "Penerbit",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-DEM-${stamp}`,
+      name: "Paket Demand Uji",
+      gradeLevel: "9",
+      curriculumType: "international",
+      stream: "IPA",
+      intakeType: "baru",
+      academicYear: year,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(bookPackageItems).values({
+      id: `bpi-dem-${stamp}`,
+      packageId,
+      bookId,
+      quantity: 1,
+      createdAt: now,
+    });
+
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `NIS-DEM-${stamp}`,
+      name: "Siswa Demand Uji",
+      gradeLevel: "9",
+      curriculumType: "international",
+      stream: "IPA",
+      intakeType: "baru",
+      academicYear: year,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      mockActor("central_admin", null);
+      const res = await procurementRouter.request(
+        `/book-demand-summary?academicYear=${year}&bufferPercentage=10&bookIds=${bookId}`,
+        { method: "GET" }
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.academicYear).toBe(year);
+      expect(json.data.bufferPercentage).toBe(10);
+      const item = json.data.items[bookId];
+      expect(item).toBeDefined();
+      expect(item.studentCount).toBe(1);
+      // 1 siswa + 10% = 1.1 -> ceil = 2
+      expect(item.recommendedOrderQty).toBe(2);
+      expect(item.warehouseStock).toBe(0);
+
+      // Verifikasi security & RBAC: role non-logistik (school admin/user) ditolak 403
+      mockActor("school_admin", schoolId);
+      const deniedRes = await procurementRouter.request(
+        `/book-demand-summary?academicYear=${year}&bookIds=${bookId}`,
+        { method: "GET" }
+      );
+      expect(deniedRes.status).toBe(403);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+    }
+  });
 });
