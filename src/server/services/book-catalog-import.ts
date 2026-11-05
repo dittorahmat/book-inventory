@@ -1,6 +1,6 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { bookPackageItems, bookPackages, books } from "../../db/schema";
-import { resolveBookIsbn } from "../../lib/isbn";
+import { normalizeBookTitle, resolveBookIsbn } from "../../lib/isbn";
 import { chunkRows } from "../lib/d1-write";
 import { recalcPackagePrice } from "./pricing";
 import { ensurePackageHasWpr } from "./wpr";
@@ -51,39 +51,64 @@ export async function importBookCatalog(
   const nowIso = new Date().toISOString();
   const academicYear = options?.academicYear || "2026/2027";
 
-  // 1. Ekstrak ISBN dan cari buku yang sudah ada dengan batch chunking D1
-  const normalizedItems = items.map((item) => ({
-    ...item,
-    resolvedIsbn: resolveBookIsbn(item.isbn, undefined, undefined, item.title, item.gradeLevel),
-    effectivePrice: Math.round(item.sellPrice ?? item.price ?? 0),
-    effectiveBuyPrice: Math.round(item.buyPrice ?? item.price ?? 0),
-    gradeLevel: item.gradeLevel || "1",
-    curriculumType: item.curriculumType || "international",
-  }));
-
+  // 1. Ekstrak ISBN dan cari buku yang sudah ada berdasarkan ISBN dan Judul Buku (case-insensitive)
+  const normalizedItems = items.map((item) => {
+    const normTitle = normalizeBookTitle(item.title);
+    return {
+      ...item,
+      normalizedTitle: normTitle,
+      resolvedIsbn: resolveBookIsbn(item.isbn, undefined, undefined, item.title, item.gradeLevel),
+      effectivePrice: Math.round(item.sellPrice ?? item.price ?? 0),
+      effectiveBuyPrice: Math.round(item.buyPrice ?? item.price ?? 0),
+      gradeLevel: item.gradeLevel || "1",
+      curriculumType: item.curriculumType || "international",
+    };
+  });
 
   const allIsbns = normalizedItems.map((i) => i.resolvedIsbn);
   const existingMap = new Map<string, string>(); // isbn -> id
+  const existingTitleMap = new Map<string, { id: string; isbn: string }>(); // normalizedTitle -> { id, isbn }
 
+  // Query ISBN yang sudah ada di DB
   const isbnChunks = chunkRows(allIsbns, 10);
   for (const chunk of isbnChunks) {
     const found = await database
-      .select({ id: books.id, isbn: books.isbn })
+      .select({ id: books.id, isbn: books.isbn, title: books.title })
       .from(books)
       .where(inArray(books.isbn, chunk));
     for (const b of found) {
       existingMap.set(b.isbn, b.id);
+      existingTitleMap.set(normalizeBookTitle(b.title), { id: b.id, isbn: b.isbn });
     }
   }
 
-  // 2. Pisahkan data baru vs pembaruan dengan proteksi duplikasi internal payload
+  // Query seluruh buku yang judulnya cocok untuk pencocokan berbasis nama lengkap (§0.28)
+  const allNormalizedTitles = Array.from(new Set(normalizedItems.map((i) => i.normalizedTitle)));
+  const titleChunks = chunkRows(allNormalizedTitles, 10);
+  for (const chunk of titleChunks) {
+    const titleInSql = sql.join(chunk.map((t) => sql`${t}`), sql`, `);
+    const found = await database
+      .select({ id: books.id, isbn: books.isbn, title: books.title })
+      .from(books)
+      .where(sql`UPPER(trim(${books.title})) IN (${titleInSql})`);
+    for (const b of found) {
+      existingTitleMap.set(normalizeBookTitle(b.title), { id: b.id, isbn: b.isbn });
+      existingMap.set(b.isbn, b.id);
+    }
+  }
+
+  // 2. Pisahkan data baru vs pembaruan dengan proteksi duplikasi internal payload berbasis judul & ISBN
   const toInsert: Array<typeof books.$inferInsert> = [];
   const toUpdate: Array<{ id: string; values: Partial<typeof books.$inferInsert> }> = [];
   const itemBookIdMap = new Map<string, string>(); // resolvedIsbn -> bookId
   const seenInsertIsbns = new Set<string>();
+  const seenInsertTitles = new Map<string, string>(); // normalizedTitle -> bookId
 
   for (const item of normalizedItems) {
-    const existingId = existingMap.get(item.resolvedIsbn);
+    // Cocokkan pertama berdasarkan judul buku, jika tidak ada cocokkan berdasarkan ISBN
+    const matchedByTitle = existingTitleMap.get(item.normalizedTitle);
+    const existingId = matchedByTitle?.id ?? existingMap.get(item.resolvedIsbn);
+
     if (existingId) {
       itemBookIdMap.set(item.resolvedIsbn, existingId);
       toUpdate.push({
@@ -101,10 +126,11 @@ export async function importBookCatalog(
           updatedAt: nowIso,
         },
       });
-    } else if (seenInsertIsbns.has(item.resolvedIsbn)) {
-      // Jika dalam payload yang sama ada ISBN yang sama berulang, jadikan update pada record yang akan diinsert
-      const targetId = itemBookIdMap.get(item.resolvedIsbn);
+    } else if (seenInsertTitles.has(item.normalizedTitle) || seenInsertIsbns.has(item.resolvedIsbn)) {
+      // Jika dalam payload yang sama ada judul/ISBN yang berulang, gabungkan ke record insert sebelumnya
+      const targetId = seenInsertTitles.get(item.normalizedTitle) ?? itemBookIdMap.get(item.resolvedIsbn);
       if (targetId) {
+        itemBookIdMap.set(item.resolvedIsbn, targetId);
         const existingInsert = toInsert.find((r) => r.id === targetId);
         if (existingInsert) {
           existingInsert.title = item.title;
@@ -117,6 +143,7 @@ export async function importBookCatalog(
     } else {
       const newId = item.id || crypto.randomUUID();
       seenInsertIsbns.add(item.resolvedIsbn);
+      seenInsertTitles.set(item.normalizedTitle, newId);
       itemBookIdMap.set(item.resolvedIsbn, newId);
       toInsert.push({
         id: newId,

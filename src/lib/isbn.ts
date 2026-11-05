@@ -4,6 +4,16 @@
  */
 
 /**
+ * Menormalkan judul buku untuk perbandingan unik yang tahan variasi spasi & kapitalisasi.
+ */
+export const normalizeBookTitle = (title: string): string => {
+  return title
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+};
+
+/**
  * Menghasilkan hash deterministik singkat (6 karakter hex) dari string.
  * Memastikan judul-judul panjang yang dipotong tetap memiliki identitas unik.
  */

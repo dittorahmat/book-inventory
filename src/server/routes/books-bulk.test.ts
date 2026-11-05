@@ -229,5 +229,57 @@ describe("POST /api/books/bulk-import", () => {
     await db.delete(books).where(eq(books.isbn, isbn2));
     restoreActor();
   });
+
+  it("updates book record when re-importing by title even with different casing or whitespace", async () => {
+    const stamp = Date.now();
+    const uniqueTitle = `Buku Sains Eksperimen ${stamp}`;
+
+    const res1 = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          {
+            title: uniqueTitle,
+            gradeLevel: "3",
+            price: 70000,
+            subject: "Sains",
+          },
+        ],
+      }),
+    });
+    expect(res1.status).toBe(200);
+    const json1 = await res1.json();
+    expect(json1.success).toBe(true);
+    expect(json1.data.insertedCount).toBe(1);
+
+    // Re-import with lowercase title and updated price
+    const res2 = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          {
+            title: `   ${uniqueTitle.toLowerCase()}   `,
+            gradeLevel: "3",
+            price: 85000,
+          },
+        ],
+      }),
+    });
+    expect(res2.status).toBe(200);
+    const json2 = await res2.json();
+    expect(json2.success).toBe(true);
+    expect(json2.data.insertedCount).toBe(0);
+    expect(json2.data.updatedCount).toBe(1);
+
+    const [found] = await db.select().from(books).where(eq(books.id, json1.data.total ? (await db.select().from(books))[0].id : ""));
+    expect(found).toBeDefined();
+
+    // Clean up
+    const { sql } = await import("drizzle-orm");
+    await db.delete(books).where(sql`UPPER(trim(${books.title})) = UPPER(${uniqueTitle})`);
+    restoreActor();
+  });
 });
 
