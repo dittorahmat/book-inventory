@@ -8,6 +8,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
+const specificFile = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
 const ALL = process.argv.includes("--all");
 const MAX_LINES = 400;
 const EXCLUDE = [
@@ -49,8 +50,12 @@ function changedSourceFiles(): string[] | null {
 }
 
 const changed = changedSourceFiles();
-const candidates = ALL ? walk("src").map(norm) : changed ?? walk("src").map(norm);
-const mode = ALL ? "full-tree (--all)" : "file yang diubah";
+const candidates = specificFile
+  ? [norm(specificFile)]
+  : ALL
+    ? walk("src").map(norm)
+    : changed ?? walk("src").map(norm);
+const mode = specificFile ? `single file (${specificFile})` : ALL ? "full-tree (--all)" : "file yang diubah";
 
 const offenders: Array<{ file: string; lines: number }> = [];
 const warnings: Array<{ file: string; lines: number }> = [];
