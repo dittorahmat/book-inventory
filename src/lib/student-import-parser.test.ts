@@ -45,9 +45,9 @@ describe("student-import-parser", () => {
   });
 
   it("successfully parses real .xlsm file with 714 students if file exists locally", () => {
-    const filePath = "D:\\development\\DATA SISWA SD AL-WILDAN 1 TP. 2026-2027.xlsm";
+    const filePath = process.env.STUDENT_FILE_PATH || "./data/DATA_SISWA_SD_ALW1.xlsm";
     if (!existsSync(filePath)) {
-      // Di CI / lingkungan Linux, berkas lokal di drive D: host Windows tidak ada
+      // Di CI / lingkungan Linux, berkas lokal tidak ada
       return;
     }
     const buffer = readFileSync(filePath);

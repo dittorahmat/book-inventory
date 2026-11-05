@@ -66,3 +66,7 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
    - Pengujian skrip, integritas lingkungan, dan infrastruktur global berada di `test/**/*.test.ts`.
    Test yang mengeksekusi demo seed wajib menjaga isolasi mutasi data agar tidak merusak ekspektasi test paralel/konkuren di lingkungan runner CI.
 8. **Disiplin Subagent Review & Fallback Inline di Windows Sandbox**: pemanggilan subagent untuk review (`research`) pada lingkungan Windows jika mengalami kendala socket network (`connectex`) wajib segera fallback ke review inline langsung pada agent utama dalam 1 turn tanpa membuang token dan waktu perulangan.
+
+### §0.58. Disiplin Portabilitas Skrip & Parity Test Seed Data
+1. **Dilarang Hardcoded Host Path**: Seluruh skrip di `scripts/**` dan modul parser dilarang keras memuat path lokal host absolut (`D:/...`, `C:/...`). Input berkas wajib menerima parameter CLI (`process.argv[2]`) atau environment variable dengan default path relatif repositori (`./data/...`) serta penanganan error informatif jika file tidak ditemukan.
+2. **Automated Parity Test untuk Data Seed Kompleks**: Seeder atau import yang merakit relasi agregat (seperti harga paket bundling = subtotal BOM buku) wajib disertai automated parity unit test di CI guna menjamin tidak adanya selisih harga atau item yang terlewat.

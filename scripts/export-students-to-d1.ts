@@ -1,5 +1,6 @@
 import { parseStudentData } from "../src/lib/student-import-parser";
 import * as fs from "fs";
+import * as path from "path";
 
 function escapeSql(val: unknown): string {
   if (val === null || val === undefined) return "NULL";
@@ -7,8 +8,26 @@ function escapeSql(val: unknown): string {
   return `'${String(val).replace(/'/g, "''")}'`;
 }
 
+function resolveStudentFilePath(): string {
+  const argPath = process.argv[2];
+  const envPath = process.env.STUDENT_FILE_PATH;
+  const defaultRelative = path.resolve("./data/DATA_SISWA_SD_ALW1.xlsm");
+
+  const candidate = argPath || envPath || defaultRelative;
+  if (!fs.existsSync(candidate)) {
+    throw new Error(
+      `File data siswa tidak ditemukan di: "${candidate}".\n` +
+      `Silakan berikan argumen path CLI atau atur env var STUDENT_FILE_PATH.\n` +
+      `Contoh: bun scripts/export-students-to-d1.ts /path/ke/file.xlsm`
+    );
+  }
+  return candidate;
+}
+
 function main() {
-  const buf = fs.readFileSync("D:/development/DATA SISWA SD AL-WILDAN 1 TP. 2026-2027.xlsm");
+  const filePath = resolveStudentFilePath();
+  console.log(`Membaca data siswa dari: ${filePath}`);
+  const buf = fs.readFileSync(filePath);
   const result = parseStudentData(buf.buffer);
   const nowIso = new Date().toISOString();
 

@@ -1,3 +1,7 @@
+import { curriculumLabel } from "./curriculum";
+
+export { curriculumLabel };
+
 export interface LockablePackage {
   id: string;
   gradeLevel: string;
@@ -56,26 +60,3 @@ export function resolveLockedPackage<T extends LockablePackage>(
 
   return candidates.reduce<T | null>((a, b) => (!a || b.academicYear > a.academicYear ? b : a), null);
 }
-
-export const curriculumLabel = (curriculumType: string): string => {
-  const norm = curriculumType.toUpperCase();
-  switch (norm) {
-    case "INTER":
-    case "INTERNATIONAL":
-      return "Internasional";
-    case "NATIONAL":
-      return "Nasional";
-    case "MQ":
-      return "Markaz Al-Qur'an (Nasional Plus)";
-    case "TK":
-      return "TK / Preschool";
-    case "AE":
-      return "Al-Wildan English (AE)";
-    case "ME":
-      return "Middle East (ME)";
-    case "DI":
-      return "Dual International (DI)";
-    default:
-      return curriculumType;
-  }
-};

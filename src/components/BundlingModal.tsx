@@ -2,13 +2,14 @@ import { useState } from "react";
 import { X, Layers, AlertCircle, ArrowRight } from "lucide-react";
 import { postJson } from "../lib/api";
 import { School } from "../types";
+import type { CurriculumType } from "../lib/curriculum";
 
 interface BookPackage {
   id: string;
   code: string;
   name: string;
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  curriculumType: CurriculumType;
   price: number;
   items: Array<{
     bookId: string;

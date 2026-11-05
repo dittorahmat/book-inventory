@@ -3,6 +3,7 @@ import type { Book } from "../../types";
 import type { StockPotential } from "../../types/stock-summary";
 import { calcLooseOrderTotal, effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { curriculumLabel } from "../../lib/curriculum";
 import type { PackageRow } from "./usePackagesData";
 
 interface PackageCardProps {
@@ -53,7 +54,7 @@ export function PackageCard({
         <div className="flex items-start gap-3.5 min-w-0">
           <div
             className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-              pkg.curriculumType === "international"
+              pkg.curriculumType === "international" || pkg.curriculumType === "INTER"
                 ? "bg-[#E7F3FF] text-[#1877F2]"
                 : "bg-emerald-50 text-emerald-600"
             }`}
@@ -71,12 +72,12 @@ export function PackageCard({
               </span>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                  pkg.curriculumType === "international"
+                  pkg.curriculumType === "international" || pkg.curriculumType === "INTER"
                     ? "bg-purple-50 text-purple-700 border border-purple-200"
                     : "bg-amber-50 text-amber-700 border border-amber-200"
                 }`}
               >
-                {pkg.curriculumType}
+                {curriculumLabel(pkg.curriculumType)}
               </span>
             </div>
 

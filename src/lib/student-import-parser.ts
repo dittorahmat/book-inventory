@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { determineIntakeType } from "./curriculum";
 
 export interface ParsedStudentRow {
   nis: string;
@@ -239,12 +240,7 @@ export function parseStudentData(
       : defaultAcademicYear;
 
     // Tentukan intakeType: berdasarkan 4 digit prefix NIS terhadap tahun ajaran aktif
-    // Contoh: academicYear = "2026/2027" -> prefix = "2627". Jika NIS diawali 2627 -> baru, lainnya -> kenaikan.
-    const yearDigits = academicYear.replace(/[^0-9]/g, "");
-    const targetPrefix = yearDigits.length >= 8
-      ? yearDigits.slice(2, 4) + yearDigits.slice(6, 8)
-      : "2627";
-    const intakeType: "baru" | "kenaikan" = rawNis.startsWith(targetPrefix) ? "baru" : "kenaikan";
+    const intakeType: "baru" | "kenaikan" = determineIntakeType(rawNis, academicYear);
 
     const parentName = pNameIdx !== -1 && row[pNameIdx] ? String(row[pNameIdx]).trim() : undefined;
     const parentPhone = pPhoneIdx !== -1 && row[pPhoneIdx] ? String(row[pPhoneIdx]).trim() : undefined;

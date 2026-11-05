@@ -6,6 +6,7 @@ import type { Book, School } from "../../types";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { WPR_BOOK_ID, WPR_PRICE } from "../../lib/wpr";
+import type { CurriculumType } from "../../lib/curriculum";
 import type { NewPackagePayload, PackageRow } from "./usePackagesData";
 
 interface PackageItemInput {
@@ -34,7 +35,7 @@ export function EditPackageModal({
   onUpdated,
 }: EditPackageModalProps) {
   const [gradeLevel, setGradeLevel] = useState(pkg.gradeLevel);
-  const [curriculumType, setCurriculumType] = useState<"international" | "national">(pkg.curriculumType);
+  const [curriculumType, setCurriculumType] = useState<CurriculumType>(pkg.curriculumType);
   const [code, setCode] = useState(pkg.code);
   const [name, setName] = useState(pkg.name);
   const [academicYear, setAcademicYear] = useState(pkg.academicYear);

@@ -3,12 +3,14 @@ import type { Book, School } from "../../types";
 import { buildQuery, getJson, postJson, putJson, delJson } from "../../lib/api";
 import type { StockPotential } from "../../types/stock-summary";
 
+import type { CurriculumType } from "../../lib/curriculum";
+
 export interface PackageRow {
   id: string;
   code: string;
   name: string;
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  curriculumType: CurriculumType;
   academicYear: string;
   price: number;
   description?: string;
@@ -29,7 +31,7 @@ export interface NewPackagePayload {
   code: string;
   name: string;
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  curriculumType: CurriculumType;
   academicYear: string;
   price: number;
   description?: string;
