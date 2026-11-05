@@ -76,10 +76,11 @@ export async function importBookCatalog(
     }
   }
 
-  // 2. Pisahkan data baru vs pembaruan
+  // 2. Pisahkan data baru vs pembaruan dengan proteksi duplikasi internal payload
   const toInsert: Array<typeof books.$inferInsert> = [];
   const toUpdate: Array<{ id: string; values: Partial<typeof books.$inferInsert> }> = [];
   const itemBookIdMap = new Map<string, string>(); // resolvedIsbn -> bookId
+  const seenInsertIsbns = new Set<string>();
 
   for (const item of normalizedItems) {
     const existingId = existingMap.get(item.resolvedIsbn);
@@ -100,8 +101,22 @@ export async function importBookCatalog(
           updatedAt: nowIso,
         },
       });
+    } else if (seenInsertIsbns.has(item.resolvedIsbn)) {
+      // Jika dalam payload yang sama ada ISBN yang sama berulang, jadikan update pada record yang akan diinsert
+      const targetId = itemBookIdMap.get(item.resolvedIsbn);
+      if (targetId) {
+        const existingInsert = toInsert.find((r) => r.id === targetId);
+        if (existingInsert) {
+          existingInsert.title = item.title;
+          existingInsert.price = item.effectivePrice;
+          existingInsert.sellPrice = item.effectivePrice;
+          existingInsert.buyPrice = item.effectiveBuyPrice;
+          existingInsert.updatedAt = nowIso;
+        }
+      }
     } else {
       const newId = item.id || crypto.randomUUID();
+      seenInsertIsbns.add(item.resolvedIsbn);
       itemBookIdMap.set(item.resolvedIsbn, newId);
       toInsert.push({
         id: newId,

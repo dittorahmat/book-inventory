@@ -78,6 +78,45 @@ describe("POST /api/books/bulk-import", () => {
     restoreActor();
   });
 
+  it("handles duplicate ISBNs inside the same payload gracefully without throwing unique constraint error", async () => {
+    const stamp = Date.now();
+    const sharedIsbn = `978-DUP-${stamp}`;
+
+    const res = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          {
+            title: `Buku Edisi Pertama ${stamp}`,
+            gradeLevel: "1",
+            price: 50000,
+            isbn: sharedIsbn,
+          },
+          {
+            title: `Buku Edisi Revisi ${stamp}`,
+            gradeLevel: "1",
+            price: 60000,
+            isbn: sharedIsbn,
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.insertedCount).toBe(1);
+
+    const [saved] = await db.select().from(books).where(eq(books.isbn, sharedIsbn));
+    expect(saved.price).toBe(60000);
+    expect(saved.title).toBe(`Buku Edisi Revisi ${stamp}`);
+
+    // Clean up
+    await db.delete(books).where(eq(books.isbn, sharedIsbn));
+    restoreActor();
+  });
+
   it("rejects unauthorized non-admin staff roles", async () => {
     mockActor("branch_admin", "school-alw-1");
 
