@@ -317,8 +317,25 @@ booksRouter.delete("/:id", async (c) => {
     );
   }
 
-  // Hapus eksemplar satuan yang berstatus in_stock / disposed
-  await db.delete(bookItems).where(eq(bookItems.bookId, id));
+  // Cek apakah ada eksemplar fisik di rak cabang/gudang pusat
+  const existingItems = await db
+    .select({ id: bookItems.id, barcode: bookItems.barcode, status: bookItems.status })
+    .from(bookItems)
+    .where(eq(bookItems.bookId, id))
+    .limit(5);
+
+  if (existingItems.length > 0) {
+    return c.json(
+      {
+        success: false,
+        message: `Buku tidak dapat dihapus karena masih memiliki eksemplar fisik (${existingItems.length} unit tercatat, misal barcode ${existingItems[0].barcode}). Hapus atau musnahkan eksemplar fisik terlebih dahulu.`,
+      },
+      400
+    );
+  }
+
+  // Hapus relasi supplier & buku
+  await db.delete(bookSuppliers).where(eq(bookSuppliers.bookId, id));
   await db.delete(books).where(eq(books.id, id));
 
   return c.json({ success: true, message: `Buku "${book.title}" berhasil dihapus` });

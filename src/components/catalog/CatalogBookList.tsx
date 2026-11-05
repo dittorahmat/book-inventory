@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Trash2 } from "lucide-react";
+import { Image as ImageIcon, Trash2, Pencil } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { effectiveBookPrice } from "../../lib/book-pricing";
 import type { Book } from "../../types";
@@ -8,6 +8,7 @@ interface CatalogBookListProps {
   isEmptyCatalog: boolean;
   onUploadCover: (bookId: string, file: File) => void;
   onRemove: (book: Book) => void;
+  onEdit: (book: Book) => void;
 }
 
 const emptyMessage = (isEmptyCatalog: boolean) =>
@@ -16,7 +17,7 @@ const emptyMessage = (isEmptyCatalog: boolean) =>
     : "Tidak ada buku yang sesuai dengan pencarian.";
 
 /** Daftar katalog ganda: kartu mobile + tabel desktop. */
-export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove }: CatalogBookListProps) {
+export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove, onEdit }: CatalogBookListProps) {
   return (
     <>
       <div className="md:hidden space-y-3">
@@ -47,23 +48,31 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-[#050505] leading-snug line-clamp-2">
-                  {book.title}
+                <div className="font-bold text-sm text-[#050505] leading-snug line-clamp-2">{book.title}</div>
+                <div className="text-xs text-[#65676B] mt-0.5">{book.author}</div>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="font-mono text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">{book.isbn}</span>
+                  <span className="text-xs font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</span>
                 </div>
-                <div className="text-xs text-[#65676B] mt-0.5">
-                  {book.author}
-                </div>
-                <div className="text-[11px] font-mono text-[#65676B] mt-1">
-                  ISBN: {book.isbn}
-                </div>
-                <div className="text-xs font-bold text-[#1877F2] mt-1">
-                  Beli: {formatRupiah(effectiveBookPrice(book).buy)} &bull; Jual: {formatRupiah(effectiveBookPrice(book).sell)}
-                </div>
-                {book.publisher && (
-                  <div className="text-[11px] text-[#65676B]">
-                    Pub: {book.publisher}
-                  </div>
-                )}
+              </div>
+
+              <div className="flex flex-col gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onEdit(book)}
+                  title="Ubah data buku"
+                  className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(book)}
+                  title="Hapus buku"
+                  className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))
@@ -120,14 +129,24 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                     <div className="text-[10px] text-[#65676B] font-medium">Beli: {formatRupiah(effectiveBookPrice(book).buy)}</div>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onRemove(book)}
-                      title="Hapus buku"
-                      className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(book)}
+                        title="Ubah data buku"
+                        className="p-1.5 text-[#65676B] hover:text-[#1877F2] hover:bg-[#E7F3FF] rounded-xl transition-colors active:scale-[0.98]"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(book)}
+                        title="Hapus buku"
+                        className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
