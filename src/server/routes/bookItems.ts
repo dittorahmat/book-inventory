@@ -15,6 +15,10 @@ import {
 import { epochTimeFragment } from "../lib/document-number";
 import { chunkRows } from "../lib/d1-write";
 
+/**
+ * @deprecated Rute ini berstatus legacy/arsip baca historis.
+ * Operasional baru menggunakan stok kuantitas agregat di `/api/stock-summary`.
+ */
 export const bookItemsRouter = new Hono();
 
 const batchGenerateCopiesSchema = z.object({
