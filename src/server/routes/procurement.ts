@@ -13,6 +13,9 @@ import {
   resolveWarehouseTarget,
   sendPo,
 } from "../services/purchase-order";
+import {
+  calculateBookDemandSummary,
+} from "../services/purchase-order/demand";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
   accessErrorResponse,
@@ -106,6 +109,27 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 
   const [created] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   return c.json({ success: true, data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Ringkasan kebutuhan buku untuk auto-fill Purchase Order
+procurementRouter.get("/book-demand-summary", async (c) => {
+  try {
+    await requireScopedLogisticsActor(db, c);
+    const academicYear = c.req.query("academicYear");
+    const bufferRaw = c.req.query("bufferPercentage");
+    const bufferPercentage = bufferRaw !== undefined && bufferRaw !== "" ? Number(bufferRaw) : undefined;
+    const bookIdsRaw = c.req.query("bookIds");
+    const bookIds = bookIdsRaw ? bookIdsRaw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+    const data = await calculateBookDemandSummary(db, {
+      academicYear,
+      bufferPercentage,
+      bookIds,
+    });
+    return c.json({ success: true, data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
