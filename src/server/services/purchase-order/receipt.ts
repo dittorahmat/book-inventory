@@ -9,6 +9,7 @@ import {
   purchaseOrders,
 } from "../../../db/schema";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
+import { adjustLooseStock, recordStockAdjustment } from "../stock/aggregate";
 
 /** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
 export interface ReceivedItemInput {
@@ -188,6 +189,29 @@ export async function receivePurchaseOrder(
         .set({ status: planned.plan.newStatus, updatedAt: now })
         .where(eq(purchaseOrders.id, poId)),
     ]);
+
+    // Update saldo stok kuantitas agregat (Ticket 2)
+    const targetSchoolId = (loaded.po as { targetSchoolId: string }).targetSchoolId;
+    const poNum = (loaded.po as { poNumber: string }).poNumber;
+    const poItemMap = new Map(loaded.items.map((p) => [p.id, p.bookId]));
+    for (const rec of receivedItems) {
+      const bookId = poItemMap.get(rec.poItemId);
+      if (bookId) {
+        if (rec.condition === "damaged") {
+          await recordStockAdjustment(database, {
+            schoolId: targetSchoolId,
+            itemType: "loose",
+            bookId,
+            quantity: -rec.quantityToReceive,
+            reason: "damaged",
+            referenceDocumentNumber: poNum,
+            notes: "Penerimaan PO dengan kondisi rusak",
+          }, deps);
+        } else {
+          await adjustLooseStock(database, bookId, targetSchoolId, rec.quantityToReceive, deps);
+        }
+      }
+    }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
     if (mapped) return { ok: false, ...mapped };
@@ -282,6 +306,26 @@ export async function recordPoReceipt(
       }),
       ...chunkRows(receiptItemRows).map((chunk) => database.insert(purchaseOrderReceiptItems).values(chunk)),
     ]);
+
+    // Update saldo stok kuantitas agregat (Ticket 2)
+    for (const rec of input.receivedItems) {
+      const bookId = poItemMap.get(rec.poItemId);
+      if (bookId) {
+        if (rec.condition === "damaged") {
+          await recordStockAdjustment(database, {
+            schoolId: loaded.po.targetSchoolId,
+            itemType: "loose",
+            bookId,
+            quantity: -rec.quantityToReceive,
+            reason: "damaged",
+            referenceDocumentNumber: note,
+            notes: "Penerimaan PO berkondisi rusak",
+          }, deps);
+        } else {
+          await adjustLooseStock(database, bookId, loaded.po.targetSchoolId, rec.quantityToReceive, deps);
+        }
+      }
+    }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat Surat Jalan");
     if (mapped) return { ok: false, ...mapped };
