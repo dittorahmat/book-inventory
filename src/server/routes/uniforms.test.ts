@@ -132,6 +132,41 @@ describe("Uniform catalog, PO & assembly API", () => {
 
     const shortRes = await postJson(`/packages/${pkgId}/assemble`, { quantity: 99, sizeOverrides: { [olId]: "M" } });
     expect(shortRes.status).toBe(400);
+
+    // Edit varian: update name & price
+    const updateVarRes = await uniformsRouter.request(`/variants/${olId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Kaos Olahraga SD Update", price: 125000 }),
+    });
+    expect(updateVarRes.status).toBe(200);
+
+    // Guard hapus ukuran saat ada stok > 0
+    const shrinkSizesRes = await uniformsRouter.request(`/variants/${olId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sizes: ["S"] }), // M memiliki stok fisik yang diterima di atas
+    });
+    expect(shrinkSizesRes.status).toBe(400);
+    expect((await shrinkSizesRes.json()).message).toContain("stok fisik");
+
+    // Guard delete varian saat masih ada stok fisik atau dipakai BOM
+    const delVarRes = await uniformsRouter.request(`/variants/${olId}`, { method: "DELETE" });
+    expect(delVarRes.status).toBe(400);
+    expect((await delVarRes.json()).message).toContain("stok fisik");
+
+    // Edit paket seragam: update name & price
+    const updatePkgRes = await uniformsRouter.request(`/packages/${pkgId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Paket Seragam SD Update", price: 350000 }),
+    });
+    expect(updatePkgRes.status).toBe(200);
+
+    // Guard delete paket saat ada bundel rakitan siap kirim (readyQty = 2)
+    const delPkgRes = await uniformsRouter.request(`/packages/${pkgId}`, { method: "DELETE" });
+    expect(delPkgRes.status).toBe(400);
+    expect((await delPkgRes.json()).message).toContain("bundel rakitan");
   });
 
   it("PO + terima 30 baris sekaligus lolos di kedua runtime (chunked, sekuensial)", async () => {

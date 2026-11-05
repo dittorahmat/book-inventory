@@ -16,6 +16,19 @@ export const variantSchema = z.object({
   sizes: z.array(z.string().min(1)).default([]),
 });
 
+export const updateVariantSchema = z.object({
+  code: z.string().min(1, "Kode varian wajib diisi").optional(),
+  name: z.string().min(1, "Nama varian wajib diisi").optional(),
+  kind: z.enum(["kain_harian", "olahraga"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
+  jenjang: z.enum(["tk", "sd", "smp", "sma"]).optional(),
+  academicYear: academicYearSchema.optional(),
+  price: z.number().int().min(0).optional(),
+  sizeChartUrl: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  sizes: z.array(z.string().min(1)).optional(),
+});
+
 export const uniformPackageSchema = z.object({
   code: z.string().min(1, "Kode paket wajib diisi"),
   name: z.string().min(1, "Nama paket wajib diisi"),
@@ -31,6 +44,24 @@ export const uniformPackageSchema = z.object({
       })
     )
     .min(1, "Paket wajib punya minimal satu komponen"),
+});
+
+export const updateUniformPackageSchema = z.object({
+  code: z.string().min(1, "Kode paket wajib diisi").optional(),
+  name: z.string().min(1, "Nama paket wajib diisi").optional(),
+  academicYear: academicYearSchema.optional(),
+  price: z.number().int().min(0).optional(),
+  description: z.string().optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        variantId: idSchema,
+        size: z.string().optional(),
+        quantity: z.number().int().min(1).default(1),
+      })
+    )
+    .min(1, "Paket wajib punya minimal satu komponen")
+    .optional(),
 });
 
 export const uniformPoSchema = z.object({

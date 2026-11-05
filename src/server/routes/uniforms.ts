@@ -12,6 +12,8 @@ import {
   resolveRefundSchema,
   uniformPackageSchema,
   uniformPoSchema,
+  updateUniformPackageSchema,
+  updateVariantSchema,
   variantSchema,
 } from "../lib/uniform-schemas";
 import {
@@ -25,7 +27,8 @@ import {
   createUniformPackage,
   createUniformPo,
   createUniformVariant,
-  getUniformSalesReport,
+  deleteUniformPackage,
+  deleteUniformVariant,
   listUniformExchanges,
   listUniformPackages,
   listUniformRefunds,
@@ -37,9 +40,9 @@ import {
   checkReplacementStock,
   resolveUniformExchange,
   resolveUniformRefund,
+  updateUniformPackage,
+  updateUniformVariant,
 } from "../services/uniform";
-import { approveUniformWithdrawal } from "../services/uniform-withdrawal";
-import { findRefundSlip } from "../services/refund-slip";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import { listPaymentsWithStatus } from "../services/order-payment-review";
 import { fail } from "../lib/route-fail";
@@ -69,6 +72,28 @@ uniformsRouter.post("/variants", zValidator("json", variantSchema), async (c) =>
   }
 });
 
+uniformsRouter.put("/variants/:id", zValidator("json", updateVariantSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await updateUniformVariant(db, c.req.param("id"), c.req.valid("json"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.delete("/variants/:id", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await deleteUniformVariant(db, c.req.param("id"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 uniformsRouter.get("/packages", async (c) => {
   try {
     await requireScopedActor(db, c);
@@ -84,6 +109,28 @@ uniformsRouter.post("/packages", zValidator("json", uniformPackageSchema), async
     const result = await createUniformPackage(db, c.req.valid("json"));
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.put("/packages/:id", zValidator("json", updateUniformPackageSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await updateUniformPackage(db, c.req.param("id"), c.req.valid("json"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.delete("/packages/:id", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const result = await deleteUniformPackage(db, c.req.param("id"));
+    if (!result.ok) return fail(c, result);
+    return c.json({ success: true, data: result.data });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -296,55 +343,6 @@ uniformsRouter.post("/refunds/:id/resolve", zValidator("json", resolveRefundSche
     const result = await resolveUniformRefund(db, c.req.param("id"), c.req.valid("json").action);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Approval seragam murid mundur & restock gudang pusat (ADR-0019)
-uniformsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const result = await approveUniformWithdrawal(db, c.req.param("id"));
-    if (!result.ok) {
-      return c.json({ success: false, message: result.message }, result.status);
-    }
-    return c.json({ success: true, message: result.message, data: result.slip });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-uniformsRouter.get("/withdrawal-slip/:slipNumber", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const slip = await findRefundSlip(db, c.req.param("slipNumber"));
-    if (!slip) return c.json({ success: false, message: "Slip bukti pengembalian seragam tidak ditemukan" }, 404);
-    return c.json({ success: true, data: slip });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// Laporan penjualan seragam (terpisah dari buku): sekolah × jenjang × ukuran.
-uniformsRouter.get("/reports/sales", async (c) => {
-  try {
-    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
-    const queried = c.req.query("schoolId");
-    const schoolIds = scope.length === 1 ? scope : queried ? [queried] : scope;
-    const today = new Date().toISOString().slice(0, 10);
-    const report = await getUniformSalesReport({
-      database: db,
-      from: c.req.query("from") || `${today.slice(0, 7)}-01`,
-      to: c.req.query("to") || today,
-      schoolIds,
-      jenjang: c.req.query("jenjang") || undefined,
-      size: c.req.query("size") || undefined,
-      gender: c.req.query("gender") || undefined,
-      paymentStatus: c.req.query("paymentStatus") || undefined,
-      shipmentStatus: c.req.query("shipmentStatus") || undefined,
-    });
-    return c.json({ success: true, data: report });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

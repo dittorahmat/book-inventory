@@ -10,12 +10,14 @@ import {
   type UniformRejectRow,
   type UniformVariantRow,
 } from "./uniform-admin-api";
+import { EditUniformVariantModal } from "./EditUniformVariantModal";
 
 const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
 const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
 
 export function UniformCatalogSection() {
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
+  const [editingVariant, setEditingVariant] = useState<UniformVariantRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -144,14 +146,38 @@ export function UniformCatalogSection() {
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
         {variants.length === 0 && <div className="px-4 py-6 text-center text-xs text-[#65676B]">Belum ada varian.</div>}
-        {variants.map(({ variant: v, sizes, stock }) => (
-          <div key={v.id} className="px-4 py-3 text-xs">
-            <div className="text-sm font-semibold">{v.name} <span className="font-normal text-[#65676B]">· {v.code}</span></div>
-            <div className="text-[#65676B]">{v.kind === "kain_harian" ? "Kain" : "Olahraga"} · {v.gender === "male" ? "L" : "P"} · {v.jenjang.toUpperCase()} · {formatRupiah(v.price)}</div>
-            <div className="text-[#65676B]">{sizes.length > 0 ? `Size: ${sizes.join(", ")}` : "Tanpa ukuran"} · Stok: {stock.map((s) => `${s.size}=${s.quantity}`).join(", ") || "0"}</div>
-          </div>
-        ))}
+        {variants.map((vRow) => {
+          const { variant: v, sizes, stock } = vRow;
+          return (
+            <div key={v.id} className="px-4 py-3 text-xs flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">{v.name} <span className="font-normal text-[#65676B]">· {v.code}</span></div>
+                <div className="text-[#65676B]">{v.kind === "kain_harian" ? "Kain" : "Olahraga"} · {v.gender === "male" ? "L" : "P"} · {v.jenjang.toUpperCase()} · {formatRupiah(v.price)}</div>
+                <div className="text-[#65676B]">{sizes.length > 0 ? `Size: ${sizes.join(", ")}` : "Tanpa ukuran"} · Stok: {stock.map((s) => `${s.size}=${s.quantity}`).join(", ") || "0"}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVariant(vRow)}
+                className="px-3 py-1.5 border border-[#CED0D4] rounded-xl text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] shrink-0"
+              >
+                Edit
+              </button>
+            </div>
+          );
+        })}
       </div>
+
+      {editingVariant && (
+        <EditUniformVariantModal
+          variantRow={editingVariant}
+          isOpen={true}
+          onClose={() => setEditingVariant(null)}
+          onSuccess={() => {
+            setNotice("Varian berhasil diperbarui.");
+            reload();
+          }}
+        />
+      )}
 
       <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
         <h3 className="text-sm font-bold">Stok Manual (Awal / Masuk)</h3>

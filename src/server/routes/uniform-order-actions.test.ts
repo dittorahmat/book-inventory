@@ -161,4 +161,17 @@ describe("Uniform sports exchange actions & resolution", () => {
       restoreActor();
     }
   });
+
+  it("mendukung laporan penjualan seragam terfilter", async () => {
+    mockActor("warehouse_admin", null);
+    try {
+      const repRes = await uniformsRouter.request("/reports/sales", { method: "GET" });
+      expect(repRes.status).toBe(200);
+      const repJson = (await repRes.json()) as { success: boolean; data: { summary: { totalSales: number } } };
+      expect(repJson.success).toBe(true);
+      expect(repJson.data).toBeDefined();
+    } finally {
+      restoreActor();
+    }
+  });
 });
