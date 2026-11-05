@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateFallbackIsbn, resolveBookIsbn } from "./isbn";
+import { generateFallbackIsbn, normalizeBookTitle, resolveBookIsbn } from "./isbn";
 
 describe("book isbn helper", () => {
   test("generateFallbackIsbn menghasilkan format AUTO-[stamp]-[serial]", () => {
@@ -53,4 +53,8 @@ describe("book isbn helper", () => {
     expect(reader3).not.toBe(reader4);
   });
 
+  test("normalizeBookTitle membersihkan spasi berlebih dan meratakan kapitalisasi", () => {
+    expect(normalizeBookTitle("  Matematika   Dasar 1  ")).toBe("MATEMATIKA DASAR 1");
+    expect(normalizeBookTitle("hafalan hadist pendek")).toBe("HAFALAN HADIST PENDEK");
+  });
 });
