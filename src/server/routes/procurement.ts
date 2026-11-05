@@ -68,12 +68,8 @@ procurementRouter.get("/suppliers", async (c) => {
   try {
     await resolveLogisticsActor(c);
     const typeParam = c.req.query("type");
-    if (typeParam === "book") {
-      const filtered = await db.select().from(suppliers).where(or(eq(suppliers.type, "book"), eq(suppliers.type, "all")));
-      return c.json({ success: true, data: filtered });
-    }
-    if (typeParam === "uniform") {
-      const filtered = await db.select().from(suppliers).where(or(eq(suppliers.type, "uniform"), eq(suppliers.type, "all")));
+    if (typeParam === "book" || typeParam === "uniform") {
+      const filtered = await db.select().from(suppliers).where(or(eq(suppliers.type, typeParam), eq(suppliers.type, "all")));
       return c.json({ success: true, data: filtered });
     }
     const allSuppliers = await db.select().from(suppliers);
