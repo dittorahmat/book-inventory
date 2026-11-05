@@ -113,9 +113,13 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
         <div className="w-full sm:w-64">
           <SearchableSingleSelect
             options={[
-              { value: "all", label: "Semua Kurikulum" },
-              { value: "international", label: "Internasional (Cambridge/dsb)" },
-              { value: "national", label: "Nasional" },
+              { value: "all", label: "Semua Program / Kurikulum" },
+              { value: "TK", label: "TK / Preschool" },
+              { value: "INTER", label: "SD Internasional" },
+              { value: "AE", label: "Al-Wildan English (AE)" },
+              { value: "ME", label: "Middle East (ME)" },
+              { value: "DI", label: "Dual International (DI)" },
+              { value: "MQ", label: "Markaz Al-Qur'an (MQ)" },
             ]}
             value={selectedCurriculum}
             onChange={setSelectedCurriculum}

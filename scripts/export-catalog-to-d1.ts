@@ -168,6 +168,26 @@ async function main() {
       continue;
     }
 
+    // Baca ID paket yang sudah ada di D1 agar foreign key ke internal_shipments tidak terputus
+    const existingPackageCodeMap = new Map<string, string>();
+    try {
+      if (fs.existsSync(".scratch/existing-d1-packages.json")) {
+        const rawJson = fs.readFileSync(".scratch/existing-d1-packages.json", "utf-8");
+        const jsonStart = rawJson.indexOf("[");
+        const jsonEnd = rawJson.lastIndexOf("]");
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const parsed = JSON.parse(rawJson.slice(jsonStart, jsonEnd + 1));
+          if (parsed[0]?.results) {
+            for (const r of parsed[0].results) {
+              if (r.id && r.code) existingPackageCodeMap.set(r.code, r.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not read existing-d1-packages.json:", e);
+    }
+
     // Kode paket unik yang deskriptif
     const streamCode = ep.stream && ["IPA", "IPS"].includes(ep.stream) ? `-${ep.stream}` : (ep.stream && ep.stream !== ep.curriculum ? `-${ep.stream}` : "");
     const intakeCode = ep.intakeType === "baru" ? "BARU" : "NAIK";
@@ -176,8 +196,31 @@ async function main() {
     const streamLabel = ep.stream && ["IPA", "IPS"].includes(ep.stream) ? ` (${ep.curriculum} ${ep.stream})` : ` (${ep.curriculum})`;
     const packageName = `Paket Buku ${ep.jenjang} Kelas ${ep.grade}${streamLabel} ${intakeLabel} TA 2026/2027`;
 
-    const packageId = crypto.randomUUID();
+    // Coba cocokkan dengan format code lama jika ada, atau code baru
+    const oldCodeCandidate = `PKG-${ep.jenjang}-${ep.grade}${streamCode}-${intakeCode}-2026-2027`;
+    const packageId = existingPackageCodeMap.get(packageCode) || existingPackageCodeMap.get(oldCodeCandidate) || crypto.randomUUID();
     const pkgItems: Array<{ bookId: string; quantity: number }> = [];
+
+    // Baca ID buku yang sudah ada di D1 agar foreign key ke book_items tidak terputus
+    const existingIsbnMap = new Map<string, string>();
+    try {
+      if (fs.existsSync(".scratch/existing-d1-books.json")) {
+        const rawJson = fs.readFileSync(".scratch/existing-d1-books.json", "utf-8");
+        // Ekstrak bagian JSON dari output wrangler
+        const jsonStart = rawJson.indexOf("[");
+        const jsonEnd = rawJson.lastIndexOf("]");
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const parsed = JSON.parse(rawJson.slice(jsonStart, jsonEnd + 1));
+          if (parsed[0]?.results) {
+            for (const r of parsed[0].results) {
+              if (r.id && r.isbn) existingIsbnMap.set(r.isbn, r.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not read existing-d1-books.json:", e);
+    }
 
     for (const b of foundSheetBooks) {
       const normTitle = normalizeBookTitle(b.title);
@@ -185,8 +228,8 @@ async function main() {
       const bookKey = `${normTitle}__${b.price}`;
       let book = booksMap.get(bookKey);
       if (!book) {
-        const bookId = crypto.randomUUID();
         const isbn = resolveBookIsbn(undefined, undefined, undefined, b.title, ep.grade);
+        const bookId = existingIsbnMap.get(isbn) || crypto.randomUUID();
         const pub = inferBookPublisher(b.title);
         book = {
           id: bookId,
