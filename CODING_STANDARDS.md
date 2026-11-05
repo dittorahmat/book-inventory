@@ -16,6 +16,9 @@ ketahui adalah **apa yang dijamin tiap gate**:
 |---|---|
 | `type-check` | `tsc --noEmit` nol error; `AppDatabase` schema-aware, biarkan inferensi (jangan anotasi `$inferSelect` manual pada JOIN) |
 | `lint` | eslint seluruh repo |
+| `check:clean-artifacts` | pohon git bebas dari berkas biner/dokumen terlarang (*.pdf, *.docx, *.xlsx) |
+| `check:no-hardcoded-paths` | berkas kode di `src/`, `scripts/`, `test/` bebas dari path absolut host Windows (`D:/...`, `C:\...`) |
+| `check:d1-destructive` | berkas migrasi baru di `drizzle/` bebas dari recreation `DROP TABLE` tanpa expand-contract |
 | `check:file-size` | file `src/**/*.ts(x)` ≤ 400 baris (kecuali test, `schema.ts`, `seed.ts`, `*.d.ts`); default diff-scoped, `--all` di CI |
 | `check:imports` | import relatif keluar `src/` atau target tak ada |
 | `check:api-contract` | literal `/api/...` klien cocok route terdaftar; portal publik hanya `/api/public/*` |
@@ -52,7 +55,8 @@ Speculative Generality · Message Chains · Middle Man · Refused Bequest.
 
 Aturan repo mengalahkan baseline. Contoh yang sering muncul di repo ini:
 guard/loop verbose yang setara `map`/`filter`/`??`/ternary satu baris;
-helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali.
+helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali;
+menduplikasi mapping tipe/label/opsi UI di beberapa komponen daripada mengekstrak ke helper kanonik (`src/lib/<domain>.ts`).
 
 ## 3. Checklist UI (anti-slop)
 
