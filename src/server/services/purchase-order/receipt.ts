@@ -206,6 +206,7 @@ export async function receivePurchaseOrder(
             reason: "damaged",
             referenceDocumentNumber: poNum,
             notes: "Penerimaan PO dengan kondisi rusak",
+            updateStockBalance: false,
           }, deps);
         } else {
           await adjustLooseStock(database, bookId, targetSchoolId, rec.quantityToReceive, deps);
@@ -320,6 +321,7 @@ export async function recordPoReceipt(
             reason: "damaged",
             referenceDocumentNumber: note,
             notes: "Penerimaan PO berkondisi rusak",
+            updateStockBalance: false,
           }, deps);
         } else {
           await adjustLooseStock(database, bookId, loaded.po.targetSchoolId, rec.quantityToReceive, deps);

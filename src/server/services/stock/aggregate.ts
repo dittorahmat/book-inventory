@@ -147,26 +147,31 @@ export async function adjustPackageStock(
 
 /**
  * Catat audit penyesuaian stok (write-off rusak/hilang atau opname) sekaligus update saldo stok.
+ * Jika updateStockBalance bernilai false (misal intake barang rusak yang belum masuk available_quantity),
+ * mutasi saldo dilewati dan audit log tetap dicatat.
  */
 export async function recordStockAdjustment(
   database: AppDatabase,
-  input: StockAdjustmentInput,
+  input: StockAdjustmentInput & { updateStockBalance?: boolean },
   deps: WriteDeps = {}
 ): Promise<{ ok: boolean; adjustmentId: string }> {
   const now = writeNow(deps);
   const adjustmentId = newWriteId(deps);
+  const shouldUpdateBalance = input.updateStockBalance ?? true;
 
-  if (input.itemType === "loose") {
-    if (!input.bookId) throw new Error("bookId wajib untuk penyesuaian stok satuan loose");
-    const adjustRes = await adjustLooseStock(database, input.bookId, input.schoolId, input.quantity, deps);
-    if (!adjustRes.ok) {
-      return { ok: false, adjustmentId: "" };
-    }
-  } else {
-    if (!input.packageId) throw new Error("packageId wajib untuk penyesuaian stok paket");
-    const adjustRes = await adjustPackageStock(database, input.packageId, input.schoolId, input.quantity, deps);
-    if (!adjustRes.ok) {
-      return { ok: false, adjustmentId: "" };
+  if (shouldUpdateBalance) {
+    if (input.itemType === "loose") {
+      if (!input.bookId) throw new Error("bookId wajib untuk penyesuaian stok satuan loose");
+      const adjustRes = await adjustLooseStock(database, input.bookId, input.schoolId, input.quantity, deps);
+      if (!adjustRes.ok) {
+        return { ok: false, adjustmentId: "" };
+      }
+    } else {
+      if (!input.packageId) throw new Error("packageId wajib untuk penyesuaian stok paket");
+      const adjustRes = await adjustPackageStock(database, input.packageId, input.schoolId, input.quantity, deps);
+      if (!adjustRes.ok) {
+        return { ok: false, adjustmentId: "" };
+      }
     }
   }
 

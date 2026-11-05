@@ -300,6 +300,7 @@ export async function receiveShipment(
               reason: r.condition === "damaged" ? "damaged" : "missing",
               referenceDocumentNumber: shipment.shipmentNumber,
               notes: r.notes || `Selisih transfer ${r.condition}`,
+              updateStockBalance: false,
             });
           }
         }
@@ -321,6 +322,7 @@ export async function receiveShipment(
             reason: r.condition === "damaged" ? "damaged" : "missing",
             referenceDocumentNumber: shipment.shipmentNumber,
             notes: r.notes || `Selisih transfer paket ${r.condition}`,
+            updateStockBalance: false,
           });
         }
       }

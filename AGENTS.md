@@ -40,7 +40,7 @@ Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokum
 
 ## 3. Architecture & Domain Invariants
 
-1. **Physical Unit Tracking**: buku dilacak per eksemplar (`book_items`) dengan barcode unik, kondisi fisik, dan penugasan sekolah.
+1. **Aggregate Inventory & Legacy Unit Tracking**: saldo buku dan paket dikelola secara agregat kuantitas (`book_stocks`, `package_stocks`); pelacakan unit eksemplar fisik barcode (`book_items`) diarsipkan sebagai read-only historis.
 2. **Branch Isolation**: admin cabang hanya mengakses inventori sekolahnya (`current_school_id = branch_id`).
 3. **Inter-school Transfers**: perpindahan buku lewat shipment formal (`draft` → `pending_dispatch` → `in_transit` → `completed`/`discrepancy`).
 4. **Staff Roles & Navigation Boundaries**:
