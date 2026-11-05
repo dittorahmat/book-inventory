@@ -255,6 +255,88 @@ describe("Students admin API", () => {
     expect(delRes2.status).toBe(200);
   });
 
+  it("locks schoolId and gradeLevel update when student has active orders but allows other fields", async () => {
+    const { studentBookOrders } = await import("../../db/schema");
+    const stamp = Date.now();
+    const schoolA = `school-act-a-${stamp}`;
+    const schoolB = `school-act-b-${stamp}`;
+    await seedSchool(schoolA, `ALW-ACT-A-${stamp}`);
+    await seedSchool(schoolB, `ALW-ACT-B-${stamp}`);
+
+    const res = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: schoolA,
+        nis: `ACT${stamp}`,
+        name: "Siswa Aktif Pesanan",
+        gradeLevel: "3",
+        academicYear: "2026/2027",
+      }),
+    });
+    const { data: st } = await res.json();
+
+    const bookOrderNumber = `ORD-ACT-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: `sbo-act-${stamp}`,
+      orderNumber: bookOrderNumber,
+      studentId: st.id,
+      schoolId: schoolA,
+      orderType: "regular",
+      paymentStatus: "unpaid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 150000,
+      paidAmount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Check active-orders endpoint
+    const activeCheck = await studentsRouter.request(`/${st.id}/active-orders`);
+    expect(activeCheck.status).toBe(200);
+    const activeJson = await activeCheck.json();
+    expect(activeJson.data.hasActive).toBe(true);
+    expect(activeJson.data.details.length).toBeGreaterThan(0);
+
+    // Attempting to change gradeLevel -> fails 400
+    const failGrade = await studentsRouter.request(`/${st.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gradeLevel: "4" }),
+    });
+    expect(failGrade.status).toBe(400);
+    const failGradeJson = await failGrade.json();
+    expect(failGradeJson.message).toContain("pesanan aktif");
+
+    // Attempting to change schoolId -> fails 400
+    const failSchool = await studentsRouter.request(`/${st.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: schoolB }),
+    });
+    expect(failSchool.status).toBe(400);
+
+    // Updating profile (name, parentName, isScholarship) -> succeeds 200
+    const updateProfile = await studentsRouter.request(`/${st.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Siswa Aktif Updated",
+        parentName: "Bapak Ahmad",
+        isScholarship: true,
+      }),
+    });
+    expect(updateProfile.status).toBe(200);
+    const updatedJson = await updateProfile.json();
+    expect(updatedJson.data.name).toBe("Siswa Aktif Updated");
+    expect(updatedJson.data.isScholarship).toBe(true);
+
+    // Cleanup
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, `sbo-act-${stamp}`));
+    await db.delete(students).where(eq(students.id, st.id));
+    await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
+  });
+
   it("handles bulk-import with upsert logic", async () => {
     const stamp = Date.now();
     const schoolId = `school-bulk-${stamp}`;

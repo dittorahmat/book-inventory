@@ -13,6 +13,7 @@ import {
 import {
   batchPromoteStudents,
   checkNisTaken,
+  getStudentActiveOrders,
   importStudents,
   removeStudent,
   verifyStudentRegistration,
@@ -94,6 +95,24 @@ studentsRouter.get("/", async (c) => {
   }
 });
 
+// 1b. GET active orders check for student
+studentsRouter.get("/:id/active-orders", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const [existing] = await db.select({ schoolId: students.schoolId }).from(students).where(eq(students.id, id));
+    if (!existing) {
+      return c.json({ success: false, message: "Data siswa tidak ditemukan" }, 404);
+    }
+    const { actor, locations } = await requireScopedActor(db, c);
+    assertLocationAllowed(actor, existing.schoolId, locations);
+
+    const activeInfo = await getStudentActiveOrders(db, id);
+    return c.json({ success: true, data: activeInfo });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 // 2. POST create (admin-side: langsung terverifikasi bila status active)
 studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
   try {
@@ -159,6 +178,23 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
     const [school] = await db.select().from(schools).where(eq(schools.id, body.schoolId));
     if (!school) {
       return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
+    }
+  }
+
+  // Guard Pesanan Aktif: jika murid memiliki pesanan aktif gantung di tahun berjalan,
+  // kunci perubahan sekolah (schoolId) dan kelas (gradeLevel) agar tidak membuat alokasi stok cabang menggantung.
+  const isChangingSchool = body.schoolId !== undefined && body.schoolId !== existing.schoolId;
+  const isChangingGrade = body.gradeLevel !== undefined && body.gradeLevel !== existing.gradeLevel;
+  if (isChangingSchool || isChangingGrade) {
+    const { hasActive, details } = await getStudentActiveOrders(db, id);
+    if (hasActive) {
+      return c.json(
+        {
+          success: false,
+          message: `Tidak dapat memindahkan sekolah atau kelas karena siswa memiliki pesanan aktif: ${details.join(", ")}. Selesaikan serah terima atau lakukan alur Ganti Pesanan terlebih dahulu.`,
+        },
+        400
+      );
     }
   }
 
