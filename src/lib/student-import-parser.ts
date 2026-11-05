@@ -1,11 +1,14 @@
 import * as XLSX from "xlsx";
+import { determineIntakeType } from "./curriculum";
 
 export interface ParsedStudentRow {
   nis: string;
   name: string;
   gradeLevel: string;
   gender: "male" | "female";
-  curriculumType: "international" | "national";
+  curriculumType: "TK" | "INTER" | "AE" | "ME" | "DI" | "MQ" | "international" | "national";
+  stream?: "IPA" | "IPS";
+  intakeType?: "baru" | "kenaikan";
   academicYear: string;
   parentName?: string;
   parentPhone?: string;
@@ -26,36 +29,59 @@ export interface StudentParseResult {
 }
 
 /**
- * Normalisasi string kelas Al-Wildan seperti "1.INTER 1", "2.MQ 2", "3 INTER 4", "Kelas 5", dll.
+ * Normalisasi string kelas Al-Wildan seperti "1.INTER 1", "2.MQ 2", "3 INTER 4", "10-AE IPA", "Kelas 5", dll.
  */
 export function normalizeAlWildanClass(classStr: string): {
   gradeLevel: string | null;
-  curriculumType: "international" | "national";
+  curriculumType: "TK" | "INTER" | "AE" | "ME" | "DI" | "MQ";
+  stream?: "IPA" | "IPS";
 } {
   const trimmed = classStr.trim().toUpperCase();
 
   // Cek kasus cuti / non-aktif
   if (trimmed === "CUTI" || trimmed.includes("CUTI") || trimmed === "ALUMNI" || trimmed === "PINDAH") {
-    return { gradeLevel: null, curriculumType: "international" };
+    return { gradeLevel: null, curriculumType: "INTER" };
+  }
+
+  // Cek jenjang TK (PG, K-1, K-2)
+  if (/^(PG|PLAYGROUP)/i.test(trimmed)) {
+    return { gradeLevel: "PG", curriculumType: "TK" };
+  }
+  if (/^K-?1/i.test(trimmed)) {
+    return { gradeLevel: "K-1", curriculumType: "TK" };
+  }
+  if (/^K-?2/i.test(trimmed)) {
+    return { gradeLevel: "K-2", curriculumType: "TK" };
   }
 
   // Cari angka jenjang (1-12)
-  const match = trimmed.match(/(?:^|\b|[A-Z]*)(\d{1,2})(?:\.|\s|$)/);
+  const match = trimmed.match(/(?:^|\b|[A-Z]*)(\d{1,2})(?:\.|\s|-|$)/);
   if (!match) {
-    return { gradeLevel: null, curriculumType: "international" };
+    return { gradeLevel: null, curriculumType: "INTER" };
   }
 
   const gradeLevel = match[1];
 
-  // Deteksi kurikulum
-  // INTER = International
-  // MQ (Matrikulasi / Quran) atau NASIONAL / REGULER = National
-  let curriculumType: "international" | "national" = "international";
-  if (trimmed.includes("MQ") || trimmed.includes("NASIONAL") || trimmed.includes("REGULER")) {
-    curriculumType = "national";
+  // Deteksi jurusan SMA (IPA vs IPS)
+  let stream: "IPA" | "IPS" | undefined;
+  if (trimmed.includes("IPA")) stream = "IPA";
+  else if (trimmed.includes("IPS")) stream = "IPS";
+
+  // Deteksi program kurikulum
+  let curriculumType: "TK" | "INTER" | "AE" | "ME" | "DI" | "MQ" = "INTER";
+  if (trimmed.includes("AE")) {
+    curriculumType = "AE";
+  } else if (trimmed.includes("ME")) {
+    curriculumType = "ME";
+  } else if (trimmed.includes("DI")) {
+    curriculumType = "DI";
+  } else if (trimmed.includes("MQ") || trimmed.includes("MARKAZ")) {
+    curriculumType = "MQ";
+  } else if (trimmed.includes("INTER") || trimmed.includes("SD")) {
+    curriculumType = "INTER";
   }
 
-  return { gradeLevel, curriculumType };
+  return { gradeLevel, curriculumType, stream };
 }
 
 export { normalizeGoogleSheetsUrl } from "./sheets";
@@ -179,7 +205,7 @@ export function parseStudentData(
       continue;
     }
 
-    const { gradeLevel, curriculumType: autoCurriculum } = normalizeAlWildanClass(rawClass);
+    const { gradeLevel, curriculumType: autoCurriculum, stream } = normalizeAlWildanClass(rawClass);
 
     if (!gradeLevel) {
       skippedRows.push({
@@ -202,11 +228,9 @@ export function parseStudentData(
     // Tentukan curriculum
     let curriculumType = autoCurriculum;
     if (currIdx !== -1 && row[currIdx]) {
-      const cStr = String(row[currIdx]).trim().toLowerCase();
-      if (cStr === "national" || cStr === "nasional" || cStr === "mq") {
-        curriculumType = "national";
-      } else if (cStr === "international" || cStr === "internasional") {
-        curriculumType = "international";
+      const cStr = String(row[currIdx]).trim().toUpperCase();
+      if (["TK", "INTER", "AE", "ME", "DI", "MQ"].includes(cStr)) {
+        curriculumType = cStr as typeof curriculumType;
       }
     }
 
@@ -214,6 +238,9 @@ export function parseStudentData(
     const academicYear = yearIdx !== -1 && row[yearIdx]
       ? String(row[yearIdx]).trim()
       : defaultAcademicYear;
+
+    // Tentukan intakeType: berdasarkan 4 digit prefix NIS terhadap tahun ajaran aktif
+    const intakeType: "baru" | "kenaikan" = determineIntakeType(rawNis, academicYear);
 
     const parentName = pNameIdx !== -1 && row[pNameIdx] ? String(row[pNameIdx]).trim() : undefined;
     const parentPhone = pPhoneIdx !== -1 && row[pPhoneIdx] ? String(row[pPhoneIdx]).trim() : undefined;
@@ -226,6 +253,8 @@ export function parseStudentData(
       gradeLevel,
       gender,
       curriculumType,
+      stream,
+      intakeType,
       academicYear,
       parentName,
       parentPhone,

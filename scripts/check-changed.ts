@@ -63,6 +63,7 @@ if (has(/^(AGENTS\.md|docs\/rules\/)/)) {
 
 if (has(/^src\//)) {
   runBun("check:clean-artifacts");
+  runBun("check:no-hardcoded-paths");
   runBun("check:file-size");
   runBun("check:no-any");
   runBun("check:canonical-helpers");
@@ -86,6 +87,7 @@ if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
 }
 
 if (has(/^drizzle\/.*\.sql$/)) {
+  runBun("check:d1-destructive");
   // Sinkronisasi skema lokal wajib penuh (--all) dan fail-fast tanpa silent swallow (§0.31, §0.43)
   runBun("db:push:bun --all");
   try {

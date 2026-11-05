@@ -4,12 +4,14 @@ import { normalizeAlWildanClass, normalizeGoogleSheetsUrl, parseStudentData } fr
 
 describe("student-import-parser", () => {
   it("normalizes Al-Wildan class notation correctly", () => {
-    expect(normalizeAlWildanClass("1.INTER 1")).toEqual({ gradeLevel: "1", curriculumType: "international" });
-    expect(normalizeAlWildanClass("2.MQ 2")).toEqual({ gradeLevel: "2", curriculumType: "national" });
-    expect(normalizeAlWildanClass("3.INTER 6")).toEqual({ gradeLevel: "3", curriculumType: "international" });
-    expect(normalizeAlWildanClass("6.MQ 1")).toEqual({ gradeLevel: "6", curriculumType: "national" });
-    expect(normalizeAlWildanClass("Cuti")).toEqual({ gradeLevel: null, curriculumType: "international" });
-    expect(normalizeAlWildanClass("Kelas 4")).toEqual({ gradeLevel: "4", curriculumType: "international" });
+    expect(normalizeAlWildanClass("1.INTER 1")).toEqual({ gradeLevel: "1", curriculumType: "INTER", stream: undefined });
+    expect(normalizeAlWildanClass("2.MQ 2")).toEqual({ gradeLevel: "2", curriculumType: "MQ", stream: undefined });
+    expect(normalizeAlWildanClass("3.INTER 6")).toEqual({ gradeLevel: "3", curriculumType: "INTER", stream: undefined });
+    expect(normalizeAlWildanClass("6.MQ 1")).toEqual({ gradeLevel: "6", curriculumType: "MQ", stream: undefined });
+    expect(normalizeAlWildanClass("10-AE IPA")).toEqual({ gradeLevel: "10", curriculumType: "AE", stream: "IPA" });
+    expect(normalizeAlWildanClass("11-AE IPS")).toEqual({ gradeLevel: "11", curriculumType: "AE", stream: "IPS" });
+    expect(normalizeAlWildanClass("Cuti")).toEqual({ gradeLevel: null, curriculumType: "INTER" });
+    expect(normalizeAlWildanClass("Kelas 4")).toEqual({ gradeLevel: "4", curriculumType: "INTER", stream: undefined });
   });
 
   it("normalizes Google Sheets URLs to CSV export format", () => {
@@ -36,16 +38,16 @@ describe("student-import-parser", () => {
     expect(result.skippedRows.length).toBe(1);
     expect(result.validStudents[0].nis).toBe("1001");
     expect(result.validStudents[0].gradeLevel).toBe("1");
-    expect(result.validStudents[0].curriculumType).toBe("international");
+    expect(result.validStudents[0].curriculumType).toBe("INTER");
     expect(result.validStudents[1].gender).toBe("female");
-    expect(result.validStudents[1].curriculumType).toBe("national");
+    expect(result.validStudents[1].curriculumType).toBe("MQ");
     expect(result.skippedRows[0].reason).toContain("Cuti");
   });
 
   it("successfully parses real .xlsm file with 714 students if file exists locally", () => {
-    const filePath = "D:\\development\\DATA SISWA SD AL-WILDAN 1 TP. 2026-2027.xlsm";
+    const filePath = process.env.STUDENT_FILE_PATH || "./data/DATA_SISWA_SD_ALW1.xlsm";
     if (!existsSync(filePath)) {
-      // Di CI / lingkungan Linux, berkas lokal di drive D: host Windows tidak ada
+      // Di CI / lingkungan Linux, berkas lokal tidak ada
       return;
     }
     const buffer = readFileSync(filePath);
@@ -61,7 +63,8 @@ describe("student-import-parser", () => {
     expect(first.nis).toBe("262710001");
     expect(first.name).toBe("ABIZAR ZAFRAN BINTORO");
     expect(first.gradeLevel).toBe("1");
-    expect(first.curriculumType).toBe("international");
+    expect(first.curriculumType).toBe("INTER");
+    expect(first.intakeType).toBe("baru");
     expect(first.gender).toBe("male");
   });
 });

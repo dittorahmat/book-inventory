@@ -140,6 +140,17 @@ export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
 // ==========================================
 // 1. STUDENTS & ACADEMIC DATA
 // ==========================================
+export const LEGACY_CURRICULUM_TYPES = ["international", "national"] as const;
+export const NEW_CURRICULUM_TYPES = ["TK", "INTER", "AE", "ME", "DI", "MQ"] as const;
+export const CURRICULUM_TYPES = [...NEW_CURRICULUM_TYPES, ...LEGACY_CURRICULUM_TYPES] as const;
+export type CurriculumType = (typeof CURRICULUM_TYPES)[number];
+
+export const INTAKE_TYPES = ["baru", "kenaikan"] as const;
+export type IntakeType = (typeof INTAKE_TYPES)[number];
+
+export const STREAMS = ["IPA", "IPS"] as const;
+export type StreamType = (typeof STREAMS)[number];
+
 export const students = sqliteTable("students", {
   id: text("id").primaryKey(),
   schoolId: text("school_id").notNull().references(() => schools.id),
@@ -147,7 +158,9 @@ export const students = sqliteTable("students", {
   name: text("name").notNull(),
   gender: text("gender", { enum: ["male", "female"] }),
   gradeLevel: text("grade_level").notNull(), // e.g., "1", "2", "7", "10"
-  curriculumType: text("curriculum_type", { enum: ["international", "national"] }).notNull().default("international"),
+  curriculumType: text("curriculum_type", { enum: CURRICULUM_TYPES }).notNull().default("INTER"),
+  stream: text("stream", { enum: STREAMS }), // e.g. "IPA", "IPS", or null for TK/SD/SMP
+  intakeType: text("intake_type", { enum: INTAKE_TYPES }).notNull().default("baru"),
   academicYear: text("academic_year").notNull(), // e.g. "2026/2027"
   parentName: text("parent_name"),
   parentEmail: text("parent_email"),
@@ -228,7 +241,9 @@ export const bookPackages = sqliteTable("book_packages", {
   code: text("code").notNull().unique(), // e.g. "PKG-SD1-INT"
   name: text("name").notNull(), // e.g. "Paket Kelas 1 SD Internasional"
   gradeLevel: text("grade_level").notNull(), // "1"
-  curriculumType: text("curriculum_type", { enum: ["international", "national"] }).notNull().default("international"),
+  curriculumType: text("curriculum_type", { enum: CURRICULUM_TYPES }).notNull().default("INTER"),
+  stream: text("stream", { enum: STREAMS }), // e.g. "IPA", "IPS", or null
+  intakeType: text("intake_type", { enum: INTAKE_TYPES }).notNull().default("baru"),
   academicYear: text("academic_year").notNull(), // "2026/2027"
   price: integer("price").notNull().default(0),
   description: text("description"),

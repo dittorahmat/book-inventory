@@ -33,5 +33,20 @@ describe("resolveLockedPackage (portal paket terkunci)", () => {
   it("labels curricula in Bahasa Indonesia", () => {
     expect(curriculumLabel("international")).toBe("Internasional");
     expect(curriculumLabel("national")).toBe("Nasional");
+    expect(curriculumLabel("INTER")).toBe("Internasional");
+    expect(curriculumLabel("MQ")).toBe("Markaz Al-Qur'an (Nasional Plus)");
+    expect(curriculumLabel("AE")).toBe("Al-Wildan English (AE)");
+  });
+
+  it("matches package accurately with stream (IPA/IPS) and intakeType (baru/kenaikan)", () => {
+    const pkgBaru = { id: "pkg-11-ae-ipa-baru", gradeLevel: "11", curriculumType: "AE", stream: "IPA", intakeType: "baru", academicYear: "2026/2027" };
+    const pkgNaik = { id: "pkg-11-ae-ipa-naik", gradeLevel: "11", curriculumType: "AE", stream: "IPA", intakeType: "kenaikan", academicYear: "2026/2027" };
+    const pkgIps = { id: "pkg-11-ae-ips-naik", gradeLevel: "11", curriculumType: "AE", stream: "IPS", intakeType: "kenaikan", academicYear: "2026/2027" };
+
+    const studentBaru = { targetGradeLevel: "11", curriculumType: "AE", stream: "IPA", intakeType: "baru" };
+    const studentNaik = { targetGradeLevel: "11", curriculumType: "AE", stream: "IPA", intakeType: "kenaikan" };
+
+    expect(resolveLockedPackage(studentBaru, [pkgBaru, pkgNaik, pkgIps])?.id).toBe("pkg-11-ae-ipa-baru");
+    expect(resolveLockedPackage(studentNaik, [pkgBaru, pkgNaik, pkgIps])?.id).toBe("pkg-11-ae-ipa-naik");
   });
 });
