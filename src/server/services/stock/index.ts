@@ -49,6 +49,14 @@ export type {
   InventoryAllocationInput,
 } from "./allocation";
 export { allocateInventoryStock } from "./allocation";
+export {
+  adjustLooseStock,
+  adjustPackageStock,
+  ensureBookStockRow,
+  ensurePackageStockRow,
+  recordStockAdjustment,
+} from "./aggregate";
+export type { BookStockLine, StockAdjustmentInput } from "./aggregate";
 export type { LooseStockSummaryRow, PackageStockSummaryRow } from "./summary";
 export { getLooseStockSummary, getPackageStockSummary } from "./summary";
 export type { VendorReturnDisposeCandidate } from "./vendor-return";
