@@ -8,6 +8,7 @@ import { documentNumber, isoTimeFragment } from "../lib/document-number";
 import { emitChargeQuery } from "./branch-charges";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { checkHandoverBundle } from "./stock";
+import { adjustPackageStock } from "./stock/aggregate";
 
 export interface HandoverInput {
   recipientName: string;
@@ -136,6 +137,11 @@ export async function handoverPackage(
             ]
           : []),
       ]);
+
+      // Kurangi saldo paket teralokasi dari stok cabang (Ticket 5)
+      if (order.packageId) {
+        await adjustPackageStock(database, order.packageId, order.schoolId, -1, deps);
+      }
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "serah terima paket");
       if (mapped) return { ok: false, ...mapped };
