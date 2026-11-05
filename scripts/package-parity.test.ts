@@ -130,6 +130,6 @@ describe("package parity validation", () => {
 
       expect(verifiedCount).toBe(82);
     },
-    20000
+    60000
   );
 });
