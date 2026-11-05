@@ -9,6 +9,16 @@ export interface BookDemandItemInfo {
   recommendedOrderQty: number;
 }
 
+/**
+ * Formula kanonik perhitungan kuantitas kebutuhan pesanan dengan buffer:
+ * CEIL(studentCount * (1 + bufferPercent / 100)).
+ */
+export function calcDemandQty(studentCount: number, bufferPercent: number): number {
+  if (!Number.isFinite(studentCount) || studentCount <= 0) return 0;
+  const safeBuffer = Number.isFinite(bufferPercent) && bufferPercent >= 0 ? bufferPercent : 0;
+  return Math.ceil(studentCount * (1 + safeBuffer / 100));
+}
+
 export function buyPriceOfBook(catalogBooks: Book[], bookId: string, fallback = 0): number {
   const b = catalogBooks.find((x) => x.id === bookId);
   return b ? effectiveBookPrice(b).buy : fallback;
@@ -36,11 +46,10 @@ export function buildSupplierPoItems(
   demandMap: Record<string, BookDemandItemInfo>,
   bufferPercent: number
 ): NewPOItemInput[] {
-  const multiplier = 1 + bufferPercent / 100;
   return eligibleBooks.map((book) => {
     const demand = demandMap[book.id];
     const studentCount = demand?.studentCount ?? 0;
-    const qty = studentCount > 0 ? Math.ceil(studentCount * multiplier) : 0;
+    const qty = calcDemandQty(studentCount, bufferPercent);
     const unitPrice = buyPriceOfBook(catalogBooks, book.id);
     return makePoItemRow(book.id, unitPrice, qty);
   });

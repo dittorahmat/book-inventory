@@ -3,7 +3,6 @@ import { Plus, X } from "lucide-react";
 import type { Book } from "../../types";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { getJson, postJson } from "../../lib/api";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { PoTotalsSummary } from "./PoTotalsSummary";
 import { CreateSupplierModal } from "./CreateSupplierModal";
 import type { NewPOItemInput, Supplier } from "./procurement-types";
@@ -11,9 +10,11 @@ import {
   type BookDemandItemInfo,
   buildSupplierPoItems,
   buyPriceOfBook,
+  calcDemandQty,
   makePoItemRow,
 } from "./po-demand-helpers";
 import { PoItemRow } from "./PoItemRow";
+import { PoHeaderFields } from "./PoHeaderFields";
 
 interface CreatePOModalProps {
   suppliers: Supplier[];
@@ -36,6 +37,8 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [poNotes, setPoNotes] = useState("");
   const [bufferPercent, setBufferPercent] = useState<number>(10);
   const [demandMap, setDemandMap] = useState<Record<string, BookDemandItemInfo>>({});
+  const [editedBookIds, setEditedBookIds] = useState<Set<string>>(() => new Set());
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
 
@@ -70,8 +73,11 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
           setBufferPercent(res.data.bufferPercentage);
         }
       })
-      .catch(() => {
-        // Fallback hening, tetap izinkan input manual
+      .catch((err: unknown) => {
+        if (active) {
+          const message = err instanceof Error ? err.message : "Gagal memuat rekomendasi kebutuhan siswa.";
+          setLoadError(message);
+        }
       });
     return () => {
       active = false;
@@ -84,15 +90,15 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     setPoItems((prev) => {
       if (prev.length === 0) return prev;
       return prev.map((item) => {
+        // Jangan timpa jika user sudah pernah mengedit manual baris buku ini
+        if (editedBookIds.has(item.bookId)) return item;
         const d = demandMap[item.bookId];
         if (!d) return item;
-        const studentCount = d.studentCount || 0;
-        const autoQty = studentCount > 0 ? Math.ceil(studentCount * (1 + bufferPercent / 100)) : 0;
-        // Hanya update jika qty saat ini masih 0
+        const autoQty = calcDemandQty(d.studentCount || 0, bufferPercent);
         return item.quantityOrdered === 0 ? { ...item, quantityOrdered: autoQty } : item;
       });
     });
-  }, [demandMap, bufferPercent]);
+  }, [demandMap, bufferPercent, editedBookIds]);
 
   function buyPriceOf(bookId: string, fallback = 0): number {
     return buyPriceOfBook(catalogBooks, bookId, fallback);
@@ -100,6 +106,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
 
   const handleSupplierChange = (next: string) => {
     setPoSupplierId(next);
+    setEditedBookIds(new Set());
     const targetBooks = !next
       ? catalogBooks
       : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next));
@@ -112,9 +119,11 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     setBufferPercent(nextBuffer);
     setPoItems((prev) =>
       prev.map((item) => {
+        // Baris yang telah diedit manual oleh user dipertahankan, tidak ditimpa
+        if (editedBookIds.has(item.bookId)) return item;
         const d = demandMap[item.bookId];
         const studentCount = d?.studentCount ?? 0;
-        const autoQty = studentCount > 0 ? Math.ceil(studentCount * (1 + nextBuffer / 100)) : 0;
+        const autoQty = calcDemandQty(studentCount, nextBuffer);
         return { ...item, quantityOrdered: autoQty };
       })
     );
@@ -127,21 +136,24 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     }
     const defaultBook = eligibleBooks[0];
     const d = demandMap[defaultBook.id];
-    const sCount = d?.studentCount ?? 0;
-    const initialQty = sCount > 0 ? Math.ceil(sCount * (1 + bufferPercent / 100)) : 10;
-    setPoItems((prev) => [...prev, makePoItemRow(defaultBook.id, buyPriceOf(defaultBook.id), initialQty)]);
+    const initialQty = calcDemandQty(d?.studentCount ?? 0, bufferPercent);
+    setPoItems((prev) => [...prev, makePoItemRow(defaultBook.id, buyPriceOf(defaultBook.id), initialQty > 0 ? initialQty : 10)]);
   };
 
   const handleRemovePOItemRow = (index: number) => {
     setPoItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleUpdatePOItem = (index: number, field: keyof NewPOItemInput, val: any) => {
+  const handleUpdatePOItem = (index: number, field: keyof NewPOItemInput, val: string | number) => {
     setPoItems((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
         if (field === "bookId") {
-          return { ...item, bookId: val, unitPrice: buyPriceOf(val, 0) };
+          const bId = String(val);
+          return { ...item, bookId: bId, unitPrice: buyPriceOf(bId, 0) };
+        }
+        if (field === "quantityOrdered") {
+          setEditedBookIds((old) => new Set(old).add(item.bookId));
         }
         const num = Math.max(0, Number(val) || 0);
         if (field === "discountPercent") return { ...item, discountPercent: Math.min(100, num) };
@@ -156,15 +168,13 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
       alert("Silakan pilih Supplier penerbit.");
       return;
     }
-    if (poItems.length === 0) {
-      alert("Tambahkan minimal 1 item buku pada PO.");
+    // Saring otomatis hanya item dengan qty > 0 (buku supplier dengan 0 siswa yang tidak dipesan diabaikan)
+    const validItems = poItems.filter((it) => it.quantityOrdered > 0);
+    if (validItems.length === 0) {
+      alert("Tambahkan minimal 1 item buku dengan jumlah pesanan lebih dari 0.");
       return;
     }
-    if (poItems.some((it) => it.quantityOrdered <= 0)) {
-      alert("Jumlah pesanan buku harus lebih dari 0.");
-      return;
-    }
-    if (poItems.some((it) => it.discountPercent < 0 || it.discountPercent > 100)) {
+    if (validItems.some((it) => it.discountPercent < 0 || it.discountPercent > 100)) {
       alert("Diskon per item harus antara 0 sampai 100 persen.");
       return;
     }
@@ -178,7 +188,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
           orderDate: poOrderDate,
           expectedArrivalDate: poExpectedArrival || undefined,
           notes: poNotes.trim() || undefined,
-          items: poItems,
+          items: validItems,
         },
         "Gagal menerbitkan Purchase Order."
       );
@@ -222,69 +232,17 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
         </div>
 
         <form onSubmit={handleSubmitCreatePO} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Supplier / Vendor Resmi *
-              </label>
-              <div className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <SearchableSingleSelect
-                    options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
-                    value={poSupplierId}
-                    onChange={handleSupplierChange}
-                    placeholder={suppliers.length === 0 ? "Belum ada supplier (Tambah baru)" : "Pilih supplier..."}
-                    required
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSupplierModalOpen(true)}
-                  className="px-2.5 py-2 border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] text-xs font-semibold shrink-0"
-                  title="Tambah Supplier Baru"
-                >
-                  + Baru
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <span className="block text-xs font-semibold text-[#050505] mb-1">
-                Tujuan Barang Masuk
-              </span>
-              <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs font-semibold text-[#050505]">
-                Gudang Logistik
-              </div>
-              <p className="text-[10px] text-[#65676B] mt-1">
-                PO selalu dipusatkan di Gudang Logistik, lalu diteruskan ke cabang lewat transfer.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Tanggal Order *
-              </label>
-              <input
-                type="date"
-                value={poOrderDate}
-                onChange={(e) => setPoOrderDate(e.target.value)}
-                required
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Estimasi Tiba di Gudang
-              </label>
-              <input
-                type="date"
-                value={poExpectedArrival}
-                onChange={(e) => setPoExpectedArrival(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
-              />
-            </div>
-          </div>
+          <PoHeaderFields
+            suppliers={suppliers}
+            supplierId={poSupplierId}
+            onSupplierChange={handleSupplierChange}
+            onOpenSupplierModal={() => setIsSupplierModalOpen(true)}
+            orderDate={poOrderDate}
+            onOrderDateChange={setPoOrderDate}
+            expectedArrival={poExpectedArrival}
+            onExpectedArrivalChange={setPoExpectedArrival}
+            loadError={loadError}
+          />
 
           <div className="pt-2 border-t border-[#E4E6EB]">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">

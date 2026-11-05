@@ -58,9 +58,9 @@ for (const file of ruleFiles) {
   }
 }
 
-// Pastikan rentang aturan §0.1 s/d §0.58 tercakup lengkap tanpa missing
+// Pastikan rentang aturan §0.1 s/d §0.59 tercakup lengkap tanpa missing
 const missingRules: number[] = [];
-for (let i = 1; i <= 58; i++) {
+for (let i = 1; i <= 59; i++) {
   if (!definedRules.has(i)) {
     missingRules.push(i);
   }
@@ -74,5 +74,5 @@ if (missingRules.length > 0) {
 }
 
 console.log(
-  `Rule-pointers gate OK: AGENTS.md ramping (${agentsLines}/${MAX_AGENTS_LINES} baris), 58 aturan anti-kambuh terdefinisi lengkap di docs/rules/ (${ruleFiles.length} berkas).`
+  `Rule-pointers gate OK: AGENTS.md ramping (${agentsLines}/${MAX_AGENTS_LINES} baris), 59 aturan anti-kambuh terdefinisi lengkap di docs/rules/ (${ruleFiles.length} berkas).`
 );

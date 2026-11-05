@@ -39,6 +39,16 @@ export async function getPoBufferSetting(database: AppDatabase): Promise<number>
 }
 
 /**
+ * Formula kanonik perhitungan kuantitas kebutuhan pesanan dengan buffer:
+ * CEIL(studentCount * (1 + bufferPercent / 100)).
+ */
+export function calcDemandQty(studentCount: number, bufferPercent: number): number {
+  if (!Number.isFinite(studentCount) || studentCount <= 0) return 0;
+  const safeBuffer = Number.isFinite(bufferPercent) && bufferPercent >= 0 ? bufferPercent : 0;
+  return Math.ceil(studentCount * (1 + safeBuffer / 100));
+}
+
+/**
  * Menghitung ringkasan kebutuhan buku (demand) berdasarkan siswa aktif tahun ajaran
  * yang terhubung via BOM paket buku (`book_packages` & `book_package_items`) serta
  * buku suplemen satuan terdaftar (`school_grade_allowed_books`).
@@ -60,6 +70,15 @@ export async function calculateBookDemandSummary(
 
   const warehouseId = await resolveWarehouseId(database);
 
+  // Filter bookIds di tingkat query SQL bila spesifik diminta (§10 D1 search discipline)
+  const pkgConditions = [
+    eq(students.academicYear, year),
+    inArray(students.status, ["active", "promoted", "new_pending"]),
+  ];
+  if (options?.bookIds && options.bookIds.length > 0) {
+    pkgConditions.push(inArray(bookPackageItems.bookId, options.bookIds));
+  }
+
   // 1. Hitung siswa aktif per buku via BOM paket buku
   const pkgStudentCounts = await database
     .select({
@@ -76,15 +95,18 @@ export async function calculateBookDemandSummary(
       )
     )
     .innerJoin(bookPackageItems, eq(bookPackages.id, bookPackageItems.packageId))
-    .where(
-      and(
-        eq(students.academicYear, year),
-        inArray(students.status, ["active", "promoted", "new_pending"])
-      )
-    )
+    .where(and(...pkgConditions))
     .groupBy(bookPackageItems.bookId);
 
   // 2. Hitung siswa aktif via school_grade_allowed_books (jika ada suplemen)
+  const allowedConditions = [
+    eq(students.academicYear, year),
+    inArray(students.status, ["active", "promoted", "new_pending"]),
+  ];
+  if (options?.bookIds && options.bookIds.length > 0) {
+    allowedConditions.push(inArray(schoolGradeAllowedBooks.bookId, options.bookIds));
+  }
+
   const allowedStudentCounts = await database
     .select({
       bookId: schoolGradeAllowedBooks.bookId,
@@ -98,12 +120,7 @@ export async function calculateBookDemandSummary(
         eq(students.gradeLevel, schoolGradeAllowedBooks.gradeLevel)
       )
     )
-    .where(
-      and(
-        eq(students.academicYear, year),
-        inArray(students.status, ["active", "promoted", "new_pending"])
-      )
-    )
+    .where(and(...allowedConditions))
     .groupBy(schoolGradeAllowedBooks.bookId);
 
   // 3. Hitung stok fisik lepas di Gudang Logistik
@@ -113,6 +130,9 @@ export async function calculateBookDemandSummary(
   ];
   if (warehouseId) {
     stockConditions.push(eq(bookItems.currentSchoolId, warehouseId));
+  }
+  if (options?.bookIds && options.bookIds.length > 0) {
+    stockConditions.push(inArray(bookItems.bookId, options.bookIds));
   }
 
   const stockCounts = await database
@@ -129,8 +149,6 @@ export async function calculateBookDemandSummary(
     studentCountMap.set(row.bookId, (studentCountMap.get(row.bookId) ?? 0) + Number(row.studentCount || 0));
   }
   for (const row of allowedStudentCounts) {
-    // Hindari double count jika buku sudah terhitung di paket untuk siswa yang sama
-    // Tetapi jika buku murni allowed books, ambil nilai count
     if (!studentCountMap.has(row.bookId)) {
       studentCountMap.set(row.bookId, Number(row.studentCount || 0));
     }
@@ -141,38 +159,22 @@ export async function calculateBookDemandSummary(
     stockMap.set(row.bookId, Number(row.stockCount || 0));
   }
 
-  // Kumpulkan list buku target jika difilter, atau semua buku yang punya demand/stok
+  // Kumpulkan list buku target
   const items: Record<string, BookDemandItem> = {};
-  const multiplier = 1 + bufferPercentage / 100;
+  const targetIds = options?.bookIds && options.bookIds.length > 0
+    ? options.bookIds
+    : Array.from(new Set<string>([...studentCountMap.keys(), ...stockMap.keys()]));
 
-  if (options?.bookIds && options.bookIds.length > 0) {
-    for (const bId of options.bookIds) {
-      const sCount = studentCountMap.get(bId) ?? 0;
-      const wStock = stockMap.get(bId) ?? 0;
-      const rec = sCount > 0 ? Math.ceil(sCount * multiplier) : 0;
-      items[bId] = {
-        bookId: bId,
-        studentCount: sCount,
-        warehouseStock: wStock,
-        recommendedOrderQty: rec,
-      };
-    }
-  } else {
-    const allBookIds = new Set<string>([
-      ...studentCountMap.keys(),
-      ...stockMap.keys(),
-    ]);
-    for (const bId of allBookIds) {
-      const sCount = studentCountMap.get(bId) ?? 0;
-      const wStock = stockMap.get(bId) ?? 0;
-      const rec = sCount > 0 ? Math.ceil(sCount * multiplier) : 0;
-      items[bId] = {
-        bookId: bId,
-        studentCount: sCount,
-        warehouseStock: wStock,
-        recommendedOrderQty: rec,
-      };
-    }
+  for (const bId of targetIds) {
+    const sCount = studentCountMap.get(bId) ?? 0;
+    const wStock = stockMap.get(bId) ?? 0;
+    const rec = calcDemandQty(sCount, bufferPercentage);
+    items[bId] = {
+      bookId: bId,
+      studentCount: sCount,
+      warehouseStock: wStock,
+      recommendedOrderQty: rec,
+    };
   }
 
   return {

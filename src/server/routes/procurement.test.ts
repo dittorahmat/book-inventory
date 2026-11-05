@@ -1138,7 +1138,16 @@ describe("PO supplier exclusivity (#143)", () => {
       // 1 siswa + 10% = 1.1 -> ceil = 2
       expect(item.recommendedOrderQty).toBe(2);
       expect(item.warehouseStock).toBe(0);
+
+      // Verifikasi security & RBAC: role non-logistik (school admin/user) ditolak 403
+      mockActor("school_admin", schoolId);
+      const deniedRes = await procurementRouter.request(
+        `/book-demand-summary?academicYear=${year}&bookIds=${bookId}`,
+        { method: "GET" }
+      );
+      expect(deniedRes.status).toBe(403);
     } finally {
+      mockActor("central_admin", null);
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
       await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
