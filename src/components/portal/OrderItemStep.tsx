@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Package, BookOpen, Minus, Plus, Lock } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { calcLooseOrderTotal, effectiveSellPrice } from "../../lib/book-pricing";
+import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import type { SatuanBookOption } from "./portal-api";
 import { PackageBreakdown, type BreakdownItem } from "./PackageBreakdown";
 
@@ -50,6 +52,20 @@ export function OrderItemStep({
   const totalSatuan = calcLooseOrderTotal(selections, books);
 
   const canContinue = packageMode ? !!selectedPackageName : totalQty > 0;
+  const [attempted, setAttempted] = useState(false);
+
+  const handleContinueClick = () => {
+    setAttempted(true);
+    if (!canContinue) return;
+    onContinue();
+  };
+
+  const alertErrors: Record<string, string | undefined> = {};
+  if (!canContinue) {
+    alertErrors.selection = packageMode
+      ? "Paket buku belum siap atau nama paket tidak tersedia."
+      : "Silakan pilih minimal 1 buku satuan sebelum melanjutkan ke pembayaran.";
+  }
 
   return (
     <div className="space-y-5">
@@ -161,6 +177,10 @@ export function OrderItemStep({
         </div>
       )}
 
+      {attempted && !canContinue && (
+        <FormSummaryAlert errors={alertErrors} title="Pilihan Belum Sesuai" />
+      )}
+
       <div className="flex justify-between gap-2 pt-2 border-t border-[#E4E6EB]">
         <button
           type="button"
@@ -171,8 +191,8 @@ export function OrderItemStep({
         </button>
         <button
           type="button"
-          onClick={onContinue}
-          disabled={!canContinue || isSubmitting}
+          onClick={handleContinueClick}
+          disabled={isSubmitting}
           className="px-5 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-xs transition-colors active:scale-[0.98] disabled:opacity-50"
         >
           Lanjut ke Pembayaran
