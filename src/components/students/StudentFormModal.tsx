@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
+import {
+  validateEmail,
+  validateNis,
+  validatePhone,
+  validateRequiredSelect,
+  validateRequiredText,
+} from "../../lib/form-validation";
 import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
 
@@ -58,17 +66,39 @@ export function StudentFormModal({
 
   const hasActiveOrders = activeOrders.length > 0;
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+  const [attempted, setAttempted] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!schoolId) {
-      setFormError("Sekolah wajib dipilih.");
+    setAttempted(true);
+
+    const errors: Record<string, string | undefined> = {};
+    const schoolCheck = validateRequiredSelect(schoolId, "Sekolah Cabang");
+    if (!schoolCheck.valid) errors.schoolId = schoolCheck.message;
+
+    const nisCheck = validateNis(nis);
+    if (!nisCheck.valid) errors.nis = nisCheck.message;
+
+    const nameCheck = validateRequiredText(name, "Nama Murid", 2);
+    if (!nameCheck.valid) errors.name = nameCheck.message;
+
+    if (parentPhone.trim()) {
+      const phoneCheck = validatePhone(parentPhone);
+      if (!phoneCheck.valid) errors.parentPhone = phoneCheck.message;
+    }
+
+    if (parentEmail.trim()) {
+      const emailCheck = validateEmail(parentEmail, false);
+      if (!emailCheck.valid) errors.parentEmail = emailCheck.message;
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
       return;
     }
-    if (!nis.trim() || !name.trim()) {
-      setFormError("NIS dan nama murid wajib diisi.");
-      return;
-    }
+
     try {
       await onSave({
         schoolId,
@@ -130,25 +160,52 @@ export function StudentFormModal({
               </div>
             </div>
           )}
+          <FormSummaryAlert errors={attempted ? fieldErrors : {}} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <SearchableSingleSelect
                 label="Sekolah"
                 options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                 value={schoolId}
-                onChange={setSchoolId}
+                onChange={(val) => {
+                  setSchoolId(val);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, schoolId: undefined }));
+                }}
                 placeholder="Pilih sekolah..."
                 required
                 disabled={hasActiveOrders}
+                error={attempted ? fieldErrors.schoolId : undefined}
               />
             </div>
             <div>
-              <label className={labelCls}>NIS</label>
-              <input type="text" value={nis} onChange={(e) => setNis(e.target.value)} className={inputCls} />
+              <label className={labelCls}>NIS <span className="text-rose-600">*</span></label>
+              <input
+                type="text"
+                value={nis}
+                onChange={(e) => {
+                  setNis(e.target.value);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, nis: undefined }));
+                }}
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] transition-colors ${
+                  attempted && fieldErrors.nis ? "border-rose-500 ring-1 ring-rose-200" : "border-[#CED0D4]"
+                }`}
+              />
+              <FormFieldFeedback error={attempted ? fieldErrors.nis : undefined} />
             </div>
             <div>
-              <label className={labelCls}>Nama Lengkap Murid</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+              <label className={labelCls}>Nama Lengkap Murid <span className="text-rose-600">*</span></label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                }}
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] transition-colors ${
+                  attempted && fieldErrors.name ? "border-rose-500 ring-1 ring-rose-200" : "border-[#CED0D4]"
+                }`}
+              />
+              <FormFieldFeedback error={attempted ? fieldErrors.name : undefined} />
             </div>
             <div>
               <SearchableSingleSelect
@@ -220,11 +277,35 @@ export function StudentFormModal({
             </div>
             <div>
               <label className={labelCls}>No. HP / WA Orang Tua</label>
-              <input type="text" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} className={inputCls} />
+              <input
+                type="text"
+                value={parentPhone}
+                onChange={(e) => {
+                  setParentPhone(e.target.value);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
+                }}
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] transition-colors ${
+                  attempted && fieldErrors.parentPhone ? "border-rose-500 ring-1 ring-rose-200" : "border-[#CED0D4]"
+                }`}
+                placeholder="08123456789 (10-15 digit)"
+              />
+              <FormFieldFeedback error={attempted ? fieldErrors.parentPhone : undefined} />
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>Email Orang Tua</label>
-              <input type="email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} className={inputCls} />
+              <input
+                type="email"
+                value={parentEmail}
+                onChange={(e) => {
+                  setParentEmail(e.target.value);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, parentEmail: undefined }));
+                }}
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] transition-colors ${
+                  attempted && fieldErrors.parentEmail ? "border-rose-500 ring-1 ring-rose-200" : "border-[#CED0D4]"
+                }`}
+                placeholder="nama@domain.com"
+              />
+              <FormFieldFeedback error={attempted ? fieldErrors.parentEmail : undefined} />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
