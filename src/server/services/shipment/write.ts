@@ -5,6 +5,7 @@ import { transferShipments, transferShipmentItems, bookItems, packageItems } fro
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { planCreateLines, type ShipmentLineInput } from "./plan";
+import { adjustLooseStock, adjustPackageStock, recordStockAdjustment } from "../stock/aggregate";
 
 export interface CreateShipmentInput {
   fromSchoolId: string;
@@ -123,6 +124,21 @@ export async function createShipment(
       ...relocateLooseWrites,
       ...relocateBundleWrites,
     ]);
+
+    // Update saldo kuantitas agregat (Ticket 4)
+    if (input.instant) {
+      for (const line of looseLines) {
+        const bookId = planned.plan.bookIdByLooseId.get(line.bookItemId);
+        if (bookId) {
+          await adjustLooseStock(database, bookId, input.fromSchoolId, -1);
+          await adjustLooseStock(database, bookId, input.toSchoolId, 1);
+        }
+      }
+      for (const line of bundleLines) {
+        await adjustPackageStock(database, line.meta.packageId, input.fromSchoolId, -1);
+        await adjustPackageStock(database, line.meta.packageId, input.toSchoolId, 1);
+      }
+    }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "pembuatan transfer");
     if (mapped) return { ok: false, ...mapped };
@@ -264,6 +280,53 @@ export async function receiveShipment(
         .set({ status: hasDiscrepancy ? "completed_with_discrepancy" : "completed", receivedAt: now, updatedAt: now })
         .where(eq(transferShipments.id, id)),
     ]);
+
+    // Update saldo kuantitas agregat penerimaan transfer (Ticket 4)
+    for (const r of looseReceipts) {
+      const line = lines.find((l) => l.bookItemId === r.bookItemId);
+      if (line && line.bookItemId) {
+        const [bItem] = await database.select({ bookId: bookItems.bookId }).from(bookItems).where(eq(bookItems.id, line.bookItemId));
+        if (bItem) {
+          if (r.condition === "good") {
+            await adjustLooseStock(database, bItem.bookId, shipment.fromSchoolId, -1);
+            await adjustLooseStock(database, bItem.bookId, shipment.toSchoolId, 1);
+          } else {
+            await adjustLooseStock(database, bItem.bookId, shipment.fromSchoolId, -1);
+            await recordStockAdjustment(database, {
+              schoolId: shipment.toSchoolId,
+              itemType: "loose",
+              bookId: bItem.bookId,
+              quantity: -1,
+              reason: r.condition === "damaged" ? "damaged" : "missing",
+              referenceDocumentNumber: shipment.shipmentNumber,
+              notes: r.notes || `Selisih transfer ${r.condition}`,
+              updateStockBalance: false,
+            });
+          }
+        }
+      }
+    }
+    for (const r of bundleReceipts) {
+      const line = lines.find((l) => l.packageItemId === r.packageItemId);
+      if (line && line.packageId) {
+        if (r.condition === "good") {
+          await adjustPackageStock(database, line.packageId, shipment.fromSchoolId, -1);
+          await adjustPackageStock(database, line.packageId, shipment.toSchoolId, 1);
+        } else {
+          await adjustPackageStock(database, line.packageId, shipment.fromSchoolId, -1);
+          await recordStockAdjustment(database, {
+            schoolId: shipment.toSchoolId,
+            itemType: "package",
+            packageId: line.packageId,
+            quantity: -1,
+            reason: r.condition === "damaged" ? "damaged" : "missing",
+            referenceDocumentNumber: shipment.shipmentNumber,
+            notes: r.notes || `Selisih transfer paket ${r.condition}`,
+            updateStockBalance: false,
+          });
+        }
+      }
+    }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penerimaan transfer");
     if (mapped) return { ok: false, ...mapped };

@@ -31,6 +31,7 @@ export interface PlannedCreateLines {
   looseSnapshots: Map<string, number>;
   bundleSnapshots: Map<string, { packageId: string; snapshot: number }>;
   total: number;
+  bookIdByLooseId: Map<string, string>;
 }
 
 /**
@@ -55,6 +56,7 @@ export async function planCreateLines(
     bundleIds = dedupe(bundleIds, resolved.bundleIds);
   }
 
+  const bookIdByLooseId = new Map<string, string>();
   const looseSnapshots = new Map<string, number>();
   if (looseIds.length > 0) {
     type LooseRow = { id: string; bookId: string; barcode: string | null; currentSchoolId: string | null; status: string };
@@ -87,6 +89,7 @@ export async function planCreateLines(
       .from(books)
       .where(inArray(books.id, bookIds));
     const priceMap = new Map<string, number>(priceRows.map((r: PriceRow) => [r.id, effectiveSellPrice(r)]));
+    selectedItems.forEach((i) => bookIdByLooseId.set(i.id, i.bookId));
     selectedItems.forEach((item) => looseSnapshots.set(item.id, priceMap.get(item.bookId) || 0));
   }
 
@@ -135,7 +138,7 @@ export async function planCreateLines(
     }),
   ]);
 
-  return { ok: true, plan: { looseIds, bundleIds, looseSnapshots, bundleSnapshots, total } };
+  return { ok: true, plan: { looseIds, bundleIds, looseSnapshots, bundleSnapshots, total, bookIdByLooseId } };
 }
 
 /** Kuantitas per judul/paket -> eksemplar fisik konkret (FIFO). Privat rencana ini. */

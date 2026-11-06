@@ -52,3 +52,7 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Form perakitan paket seragam mandiri wajib menyediakan input tahun ajaran (`academicYear`) tanpa bergantung pada state eksternal atau default statis tak terganti.
    - Domain supplier buku (penerbit) dan supplier seragam (mitra konveksi) wajib dipartisi secara eksplisit pada skema database (`suppliers.type`: `'book' | 'uniform' | 'all'`) dan disaring pada endpoint API (`/api/procurement/suppliers?type=...`); form pengadaan seragam dilarang mencampurkan dropdown vendor buku dan wajib menyediakan modal pendaftaran konveksi langsung (`defaultType: 'uniform'`).
    - Setiap pemisahan sub-tab wajib disertai pengujian unit peralihan sub-tab (`UniformView.test.tsx`) yang mencakup seluruh tab aktif.
+
+### §0.61. Penyesuaian Stok Cacat/Rusak pada Intake PO & Transfer (Audit-Only Balance Guard)
+1. **Pencatatan Cacat Saat Inbound Penerbit (PO)**: barang yang diterima dalam kondisi rusak dari supplier belum pernah masuk ke saldo persediaan tersedia (`availableQuantity`). Pencatatan penyesuaian stok di `stock_adjustments` wajib menggunakan opsi `updateStockBalance: false`, dilarang memotong saldo aktif secara negatif.
+2. **Selisih Transit Antarcabang**: barang rusak atau hilang yang terjadi selama transit pengiriman antar-sekolah dicatat sebagai audit log pada cabang penerima tanpa memotong saldo aktif cabang penerima yang belum pernah menerima unit fisik tersebut.

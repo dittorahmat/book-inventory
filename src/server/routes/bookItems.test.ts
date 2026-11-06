@@ -36,7 +36,7 @@ describe("Book Items (Physical Copies) API", () => {
       updatedAt: now,
     });
 
-    // Batch generate 5 copies
+    // Batch generate 5 copies (legacy endpoint verification)
     const genRes = await bookItemsRouter.request("/batch-generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -126,6 +126,7 @@ export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
   shipmentId: text("shipment_id").notNull().references(() => transferShipments.id, { onDelete: "cascade" }),
   itemType: text("item_type", { enum: ["loose", "package"] }).notNull().default("loose"),
   bookItemId: text("book_item_id").references(() => bookItems.id),
+  bookId: text("book_id").references(() => books.id),
   packageId: text("package_id"),
   packageItemId: text("package_item_id"),
   quantity: integer("quantity").notNull().default(1),
@@ -135,6 +136,60 @@ export const transferShipmentItems = sqliteTable("transfer_shipment_items", {
   createdAt: text("created_at").notNull(),
 }, (t) => [
   index("shipment_lines_shipment_idx").on(t.shipmentId),
+]);
+
+/**
+ * Persediaan kuantitas buku satuan agregat per sekolah/gudang.
+ * Single-writer via stock service.
+ */
+export const bookStocks = sqliteTable("book_stocks", {
+  id: text("id").primaryKey(),
+  bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  availableQuantity: integer("available_quantity").notNull().default(0),
+  reservedQuantity: integer("reserved_quantity").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("book_stocks_book_idx").on(t.bookId),
+  index("book_stocks_school_idx").on(t.schoolId),
+  unique("book_stocks_book_school_unq").on(t.bookId, t.schoolId),
+]);
+
+/**
+ * Persediaan kuantitas bundel paket buku agregat per sekolah/gudang.
+ * Single-writer via stock service.
+ */
+export const packageStocks = sqliteTable("package_stocks", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => bookPackages.id, { onDelete: "cascade" }),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  availableQuantity: integer("available_quantity").notNull().default(0),
+  reservedQuantity: integer("reserved_quantity").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("package_stocks_package_idx").on(t.packageId),
+  index("package_stocks_school_idx").on(t.schoolId),
+  unique("package_stocks_package_school_unq").on(t.packageId, t.schoolId),
+]);
+
+/**
+ * Audit log penyesuaian stok (write-off rusak, hilang, koreksi stock opname).
+ */
+export const stockAdjustments = sqliteTable("stock_adjustments", {
+  id: text("id").primaryKey(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  itemType: text("item_type", { enum: ["loose", "package"] }).notNull().default("loose"),
+  bookId: text("book_id").references(() => books.id),
+  packageId: text("package_id").references(() => bookPackages.id),
+  quantity: integer("quantity").notNull(), // negatif = write-off/hilang, positif = koreksi opname
+  reason: text("reason", { enum: ["damaged", "missing", "audit_reconciliation", "manual_correction"] }).notNull(),
+  referenceDocumentNumber: text("reference_document_number"), // e.g. BA-RECON-*, TRF-*
+  notes: text("notes"),
+  adjustedByUserId: text("adjusted_by_user_id").references(() => users.id),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("stock_adj_school_idx").on(t.schoolId),
+  index("stock_adj_created_idx").on(t.createdAt),
 ]);
 
 // ==========================================
