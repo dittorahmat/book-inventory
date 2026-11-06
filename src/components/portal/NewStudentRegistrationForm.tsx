@@ -33,6 +33,7 @@ export function NewStudentRegistrationForm({
   registerErrors,
   setRegisterErrors,
 }: NewStudentRegistrationFormProps) {
+  const schoolSelectId = "new-student-school-select";
   const nameInputRef = useRef<HTMLInputElement>(null);
   const parentNameInputRef = useRef<HTMLInputElement>(null);
   const parentEmailInputRef = useRef<HTMLInputElement>(null);
@@ -66,10 +67,17 @@ export function NewStudentRegistrationForm({
 
     setRegisterErrors(errors);
     if (Object.keys(errors).length > 0) {
-      if (errors.name) nameInputRef.current?.focus();
-      else if (errors.parentName) parentNameInputRef.current?.focus();
-      else if (errors.parentEmail) parentEmailInputRef.current?.focus();
-      else if (errors.parentPhone) parentPhoneInputRef.current?.focus();
+      if (errors.schoolId) {
+        document.getElementById(schoolSelectId)?.focus();
+      } else if (errors.name) {
+        nameInputRef.current?.focus();
+      } else if (errors.parentName) {
+        parentNameInputRef.current?.focus();
+      } else if (errors.parentEmail) {
+        parentEmailInputRef.current?.focus();
+      } else if (errors.parentPhone) {
+        parentPhoneInputRef.current?.focus();
+      }
       return;
     }
 
@@ -82,6 +90,7 @@ export function NewStudentRegistrationForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <SearchableSingleSelect
+            id={schoolSelectId}
             label="Sekolah / Unit Cabang"
             options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
             value={newStudent.schoolId}

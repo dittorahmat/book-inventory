@@ -45,3 +45,9 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 ### §0.48. Disiplin Konsumsi Helper Intake & Anti-Tautologi Predikat UI
 1. Seluruh fungsi helper domain/filter yang dibuat di bawah `src/lib/` (seperti `filterBranchSchools`) wajib dikonsumsi secara aktif oleh pemanggil fitur di view/komponen terkait dalam diff yang sama; dilarang meninggalkan helper hanya terhubung ke file unit test-nya sendiri (*speculative generality / dead code*).
 2. Pada percabangan rendering form/modal intake (seperti pemilih cabang di `StudentBulkUploadModal`), predikat kondisi wajib diekspresikan secara ketat (`(!initialSchoolId || initialSchoolId === "all") && schools.length > 0`), dilarang memasang disjungsi longgar (`|| schools.length > 0`) yang membuat percabangan bersifat tautologis.
+
+### §0.63. Form Validation Feedback Loop & Tombol Submit Interaktif
+1. Dilarang menonaktifkan tombol submit secara pasif (`disabled={isMissingField}`) saat formulir belum terisi lengkap yang membingungkan pengguna (mengira form/sistem hang). Tombol submit wajib tetap responsif untuk divalidasi saat diklik. Pengecualian: `disabled` diizinkan untuk mencegah double submission (`isSubmitting`) atau kontrak otomasi demo yang secara eksplisit menguji kecocokan kode unik (`OrderHandoverModal` §0.43).
+2. Setiap kegagalan validasi wajib menampilkan garis batas peringatan merah (`border-rose-500`), teks bantuan spesifik di bawah input (`FormFieldFeedback`), banner ringkasan kesalahan di atas tombol submit (`FormSummaryAlert`), dan memfokuskan kursor secara otomatis ke elemen pertama yang tidak valid.
+3. Seluruh aturan alokasi pembayaran form kasir/portal wajib memanggil single-writer kanonik `allocationViolation` (`src/lib/order-allocation.ts`), dilarang membuat aturan alokasi lokal mandiri.
+

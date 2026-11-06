@@ -56,6 +56,12 @@ describe("form-validation helpers", () => {
       expect(res.message).toContain("Minimal 3 karakter");
     });
 
+    it("rejects NIS with special characters or spaces", () => {
+      const res = validateNis("NIS# 01@");
+      expect(res.valid).toBe(false);
+      expect(res.message).toContain("hanya boleh berisi huruf, angka");
+    });
+
     it("accepts valid NIS", () => {
       const res = validateNis("NIS-2026-001");
       expect(res.valid).toBe(true);

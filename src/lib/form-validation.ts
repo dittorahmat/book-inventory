@@ -58,6 +58,12 @@ export function validateNis(nis: string): ValidationRuleResult {
       message: `NIS terlalu panjang (${trimmed.length} karakter). Maksimal 30 karakter.`,
     };
   }
+  if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) {
+    return {
+      valid: false,
+      message: "NIS hanya boleh berisi huruf, angka, dan tanda hubung (-).",
+    };
+  }
   return { valid: true };
 }
 

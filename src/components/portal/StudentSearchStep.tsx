@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Search, UserCheck, UserPlus } from "lucide-react";
 import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import { FormFieldFeedback } from "../ui/FormFieldFeedback";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { NewStudentRegistrationForm } from "./NewStudentRegistrationForm";
 import {
   validateRequiredSelect,
@@ -86,6 +86,7 @@ export function StudentSearchStep({
           </p>
 
           <form onSubmit={handleSearchSubmit} noValidate className="mt-4 space-y-3">
+            <FormSummaryAlert errors={searchAttempted ? searchErrors : {}} title="Pencarian Belum Lengkap" />
             <div>
               <SearchableSingleSelect
                 id="portal-student-search-school"

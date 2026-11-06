@@ -159,7 +159,7 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isCodeMatched}
               className="px-4 py-2 bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-50 text-white rounded-xl font-semibold flex items-center gap-1.5"
             >
               <Printer className="w-3.5 h-3.5" />

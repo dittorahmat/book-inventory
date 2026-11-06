@@ -4,6 +4,7 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { validateRequiredText } from "../../lib/form-validation";
+import { allocationViolation } from "../../lib/order-allocation";
 import type { StudentOrder } from "./order-types";
 
 interface CashierPaymentModalProps {
@@ -33,9 +34,16 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
       errors.transferAmount = "Nominal struk transfer harus lebih dari Rp 0.";
     }
 
-    if (bookAllocation <= 0) {
-      errors.bookAllocation = "Alokasi khusus untuk buku harus lebih dari Rp 0.";
-    } else if (bookAllocation > transferAmount) {
+    const violation = allocationViolation({
+      allocationAmount: bookAllocation,
+      transferAmount,
+      billAmount: order.totalAmount,
+    });
+    if (violation === "below_minimum") {
+      errors.bookAllocation = "Alokasi khusus untuk buku minimal Rp 1.";
+    } else if (violation === "above_bill") {
+      errors.bookAllocation = `Alokasi buku tidak boleh melebihi total tagihan (${formatRupiah(order.totalAmount)}).`;
+    } else if (violation === "above_receipt") {
       errors.bookAllocation = "Alokasi buku tidak boleh melebihi nominal transfer di struk.";
     }
 
