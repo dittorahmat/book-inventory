@@ -24,7 +24,11 @@ const BANNED_EXTENSIONS = [
 ];
 
 // Pengecualian sah jika ada aset yang sudah grandfathered atau di public/
-const GRANDFATHERED = new Set(["docs/USER_MANUAL.pdf"]);
+const GRANDFATHERED = new Set([
+  "docs/USER_MANUAL.pdf",
+  "drizzle/purge-operational-data.sql",
+  "drizzle/seed-d1.sql",
+]);
 
 const isAllowed = (file: string): boolean => {
   return file.startsWith("public/") || file.startsWith("dist/") || GRANDFATHERED.has(file);
@@ -35,6 +39,13 @@ for (const file of files) {
   if (isAllowed(file)) continue;
   if (BANNED_EXTENSIONS.some((ext) => ext.test(file))) {
     violations.push(file);
+  }
+  // Larang dump SQL liar di folder drizzle/: hanya file migrasi terdaftar (0000_*.sql) atau folder meta/
+  if (file.startsWith("drizzle/") && file.endsWith(".sql")) {
+    const filename = file.slice("drizzle/".length);
+    if (!/^\d{4}_[a-z0-9_]+\.sql$/.test(filename)) {
+      violations.push(`${file} (hanya file migrasi resmi berprefix 4 digit angka yang diizinkan di drizzle/)`);
+    }
   }
 }
 
