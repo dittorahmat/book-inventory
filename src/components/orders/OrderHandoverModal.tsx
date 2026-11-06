@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X, Printer } from "lucide-react";
 import { postJson } from "../../lib/api";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
+import { validateRequiredText } from "../../lib/form-validation";
 import type { StudentOrder } from "./order-types";
 
 interface OrderHandoverModalProps {
@@ -15,15 +17,30 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+  const [attempted, setAttempted] = useState(false);
 
   const isCodeMatched = confirmationCode.trim().toUpperCase() === order.orderNumber.trim().toUpperCase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isCodeMatched) {
-      setErrorMsg("Kode verifikasi yang dimasukkan tidak cocok dengan No. Order / Bukti Pengambilan.");
-      return;
+    setAttempted(true);
+    const errors: Record<string, string | undefined> = {};
+
+    if (!confirmationCode.trim()) {
+      errors.confirmationCode = "Cross-check kode pengambilan wajib diisi.";
+    } else if (!isCodeMatched) {
+      errors.confirmationCode = `Kode tidak cocok! Masukkan kode resmi: ${order.orderNumber}`;
     }
+
+    const recipientCheck = validateRequiredText(recipient, "Nama Penerima Buku", 3);
+    if (!recipientCheck.valid) {
+      errors.recipient = recipientCheck.message;
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
@@ -53,12 +70,13 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
             <X className="w-4 h-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4 text-xs">
           {errorMsg && (
             <div className="text-red-700 bg-red-50 border border-red-200 p-3 rounded-xl font-medium">
               {errorMsg}
             </div>
           )}
+          <FormSummaryAlert errors={attempted ? fieldErrors : {}} />
           <div className="bg-[#F0F2F5] p-3 rounded-xl space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[#65676B]">Kode Bukti Pengambilan:</span>
@@ -77,32 +95,49 @@ export function OrderHandoverModal({ order, onClose, onSuccess }: OrderHandoverM
           </div>
           <div>
             <label className="block font-semibold mb-1 text-[#050505]">
-              Cross-check Kode Pengambilan * <span className="text-[10px] text-[#65676B]">(Sesuai WA murid)</span>
+              Cross-check Kode Pengambilan <span className="text-rose-600">*</span>{" "}
+              <span className="text-[10px] text-[#65676B]">(Sesuai WA murid)</span>
             </label>
             <input
               type="text"
-              required
               value={confirmationCode}
-              onChange={(e) => setConfirmationCode(e.target.value)}
-              className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl font-mono uppercase font-semibold text-[#1877F2]"
+              onChange={(e) => {
+                setConfirmationCode(e.target.value);
+                if (attempted) setFieldErrors((prev) => ({ ...prev, confirmationCode: undefined }));
+              }}
+              className={`w-full px-3 py-2 border rounded-xl font-mono uppercase font-semibold text-[#1877F2] transition-colors ${
+                attempted && fieldErrors.confirmationCode
+                  ? "border-rose-500 ring-1 ring-rose-200"
+                  : "border-[#CED0D4]"
+              }`}
               placeholder="Ketik kode / no. order..."
             />
-            {confirmationCode.trim() && (
-              <p className={`text-[10px] mt-1 font-semibold ${isCodeMatched ? "text-emerald-600" : "text-red-500"}`}>
-                {isCodeMatched ? "✓ Kode terverifikasi cocok!" : "✗ Kode tidak cocok dengan sistem"}
+            <FormFieldFeedback error={attempted ? fieldErrors.confirmationCode : undefined} />
+            {confirmationCode.trim() && !fieldErrors.confirmationCode && (
+              <p className={`text-[10px] mt-1 font-semibold ${isCodeMatched ? "text-emerald-600" : "text-amber-600"}`}>
+                {isCodeMatched ? "✓ Kode terverifikasi cocok!" : "Peringatan: Kode belum cocok dengan sistem"}
               </p>
             )}
           </div>
           <div>
-            <label className="block font-semibold mb-1">Nama Penerima Buku (Orang Tua / Siswa)</label>
+            <label className="block font-semibold mb-1">
+              Nama Penerima Buku (Orang Tua / Siswa) <span className="text-rose-600">*</span>
+            </label>
             <input
               type="text"
-              required
               value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+              onChange={(e) => {
+                setRecipient(e.target.value);
+                if (attempted) setFieldErrors((prev) => ({ ...prev, recipient: undefined }));
+              }}
+              className={`w-full px-3 py-2 border rounded-xl transition-colors ${
+                attempted && fieldErrors.recipient
+                  ? "border-rose-500 ring-1 ring-rose-200"
+                  : "border-[#CED0D4]"
+              }`}
               placeholder="Contoh: Hendra Wahyudi (Ayah)"
             />
+            <FormFieldFeedback error={attempted ? fieldErrors.recipient : undefined} />
           </div>
           <div>
             <label className="block font-semibold mb-1">Catatan Serah Terima (Opsional)</label>

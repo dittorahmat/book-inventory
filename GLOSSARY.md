@@ -48,6 +48,11 @@ _Avoid_: Stok menggantung, penghapusan data fisik tanpa unassign
 Permohonan pergantian seragam olahraga (tukar ukuran / jenis karena salah kirim) yang diajukan wali murid via portal dengan bukti resi pengiriman retur ke Gudang Pusat; diverifikasi kondisi fisiknya oleh gudang sebelum unit pengganti dikirim kembali ke siswa.
 _Avoid_: Retur bebas seragam, refund seragam dipakai
 
+**Umpan Balik Validasi Formulir (Form Validation Feedback Loop)**:
+Pola interaksi formulir di portal publik dan antarmuka admin di mana tombol aksi tidak dinonaktifkan secara pasif saat isian belum lengkap, melainkan tetap responsif ketika ditekan. Jika terdapat input yang kurang atau tidak memenuhi spesifikasi, sistem seketika menampilkan garis batas peringatan, pesan bantuan eksplisit (misal: jumlah digit yang dibutuhkan, format telepon yang valid, atau kelengkapan berkas bukti), banner ringkasan kesalahan, serta memfokuskan kursor secara otomatis ke elemen pertama yang tidak valid.
+_Avoid_: Tombol submit lumpuh tanpa keterangan, form hening tanpa reaksi, penolakan diam-diam tanpa pesan spesifik
+
+
 **Alamat Retur Gudang Pusat**:
 Alamat resmi gudang logistik pusat yang dikonfigurasi pada pengaturan sistem (`system_settings`) dan disajikan secara publik kepada orang tua murid sebagai alamat tujuan pengiriman barang retur/penukaran.
 _Avoid_: Alamat cabang penukaran, alamat kirim manual

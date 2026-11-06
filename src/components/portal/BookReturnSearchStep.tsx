@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Search, RotateCcw, Info } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
+import { validateRequiredSelect, validateRequiredText } from "../../lib/form-validation";
 import { bookReturnStatus } from "../../lib/book-return";
 import type { PortalOrderLookup, SchoolOption } from "../../lib/portal-types";
 
@@ -30,6 +33,26 @@ export function BookReturnSearchStep({
   onSearch,
   onSelectOrder,
 }: BookReturnSearchStepProps) {
+  const [attempted, setAttempted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ schoolId?: string; query?: string }>({});
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAttempted(true);
+    const errors: { schoolId?: string; query?: string } = {};
+
+    const schoolCheck = validateRequiredSelect(schoolId, "Cabang / Sekolah");
+    if (!schoolCheck.valid) errors.schoolId = schoolCheck.message;
+
+    const queryCheck = validateRequiredText(query, "NIS, Nama Siswa, atau No. Pesanan", 3);
+    if (!queryCheck.valid) errors.query = queryCheck.message;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    onSearch(e);
+  };
+
   return (
     <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs">
       <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Cari Pesanan</span>
@@ -38,14 +61,19 @@ export function BookReturnSearchStep({
         Pilih cabang, lalu masukkan NIS, nama siswa, atau nomor pesanan untuk memuat buku yang sudah diterima.
       </p>
 
-      <form onSubmit={onSearch} className="mt-4 space-y-3">
+      <form onSubmit={handleFormSubmit} noValidate className="mt-4 space-y-3">
+        <FormSummaryAlert errors={attempted ? fieldErrors : {}} title="Pencarian Belum Lengkap" />
         <SearchableSingleSelect
           label="Cabang / Sekolah"
           options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
           value={schoolId}
-          onChange={setSchoolId}
+          onChange={(val) => {
+            setSchoolId(val);
+            if (attempted) setFieldErrors((prev) => ({ ...prev, schoolId: undefined }));
+          }}
           placeholder="Pilih cabang..."
           required
+          error={attempted ? fieldErrors.schoolId : undefined}
         />
         <div>
           <label htmlFor="book-return-query" className="block text-xs font-semibold text-[#050505] mb-1">
@@ -58,19 +86,27 @@ export function BookReturnSearchStep({
                 id="book-return-query"
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (attempted) setFieldErrors((prev) => ({ ...prev, query: undefined }));
+                }}
                 placeholder="Contoh: 20241001 atau ORD-202610-0007"
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#CED0D4] focus:border-[#1877F2] rounded-xl text-xs sm:text-sm text-[#050505] transition-colors"
+                className={`w-full pl-10 pr-4 py-2.5 bg-white border rounded-xl text-xs sm:text-sm text-[#050505] transition-colors ${
+                  attempted && fieldErrors.query
+                    ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-200"
+                    : "border-[#CED0D4] focus:border-[#1877F2]"
+                }`}
               />
             </div>
             <button
               type="submit"
-              disabled={searching || !schoolId || query.trim().length < 3}
+              disabled={searching}
               className="px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {searching ? "Mencari..." : "Cari Pesanan"}
             </button>
           </div>
+          <FormFieldFeedback error={attempted ? fieldErrors.query : undefined} />
         </div>
       </form>
 

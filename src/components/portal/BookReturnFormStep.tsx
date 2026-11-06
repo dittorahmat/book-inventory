@@ -1,5 +1,12 @@
+import { useState } from "react";
 import { ArrowLeft, ImagePlus, RotateCcw, Loader2 } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
+import {
+  validateProofFile,
+  validateRequiredSelect,
+  validateRequiredText,
+} from "../../lib/form-validation";
 import type { BookReturnFormApi } from "./useBookReturn";
 import type { PortalOrderLookup } from "../../lib/portal-types";
 
@@ -28,8 +35,38 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
     setIsWithdrawal,
   } = form;
 
+  const [attempted, setAttempted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAttempted(true);
+    const errors: Record<string, string | undefined> = {};
+
+    if (!isWithdrawal) {
+      const bookCheck = validateRequiredSelect(selectedBookId, "Judul Buku yang Dikembalikan");
+      if (!bookCheck.valid) errors.book = bookCheck.message;
+    }
+
+    const reasonCheck = validateRequiredText(
+      reason,
+      isWithdrawal ? "Alasan siswa mengundurkan diri" : "Alasan pengembalian buku",
+      5
+    );
+    if (!reasonCheck.valid) errors.reason = reasonCheck.message;
+
+    const proofLabel = isWithdrawal ? "Surat pengunduran diri" : "Foto kondisi fisik buku";
+    const proofCheck = validateProofFile(photoBase64, proofLabel);
+    if (!proofCheck.valid) errors.photo = proofCheck.message;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    onSubmit(e);
+  };
+
   return (
-    <form onSubmit={onSubmit} className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-5">
+    <form onSubmit={handleFormSubmit} noValidate className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-5">
       <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#E4E6EB]">
         <div className="min-w-0">
           <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider">Pesanan Dipilih</span>
@@ -78,9 +115,13 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
             label="Judul Buku yang Dikembalikan"
             options={bookChoices.map((b) => ({ value: b.bookId, label: b.title }))}
             value={selectedBookId}
-            onChange={setSelectedBookId}
+            onChange={(val) => {
+              setSelectedBookId(val);
+              if (attempted) setFieldErrors((prev) => ({ ...prev, book: undefined }));
+            }}
             placeholder="Pilih judul buku..."
             required
+            error={attempted ? fieldErrors.book : undefined}
           />
         )
       )}
@@ -93,14 +134,22 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
           id="book-return-reason"
           rows={3}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value);
+            if (attempted) setFieldErrors((prev) => ({ ...prev, reason: undefined }));
+          }}
           placeholder={
             isWithdrawal
               ? "Contoh: Pindah sekolah ke luar kota / domisili keluarga."
               : "Contoh: halaman 15-22 sobek, cetakan buram, atau buku salah kirim."
           }
-          className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] focus:border-[#1877F2] rounded-xl text-xs sm:text-sm text-[#050505] transition-colors"
+          className={`w-full px-3 py-2.5 bg-white border rounded-xl text-xs sm:text-sm text-[#050505] transition-colors ${
+            attempted && fieldErrors.reason
+              ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-200"
+              : "border-[#CED0D4] focus:border-[#1877F2]"
+          }`}
         />
+        <FormFieldFeedback error={attempted ? fieldErrors.reason : undefined} />
       </div>
 
       <div>
@@ -120,7 +169,10 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
             type="file"
             accept="image/jpeg,image/png,image/webp"
             aria-label={isWithdrawal ? "Surat pengunduran diri" : "Foto kondisi fisik buku"}
-            onChange={handlePhoto}
+            onChange={(e) => {
+              handlePhoto(e);
+              if (attempted) setFieldErrors((prev) => ({ ...prev, photo: undefined }));
+            }}
             className="sr-only"
           />
           {photoBase64 && (
@@ -131,6 +183,7 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
             />
           )}
         </div>
+        <FormFieldFeedback error={attempted ? fieldErrors.photo : undefined} />
         <p className="text-[11px] text-[#65676B] mt-1.5">
           {isWithdrawal
             ? "Unggah foto/scan surat pernyataan pengunduran diri siswa. Maksimal 2 MB (JPG/PNG/WebP)."
@@ -143,6 +196,8 @@ export function BookReturnFormStep({ order, form, error, onSubmit, onBack }: Boo
           {error}
         </div>
       )}
+
+      <FormSummaryAlert errors={attempted ? fieldErrors : {}} />
 
       <div className="pt-2 flex justify-end">
         <button

@@ -18,6 +18,7 @@ interface SearchableSingleSelectProps {
   required?: boolean;
   disabled?: boolean;
   emptyText?: string;
+  error?: string | null;
 }
 
 /** Dropdown tunggal searchable: trigger + popover + filter ketikan + keyboard. */
@@ -32,6 +33,7 @@ export function SearchableSingleSelect({
   required,
   disabled,
   emptyText = "Tidak ada hasil yang cocok.",
+  error,
 }: SearchableSingleSelectProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -86,7 +88,9 @@ export function SearchableSingleSelect({
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className="flex-1 px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-left text-[#050505] flex items-center justify-between gap-2 focus:outline-hidden focus:border-[#1877F2] disabled:opacity-60"
+          className={`flex-1 px-3 py-2 bg-white border rounded-xl text-xs text-left text-[#050505] flex items-center justify-between gap-2 focus:outline-hidden disabled:opacity-60 transition-colors ${
+            error ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-200" : "border-[#CED0D4] focus:border-[#1877F2]"
+          }`}
         >
           <span className={selected ? "font-medium truncate" : "text-[#65676B] truncate"}>
             {selected ? selected.label : placeholder}
@@ -105,6 +109,9 @@ export function SearchableSingleSelect({
           </button>
         ) : null}
       </div>
+      {error ? (
+        <p className="mt-1 text-xs text-rose-600 font-medium">{error}</p>
+      ) : null}
       {open && !disabled ? (
         <div className="absolute z-50 mt-1 w-full bg-white border border-[#E4E6EB] rounded-xl shadow-xl overflow-hidden">
           <div className="relative border-b border-[#E4E6EB]">
