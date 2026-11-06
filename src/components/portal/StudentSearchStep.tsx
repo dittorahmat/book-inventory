@@ -1,6 +1,14 @@
-import { Search, UserCheck, UserPlus, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Search, UserCheck, UserPlus } from "lucide-react";
 import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";import type {
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback } from "../ui/FormFieldFeedback";
+import { NewStudentRegistrationForm } from "./NewStudentRegistrationForm";
+import {
+  validateRequiredSelect,
+  validateRequiredText,
+} from "../../lib/form-validation";
+import type {
   SchoolOption,
   StudentSearchResult,
   NewStudentForm,
@@ -41,6 +49,28 @@ export function StudentSearchStep({
   onSelectStudent,
   onRegister,
 }: StudentSearchStepProps) {
+  const [searchErrors, setSearchErrors] = useState<{ schoolId?: string; query?: string }>({});
+  const [searchAttempted, setSearchAttempted] = useState(false);
+
+  const [registerErrors, setRegisterErrors] = useState<Record<string, string | undefined>>({});
+  const [registerAttempted, setRegisterAttempted] = useState(false);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchAttempted(true);
+    const errors: { schoolId?: string; query?: string } = {};
+
+    const schoolCheck = validateRequiredSelect(searchSchoolId, "Sekolah / Unit Cabang");
+    if (!schoolCheck.valid) errors.schoolId = schoolCheck.message;
+
+    const queryCheck = validateRequiredText(searchQuery, "NIS atau Nama Siswa", 2);
+    if (!queryCheck.valid) errors.query = queryCheck.message;
+
+    setSearchErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    onSearch(e);
+  };
   return (
     <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-6">
       {!isNewStudentMode ? (
@@ -55,38 +85,55 @@ export function StudentSearchStep({
             Ketik nama (misal: "Hendra" atau "Wahyudi") atau NIS siswa untuk memuat data kelas secara otomatis.
           </p>
 
-          <form onSubmit={onSearch} className="mt-4 space-y-3">
+          <form onSubmit={handleSearchSubmit} noValidate className="mt-4 space-y-3">
             <div>
               <SearchableSingleSelect
                 id="portal-student-search-school"
                 label="Sekolah / Unit Cabang"
                 options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
                 value={searchSchoolId}
-                onChange={setSearchSchoolId}
+                onChange={(val) => {
+                  setSearchSchoolId(val);
+                  if (searchAttempted) {
+                    setSearchErrors((prev) => ({ ...prev, schoolId: undefined }));
+                  }
+                }}
                 placeholder="Pilih sekolah murid..."
                 required
+                error={searchAttempted ? searchErrors.schoolId : undefined}
               />
             </div>
-            <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
-              <input
-                type="text"
-                required
-                id={PORTAL_STUDENT_SEARCH_INPUT_ID}
-                placeholder="Ketik NIS atau potongan nama siswa..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-[#F0F2F5] border border-transparent focus:border-[#1877F2] focus:bg-white rounded-xl text-xs sm:text-sm text-[#050505] transition-colors"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isSearching || !searchSchoolId}
-              className="px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
-            >
-              {isSearching ? "Mencari..." : "Cari Data"}
-            </button>
+            <div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
+                  <input
+                    type="text"
+                    id={PORTAL_STUDENT_SEARCH_INPUT_ID}
+                    placeholder="Ketik NIS atau potongan nama siswa..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (searchAttempted) {
+                        setSearchErrors((prev) => ({ ...prev, query: undefined }));
+                      }
+                    }}
+                    className={`w-full pl-10 pr-4 py-2.5 bg-[#F0F2F5] border rounded-xl text-xs sm:text-sm text-[#050505] transition-colors focus:bg-white ${
+                      searchAttempted && searchErrors.query
+                        ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-200"
+                        : "border-transparent focus:border-[#1877F2]"
+                    }`}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSearching}
+                  className="px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
+                >
+                  {isSearching ? "Mencari..." : "Cari Data"}
+                </button>
+              </div>
+              <FormFieldFeedback error={searchAttempted ? searchErrors.query : undefined} />
             </div>
           </form>
 
@@ -189,114 +236,17 @@ export function StudentSearchStep({
             </button>
           </div>
 
-          <form onSubmit={onRegister} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <SearchableSingleSelect
-                  label="Sekolah / Unit Cabang"
-                  options={schools.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
-                  value={newStudent.schoolId}
-                  onChange={(v) => setNewStudent({ ...newStudent, schoolId: v })}
-                  placeholder="Pilih sekolah..."
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Nama Lengkap Murid</label>
-                <input
-                  type="text"
-                  required
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                  placeholder="Contoh: Muhammad Ali"
-                />
-              </div>
-
-              <div>
-                <SearchableSingleSelect
-                  label="Tingkat Kelas Masuk"
-                  options={[
-                    { value: "1", label: "Kelas 1 SD" },
-                    { value: "2", label: "Kelas 2 SD" },
-                    { value: "3", label: "Kelas 3 SD" },
-                    { value: "4", label: "Kelas 4 SD" },
-                    { value: "5", label: "Kelas 5 SD" },
-                    { value: "6", label: "Kelas 6 SD" },
-                    { value: "7", label: "Kelas 7 SMP" },
-                    { value: "8", label: "Kelas 8 SMP" },
-                    { value: "9", label: "Kelas 9 SMP" },
-                    { value: "10", label: "Kelas 10 SMA" },
-                    { value: "11", label: "Kelas 11 SMA" },
-                    { value: "12", label: "Kelas 12 SMA" },
-                  ]}
-                  value={newStudent.gradeLevel}
-                  onChange={(v) => setNewStudent({ ...newStudent, gradeLevel: v })}
-                  placeholder="Pilih kelas..."
-                />
-              </div>
-
-              <div>
-                <SearchableSingleSelect
-                  label="Pilihan Kurikulum"
-                  options={[
-                    { value: "international", label: "Internasional (Cambridge)" },
-                    { value: "national", label: "Nasional" },
-                  ]}
-                  value={newStudent.curriculumType}
-                  onChange={(v) => setNewStudent({ ...newStudent, curriculumType: v as NewStudentForm["curriculumType"] })}
-                  placeholder="Pilih kurikulum..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Nama Orang Tua / Wali</label>
-                <input
-                  type="text"
-                  required
-                  value={newStudent.parentName}
-                  onChange={(e) => setNewStudent({ ...newStudent, parentName: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#050505] mb-1">Email Orang Tua</label>
-                <input
-                  type="email"
-                  required
-                  value={newStudent.parentEmail}
-                  onChange={(e) => setNewStudent({ ...newStudent, parentEmail: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                  placeholder="orangtua@example.com"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-[#050505] mb-1">No. WhatsApp / HP</label>
-                <input
-                  type="tel"
-                  required
-                  value={newStudent.parentPhone}
-                  onChange={(e) => setNewStudent({ ...newStudent, parentPhone: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                  placeholder="+628123456789"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-end">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
-              >
-                <span>{isSubmitting ? "Menyimpan..." : "Lanjutkan Pilih Paket"}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
+          <NewStudentRegistrationForm
+            schools={schools}
+            newStudent={newStudent}
+            setNewStudent={setNewStudent}
+            isSubmitting={isSubmitting}
+            onRegister={onRegister}
+            registerAttempted={registerAttempted}
+            setRegisterAttempted={setRegisterAttempted}
+            registerErrors={registerErrors}
+            setRegisterErrors={setRegisterErrors}
+          />
         </div>
       )}
     </div>

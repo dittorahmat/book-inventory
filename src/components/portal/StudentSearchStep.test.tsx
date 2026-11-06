@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 // Dinamis + top-level await: pastikan shim DOM sudah terpasang sebelum
 // modul CJS @testing-library mengikat screen ke document.body.
-const { cleanup, render, screen } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen } = await import("@testing-library/react");
 import { StudentSearchStep } from "./StudentSearchStep";
 import type { NewStudentForm, SchoolOption, StudentSearchResult } from "../../lib/portal-types";
 
@@ -110,5 +110,42 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
     expect(pilih.disabled).toBe(false);
     pilih.click();
     expect((selected as StudentSearchResult | null)?.id).toBe("st-t5-ui");
+  });
+
+  it("displays validation feedback when registration is submitted with empty fields", () => {
+    let registered = false;
+    render(
+      <StudentSearchStep
+        schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
+        searchSchoolId=""
+        setSearchSchoolId={noop}
+        searchQuery=""
+        setSearchQuery={noop}
+        isSearching={false}
+        searchResults={[]}
+        isNewStudentMode={true}
+        setIsNewStudentMode={noop}
+        newStudent={EMPTY_NEW_STUDENT}
+        setNewStudent={noopDispatch}
+        isSubmitting={false}
+        onSearch={noopSubmit}
+        onSelectStudent={noop}
+        onRegister={(_e) => {
+          registered = true;
+        }}
+      />
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Lanjutkan Pilih Paket/i }) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(false);
+    fireEvent.click(submitBtn);
+
+    expect(registered).toBe(false);
+    expect(screen.getByText(/Formulir Belum Lengkap/i)).toBeDefined();
+    // Teks muncul di summary alert dan inline feedback
+    const nameErrors = screen.getAllByText(/Nama Lengkap Murid wajib diisi/i);
+    expect(nameErrors.length).toBeGreaterThanOrEqual(1);
+    const phoneErrors = screen.getAllByText(/Nomor WhatsApp \/ HP wajib diisi/i);
+    expect(phoneErrors.length).toBeGreaterThanOrEqual(1);
   });
 });
