@@ -216,14 +216,14 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-[#E4E6EB]">
           <div>
             <SearchableSingleSelect
-              label="Cabang / Sekolah"
+              label="Sekolah"
               options={[
                 ...(!lockedSchoolId ? [{ value: "", label: "🏢 Semua Cabang" }] : []),
                 ...schools.map((s) => ({ value: s.id, label: s.name })),
               ]}
               value={schoolId}
               onChange={setSchoolId}
-              placeholder="Pilih cabang..."
+              placeholder="Pilih sekolah / cabang..."
               disabled={!!lockedSchoolId}
             />
           </div>
