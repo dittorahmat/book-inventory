@@ -72,6 +72,7 @@ if (has(/^src\//)) {
   runBun("check:single-writer");
   runBun("check:string-packing");
   runBun("check:no-silent-catch");
+  runBun("check:form-buttons");
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
