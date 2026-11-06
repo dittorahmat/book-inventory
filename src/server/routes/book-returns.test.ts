@@ -318,4 +318,11 @@ describe("Book Returns & Refund API", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("handles withdrawal slip query through unified order-withdrawal seam", async () => {
+    const res = await bookReturnsRouter.request("/withdrawal-slip/non-existent-slip", {
+      method: "GET",
+    });
+    expect(res.status).toBe(404);
+  });
 });

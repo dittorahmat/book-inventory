@@ -174,4 +174,14 @@ describe("Uniform sports exchange actions & resolution", () => {
       restoreActor();
     }
   });
+
+  it("handles withdrawal slip query through unified order-withdrawal seam", async () => {
+    mockActor("warehouse_admin", null);
+    try {
+      const slipRes = await uniformsRouter.request("/withdrawal-slip/non-existent-slip", { method: "GET" });
+      expect(slipRes.status).toBe(404);
+    } finally {
+      restoreActor();
+    }
+  });
 });
