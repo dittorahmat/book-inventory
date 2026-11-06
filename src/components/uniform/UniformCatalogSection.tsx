@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import { formatRupiah } from "../../lib/transfer-pricing";
 import {
   fetchUniformVariants,
-  createUniformVariant,
   adjustUniformStock,
   fetchUniformRejects,
   createUniformReject,
@@ -11,6 +9,9 @@ import {
   type UniformVariantRow,
 } from "./uniform-admin-api";
 import { EditUniformVariantModal } from "./EditUniformVariantModal";
+import { UniformCatalogToolbar } from "./UniformCatalogToolbar";
+import { CreateUniformVariantForm } from "./CreateUniformVariantForm";
+import { UniformVariantList } from "./UniformVariantList";
 
 const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
 const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
@@ -22,15 +23,8 @@ export function UniformCatalogSection() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [vCode, setVCode] = useState("");
-  const [vName, setVName] = useState("");
-  const [vKind, setVKind] = useState("kain_harian");
-  const [vGender, setVGender] = useState("male");
-  const [vJenjang, setVJenjang] = useState("sd");
-  const [vYear, setVYear] = useState("2026/2027");
-  const [vPrice, setVPrice] = useState("0");
-  const [vSizes, setVSizes] = useState("");
-  const [vChart, setVChart] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const [stVariant, setStVariant] = useState("");
   const [stSize, setStSize] = useState("");
@@ -77,95 +71,46 @@ export function UniformCatalogSection() {
 
   return (
     <div className="space-y-4">
-      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">{error}</div>}
-      {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">{notice}</div>}
-
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <div>
-          <h3 className="text-sm font-bold text-[#050505]">Tambah Varian Seragam</h3>
-          <p className="text-xs text-[#65676B]">Daftarkan kain harian atau seragam olahraga baru ke dalam katalog sekolah.</p>
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+          {error}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div><label className={labelCls}>Kode</label><input value={vCode} onChange={(e) => setVCode(e.target.value)} className={inputCls} /></div>
-          <div className="sm:col-span-2"><label className={labelCls}>Nama</label><input value={vName} onChange={(e) => setVName(e.target.value)} className={inputCls} /></div>
-          <div><SearchableSingleSelect
-            label="Jenis"
-            options={[
-              { value: "kain_harian", label: "Kain harian" },
-              { value: "olahraga", label: "Olahraga jadi" },
-            ]}
-            value={vKind}
-            onChange={setVKind}
-            placeholder="Pilih jenis..."
-          />
-          </div>
-          <div><SearchableSingleSelect
-            label="Gender"
-            options={[
-              { value: "male", label: "Laki-laki" },
-              { value: "female", label: "Perempuan" },
-            ]}
-            value={vGender}
-            onChange={setVGender}
-            placeholder="Pilih gender..."
-          />
-          </div>
-          <div><SearchableSingleSelect
-            label="Jenjang"
-            options={[
-              { value: "tk", label: "TK" },
-              { value: "sd", label: "SD" },
-              { value: "smp", label: "SMP" },
-              { value: "sma", label: "SMA" },
-            ]}
-            value={vJenjang}
-            onChange={setVJenjang}
-            placeholder="Pilih jenjang..."
-          />
-          </div>
-          <div><label className={labelCls}>Tahun ajaran</label><input value={vYear} onChange={(e) => setVYear(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Harga (Rp)</label><input value={vPrice} inputMode="numeric" onChange={(e) => setVPrice(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Size chart URL</label><input value={vChart} onChange={(e) => setVChart(e.target.value)} className={inputCls} /></div>
-          {vKind === "olahraga" && (
-            <div className="sm:col-span-3"><label className={labelCls}>Size (koma, mis. S,M,L)</label><input value={vSizes} onChange={(e) => setVSizes(e.target.value)} className={inputCls} /></div>
-          )}
+      )}
+      {notice && (
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">
+          {notice}
         </div>
-        <button
-          type="button" disabled={busy}
-          onClick={() => run(() => createUniformVariant({
-            code: vCode.trim(), name: vName.trim(), kind: vKind, gender: vGender, jenjang: vJenjang,
-            academicYear: vYear.trim(), price: Number(vPrice) || 0,
-            sizeChartUrl: vChart.trim() || undefined,
-            sizes: vKind === "olahraga" ? vSizes.split(",").map((s) => s.trim()).filter(Boolean) : [],
-          }), "Varian tersimpan.")}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
-        >
-          Simpan Varian
-        </button>
-      </div>
+      )}
 
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
-        {variants.length === 0 && <div className="px-4 py-6 text-center text-xs text-[#65676B]">Belum ada varian.</div>}
-        {variants.map((vRow) => {
-          const { variant: v, sizes, stock } = vRow;
-          return (
-            <div key={v.id} className="px-4 py-3 text-xs flex items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold">{v.name} <span className="font-normal text-[#65676B]">· {v.code}</span></div>
-                <div className="text-[#65676B]">{v.kind === "kain_harian" ? "Kain" : "Olahraga"} · {v.gender === "male" ? "L" : "P"} · {v.jenjang.toUpperCase()} · {formatRupiah(v.price)}</div>
-                <div className="text-[#65676B]">{sizes.length > 0 ? `Size: ${sizes.join(", ")}` : "Tanpa ukuran"} · Stok: {stock.map((s) => `${s.size}=${s.quantity}`).join(", ") || "0"}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingVariant(vRow)}
-                className="px-3 py-1.5 border border-[#CED0D4] rounded-xl text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] shrink-0"
-              >
-                Edit
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {/* Toolbar Katalog Seragam */}
+      <UniformCatalogToolbar
+        totalCount={variants.length}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        showForm={showAddForm}
+        onToggleForm={() => setShowAddForm((prev) => !prev)}
+      />
+
+      {/* Form Tambah Varian */}
+      {showAddForm && (
+        <CreateUniformVariantForm
+          busy={busy}
+          onSuccess={(msg) => {
+            setNotice(msg);
+            setShowAddForm(false);
+            reload();
+          }}
+          onError={setError}
+          onCancel={() => setShowAddForm(false)}
+        />
+      )}
+
+      {/* List Varian Seragam */}
+      <UniformVariantList
+        variants={variants}
+        searchQuery={searchQuery}
+        onEdit={(row) => setEditingVariant(row)}
+      />
 
       {editingVariant && (
         <EditUniformVariantModal
@@ -179,8 +124,12 @@ export function UniformCatalogSection() {
         />
       )}
 
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <h3 className="text-sm font-bold">Stok Manual (Awal / Masuk)</h3>
+      {/* Penyesuaian Stok Manual */}
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 space-y-3 shadow-xs">
+        <div>
+          <h3 className="text-sm font-bold text-[#050505]">Stok Manual (Awal / Masuk)</h3>
+          <p className="text-xs text-[#65676B] mt-0.5">Catat saldo stok awal atau penambahan fisik dari pihak ketiga.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <SearchableSingleSelect
@@ -191,8 +140,14 @@ export function UniformCatalogSection() {
               placeholder="— Pilih varian —"
             />
           </div>
-          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={inputCls} /></div>
-          <div><label className={labelCls}>Qty</label><input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={inputCls} /></div>
+          <div>
+            <label className={labelCls}>Size (kosongkan untuk kain)</label>
+            <input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Qty</label>
+            <input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={inputCls} />
+          </div>
           <div>
             <SearchableSingleSelect
               label="Mode"
@@ -206,18 +161,38 @@ export function UniformCatalogSection() {
             />
           </div>
         </div>
-        <div><label className={labelCls}>Alasan (wajib)</label><input value={stReason} onChange={(e) => setStReason(e.target.value)} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} /></div>
+        <div>
+          <label className={labelCls}>Alasan (wajib)</label>
+          <input value={stReason} onChange={(e) => setStReason(e.target.value)} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} />
+        </div>
         <button
-          type="button" disabled={busy || !stVariant}
-          onClick={() => run(() => adjustUniformStock({ variantId: stVariant, size: stSize.trim() || undefined, quantity: Number(stQty) || 0, mode: stMode as "add" | "set", reason: stReason.trim() }), "Stok disesuaikan.")}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
+          type="button"
+          disabled={busy || !stVariant}
+          onClick={() =>
+            run(
+              () =>
+                adjustUniformStock({
+                  variantId: stVariant,
+                  size: stSize.trim() || undefined,
+                  quantity: Number(stQty) || 0,
+                  mode: stMode as "add" | "set",
+                  reason: stReason.trim(),
+                }),
+              "Stok disesuaikan."
+            )
+          }
+          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98] transition-colors"
         >
           Simpan Stok
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-3">
-        <h3 className="text-sm font-bold">Catatan Barang Reject</h3>
+      {/* Catatan Barang Reject */}
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 space-y-3 shadow-xs">
+        <div>
+          <h3 className="text-sm font-bold text-[#050505]">Catatan Barang Reject</h3>
+          <p className="text-xs text-[#65676B] mt-0.5">Dokumentasi kain atau seragam cacat dari konveksi/gudang.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <SearchableSingleSelect
@@ -228,22 +203,43 @@ export function UniformCatalogSection() {
               placeholder="— Pilih varian —"
             />
           </div>
-          <div><label className={labelCls}>Size (kosongkan untuk kain)</label><input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Qty reject</label><input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={inputCls} /></div>
-          <div><label className={labelCls}>Alasan</label><input value={rjReason} onChange={(e) => setRjReason(e.target.value)} placeholder="Cacat / salah jahit ..." className={inputCls} /></div>
+          <div>
+            <label className={labelCls}>Size (kosongkan untuk kain)</label>
+            <input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Qty reject</label>
+            <input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Alasan</label>
+            <input value={rjReason} onChange={(e) => setRjReason(e.target.value)} placeholder="Cacat / salah jahit ..." className={inputCls} />
+          </div>
         </div>
         <button
-          type="button" disabled={busy || !rjVariant}
-          onClick={() => run(() => createUniformReject({ variantId: rjVariant, size: rjSize.trim() || undefined, quantity: Number(rjQty) || 0, reason: rjReason.trim() }), "Reject tercatat.")}
-          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98]"
+          type="button"
+          disabled={busy || !rjVariant}
+          onClick={() =>
+            run(
+              () =>
+                createUniformReject({
+                  variantId: rjVariant,
+                  size: rjSize.trim() || undefined,
+                  quantity: Number(rjQty) || 0,
+                  reason: rjReason.trim(),
+                }),
+              "Reject tercatat."
+            )
+          }
+          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98] transition-colors"
         >
           Catat Reject
         </button>
-        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB]">
+        <div className="divide-y divide-[#E4E6EB] rounded-xl border border-[#E4E6EB] overflow-hidden">
           {rejects.length === 0 && <div className="px-4 py-4 text-xs text-[#65676B]">Belum ada catatan reject.</div>}
           {rejects.slice(0, 20).map((r) => (
-            <div key={r.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-2">
-              <span className="font-semibold">{r.size} × {r.quantity} — {r.reason}</span>
+            <div key={r.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-2 hover:bg-[#F0F2F5]/50">
+              <span className="font-semibold">{r.size || "-"} × {r.quantity} — {r.reason}</span>
               <span className="text-[#65676B]">{r.createdAt.slice(0, 10)}</span>
             </div>
           ))}
