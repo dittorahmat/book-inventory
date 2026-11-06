@@ -31,11 +31,13 @@ export function UniformCatalogSection() {
   const [stQty, setStQty] = useState("0");
   const [stMode, setStMode] = useState("add");
   const [stReason, setStReason] = useState("");
+  const [stError, setStError] = useState<string | null>(null);
   const [rejects, setRejects] = useState<UniformRejectRow[]>([]);
   const [rjVariant, setRjVariant] = useState("");
   const [rjSize, setRjSize] = useState("");
   const [rjQty, setRjQty] = useState("1");
   const [rjReason, setRjReason] = useState("");
+  const [rjError, setRjError] = useState<string | null>(null);
 
   const reload = async () => {
     try {
@@ -163,12 +165,22 @@ export function UniformCatalogSection() {
         </div>
         <div>
           <label className={labelCls}>Alasan (wajib)</label>
-          <input value={stReason} onChange={(e) => setStReason(e.target.value)} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} />
+          <input value={stReason} onChange={(e) => { setStReason(e.target.value); setStError(null); }} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} />
         </div>
+        {stError && <p className="text-xs text-rose-600 font-medium">{stError}</p>}
         <button
           type="button"
-          disabled={busy || !stVariant}
-          onClick={() =>
+          disabled={busy}
+          onClick={() => {
+            if (!stVariant) {
+              setStError("Pilih varian seragam terlebih dahulu.");
+              return;
+            }
+            if (!stReason.trim()) {
+              setStError("Alasan penyesuaian stok wajib diisi.");
+              return;
+            }
+            setStError(null);
             run(
               () =>
                 adjustUniformStock({
@@ -179,8 +191,8 @@ export function UniformCatalogSection() {
                   reason: stReason.trim(),
                 }),
               "Stok disesuaikan."
-            )
-          }
+            );
+          }}
           className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98] transition-colors"
         >
           Simpan Stok
@@ -213,13 +225,23 @@ export function UniformCatalogSection() {
           </div>
           <div>
             <label className={labelCls}>Alasan</label>
-            <input value={rjReason} onChange={(e) => setRjReason(e.target.value)} placeholder="Cacat / salah jahit ..." className={inputCls} />
+            <input value={rjReason} onChange={(e) => { setRjReason(e.target.value); setRjError(null); }} placeholder="Cacat / salah jahit ..." className={inputCls} />
           </div>
         </div>
+        {rjError && <p className="text-xs text-rose-600 font-medium">{rjError}</p>}
         <button
           type="button"
-          disabled={busy || !rjVariant}
-          onClick={() =>
+          disabled={busy}
+          onClick={() => {
+            if (!rjVariant) {
+              setRjError("Pilih varian seragam terlebih dahulu.");
+              return;
+            }
+            if (!rjReason.trim()) {
+              setRjError("Alasan reject wajib diisi.");
+              return;
+            }
+            setRjError(null);
             run(
               () =>
                 createUniformReject({
@@ -229,8 +251,8 @@ export function UniformCatalogSection() {
                   reason: rjReason.trim(),
                 }),
               "Reject tercatat."
-            )
-          }
+            );
+          }}
           className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-[0.98] transition-colors"
         >
           Catat Reject

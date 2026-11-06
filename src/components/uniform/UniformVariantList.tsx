@@ -8,17 +8,21 @@ interface UniformVariantListProps {
   onEdit: (row: UniformVariantRow) => void;
 }
 
+function matchesUniformVariantSearch(row: UniformVariantRow, rawQuery: string): boolean {
+  const q = rawQuery.toLowerCase().trim();
+  if (!q) return true;
+  const { variant: v } = row;
+  const kindLabel = v.kind === "kain_harian" ? "kain" : "olahraga";
+  return (
+    v.name.toLowerCase().includes(q) ||
+    v.code.toLowerCase().includes(q) ||
+    v.jenjang.toLowerCase().includes(q) ||
+    kindLabel.includes(q)
+  );
+}
+
 export function UniformVariantList({ variants, searchQuery, onEdit }: UniformVariantListProps) {
-  const filtered = variants.filter(({ variant: v }) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      v.name.toLowerCase().includes(q) ||
-      v.code.toLowerCase().includes(q) ||
-      v.jenjang.toLowerCase().includes(q) ||
-      (v.kind === "kain_harian" ? "kain" : "olahraga").includes(q)
-    );
-  });
+  const filtered = variants.filter((row) => matchesUniformVariantSearch(row, searchQuery));
 
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB] overflow-hidden shadow-xs">
