@@ -24,7 +24,7 @@ export function SegmentedSubNav<T extends string>({
   className = "",
 }: SegmentedSubNavProps<T>) {
   return (
-    <nav className={`flex items-center overflow-x-auto max-w-full p-1 bg-[#F0F2F5] rounded-xl gap-1 border border-[#E4E6EB]/60 no-scrollbar ${className}`}>
+    <nav className={`flex flex-wrap items-center p-1 bg-[#F0F2F5] rounded-xl gap-1 border border-[#E4E6EB]/60 ${className}`}>
       {items.map((item) => {
         const Icon = item.icon;
         const active = activeId === item.id;
@@ -33,7 +33,7 @@ export function SegmentedSubNav<T extends string>({
             key={item.id}
             type="button"
             onClick={() => onChange(item.id)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all active:scale-[0.98] ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all active:scale-[0.98] ${
               active
                 ? "bg-white text-[#1877F2] shadow-xs"
                 : "text-[#65676B] hover:text-[#050505] hover:bg-white/60"

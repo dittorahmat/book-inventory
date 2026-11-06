@@ -33,7 +33,7 @@ const violations: Array<{ file: string; line: number; text: string }> = [];
 const FORBIDDEN_PATTERNS = [
   /disabled=\{[^}]*(!canContinue|isMissingProof|!allocationCheck\.ok)[^}]*\}/,
   /disabled=\{[^}]*(!searchSchoolId|!schoolId|query\.trim\(\)\.length)[^}]*\}/,
-  /disabled=\{[^}]*(!stVariant|!rjVariant)[^}]*\}/,
+  /disabled=\{[^}]*(!stVariant|!rjVariant|!hasSchoolSelected|!has[A-Z]\w*Selected)[^}]*\}/,
 ];
 
 for (const file of files) {
