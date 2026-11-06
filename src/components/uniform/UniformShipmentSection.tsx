@@ -19,7 +19,7 @@ import {
 } from "./uniform-admin-api";
 import { UniformShippingBatchModal } from "./UniformShippingBatchModal";
 import { UniformOrderCard } from "./UniformOrderCard";
-import { UniformOngkirForm, UniformCashierPayForm } from "./UniformShipmentActionModals";
+import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
 
 interface Props {
   schools: Array<{ id: string; name: string }>;
@@ -43,14 +43,13 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
-  const [ongkirFor, setOngkirFor] = useState<string | null>(null);
-  const [ongkirCost, setOngkirCost] = useState("");
-  const [ongkirResi, setOngkirResi] = useState("");
+  // Modal Contextual Actions
+  const [ongkirOrder, setOngkirOrder] = useState<UniformOrderRow | null>(null);
+  const [payOrder, setPayOrder] = useState<UniformOrderRow | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payResult, setPayResult] = useState<string | null>(null);
 
   const [reviewRow, setReviewRow] = useState<UniformOrderRow | null>(null);
-  const [payFor, setPayFor] = useState<string | null>(null);
-  const [payBusyId, setPayBusyId] = useState<string | null>(null);
-  const [payResult, setPayResult] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,11 +87,11 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   };
 
   const handleSaveOngkir = async (cost: string, resi: string) => {
-    if (!ongkirFor) return;
+    if (!ongkirOrder) return;
     setError(null);
     try {
-      await saveUniformShipping(ongkirFor, parseInt(cost) || 0, resi.trim() || undefined);
-      setOngkirFor(null);
+      await saveUniformShipping(ongkirOrder.id, parseInt(cost) || 0, resi.trim() || undefined);
+      setOngkirOrder(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan ongkir.");
@@ -162,20 +161,20 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   };
 
   const handlePay = async (transfer: string, allocation: string, bank: string) => {
-    if (!payFor) return;
-    setPayBusyId(payFor);
+    if (!payOrder) return;
+    setPayBusy(true);
     setError(null);
     try {
       const t = parseInt(transfer) || 0;
       const a = parseInt(allocation) || 0;
-      const res = await payUniformOrder(payFor, { transferAmount: t, allocationAmount: a, bankName: bank });
+      const res = await payUniformOrder(payOrder.id, { transferAmount: t, allocationAmount: a, bankName: bank });
       setPayResult(`Pembayaran berhasil dicatat.${res.notification ? " " + formatNotification("verifikasi", res.notification) : ""}`);
-      setPayFor(null);
+      setPayOrder(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mencatat pembayaran.");
     } finally {
-      setPayBusyId(null);
+      setPayBusy(false);
     }
   };
 
@@ -272,27 +271,8 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         </div>
       )}
 
-      {/* Sub-Form Input Ongkir & Resi */}
-      {ongkirFor && (
-        <UniformOngkirForm
-          initialCost={ongkirCost}
-          initialResi={ongkirResi}
-          onSave={handleSaveOngkir}
-          onCancel={() => setOngkirFor(null)}
-        />
-      )}
-
-      {/* Sub-Form Input Bayar Manual Kasir */}
-      {payFor && (
-        <UniformCashierPayForm
-          busy={payBusyId === payFor}
-          onSave={handlePay}
-          onCancel={() => setPayFor(null)}
-        />
-      )}
-
-      {/* Orders List */}
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB] overflow-hidden shadow-xs">
+      {/* Orders List Container */}
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB] shadow-xs">
         {loading && <div className="px-4 py-12 text-center text-xs text-[#65676B]">Memuat daftar pesanan…</div>}
         {!loading && rows.length === 0 && (
           <div className="px-4 py-12 text-center text-xs text-[#65676B]">
@@ -306,21 +286,42 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
               order={r}
               shippingId={shippingId}
               onShip={handleShip}
-              onOpenOngkir={(id, cost, resi) => {
-                setOngkirFor(id);
-                setOngkirCost(String(cost || ""));
-                setOngkirResi(resi);
-              }}
+              onOpenOngkir={(ord) => setOngkirOrder(ord)}
               onInvoice={handleInvoice}
               onScholarship={handleScholarship}
-              onReview={(order) => setReviewRow(order)}
-              onOpenPay={(id) => {
-                setPayFor(id);
+              onReview={(ord) => setReviewRow(ord)}
+              onOpenPay={(ord) => {
+                setPayOrder(ord);
                 setPayResult(null);
               }}
             />
           ))}
       </div>
+
+      {/* Modal Input Ongkir & Resi */}
+      {ongkirOrder && (
+        <UniformOngkirModal
+          isOpen={true}
+          orderNumber={ongkirOrder.orderNumber}
+          studentName={ongkirOrder.studentName}
+          initialCost={String(ongkirOrder.shippingCost ?? "")}
+          initialResi={ongkirOrder.shippingResi ?? ""}
+          onSave={handleSaveOngkir}
+          onCancel={() => setOngkirOrder(null)}
+        />
+      )}
+
+      {/* Modal Input Bayar Manual Kasir */}
+      {payOrder && (
+        <UniformCashierPayModal
+          isOpen={true}
+          orderNumber={payOrder.orderNumber}
+          studentName={payOrder.studentName}
+          busy={payBusy}
+          onSave={handlePay}
+          onCancel={() => setPayOrder(null)}
+        />
+      )}
 
       {/* Modal Review Bukti Pembayaran */}
       {reviewRow && (

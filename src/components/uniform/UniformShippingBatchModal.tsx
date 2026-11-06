@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X, Upload, Download, FileText } from "lucide-react";
 
 interface UniformShippingBatchModalProps {
@@ -33,8 +33,24 @@ export function UniformShippingBatchModal({
   hasSchoolSelected,
 }: UniformShippingBatchModalProps) {
   const [activeTab, setActiveTab] = useState<"export" | "import">("export");
+  const [importValidationError, setImportValidationError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!isOpen) return null;
+
+  const handleImportSubmit = () => {
+    if (!hasSchoolSelected) {
+      setImportValidationError("Pilih cabang spesifik pada filter toolbar terlebih dahulu sebelum import.");
+      return;
+    }
+    if (!importText.trim()) {
+      setImportValidationError("Isi data CSV ekspedisi (nis;resi;ongkir) terlebih dahulu.");
+      textareaRef.current?.focus();
+      return;
+    }
+    setImportValidationError(null);
+    onImport();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
@@ -130,13 +146,23 @@ export function UniformShippingBatchModal({
             </div>
           ) : (
             <div className="space-y-3">
+              {importValidationError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium">
+                  {importValidationError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[#050505] mb-1">
                   Data CSV (nis;resi;ongkir per baris)
                 </label>
                 <textarea
+                  ref={textareaRef}
                   value={importText}
-                  onChange={(e) => onImportTextChange(e.target.value)}
+                  onChange={(e) => {
+                    onImportTextChange(e.target.value);
+                    setImportValidationError(null);
+                  }}
                   rows={4}
                   placeholder="NIS123;RESI-JNE-001;18000&#10;NIS124;RESI-SICEPAT-002;20000"
                   className="w-full rounded-xl border border-[#CED0D4] p-3 text-xs font-mono focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
@@ -156,8 +182,8 @@ export function UniformShippingBatchModal({
 
                 <button
                   type="button"
-                  disabled={importBusy || !hasSchoolSelected}
-                  onClick={onImport}
+                  disabled={importBusy}
+                  onClick={handleImportSubmit}
                   className="px-4 py-2 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#166FE5] active:scale-[0.98] transition-colors"
                 >
                   {importBusy ? "Memproses..." : "Import Data"}
