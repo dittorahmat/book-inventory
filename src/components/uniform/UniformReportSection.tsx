@@ -222,8 +222,8 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
               <input type="month" value={claimPeriod} onChange={(e) => setClaimPeriod(e.target.value)} className="rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white" />
             </div>
             <button
-              type="button" onClick={handleClaim} disabled={!schoolId}
-              className="px-4 py-2 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98]"
+              type="button" onClick={handleClaim}
+              className="px-4 py-2 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
             >
               Buat Klaim
             </button>

@@ -21,17 +21,19 @@ const targetDirs = [
   join(process.cwd(), "src", "components", "portal"),
   join(process.cwd(), "src", "components", "students"),
   join(process.cwd(), "src", "components", "orders"),
+  join(process.cwd(), "src", "components", "uniform"),
 ];
 
 const files = targetDirs.flatMap((dir) => walk(dir));
 const violations: Array<{ file: string; line: number; text: string }> = [];
 
 // Pola terlarang: tombol submit yang didisable karena kondisi kelengkapan form
-// Pengecualian sah: state asinkron murni (isSubmitting, submitting, saving, isBusy, loading, dll)
+// Pengecualian sah: state asinkron murni (isSubmitting, submitting, saving, isBusy, loading, busy, dll)
 // atau kontrak otomasi serah terima (!isCodeMatched pada OrderHandoverModal)
 const FORBIDDEN_PATTERNS = [
   /disabled=\{[^}]*(!canContinue|isMissingProof|!allocationCheck\.ok)[^}]*\}/,
   /disabled=\{[^}]*(!searchSchoolId|!schoolId|query\.trim\(\)\.length)[^}]*\}/,
+  /disabled=\{[^}]*(!stVariant|!rjVariant)[^}]*\}/,
 ];
 
 for (const file of files) {

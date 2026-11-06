@@ -120,7 +120,13 @@ describe("UniformView", () => {
       fireEvent.click(catalogTab);
     });
 
-    expect(screen.getByText(/Tambah Varian/i)).toBeDefined();
+    const tambahBtn = screen.getByRole("button", { name: /Tambah Varian/i });
+    expect(tambahBtn).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(tambahBtn);
+    });
+
     expect(screen.getByRole("button", { name: /Simpan Varian/i })).toBeDefined();
   });
 });
