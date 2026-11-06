@@ -672,5 +672,18 @@ describe("Packages & Bundling/Unbundling API", () => {
     await db.delete(books).where(eq(books.id, book.id));
     await db.delete(schools).where(inArray(schools.id, [schA.id, schB.id]));
   });
+
+  it("handles package lifecycle routing through deep package service seam", async () => {
+    const res = await packagesRouter.request("/non-existent-pkg/unbundle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: "sch-none",
+        quantity: 1,
+        reason: "Test non-existent",
+      }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
