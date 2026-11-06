@@ -12,7 +12,6 @@ import {
 import { markSatuanShipped } from "../services/order-intake";
 import { assertSendInvoiceAllowed, setBookShipping } from "../services/order-shipping";
 import { sendBookInvoice } from "../services/order-invoice";
-import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import {
   accessErrorResponse,
@@ -20,7 +19,7 @@ import {
   requireScopedActor,
   LOGISTICS_ROLES,
 } from "../services/access-scope";
-import { guardScopedOrderMutation } from "../services/order-operations";
+import { guardScopedOrderMutation, transitionOrder } from "../services/order-operations";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { pendingPaymentCounts } from "../services/order-payment-review";
 import { deriveStatus } from "../services/payment-ledger";
@@ -209,17 +208,10 @@ studentOrdersRouter.post("/:id/send-invoice", async (c) => {
 studentOrdersRouter.delete("/:id", async (c) => {
   try {
     const id = c.req.param("id");
-
-    const guard = await guardScopedOrderMutation(db, c, id, "none");
-    if (!guard.ok) {
-      return c.json({ success: false, message: guard.message }, guard.status);
+    const result = await transitionOrder(db, c, id, { action: "cancel" });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status as 400 | 403 | 404 | 500);
     }
-
-    const cancelled = await cancelStudentOrder(db, id);
-    if (!cancelled.ok) {
-      return c.json({ success: false, message: cancelled.message }, cancelled.status);
-    }
-
     return c.json({ success: true, message: "Pesanan siswa berhasil dihapus" });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -238,14 +230,9 @@ studentOrdersRouter.post("/:id/discretion", zValidator("json", discretionSchema)
     const id = c.req.param("id");
     const body = c.req.valid("json");
 
-    const guard = await guardScopedOrderMutation(db, c, id, "none");
-    if (!guard.ok) {
-      return c.json({ success: false, message: guard.message }, guard.status);
-    }
-
-    const applied = await applyDiscretion(db, id, body);
+    const applied = await transitionOrder(db, c, id, { action: "discretion", payload: body });
     if (!applied.ok) {
-      return c.json({ success: false, message: applied.message }, applied.status);
+      return c.json({ success: false, message: applied.message }, applied.status as 400 | 403 | 404 | 500);
     }
     const [updated] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, id));
 
