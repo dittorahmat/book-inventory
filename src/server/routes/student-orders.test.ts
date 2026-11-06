@@ -1190,4 +1190,35 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(schools).where(inArray(schools.id, [schA, schB]));
     }
   });
+
+  it("handles cancel and discretion through unified transitionOrder seam", async () => {
+    const stamp = Date.now();
+    const sch = `sch-trans-${stamp}`;
+    const stu = `stu-trans-${stamp}`;
+    const ord = `ord-trans-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({ id: sch, name: "Trans Sch", code: `TS-${stamp}`.slice(0, 20), type: "branch", createdAt: now, updatedAt: now });
+    await db.insert(students).values({ id: stu, schoolId: sch, nis: `NIS-${stamp}`.slice(0, 20), name: "Trans Stu", gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027", createdAt: now, updatedAt: now });
+    await db.insert(studentBookOrders).values({
+      id: ord, orderNumber: `ORD-${stamp}`, studentId: stu, schoolId: sch,
+      orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+      totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+    });
+
+    try {
+      const disc = await studentOrdersRouter.request(`/${ord}/discretion`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discretionType: "discount", discountAmount: 20000, discretionNotes: "Diskon seam" }),
+      });
+      expect(disc.status).toBe(200);
+
+      const del = await studentOrdersRouter.request(`/${ord}`, { method: "DELETE" });
+      expect(del.status).toBe(200);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, ord));
+      await db.delete(students).where(eq(students.id, stu));
+      await db.delete(schools).where(eq(schools.id, sch));
+    }
+  });
 });

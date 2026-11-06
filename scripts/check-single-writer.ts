@@ -59,6 +59,24 @@ const OWNED_WRITES: OwnedWrite[] = [
     pattern: /\.(insert|update)\s*\(\s*uniformExchanges\s*\)/,
     detail: "satu mesin tukar seragam: pakai requestUniformExchange()/resolveUniformExchange() dari services/uniform/exchange",
   },
+  {
+    table: "book_stocks",
+    owner: "src/server/services/stock/aggregate.ts",
+    pattern: /\.(insert|update)\s*\(\s*bookStocks\s*\)/,
+    detail: "mutasi saldo buku agregat: pakai moveInventoryStock() dari services/stock",
+  },
+  {
+    table: "package_stocks",
+    owner: "src/server/services/stock/aggregate.ts",
+    pattern: /\.(insert|update)\s*\(\s*packageStocks\s*\)/,
+    detail: "mutasi saldo paket buku agregat: pakai moveInventoryStock() dari services/stock",
+  },
+  {
+    table: "stock_adjustments",
+    owner: "src/server/services/stock/aggregate.ts",
+    pattern: /\.(insert|update)\s*\(\s*stockAdjustments\s*\)/,
+    detail: "audit penyesuaian stok: pakai moveInventoryStock({ movementType: 'adjustment' }) dari services/stock",
+  },
 ];
 
 const walk = (dir: string, out: string[] = []): string[] => {
@@ -142,4 +160,4 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log(`Single-writer gate OK (${ALL ? "all" : `${targetFiles.length} file berubah`}): struk, slip retur, retur buku, tukar seragam & stok seragam hanya ditulis modul pemiliknya.`);
+console.log(`Single-writer gate OK (${ALL ? "all" : `${targetFiles.length} file berubah`}): struk, slip retur, retur buku, tukar seragam, stok buku agregat & stok seragam hanya ditulis modul pemiliknya.`);

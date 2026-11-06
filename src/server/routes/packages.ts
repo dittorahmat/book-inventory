@@ -13,8 +13,12 @@ import {
   resolveBookLogisticsActor,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
-import { deletePackageWithAutoUnbundle, updatePackageWithAutoUnbundle } from "../services/package-mutation";
+import {
+  assemblePackage,
+  disassemblePackage,
+  removePackage,
+  updatePackageBOM,
+} from "../services/package";
 import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
@@ -223,7 +227,7 @@ packagesRouter.post("/:id/bundle", zValidator("json", bundleActionSchema), async
       return c.json({ success: false, message: "Perakitan paket hanya dapat dilakukan di Gudang Pusat." }, 403);
     }
 
-    const result = await assemblePackageBundles(db, packageId, schoolId, quantity);
+    const result = await assemblePackage(db, packageId, schoolId, quantity);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -247,7 +251,7 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
     const { schoolId, quantity, reason } = c.req.valid("json");
     assertLocationAllowed(actor, schoolId, locations);
 
-    const result = await disassemblePackageBundles(db, packageId, schoolId, quantity, reason);
+    const result = await disassemblePackage(db, packageId, schoolId, quantity, reason);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -269,7 +273,7 @@ packagesRouter.put("/:id", zValidator("json", createPackageSchema), async (c) =>
     const packageId = c.req.param("id");
     const body = c.req.valid("json");
 
-    const result = await updatePackageWithAutoUnbundle(db, packageId, body);
+    const result = await updatePackageBOM(db, packageId, body);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -291,7 +295,7 @@ packagesRouter.delete("/:id", async (c) => {
     await resolveBookLogisticsActor(c);
     const packageId = c.req.param("id");
 
-    const result = await deletePackageWithAutoUnbundle(db, packageId);
+    const result = await removePackage(db, packageId);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

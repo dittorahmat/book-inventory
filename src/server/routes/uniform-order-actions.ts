@@ -6,7 +6,7 @@ import { resolveLogisticsActor, accessErrorResponse, requireScopedActor } from "
 import { sendUniformInvoice } from "../services/order-invoice";
 import { setUniformShipping } from "../services/order-shipping";
 import { getUniformSalesReport } from "../services/uniform";
-import { approveUniformWithdrawal } from "../services/uniform-withdrawal";
+import { approveStudentWithdrawal } from "../services/order-withdrawal";
 import { findRefundSlip } from "../services/refund-slip";
 import {
   cashierPaymentSchema,
@@ -23,7 +23,7 @@ export const uniformOrderActionsRouter = new Hono();
 uniformOrderActionsRouter.post("/refunds/:id/approve-withdrawal", async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await approveUniformWithdrawal(db, c.req.param("id"));
+    const result = await approveStudentWithdrawal(db, { kind: "seragam", refundId: c.req.param("id") });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

@@ -8,7 +8,7 @@ import { studentOrdersRouter } from "../routes/student-orders";
 import { db } from "../../db";
 import { studentBookOrders } from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { guardScopedOrderMutation } from "./order-operations";
+import { guardScopedOrderMutation, transitionOrder } from "./order-operations";
 import { dropSeed, seedSchool, seedStudent } from "../lib/test-seed";
 
 const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
@@ -51,10 +51,41 @@ describe("order-operations seam (scope + paket-vs-satuan gate)", () => {
       });
       expect(miss.status).toBe(404);
       expect(guardScopedOrderMutation).toBeDefined();
+      expect(transitionOrder).toBeDefined();
     } finally {
       restoreActor();
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await dropSeed({ schoolIds: [schoolId, otherId], studentIds: [studentId] });
+    }
+  });
+
+  it("executes discretion and cancel through transitionOrder", async () => {
+    const now = new Date().toISOString();
+    const sId = await seedSchool(`ops3-${suffix}`, "Ops Test 3");
+    const stuId = await seedStudent(`ops3-${suffix}`, sId, "Ops Murid 3");
+    const ordId = `ord-ops3-${suffix}`;
+    try {
+      await db.insert(studentBookOrders).values({
+        id: ordId, orderNumber: `ORD-OPS3-${suffix}`, studentId: stuId, schoolId: sId,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 50000, paidAmount: 0, createdAt: now, updatedAt: now,
+      });
+
+      mockActor("central_admin", null);
+      const discRes = await studentOrdersRouter.request(`/${ordId}/discretion`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discretionType: "discount", discountAmount: 10000, discretionNotes: "Potongan yayasan" }),
+      });
+      expect(discRes.status).toBe(200);
+
+      const delRes = await studentOrdersRouter.request(`/${ordId}`, {
+        method: "DELETE",
+      });
+      expect(delRes.status).toBe(200);
+    } finally {
+      restoreActor();
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, ordId));
+      await dropSeed({ schoolIds: [sId], studentIds: [stuId] });
     }
   });
 });

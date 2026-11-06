@@ -6,7 +6,7 @@ import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, newWriteId, runWri
 import { isoTimeFragment } from "../lib/document-number";
 import { kitBomWithoutWpr } from "./pricing";
 import { AVAILABLE_LOOSE_STATUSES, KITTABLE_CONDITIONS, READY_BUNDLE_STATUSES } from "./stock";
-import { adjustLooseStock, adjustPackageStock } from "./stock/aggregate";
+import { moveInventoryStock } from "./stock";
 
 export type AssemblyError = { ok: false; status: ContentfulStatusCode; message: string };
 
@@ -149,10 +149,30 @@ export async function assemblePackageBundles(
       ...chunkRows(itemsToInsert).map((rows) => database.insert(packageItems).values(rows)),
     ]);
 
-    // Update saldo stok kuantitas agregat (Ticket 3)
-    await adjustPackageStock(database, packageId, schoolId, quantity, deps);
+    // Update saldo stok kuantitas agregat via deep stock movement engine
+    await moveInventoryStock(
+      database,
+      {
+        movementType: "assembly",
+        itemType: "package",
+        packageId,
+        schoolId,
+        quantity,
+      },
+      deps
+    );
     for (const comp of kitBom) {
-      await adjustLooseStock(database, comp.bookId, schoolId, -(comp.quantity * quantity), deps);
+      await moveInventoryStock(
+        database,
+        {
+          movementType: "handover", // serap buku satuan
+          itemType: "loose",
+          bookId: comp.bookId,
+          schoolId,
+          quantity: comp.quantity * quantity,
+        },
+        deps
+      );
     }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "perakitan paket");
@@ -255,10 +275,30 @@ export async function disassemblePackageBundles(
         ...chunkRows(restoredBookItems).map((rows) => database.insert(bookItems).values(rows)),
       ]);
 
-      // Update saldo stok kuantitas agregat (Ticket 3)
-      await adjustPackageStock(database, packageId, schoolId, -quantity, deps);
+      // Update saldo stok kuantitas agregat via deep stock movement engine
+      await moveInventoryStock(
+        database,
+        {
+          movementType: "disassembly",
+          itemType: "package",
+          packageId,
+          schoolId,
+          quantity,
+        },
+        deps
+      );
       for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
-        await adjustLooseStock(database, item.bookId, schoolId, item.quantity * quantity, deps);
+        await moveInventoryStock(
+          database,
+          {
+            movementType: "receipt", // kembalikan buku satuan ke rak
+            itemType: "loose",
+            bookId: item.bookId,
+            toSchoolId: schoolId,
+            quantity: item.quantity * quantity,
+          },
+          deps
+        );
       }
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "pembongkaran paket");

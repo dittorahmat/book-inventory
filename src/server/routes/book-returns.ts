@@ -11,7 +11,7 @@ import {
   schools,
 } from "../../db/schema";
 import { reportReturn, resolveReturn } from "../services/return";
-import { approveBookWithdrawal } from "../services/book-withdrawal";
+import { approveStudentWithdrawal } from "../services/order-withdrawal";
 import { findRefundSlip } from "../services/refund-slip";
 import {
   accessErrorResponse,
@@ -230,7 +230,7 @@ bookReturnsRouter.post("/:id/approve-withdrawal", async (c) => {
       return c.json({ success: false, message: scoped.message }, scoped.status);
     }
 
-    const result = await approveBookWithdrawal(db, returnId);
+    const result = await approveStudentWithdrawal(db, { kind: "buku", returnId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

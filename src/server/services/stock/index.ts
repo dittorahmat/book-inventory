@@ -56,6 +56,12 @@ export {
   ensurePackageStockRow,
   recordStockAdjustment,
 } from "./aggregate";
+export { moveInventoryStock } from "./movement";
+export type {
+  InventoryMovementInput,
+  StockMovementResult,
+  StockMovementType,
+} from "./movement";
 export type { BookStockLine, StockAdjustmentInput } from "./aggregate";
 export type { LooseStockSummaryRow, PackageStockSummaryRow } from "./summary";
 export { getLooseStockSummary, getPackageStockSummary } from "./summary";

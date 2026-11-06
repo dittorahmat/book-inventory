@@ -9,7 +9,7 @@ import {
   purchaseOrders,
 } from "../../../db/schema";
 import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
-import { adjustLooseStock, recordStockAdjustment } from "../stock/aggregate";
+import { moveInventoryStock } from "../stock";
 
 /** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
 export interface ReceivedItemInput {
@@ -198,7 +198,8 @@ export async function receivePurchaseOrder(
       const bookId = poItemMap.get(rec.poItemId);
       if (bookId) {
         if (rec.condition === "damaged") {
-          await recordStockAdjustment(database, {
+          await moveInventoryStock(database, {
+            movementType: "adjustment",
             schoolId: targetSchoolId,
             itemType: "loose",
             bookId,
@@ -206,10 +207,15 @@ export async function receivePurchaseOrder(
             reason: "damaged",
             referenceDocumentNumber: poNum,
             notes: "Penerimaan PO dengan kondisi rusak",
-            updateStockBalance: false,
           }, deps);
         } else {
-          await adjustLooseStock(database, bookId, targetSchoolId, rec.quantityToReceive, deps);
+          await moveInventoryStock(database, {
+            movementType: "receipt",
+            toSchoolId: targetSchoolId,
+            itemType: "loose",
+            bookId,
+            quantity: rec.quantityToReceive,
+          }, deps);
         }
       }
     }
@@ -308,12 +314,13 @@ export async function recordPoReceipt(
       ...chunkRows(receiptItemRows).map((chunk) => database.insert(purchaseOrderReceiptItems).values(chunk)),
     ]);
 
-    // Update saldo stok kuantitas agregat (Ticket 2)
+    // Update saldo stok kuantitas agregat via deep stock movement engine
     for (const rec of input.receivedItems) {
       const bookId = poItemMap.get(rec.poItemId);
       if (bookId) {
         if (rec.condition === "damaged") {
-          await recordStockAdjustment(database, {
+          await moveInventoryStock(database, {
+            movementType: "adjustment",
             schoolId: loaded.po.targetSchoolId,
             itemType: "loose",
             bookId,
@@ -321,10 +328,15 @@ export async function recordPoReceipt(
             reason: "damaged",
             referenceDocumentNumber: note,
             notes: "Penerimaan PO berkondisi rusak",
-            updateStockBalance: false,
           }, deps);
         } else {
-          await adjustLooseStock(database, bookId, loaded.po.targetSchoolId, rec.quantityToReceive, deps);
+          await moveInventoryStock(database, {
+            movementType: "receipt",
+            toSchoolId: loaded.po.targetSchoolId,
+            itemType: "loose",
+            bookId,
+            quantity: rec.quantityToReceive,
+          }, deps);
         }
       }
     }

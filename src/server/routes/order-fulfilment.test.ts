@@ -15,7 +15,7 @@ import { eq, inArray } from "drizzle-orm";
 import { applyDiscretion, cancelStudentOrder } from "../services/order-finance";
 import { handoverPackage } from "../services/order-handover";
 import { reportReturn, resolveReturn } from "../services/return";
-import { assemblePackageBundles, disassemblePackageBundles } from "../services/package-assembly";
+import { assemblePackage, disassemblePackage } from "../services/package";
 
 const now = new Date().toISOString();
 const stamp = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -137,7 +137,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
         });
       }
 
-      const assembled = await assemblePackageBundles(db, packageId, schoolId, 2);
+      const assembled = await assemblePackage(db, packageId, schoolId, 2);
       if (!assembled.ok) {
         console.error(`[flake #78] assemble kit: status=${assembled.status} message=${assembled.message}`);
       }
@@ -146,7 +146,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       expect(assembled.data.quantityAssembled).toBe(2);
       expect(assembled.data.assembledItems).toHaveLength(2);
 
-      const disassembled = await disassemblePackageBundles(db, packageId, schoolId, 1, "uji restore");
+      const disassembled = await disassemblePackage(db, packageId, schoolId, 1, "uji restore");
       expect(disassembled.ok).toBe(true);
       if (!disassembled.ok) return;
       expect(disassembled.data.unbundledCount).toBe(1);
@@ -171,7 +171,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
     const schoolId = await seedSchool("kitshort");
     const packageId = await seedPackage("kitshort");
     try {
-      const result = await disassemblePackageBundles(db, packageId, schoolId, 3, "uji tolak");
+      const result = await disassemblePackage(db, packageId, schoolId, 3, "uji tolak");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.status).toBe(400);
     } finally {
@@ -194,7 +194,7 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
       }));
       await db.insert(bookItems).values(rows);
 
-      const assembled = await assemblePackageBundles(db, packageId, schoolId, 25);
+      const assembled = await assemblePackage(db, packageId, schoolId, 25);
       if (!assembled.ok) {
         console.error(`[flake #78] assemble kitbulk: status=${assembled.status} message=${assembled.message}`);
       }
@@ -235,10 +235,10 @@ describe("assemble/disassemble langsung via seam modul (T5)", () => {
         });
       }
 
-      const first = await assemblePackageBundles(db, packageId, schoolId, 1, { now: fixedNow });
+      const first = await assemblePackage(db, packageId, schoolId, 1, { now: fixedNow });
       expect(first.ok).toBe(true);
       if (!first.ok) return;
-      const second = await assemblePackageBundles(db, packageId, schoolId, 1, { now: fixedNow });
+      const second = await assemblePackage(db, packageId, schoolId, 1, { now: fixedNow });
       if (!second.ok) {
         console.error(`[flake #78] assemble race: status=${second.status} message=${second.message}`);
       }
@@ -323,7 +323,7 @@ describe("stock condition seam regression (T2)", () => {
         createdAt: now, updatedAt: now,
       });
 
-      const result = await assemblePackageBundles(db, packageId, schoolId, 1);
+      const result = await assemblePackage(db, packageId, schoolId, 1);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.status).toBe(400);
     } finally {
