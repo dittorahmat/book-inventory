@@ -1,13 +1,21 @@
+import { useState } from "react";
 import { CreditCard, Award, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
+import { RegularPaymentForm } from "./RegularPaymentForm";
+import {
+  validatePhone,
+  validateProofFile,
+  validateRequiredSelect,
+  validateRequiredText,
+} from "../../lib/form-validation";
 import type {
   BookPackageOption,
   FileUploadHandler,
 } from "../../lib/portal-types";
 import { PackageBreakdown } from "./PackageBreakdown";
 import { WprQuestion } from "./WprQuestion";
-import { draftRemainder, validateAllocation } from "./order-draft";
+import { validateAllocation } from "./order-draft";
 import type { OrderDraft, OrderDraftActions } from "./useOrderDraft";
 
 interface PaymentStepProps {
@@ -38,26 +46,63 @@ export function PaymentStep({
   const {
     orderType,
     scholarshipProofBase64,
-    paymentChoice,
     transferAmount,
     bookAllocationAmount,
     bankName,
-    referenceNumber,
     paymentProofBase64,
-    financeProofBase64,
     parentPhoneManual,
     notes,
     homeAddress,
     hasTakenPackage,
   } = draft;
-  const { edit, chooseOrderType, choosePaymentScheme, attachProof, setHasTakenPackage } = actions;
+  const { edit, chooseOrderType, attachProof, setHasTakenPackage } = actions;
   const allocationCheck = validateAllocation({
     transferAmount,
     allocationAmount: bookAllocationAmount,
     bookTotal: pkg.price,
   });
+
+  const [attempted, setAttempted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAttempted(true);
+    const errors: Record<string, string | undefined> = {};
+
+    if (orderType === "regular") {
+      const proofCheck = validateProofFile(paymentProofBase64, "Bukti transfer pembayaran");
+      if (!proofCheck.valid) errors.paymentProof = proofCheck.message;
+
+      const bankCheck = validateRequiredSelect(bankName, "Bank Tujuan Transfer");
+      if (!bankCheck.valid) errors.bankName = bankCheck.message;
+
+      const phoneCheck = validatePhone(parentPhoneManual);
+      if (!phoneCheck.valid) errors.parentPhoneManual = phoneCheck.message;
+
+      if (!allocationCheck.ok) {
+        errors.allocation = allocationCheck.message;
+      }
+    } else {
+      const proofCheck = validateProofFile(scholarshipProofBase64, "Surat / Bukti Beasiswa");
+      if (!proofCheck.valid) errors.scholarshipProof = proofCheck.message;
+    }
+
+    if (isSatuan) {
+      const addressCheck = validateRequiredText(homeAddress, "Alamat Rumah Lengkap", 10);
+      if (!addressCheck.valid) errors.homeAddress = addressCheck.message;
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    onSubmit(e);
+  };
+
   return (
-    <form onSubmit={onSubmit} className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-6">
+    <form onSubmit={handleFormSubmit} noValidate className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E4E6EB] shadow-xs space-y-6">
       <div className="border-b border-[#E4E6EB] pb-4">
         <div className="text-xs font-bold text-[#1877F2] uppercase tracking-wider">Jalur Pendaftaran & Pembayaran</div>
         <h2 className="text-base font-bold text-[#050505]">
@@ -123,15 +168,22 @@ export function PaymentStep({
 
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1.5">
-              Foto Surat / Kartu Beasiswa (Wajib)
+              Foto Surat / Kartu Beasiswa <span className="text-rose-600">*Wajib</span>
             </label>
             <input
               type="file"
               accept="image/*"
-              required
-              onChange={(e) => onFileUpload(e, (base64) => attachProof("scholarship", base64))}
+              onChange={(e) => {
+                onFileUpload(e, (base64) => {
+                  attachProof("scholarship", base64);
+                  if (attempted) {
+                    setFieldErrors((prev) => ({ ...prev, scholarshipProof: undefined }));
+                  }
+                });
+              }}
               className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700"
             />
+            <FormFieldFeedback error={attempted ? fieldErrors.scholarshipProof : undefined} />
           </div>
 
           {scholarshipProofBase64 && (
@@ -149,158 +201,16 @@ export function PaymentStep({
 
       {/* JALUR REGULER DETAILS */}
       {orderType === "regular" && (
-        <div className="space-y-4 p-5 bg-[#F7F8FA] border border-[#E4E6EB] rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#050505]">Rencana Pembayaran</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => choosePaymentScheme({ choice: "full", bookTotal: pkg.price })}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                  paymentChoice === "full" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
-                }`}
-              >
-                Bayar Lunas
-              </button>
-              <button
-                type="button"
-                onClick={() => choosePaymentScheme({ choice: "partial", bookTotal: pkg.price })}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                  paymentChoice === "partial" ? "bg-[#1877F2] text-white" : "bg-white text-[#65676B] border border-[#CED0D4]"
-                }`}
-              >
-                Cicilan (Parsial)
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <SearchableSingleSelect
-                label="Bank Tujuan Transfer"
-                options={[
-                  { value: "BCA", label: "BCA", hint: "Yayasan Al Wildan - 882019283" },
-                  { value: "Mandiri", label: "Mandiri", hint: "Yayasan Al Wildan - 164000293" },
-                  { value: "BSI", label: "BSI", hint: "Yayasan Al Wildan - 772001928" },
-                ]}
-                value={bankName}
-                onChange={(value) => edit({ bankName: value })}
-                placeholder="Pilih bank..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Nomor Referensi / No. Resi Bank
-              </label>
-              <input
-                type="text"
-                value={referenceNumber}
-                onChange={(e) => edit({ referenceNumber: e.target.value })}
-                placeholder="Contoh: 981249821 / Ref ATM"
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Total Nominal Struk Bukti Transfer (Rp)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={transferAmount === 0 ? "" : transferAmount}
-                onChange={(e) => edit({ transferAmount: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-                placeholder="Total di struk (bisa gabung SPP)"
-              />
-              <span className="text-[10px] text-[#65676B] block mt-0.5">
-                *Isi total transfer di struk jika mentransfer gabungan (SPP + Buku).
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Alokasi Khusus untuk Buku Ini (Rp)
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={pkg.price}
-                placeholder="0"
-                value={bookAllocationAmount === 0 ? "" : bookAllocationAmount}
-                onChange={(e) => edit({ bookAllocationAmount: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]"
-              />
-              <div className="flex justify-between text-[10px] text-[#65676B] mt-0.5">
-                <span>Tagihan: {formatRupiah(pkg.price)}</span>
-                <span>Sisa: {formatRupiah(draftRemainder(pkg.price, bookAllocationAmount))}</span>
-              </div>
-              {!allocationCheck.ok && (
-                <p role="alert" className="mt-1.5 text-[11px] font-semibold text-red-600">
-                  {allocationCheck.message}
-                </p>
-              )}
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Nomor WhatsApp Wali Murid (Penerima Bukti Pengambilan) <span className="text-red-500 font-bold">*Wajib</span>
-              </label>
-              <input
-                type="tel"
-                required
-                value={parentPhoneManual}
-                onChange={(e) => edit({ parentPhoneManual: e.target.value })}
-                placeholder="Contoh: 081234567890 (Bukti Pengambilan & Kode Unik dikirim ke nomor ini)"
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
-              />
-              <span className="text-[10px] text-[#65676B] block mt-0.5">
-                *Wajib diisi nomor WhatsApp aktif yang akan membawa siswa/mengambil buku di cabang.
-              </span>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Foto / Screenshot Bukti Transfer <span className="text-[#65676B] font-normal">(Wajib jika bayar transfer)</span>
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                data-testid="payment-proof-input"
-                onChange={(e) => onFileUpload(e, (base64) => attachProof("payment", base64))}
-                className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
-              />
-              {paymentProofBase64 && (
-                <p className="mt-1 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-                  ✓ Bukti transfer telah terunggah
-                </p>
-              )}
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-[#050505] mb-1">
-                Surat Keterangan dari Finance Al Wildan <span className="text-[#65676B] font-normal">(Opsional / Jika ada dispensasi finance)</span>
-              </label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                data-testid="finance-proof-input"
-                onChange={(e) => onFileUpload(e, (base64) => attachProof("finance", base64))}
-                className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-800"
-              />
-              {financeProofBase64 ? (
-                <p className="mt-1 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-                  ✓ Surat Keterangan Finance telah terunggah
-                </p>
-              ) : (
-                <p className="mt-1 text-[10px] text-[#65676B]">
-                  *Unggah surat rekomendasi/keterangan dari bagian Finance apabila pembayaran dicicil atau ditunda.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <RegularPaymentForm
+          draft={draft}
+          actions={actions}
+          pkgPrice={pkg.price}
+          allocationCheck={allocationCheck}
+          attempted={attempted}
+          fieldErrors={fieldErrors}
+          setFieldErrors={setFieldErrors}
+          onFileUpload={onFileUpload}
+        />
       )}
 
       {isSatuan && (
@@ -344,6 +254,8 @@ export function PaymentStep({
         />
       </div>
 
+      <FormSummaryAlert errors={attempted ? fieldErrors : {}} />
+
       <div className="pt-4 border-t border-[#E4E6EB] flex justify-between">
         <button
           type="button"
@@ -352,22 +264,14 @@ export function PaymentStep({
         >
           Kembali
         </button>
-        {(() => {
-          const isMissingProof =
-            orderType === "regular"
-              ? !paymentProofBase64
-              : !scholarshipProofBase64;
-          return (
-            <button
-              type="submit"
-              disabled={isSubmitting || isMissingProof || !allocationCheck.ok}
-              className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              <span>{isSubmitting ? "Mengirimkan Pesanan..." : "Konfirmasi & Kirim Pesanan"}</span>
-              <CheckCircle2 className="w-4 h-4" />
-            </button>
-          );
-        })()}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="px-6 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
+        >
+          <span>{isSubmitting ? "Mengirimkan Pesanan..." : "Konfirmasi & Kirim Pesanan"}</span>
+          <CheckCircle2 className="w-4 h-4" />
+        </button>
       </div>
     </form>
   );

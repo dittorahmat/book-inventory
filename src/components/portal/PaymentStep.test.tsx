@@ -1,6 +1,8 @@
 import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
-const { cleanup, render, screen } = await import("@testing-library/react");
+// Dinamis + top-level await: pastikan shim DOM sudah terpasang sebelum
+// modul CJS @testing-library mengikat screen ke document.body.
+const { cleanup, fireEvent, render, screen } = await import("@testing-library/react");
 import { PaymentStep } from "./PaymentStep";
 import type { BookPackageOption } from "../../lib/portal-types";
 import type { OrderDraft, OrderDraftActions } from "./useOrderDraft";
@@ -73,36 +75,31 @@ describe("PaymentStep", () => {
     expect(screen.queryByText("Serah-terima paket")).toBeNull();
   });
 
-  it("disables submit button when paymentProofBase64 is empty for regular order", () => {
-    const { rerender } = render(
+  it("keeps submit button clickable but displays feedback when submitted without proof", () => {
+    let submitted = false;
+    render(
       <PaymentStep
         pkg={samplePkg}
-        draft={draft()}
+        draft={draft({ paymentProofBase64: "" })}
         actions={actions}
         isSatuan={false}
         isSubmitting={false}
         onFileUpload={noop}
         onBack={noop}
-        onSubmit={noop}
+        onSubmit={(_e) => {
+          submitted = true;
+        }}
       />
     );
 
     const submitBtn = screen.getByRole("button", { name: /Konfirmasi & Kirim Pesanan/i });
-    expect(submitBtn.hasAttribute("disabled")).toBe(true);
-
-    rerender(
-      <PaymentStep
-        pkg={samplePkg}
-        draft={draft({ paymentProofBase64: "data:image/png;base64,sampleproof" })}
-        actions={actions}
-        isSatuan={false}
-        isSubmitting={false}
-        onFileUpload={noop}
-        onBack={noop}
-        onSubmit={noop}
-      />
-    );
-
     expect(submitBtn.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(submitBtn);
+
+    expect(submitted).toBe(false);
+    expect(screen.getByText(/Formulir Belum Lengkap/i)).toBeDefined();
+    const proofErrors = screen.getAllByText(/Bukti transfer pembayaran wajib diunggah/i);
+    expect(proofErrors.length).toBeGreaterThanOrEqual(1);
   });
 });
