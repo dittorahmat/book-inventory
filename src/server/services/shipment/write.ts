@@ -5,7 +5,7 @@ import { transferShipments, transferShipmentItems, bookItems, packageItems } fro
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { planCreateLines, type ShipmentLineInput } from "./plan";
-import { adjustLooseStock, adjustPackageStock, recordStockAdjustment } from "../stock/aggregate";
+import { moveInventoryStock } from "../stock";
 
 export interface CreateShipmentInput {
   fromSchoolId: string;
@@ -125,18 +125,30 @@ export async function createShipment(
       ...relocateBundleWrites,
     ]);
 
-    // Update saldo kuantitas agregat (Ticket 4)
+    // Update saldo kuantitas agregat (transfer instan) via deep stock movement engine
     if (input.instant) {
       for (const line of looseLines) {
         const bookId = planned.plan.bookIdByLooseId.get(line.bookItemId);
         if (bookId) {
-          await adjustLooseStock(database, bookId, input.fromSchoolId, -1);
-          await adjustLooseStock(database, bookId, input.toSchoolId, 1);
+          await moveInventoryStock(database, {
+            movementType: "transfer",
+            itemType: "loose",
+            bookId,
+            fromSchoolId: input.fromSchoolId,
+            toSchoolId: input.toSchoolId,
+            quantity: 1,
+          });
         }
       }
       for (const line of bundleLines) {
-        await adjustPackageStock(database, line.meta.packageId, input.fromSchoolId, -1);
-        await adjustPackageStock(database, line.meta.packageId, input.toSchoolId, 1);
+        await moveInventoryStock(database, {
+          movementType: "transfer",
+          itemType: "package",
+          packageId: line.meta.packageId,
+          fromSchoolId: input.fromSchoolId,
+          toSchoolId: input.toSchoolId,
+          quantity: 1,
+        });
       }
     }
   } catch (err) {
@@ -281,18 +293,31 @@ export async function receiveShipment(
         .where(eq(transferShipments.id, id)),
     ]);
 
-    // Update saldo kuantitas agregat penerimaan transfer (Ticket 4)
+    // Update saldo kuantitas agregat penerimaan transfer via deep stock movement engine
     for (const r of looseReceipts) {
       const line = lines.find((l) => l.bookItemId === r.bookItemId);
       if (line && line.bookItemId) {
         const [bItem] = await database.select({ bookId: bookItems.bookId }).from(bookItems).where(eq(bookItems.id, line.bookItemId));
         if (bItem) {
           if (r.condition === "good") {
-            await adjustLooseStock(database, bItem.bookId, shipment.fromSchoolId, -1);
-            await adjustLooseStock(database, bItem.bookId, shipment.toSchoolId, 1);
+            await moveInventoryStock(database, {
+              movementType: "transfer",
+              itemType: "loose",
+              bookId: bItem.bookId,
+              fromSchoolId: shipment.fromSchoolId,
+              toSchoolId: shipment.toSchoolId,
+              quantity: 1,
+            });
           } else {
-            await adjustLooseStock(database, bItem.bookId, shipment.fromSchoolId, -1);
-            await recordStockAdjustment(database, {
+            await moveInventoryStock(database, {
+              movementType: "handover", // debit asal
+              itemType: "loose",
+              bookId: bItem.bookId,
+              schoolId: shipment.fromSchoolId,
+              quantity: 1,
+            });
+            await moveInventoryStock(database, {
+              movementType: "adjustment",
               schoolId: shipment.toSchoolId,
               itemType: "loose",
               bookId: bItem.bookId,
@@ -300,7 +325,6 @@ export async function receiveShipment(
               reason: r.condition === "damaged" ? "damaged" : "missing",
               referenceDocumentNumber: shipment.shipmentNumber,
               notes: r.notes || `Selisih transfer ${r.condition}`,
-              updateStockBalance: false,
             });
           }
         }
@@ -310,11 +334,24 @@ export async function receiveShipment(
       const line = lines.find((l) => l.packageItemId === r.packageItemId);
       if (line && line.packageId) {
         if (r.condition === "good") {
-          await adjustPackageStock(database, line.packageId, shipment.fromSchoolId, -1);
-          await adjustPackageStock(database, line.packageId, shipment.toSchoolId, 1);
+          await moveInventoryStock(database, {
+            movementType: "transfer",
+            itemType: "package",
+            packageId: line.packageId,
+            fromSchoolId: shipment.fromSchoolId,
+            toSchoolId: shipment.toSchoolId,
+            quantity: 1,
+          });
         } else {
-          await adjustPackageStock(database, line.packageId, shipment.fromSchoolId, -1);
-          await recordStockAdjustment(database, {
+          await moveInventoryStock(database, {
+            movementType: "handover", // debit asal
+            itemType: "package",
+            packageId: line.packageId,
+            schoolId: shipment.fromSchoolId,
+            quantity: 1,
+          });
+          await moveInventoryStock(database, {
+            movementType: "adjustment",
             schoolId: shipment.toSchoolId,
             itemType: "package",
             packageId: line.packageId,
@@ -322,7 +359,6 @@ export async function receiveShipment(
             reason: r.condition === "damaged" ? "damaged" : "missing",
             referenceDocumentNumber: shipment.shipmentNumber,
             notes: r.notes || `Selisih transfer paket ${r.condition}`,
-            updateStockBalance: false,
           });
         }
       }
@@ -338,53 +374,4 @@ export async function receiveShipment(
   return { ok: true, shipment: completed };
 }
 
-/**
- * Deep module: rollback penghapusan shipment (ganti logika inline di route).
- * In_transit dikembalikan ke in_stock di asal, lalu lines + header dihapus —
- * seluruhnya satu batch atomik via seam lib/d1-write (§10 D1).
- */
-export async function rollbackShipment(
-  database: AppDatabase,
-  id: string
-): Promise<{ ok: true } | ServiceError> {
-  const [shipment] = await database.select().from(transferShipments).where(eq(transferShipments.id, id));
-  if (!shipment) return { ok: false, status: 404, message: "Shipment not found" };
-  if (shipment.status === "completed" || shipment.status === "completed_with_discrepancy") {
-    return {
-      ok: false,
-      status: 400,
-      message: `Surat jalan transfer "${shipment.shipmentNumber}" tidak dapat dihapus karena sudah selesai diterima (Completed) oleh cabang tujuan. Data pergerakan stok telah resmi tercatat.`,
-    };
-  }
-
-  const items = await database
-    .select()
-    .from(transferShipmentItems)
-    .where(eq(transferShipmentItems.shipmentId, id));
-  const looseIds = items.filter((i: any) => i.itemType !== "package" && i.bookItemId).map((i: any) => i.bookItemId as string);
-  const bundleIds = items.filter((i: any) => i.itemType === "package" && i.packageItemId).map((i: any) => i.packageItemId as string);
-  const restore = shipment.status === "in_transit";
-
-  try {
-    await runWriteBatch(database, [
-      ...(restore
-        ? chunkRows<string>(looseIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
-            database.update(bookItems).set({ status: "in_stock" }).where(inArray(bookItems.id, ids))
-          )
-        : []),
-      ...(restore
-        ? chunkRows<string>(bundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
-            database.update(packageItems).set({ status: "in_stock" }).where(inArray(packageItems.id, ids))
-          )
-        : []),
-      database.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, id)),
-      database.delete(transferShipments).where(eq(transferShipments.id, id)),
-    ]);
-  } catch (err) {
-    const mapped = d1WriteErrorStatus(err, "penghapusan transfer");
-    if (mapped) return { ok: false, ...mapped };
-    throw err;
-  }
-
-  return { ok: true };
-}
+export { rollbackShipment } from "./rollback";
