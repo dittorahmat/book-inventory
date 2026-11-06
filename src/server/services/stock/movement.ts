@@ -8,12 +8,13 @@ import type { StockAdjustmentInput } from "./aggregate";
 import type { WriteDeps } from "../../lib/d1-write";
 
 export type StockMovementType =
-  | "adjustment"      // opname / write-off / koreksi manual
-  | "receipt"         // penerimaan PO supplier
-  | "handover"        // serah terima ke siswa
-  | "transfer"        // transfer antar sekolah (debit asal, credit tujuan)
-  | "assembly"        // kitting buku satuan menjadi bundel paket
-  | "disassembly";    // unbundling paket menjadi buku satuan
+  | "adjustment"            // opname / write-off / koreksi manual
+  | "receipt"               // penerimaan PO supplier
+  | "handover"              // serah terima ke siswa
+  | "transfer"              // transfer antar sekolah (debit asal, credit tujuan)
+  | "transfer_discrepancy"  // debit asal dan catat selisih rusak/hilang di tujuan
+  | "assembly"              // kitting buku satuan menjadi bundel paket
+  | "disassembly";          // unbundling paket menjadi buku satuan
 
 export interface InventoryMovementInput {
   movementType: StockMovementType;
@@ -104,6 +105,40 @@ export async function moveInventoryStock(
         await adjustPackageStock(database, input.packageId, input.toSchoolId, qty, deps);
       }
       return { ok: true };
+    }
+
+    case "transfer_discrepancy": {
+      if (!input.fromSchoolId || !input.toSchoolId) {
+        return { ok: false, message: "fromSchoolId dan toSchoolId wajib untuk transfer_discrepancy." };
+      }
+      // 1. Debit stok asal (barang keluar dari asal)
+      if (input.itemType === "loose") {
+        if (!input.bookId) return { ok: false, message: "bookId wajib untuk transfer_discrepancy buku satuan." };
+        const debitRes = await adjustLooseStock(database, input.bookId, input.fromSchoolId, -qty, deps);
+        if (!debitRes.ok) return { ok: false, message: "Stok asal tidak mencukupi untuk transfer selisih." };
+      } else {
+        if (!input.packageId) return { ok: false, message: "packageId wajib untuk transfer_discrepancy paket." };
+        const debitRes = await adjustPackageStock(database, input.packageId, input.fromSchoolId, -qty, deps);
+        if (!debitRes.ok) return { ok: false, message: "Stok paket asal tidak mencukupi untuk transfer selisih." };
+      }
+      // 2. Catat audit selisih (rusak/hilang) di tujuan tanpa menambah saldo available tujuan
+      const adjRes = await recordStockAdjustment(
+        database,
+        {
+          schoolId: input.toSchoolId,
+          itemType: input.itemType,
+          bookId: input.bookId,
+          packageId: input.packageId,
+          quantity: -qty,
+          reason: input.reason ?? "damaged",
+          referenceDocumentNumber: input.referenceDocumentNumber,
+          notes: input.notes,
+          adjustedByUserId: input.adjustedByUserId,
+          updateStockBalance: false,
+        },
+        deps
+      );
+      return { ok: adjRes.ok, adjustmentId: adjRes.adjustmentId };
     }
 
     case "adjustment": {

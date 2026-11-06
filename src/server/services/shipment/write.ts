@@ -310,18 +310,12 @@ export async function receiveShipment(
             });
           } else {
             await moveInventoryStock(database, {
-              movementType: "handover", // debit asal
+              movementType: "transfer_discrepancy",
               itemType: "loose",
               bookId: bItem.bookId,
-              schoolId: shipment.fromSchoolId,
+              fromSchoolId: shipment.fromSchoolId,
+              toSchoolId: shipment.toSchoolId,
               quantity: 1,
-            });
-            await moveInventoryStock(database, {
-              movementType: "adjustment",
-              schoolId: shipment.toSchoolId,
-              itemType: "loose",
-              bookId: bItem.bookId,
-              quantity: -1,
               reason: r.condition === "damaged" ? "damaged" : "missing",
               referenceDocumentNumber: shipment.shipmentNumber,
               notes: r.notes || `Selisih transfer ${r.condition}`,
@@ -344,18 +338,12 @@ export async function receiveShipment(
           });
         } else {
           await moveInventoryStock(database, {
-            movementType: "handover", // debit asal
+            movementType: "transfer_discrepancy",
             itemType: "package",
             packageId: line.packageId,
-            schoolId: shipment.fromSchoolId,
+            fromSchoolId: shipment.fromSchoolId,
+            toSchoolId: shipment.toSchoolId,
             quantity: 1,
-          });
-          await moveInventoryStock(database, {
-            movementType: "adjustment",
-            schoolId: shipment.toSchoolId,
-            itemType: "package",
-            packageId: line.packageId,
-            quantity: -1,
             reason: r.condition === "damaged" ? "damaged" : "missing",
             referenceDocumentNumber: shipment.shipmentNumber,
             notes: r.notes || `Selisih transfer paket ${r.condition}`,
