@@ -45,3 +45,14 @@ docs/agents/lanes.json
 *.sln
 *.sw?
 test-results/
+
+# External / generated agent skills junctions
+.agents/skills/security-audit/
+.claude/skills/security-audit/
+.commandcode/skills/security-audit/
+.hermes/skills/security-audit/
+.openhands/skills/security-audit/
+.qwen/skills/security-audit/
+.trae/skills/security-audit/
+.zcode/skills/security-audit/
+skills/security-audit/
