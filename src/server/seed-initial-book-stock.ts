@@ -72,11 +72,29 @@ export function matchBookToStock(
   const gradeMatch = section.match(/(?:KLS|Kelas)\s*([0-9]+)/i);
   const grade = gradeMatch ? gradeMatch[1] : "";
 
-  // Prime Math Student Book -> COURSEBOOK
-  if (targetNorm.includes("primemath") && targetNorm.includes("studentbook")) {
+  // Prime Math Student Book -> COURSEBOOK, Workbook -> PRACTICE BOOK
+  if (targetNorm.includes("primemath")) {
     const semMatch = targetNorm.match(/([1-6][ab])/);
     if (semMatch) {
-      const expected = norm(`PRIME MATH ${semMatch[1]} COURSEBOOK`);
+      if (targetNorm.includes("workbook") || targetNorm.includes("practice")) {
+        const expected = norm(`PRIME MATH ${semMatch[1]} PRACTICE BOOK`);
+        for (const b of books) {
+          if (norm(b.title) === expected) return b;
+        }
+      } else if (targetNorm.includes("studentbook") || targetNorm.includes("coursebook")) {
+        const expected = norm(`PRIME MATH ${semMatch[1]} COURSEBOOK`);
+        for (const b of books) {
+          if (norm(b.title) === expected) return b;
+        }
+      }
+    }
+  }
+
+  // Science Workbook -> ACTIVITY BOOK
+  if (targetNorm.includes("science") && targetNorm.includes("workbook")) {
+    const semMatch = targetNorm.match(/([1-6][ab])/);
+    if (semMatch) {
+      const expected = norm(`SCIENCE ${semMatch[1]} ACTIVITY BOOK`);
       for (const b of books) {
         if (norm(b.title) === expected) return b;
       }
