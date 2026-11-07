@@ -62,8 +62,8 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 5. **Pembersihan Berkas Usang Saat Ekstraksi Komponen**: saat mengekstrak komponen atau memindahkan tanggung jawab ke berkas baru (misal memecah sub-komponen UI), berkas lama yang tidak lagi memiliki perujuk wajib segera dihapus dari disk sebelum tahap staging/commit agar pre-commit gate `check:dead` tidak mendeteksi export yatim piatu.
 6. **Pelepasan & Pembersihan Worktree (`bun run worktree:remove`)**: setelah branch di-merge ke `main`, pelepasan worktree dan penghapusan branch lokal terkait wajib menggunakan perintah kanonik `bun run worktree:remove <branch-atau-dir>` (`scripts/worktree-cleanup.ts`) untuk menghindari kegagalan pelepasan branch aktif atau folder worktree tertinggal.
 7. **Peta Lokasi Test Suite & Isolasi Mutasi Demo**: berkas test terbagi menjadi dua ranah utama:
-   - Pengujian domain, unit, komponen UI, route, dan seed demo berada di `src/**/*.test.ts(x)` (misal `src/server/seed-demo/demo-uniform.test.ts`).
-   - Pengujian skrip, integritas lingkungan, dan infrastruktur global berada di `test/**/*.test.ts`.
+   - Pengujian domain, unit, layanan server, komponen UI, route, dan seed demo bersifat co-located di bawah `src/**/*.test.ts(x)` (misal `src/server/generate-sd-student-orders.test.ts` atau `src/server/seed-demo/demo-uniform.test.ts`). Jangan mencari test server di bawah `test/server/` karena seluruh unit test server tinggal bersama implementasinya di `src/server/`.
+   - Pengujian skrip, integritas lingkungan, arsitektur, dan infrastruktur global berada di `test/**/*.test.ts`.
    Test yang mengeksekusi demo seed wajib menjaga isolasi mutasi data agar tidak merusak ekspektasi test paralel/konkuren di lingkungan runner CI.
 8. **Disiplin Subagent Review & Fallback Inline di Windows Sandbox**: pemanggilan subagent untuk review (`research`) pada lingkungan Windows jika mengalami kendala socket network (`connectex`) wajib segera fallback ke review inline langsung pada agent utama dalam 1 turn tanpa membuang token dan waktu perulangan.
 
