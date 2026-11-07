@@ -23,6 +23,7 @@ const filesToScan: string[] = allMode
     ])].filter((f) => /^(src|scripts|test)\/.*\.(ts|tsx|js|mjs)$/.test(f));
 
 const HOST_PATH_PATTERN = /(?:["'`])([a-zA-Z]:[\\/][^"'`\r\n]+)(?:["'`])/g;
+const CROSS_WORKTREE_PATH_PATTERN = /(?:["'`])(\.\.\/book-inventory(?:-[a-zA-Z0-9_-]+)?[\\/][^"'`\r\n]+)(?:["'`])/g;
 
 let violations = 0;
 
@@ -34,7 +35,7 @@ for (const file of filesToScan) {
   fileLines.forEach((lineText, idx) => {
     // Lewati baris komentar penjelasan atau regex pattern itu sendiri
     if (lineText.trim().startsWith("//") || lineText.trim().startsWith("*")) return;
-    if (lineText.includes("HOST_PATH_PATTERN")) return;
+    if (lineText.includes("HOST_PATH_PATTERN") || lineText.includes("CROSS_WORKTREE_PATH_PATTERN")) return;
 
     let match: RegExpExecArray | null;
     HOST_PATH_PATTERN.lastIndex = 0;
@@ -43,6 +44,16 @@ for (const file of filesToScan) {
         `❌ check:no-hardcoded-paths: Terdeteksi path host absolut di ${file}:${idx + 1}\n` +
         `   Path: "${match[1]}"\n` +
         `   Gunakan parameter CLI (process.argv), env var, atau path relatif repositori (./data/...).`
+      );
+      violations++;
+    }
+
+    CROSS_WORKTREE_PATH_PATTERN.lastIndex = 0;
+    while ((match = CROSS_WORKTREE_PATH_PATTERN.exec(lineText)) !== null) {
+      console.error(
+        `❌ check:no-hardcoded-paths: Terdeteksi path relatif lintas worktree di ${file}:${idx + 1}\n` +
+        `   Path: "${match[1]}"\n` +
+        `   Dilarang mereferensikan ../book-inventory/ lintas worktree. Salin ke lokal ./data/... atau gunakan parameter CLI.`
       );
       violations++;
     }
