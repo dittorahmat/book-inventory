@@ -153,6 +153,9 @@ if (findings.length > 0) {
   console.error("API-contract gate GAGAL: path klien tanpa route terdaftar, atau portal publik memanggil endpoint staf:");
   for (const finding of findings) {
     console.error(`  - ${finding.file}:${finding.line} → ${finding.path}`);
+    if (finding.path === "/api/schools") {
+      console.error("    (Petunjuk: Jika memuat daftar sekolah pada portal publik, gunakan '/api/public/orders/schools' - lihat §0.67)");
+    }
   }
   console.error(
     "Perbaiki path-nya, atau daftarkan pengecualian beralasan di REGISTERED_EXCEPTIONS (scripts/check-api-contract.ts)."
