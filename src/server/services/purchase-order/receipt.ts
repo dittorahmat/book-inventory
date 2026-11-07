@@ -1,14 +1,13 @@
 import { eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
-  bookItems,
   books,
   purchaseOrderItems,
   purchaseOrderReceipts,
   purchaseOrderReceiptItems,
   purchaseOrders,
 } from "../../../db/schema";
-import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
 import { moveInventoryStock } from "../stock";
 
 /** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
@@ -50,7 +49,6 @@ export type PoReceivePlanDeps = WriteDeps;
 
 export interface PlannedPoReceive {
   itemUpdates: Array<{ poItemId: string; quantityReceived: number }>;
-  stockRows: Array<typeof bookItems.$inferInsert>;
   totalReceivedThisBatch: number;
   newStatus: "received" | "partially_received";
 }
@@ -61,20 +59,19 @@ export type PoReceivePlanResult =
 
 /**
  * Perencana murni intake Supplier PO: validasi keanggotaan item + sisa
- * kuantitas sebelum tulis apa pun (400, bukan 500), lalu susun write-set
- * stok + status. Dipakai receivePurchaseOrder dan recordPoReceipt agar
- * kedua jalan mengeksekusi tepat satu rencana yang sama.
+ * kuantitas sebelum tulis apa pun (400, bukan 500), lalu susun pembaruan
+ * status PO dan sisa item PO.
  */
 export const planPoReceive = (
   po: { poNumber: string; targetSchoolId: string },
   poItems: Array<{ id: string; bookId: string; quantityOrdered: number; quantityReceived: number }>,
   receivedItems: ReceivedItemInput[],
-  deps?: PoReceivePlanDeps
+  _deps?: PoReceivePlanDeps
 ): PoReceivePlanResult => {
-  const now = writeNow(deps);
   const poItemById = new Map(poItems.map((it) => [it.id, it]));
 
   const increments = new Map<string, number>();
+  let totalReceivedThisBatch = 0;
   for (const rec of receivedItems) {
     const poItem = poItemById.get(rec.poItemId);
     if (!poItem) {
@@ -86,30 +83,9 @@ export const planPoReceive = (
       return { ok: false, status: 400, message: `Jumlah terima melebihi sisa ${remaining} eks untuk PO ${po.poNumber}` };
     }
     increments.set(rec.poItemId, next);
+    totalReceivedThisBatch += rec.quantityToReceive;
   }
 
-  const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
-  let totalReceivedThisBatch = 0;
-  const stockRows: Array<typeof bookItems.$inferInsert> = [];
-  for (const rec of receivedItems) {
-    const poItem = poItemById.get(rec.poItemId)!;
-    const condition = rec.condition ?? "good";
-    for (let k = 0; k < rec.quantityToReceive; k++) {
-      const newId = newWriteId(deps);
-      stockRows.push({
-        id: newId,
-        bookId: poItem.bookId,
-        currentSchoolId: po.targetSchoolId,
-        barcode: `INB-PO-${epoch}-${rec.poItemId.replace(/-/g, "").slice(0, 4).toUpperCase()}-${k + 1}-${newId.replace(/-/g, "").slice(0, 4).toUpperCase()}`,
-        condition: condition === "damaged" ? "damaged" : "new",
-        status: "in_stock",
-        notes: condition === "damaged" ? `Rusak saat terima dari ${po.poNumber}` : `Inbound receiving from ${po.poNumber}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalReceivedThisBatch++;
-    }
-  }
   if (totalReceivedThisBatch === 0) {
     return { ok: false, status: 400, message: "Tidak ada item yang diterima" };
   }
@@ -127,7 +103,6 @@ export const planPoReceive = (
         poItemId,
         quantityReceived: poItemById.get(poItemId)!.quantityReceived + qty,
       })),
-      stockRows,
       totalReceivedThisBatch,
       newStatus,
     },
@@ -181,9 +156,6 @@ export async function receivePurchaseOrder(
           .set({ quantityReceived: u.quantityReceived })
           .where(eq(purchaseOrderItems.id, u.poItemId))
       ),
-      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
-        database.insert(bookItems).values(rows)
-      ),
       database
         .update(purchaseOrders)
         .set({ status: planned.plan.newStatus, updatedAt: now })
@@ -203,10 +175,11 @@ export async function receivePurchaseOrder(
             schoolId: targetSchoolId,
             itemType: "loose",
             bookId,
-            quantity: -rec.quantityToReceive,
+            quantity: rec.quantityToReceive,
             reason: "damaged",
             referenceDocumentNumber: poNum,
             notes: "Penerimaan PO dengan kondisi rusak",
+            updateStockBalance: false,
           }, deps);
         } else {
           await moveInventoryStock(database, {
@@ -295,9 +268,6 @@ export async function recordPoReceipt(
           .set({ quantityReceived: u.quantityReceived })
           .where(eq(purchaseOrderItems.id, u.poItemId))
       ),
-      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
-        database.insert(bookItems).values(rows)
-      ),
       database
         .update(purchaseOrders)
         .set({ status: planned.plan.newStatus, updatedAt: now })
@@ -324,10 +294,11 @@ export async function recordPoReceipt(
             schoolId: loaded.po.targetSchoolId,
             itemType: "loose",
             bookId,
-            quantity: -rec.quantityToReceive,
+            quantity: rec.quantityToReceive,
             reason: "damaged",
             referenceDocumentNumber: note,
             notes: "Penerimaan PO berkondisi rusak",
+            updateStockBalance: false,
           }, deps);
         } else {
           await moveInventoryStock(database, {

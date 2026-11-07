@@ -29,6 +29,7 @@ export interface InventoryMovementInput {
   referenceDocumentNumber?: string;
   notes?: string;
   adjustedByUserId?: string;
+  updateStockBalance?: boolean;
 }
 
 export interface StockMovementResult {
@@ -158,6 +159,7 @@ export async function moveInventoryStock(
           referenceDocumentNumber: input.referenceDocumentNumber,
           notes: input.notes,
           adjustedByUserId: input.adjustedByUserId,
+          updateStockBalance: input.updateStockBalance,
         },
         deps
       );
