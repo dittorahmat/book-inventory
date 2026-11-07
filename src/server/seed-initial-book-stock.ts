@@ -90,14 +90,35 @@ export function matchBookToStock(
     }
   }
 
-  // Science Workbook -> ACTIVITY BOOK
-  if (targetNorm.includes("science") && targetNorm.includes("workbook")) {
+  // Science Student Book / Workbook handling
+  if (targetNorm.includes("science")) {
     const semMatch = targetNorm.match(/([1-6][ab])/);
-    if (semMatch) {
-      const expected = norm(`SCIENCE ${semMatch[1]} ACTIVITY BOOK`);
-      for (const b of books) {
-        if (norm(b.title) === expected) return b;
+    if (semMatch && semMatch[1] !== "1a" && semMatch[1] !== "1b") {
+      if (targetNorm.includes("workbook") || targetNorm.includes("activity")) {
+        const expected = norm(`SCIENCE ${semMatch[1]} ACTIVITY BOOK`);
+        for (const b of books) {
+          if (norm(b.title) === expected) return b;
+        }
       }
+    } else if (targetNorm.includes("1a") || targetNorm.includes("1b") || (section && (section.includes("1") || section.includes("SD1")))) {
+      if (targetNorm.includes("studentbook")) {
+        const expected = norm("SCIENCE STUDENT BOOK");
+        for (const b of books) {
+          if (norm(b.title) === expected) return b;
+        }
+      } else if (targetNorm.includes("workbook") || targetNorm.includes("activity")) {
+        const expected = norm("SCIENCE WORKBOOK");
+        for (const b of books) {
+          if (norm(b.title) === expected) return b;
+        }
+      }
+    }
+  }
+
+  // IPA 6 V1 DAN V-2 -> IPA 6 V1 + V2
+  if (targetNorm.includes("ipa6") && (targetNorm.includes("v1") || targetNorm.includes("v2"))) {
+    for (const b of books) {
+      if (norm(b.title).includes("ipa6v1v2") || norm(b.title).includes("ipa6v1")) return b;
     }
   }
 
