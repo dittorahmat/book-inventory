@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { parseRekapAw1Stock, matchBookToStock } from "./seed-initial-book-stock";
 import { seedInitialBookStock } from "./seed-initial-book-stock-service";
 import { db } from "../db";
@@ -132,5 +132,14 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
     expect(adjs.length).toBe(2);
     expect(adjs[0].reason).toBe("audit_reconciliation");
     expect(adjs[0].referenceDocumentNumber).toBe("REKAP-AW1-2026-2027");
+  });
+
+  afterEach(async () => {
+    // Bersihkan fixture agar tidak mencemari test lain di run bersamaan
+    await db.delete(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolWarehouseId));
+    await db.delete(books).where(eq(books.id, "b-test-arab"));
+    await db.delete(books).where(eq(books.id, "b-test-pm1a"));
+    await db.delete(schools).where(eq(schools.id, schoolWarehouseId));
   });
 });
