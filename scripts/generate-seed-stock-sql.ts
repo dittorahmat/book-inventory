@@ -1,7 +1,15 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseRekapAw1Stock, matchBookToStock } from "../src/server/seed-initial-book-stock";
 
-const csv = readFileSync("../book-inventory/data/rekap-aw1.csv", "utf-8");
+// Support CLI arg or standard project-relative fallback paths (§0.58.1)
+const csvCandidate = process.argv[2] || resolve(process.cwd(), "data/rekap-aw1.csv");
+if (!existsSync(csvCandidate)) {
+  console.error(`File CSV tidak ditemukan di: ${csvCandidate}`);
+  process.exit(1);
+}
+
+const csv = readFileSync(csvCandidate, "utf-8");
 const items = parseRekapAw1Stock(csv);
 
 const d1Dump = JSON.parse(readFileSync("d1-books.json", "utf-8"));

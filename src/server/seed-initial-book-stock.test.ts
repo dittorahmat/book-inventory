@@ -1,5 +1,9 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { parseRekapAw1Stock, matchBookToStock } from "./seed-initial-book-stock";
+import { seedInitialBookStock } from "./seed-initial-book-stock-service";
+import { db } from "../db";
+import { books, schools, bookStocks, stockAdjustments } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 describe("seed-initial-book-stock parser and matching", () => {
   it("should parse stock rows correctly from CSV snippet", () => {
@@ -39,5 +43,94 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
     const match2 = matchBookToStock("Akidah Akhlak", "Buku KLS 1", mockBooks);
     expect(match2).not.toBeNull();
     expect(match2?.id).toBe("b-ak-1");
+  });
+});
+
+describe("seedInitialBookStock DB execution & parity (§0.58.2, §0.62.1)", () => {
+  const schoolWarehouseId = "school-warehouse";
+  const now = new Date().toISOString();
+
+  beforeEach(async () => {
+    // Bersihkan data uji terkait
+    await db.delete(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolWarehouseId));
+    await db.delete(books).where(eq(books.id, "b-test-arab"));
+    await db.delete(books).where(eq(books.id, "b-test-pm1a"));
+    await db.delete(schools).where(eq(schools.id, schoolWarehouseId));
+
+    await db.insert(schools).values({
+      id: schoolWarehouseId,
+      name: "Gudang Logistik Pusat",
+      code: "GUDANG-LOG",
+      type: "warehouse",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(books).values([
+      {
+        id: "b-test-arab",
+        isbn: "978-0000000001",
+        title: "BAHASA ARAB",
+        author: "Al-Wildan",
+        publisher: "Segara",
+        price: 125000,
+        buyPrice: 90000,
+        sellPrice: 125000,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "b-test-pm1a",
+        isbn: "978-0000000002",
+        title: "PRIME MATH 1A COURSEBOOK",
+        author: "Scholastic",
+        publisher: "Scholastic",
+        price: 198600,
+        buyPrice: 119160,
+        sellPrice: 198600,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+  });
+
+  it("should mutate book_stocks via moveInventoryStock and record stock_adjustments audit log", async () => {
+    const testCsv = `
+REKAPITULASI BUKU KELUAR DAN TERBAGI ALWILDAN- 1 GADING SERPONG,,,,,,,,,,,,,,,,,,,,,,,,,,
+I,No.,List Buku Umum, JUMLAH BUKU KEBUTUHAN BUKU,,,,,,,,,,,,, TOTAL, HARGA, TOTAL HARGA,KETERANGAN, UP 10%, JUMLAH, TOTAL, STOK, KB PO, PO,
+,,, PG-KI-K-2, KLS 1, KLS 2, KLS 3, KLS 4, KLS 5, KLS 6, KLS 7, KLS 8, KLS 9, KLS 10, KLS 11, KLS 12,, BUKU, BUKU TERBAGI,,,,,,,,
+UMUM,1,BAHASA ARAB,  125 ,,,,,,,,,,,,,  125 ,,,,10%,  13 ,  138 ,60,  78 ,  100 ,  23 
+V,No.,Buku KLS 1 , JUMLAH BUKU, HARGA, TOTAL, KETERANGAN, UP 10%, JUMLAH, TOTAL, STOK, KB PO, PO,,,,,,,,,,,,,,
+,,, KEBUTUHAN BUKU, BUKU, HARGA,,,,,,,,,,,,,,,,,,,,,
+KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.600 ,  0 ,  111 ,  1.221 ,81,  1.140 ,  1.150 ,  10 
+`.trim();
+
+    const result = await seedInitialBookStock(db, testCsv, { schoolId: schoolWarehouseId });
+    expect(result.totalRowsParsed).toBe(2);
+    expect(result.matchedCount).toBe(2);
+    expect(result.uniqueBooksCount).toBe(2);
+    expect(result.totalQuantity).toBe(141); // 60 + 81
+
+    // Verifikasi saldo book_stocks
+    const arabStock = await db
+      .select()
+      .from(bookStocks)
+      .where(eq(bookStocks.bookId, "b-test-arab"));
+    expect(arabStock.length).toBe(1);
+    expect(arabStock[0].availableQuantity).toBe(60);
+
+    const pmStock = await db
+      .select()
+      .from(bookStocks)
+      .where(eq(bookStocks.bookId, "b-test-pm1a"));
+    expect(pmStock.length).toBe(1);
+    expect(pmStock[0].availableQuantity).toBe(81);
+
+    // Verifikasi audit log stock_adjustments
+    const adjs = await db.select().from(stockAdjustments);
+    expect(adjs.length).toBe(2);
+    expect(adjs[0].reason).toBe("audit_reconciliation");
+    expect(adjs[0].referenceDocumentNumber).toBe("REKAP-AW1-2026-2027");
   });
 });
