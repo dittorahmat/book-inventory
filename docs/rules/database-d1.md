@@ -45,6 +45,12 @@ Pengecualian pada gate `check:single-writer` hanya diizinkan untuk baseline seed
 1. **Dilarang Table Recreation Drop pada D1**: Drizzle Kit secara default membuat migrasi recreation (`CREATE TABLE __new_*`, copy data, `DROP TABLE ...`) pada SQLite ketika terjadi modifikasi kolom/enum. Dilarang keras menerapkan file migrasi `DROP TABLE` pada Cloudflare D1 remote yang berelasi foreign key atau data operasional aktif tanpa rencana expand-contract dua PR (§1.3).
 2. **Kanonikalisasi ALTER TABLE Aman**: Penambahan kolom baru wajib disederhanakan ke pernyataan SQL `ALTER TABLE <table> ADD COLUMN <col> <type>;` yang idempoten dan aman dieksekusi langsung tanpa menghapus data tabel induk/anak.
 
+### §0.64. Disiplin Penyelarasan Pengadaan Katalog & Mutasi Massal Aman-D1
+1. **Integritas Penyelarasan Supplier**: pemetaan katalog buku ke supplier wajib memprioritaskan distributor spesifik per mata pelajaran/jenjang (misal Mentari untuk Cambridge Secondary Sains, CNL untuk Scholastic & Primary, Pelangi untuk PAUD/TK) guna mencegah tabrakan aturan (*rule collision*) akibat kesamaan kata kunci penerbit.
+2. **Disiplin Batch Updates Mutasi Katalog**: pembaruan massal ISBN atau harga beli (`syncBookCatalogPricingAndIsbn`) wajib mengelompokkan query ke dalam potongan batch aman (`chunkRows` + `runWriteBatch`), dilarang mengeksekusi loop `update()` unbatched satu per satu pada D1.
+3. **Pembersihan Entitas Master Yatim yang Atomik**: pembersihan entitas master duplikat/yatim (`cleanupOrphanDuplicateBooks`) wajib memverifikasi ketiadaan seluruh relasi operasional (stok, order siswa, PO, shipment internal/transfer) dan dieksekusi dalam satu transaksi atomik batch (`runWriteBatch`) bersama tabel anak terkait.
+4. **Kalkulasi Otomatis Harga Paket Baru**: penambahan master paket kurikulum baru (seperti jenjang prasekolah PG/K1/K2) wajib mengeksekusi seam kanonik `recalcPackagePrice(targetDb, pkg.id)` seketika item BOM terdaftar agar harga paket selalu mencerminkan akumulasi harga jual komponen riil dan bukan nilai hardcoded.
+
 ---
 
 ## Disiplin Tulis Cloudflare D1 & Workers (Detail Teknis Eks-§10)
