@@ -12,7 +12,7 @@ export {
   requestUniformExchange,
   getSportsExchangeTracking,
   requestUniformRefund,
-  type UniformStudentSearchParams,
+  type StudentSearchParams as UniformStudentSearchParams,
   type SubmittedUniformOrder,
   type UniformLookupOrder,
   type UniformLookupItem,

@@ -203,25 +203,16 @@ export const submitReturnReport = (payload: ReturnReportPayload): Promise<Return
 export const fetchUniformSchools = (): Promise<SchoolOption[]> =>
   getJson<SchoolOption[]>("/api/public/orders/schools", "Gagal memuat daftar sekolah.");
 
-export type UniformStudentSearchParams = StudentSearchParams;
-
 export const searchUniformStudents = (
-  paramsOrQuery: UniformStudentSearchParams | string,
-  legacySchoolId?: string
-): Promise<UniformStudent[]> => {
-  const params: UniformStudentSearchParams =
-    typeof paramsOrQuery === "string"
-      ? { query: paramsOrQuery, schoolId: legacySchoolId ?? "" }
-      : paramsOrQuery;
-
-  return getJson<UniformStudent[]>(
+  params: StudentSearchParams
+): Promise<UniformStudent[]> =>
+  getJson<UniformStudent[]>(
     buildQuery("/api/public/uniform-orders/search-students", {
       query: params.query.trim(),
       schoolId: params.schoolId,
     }),
     "Gagal melakukan pencarian siswa."
   );
-};
 
 export const fetchUniformCatalog = (academicYear: string): Promise<UniformCatalog> =>
   getJson<UniformCatalog>(

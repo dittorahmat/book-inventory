@@ -5,7 +5,9 @@ describe("internal-po seam", () => {
   it("satu seam: PO + pemenuhan + penerimaan internal", () => {
     for (const fn of [
       "createInternalPo",
+      "submitInternalPo",
       "fulfillInternalPo",
+      "dispatchInternalPo",
       "listInternalPOs",
       "listInternalShipments",
       "receiveInternalShipment",

@@ -10,6 +10,47 @@ import {
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
 import { moveInventoryStock } from "../stock";
 
+/**
+ * Mutasi stok agregat untuk seluruh item diterima (baik maupun rusak).
+ * Sesuai §0.61, item berkondisi rusak dicatat sebagai audit penyesuaian
+ * tanpa memotong saldo aktif yang belum pernah masuk (updateStockBalance: false).
+ */
+async function applyReceivedStockMovements(
+  database: AppDatabase,
+  targetSchoolId: string,
+  referenceDoc: string,
+  items: ReceivedItemInput[],
+  poItemMap: Map<string, string>,
+  deps?: WriteDeps
+): Promise<void> {
+  for (const rec of items) {
+    const bookId = poItemMap.get(rec.poItemId);
+    if (!bookId) continue;
+
+    if (rec.condition === "damaged") {
+      await moveInventoryStock(database, {
+        movementType: "adjustment",
+        schoolId: targetSchoolId,
+        itemType: "loose",
+        bookId,
+        quantity: rec.quantityToReceive,
+        reason: "damaged",
+        referenceDocumentNumber: referenceDoc,
+        notes: "Penerimaan PO dengan kondisi rusak",
+        updateStockBalance: false,
+      }, deps);
+    } else {
+      await moveInventoryStock(database, {
+        movementType: "receipt",
+        toSchoolId: targetSchoolId,
+        itemType: "loose",
+        bookId,
+        quantity: rec.quantityToReceive,
+      }, deps);
+    }
+  }
+}
+
 /** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
 export interface ReceivedItemInput {
   poItemId: string;
@@ -162,36 +203,11 @@ export async function receivePurchaseOrder(
         .where(eq(purchaseOrders.id, poId)),
     ]);
 
-    // Update saldo stok kuantitas agregat (Ticket 2)
+    // Update saldo stok kuantitas agregat via deep stock movement engine
     const targetSchoolId = (loaded.po as { targetSchoolId: string }).targetSchoolId;
     const poNum = (loaded.po as { poNumber: string }).poNumber;
     const poItemMap = new Map(loaded.items.map((p) => [p.id, p.bookId]));
-    for (const rec of receivedItems) {
-      const bookId = poItemMap.get(rec.poItemId);
-      if (bookId) {
-        if (rec.condition === "damaged") {
-          await moveInventoryStock(database, {
-            movementType: "adjustment",
-            schoolId: targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-            reason: "damaged",
-            referenceDocumentNumber: poNum,
-            notes: "Penerimaan PO dengan kondisi rusak",
-            updateStockBalance: false,
-          }, deps);
-        } else {
-          await moveInventoryStock(database, {
-            movementType: "receipt",
-            toSchoolId: targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-          }, deps);
-        }
-      }
-    }
+    await applyReceivedStockMovements(database, targetSchoolId, poNum, receivedItems, poItemMap, deps);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
     if (mapped) return { ok: false, ...mapped };
@@ -285,32 +301,7 @@ export async function recordPoReceipt(
     ]);
 
     // Update saldo stok kuantitas agregat via deep stock movement engine
-    for (const rec of input.receivedItems) {
-      const bookId = poItemMap.get(rec.poItemId);
-      if (bookId) {
-        if (rec.condition === "damaged") {
-          await moveInventoryStock(database, {
-            movementType: "adjustment",
-            schoolId: loaded.po.targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-            reason: "damaged",
-            referenceDocumentNumber: note,
-            notes: "Penerimaan PO berkondisi rusak",
-            updateStockBalance: false,
-          }, deps);
-        } else {
-          await moveInventoryStock(database, {
-            movementType: "receipt",
-            toSchoolId: loaded.po.targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-          }, deps);
-        }
-      }
-    }
+    await applyReceivedStockMovements(database, loaded.po.targetSchoolId, note, input.receivedItems, poItemMap, deps);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat Surat Jalan");
     if (mapped) return { ok: false, ...mapped };
