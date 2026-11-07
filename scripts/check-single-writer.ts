@@ -97,7 +97,8 @@ const walk = (dir: string, out: string[] = []): string[] => {
         normalized === "src/server/seed.ts" ||
         normalized === "src/server/seed-demo/orders.ts" ||
         normalized === "src/server/seed-demo/uniform-core.ts" ||
-        normalized === "src/server/seed-demo/demo-uniform.ts"
+        normalized === "src/server/seed-demo/demo-uniform.ts" ||
+        normalized === "scripts/generate-aw1-transfer-sql.ts"
       ) {
         continue;
       }
@@ -126,7 +127,8 @@ function getTargetFiles(): string[] {
           normalized === "src/server/seed.ts" ||
           normalized === "src/server/seed-demo/orders.ts" ||
           normalized === "src/server/seed-demo/uniform-core.ts" ||
-          normalized === "src/server/seed-demo/demo-uniform.ts"
+          normalized === "src/server/seed-demo/demo-uniform.ts" ||
+          normalized === "scripts/generate-aw1-transfer-sql.ts"
         );
       });
     return changed;

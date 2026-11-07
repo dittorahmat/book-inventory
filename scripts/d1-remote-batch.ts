@@ -1,25 +1,35 @@
 import { execSync } from "child_process";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, unlinkSync } from "fs";
+import { join } from "path";
 
 /**
  * Runner Kanonik Eksekusi SQL Batch ke Cloudflare D1 Remote
  * Menghindari file-handle leak di Windows dan membatasi ukuran batching perintah
- * agar tidak melampaui batas D1/SQLite code 7500.
+ * agar tidak melampaui batas D1/SQLite code 7500 serta batas panjang baris perintah Windows.
  */
 export function executeD1BatchSql(databaseName: string, sqlStatements: string[], chunkSize = 30) {
   console.log(`Executing ${sqlStatements.length} statements on D1 remote (${databaseName}) in chunks of ${chunkSize}...`);
+  const tmpFile = join(process.cwd(), "data", "sql", ".tmp-d1-chunk.sql");
 
-  for (let i = 0; i < sqlStatements.length; i += chunkSize) {
-    const chunk = sqlStatements.slice(i, i + chunkSize);
-    const combined = chunk.join(" ");
-    console.log(`Applying chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(sqlStatements.length / chunkSize)} (${chunk.length} statements)...`);
+  try {
+    for (let i = 0; i < sqlStatements.length; i += chunkSize) {
+      const chunk = sqlStatements.slice(i, i + chunkSize);
+      const combined = chunk.join("\n");
+      console.log(`Applying chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(sqlStatements.length / chunkSize)} (${chunk.length} statements)...`);
 
-    // Eksekusi langsung via inline command untuk menghindari file lock/garbage-collection issues di Windows
-    execSync(`npx wrangler d1 execute ${databaseName} --remote --command ${JSON.stringify(combined)}`, {
-      stdio: "inherit",
-    });
+      // Tulis chunk ke file sementara portabel untuk menghindari limit panjang baris cmd/pwsh di Windows
+      writeFileSync(tmpFile, combined, "utf8");
+
+      execSync(`npx wrangler d1 execute ${databaseName} --remote --file="${tmpFile}"`, {
+        stdio: "inherit",
+      });
+    }
+    console.log("All D1 remote chunks applied successfully.");
+  } finally {
+    if (existsSync(tmpFile)) {
+      unlinkSync(tmpFile);
+    }
   }
-  console.log("All D1 remote chunks applied successfully.");
 }
 
 async function main() {
