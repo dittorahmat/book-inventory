@@ -5,81 +5,52 @@ import { getDatabase } from "../src/db";
 import {
   uniformVariants,
   uniformSizes,
-  uniformStock,
-  uniformPackages,
-  uniformPackageBom,
-  uniformPackageStock,
-  uniformPoItems,
-  uniformPos,
-  uniformOrderItems,
-  uniformOrders,
-  uniformExchanges,
-  uniformRefunds,
-  uniformRejects,
 } from "../src/db/schema";
 import { KAIN_SIZE } from "../src/server/services/uniform/catalog";
+import { setVariantStockQuery } from "../src/server/services/uniform/stock";
 
-async function main() {
-  console.log("=== Import Uniform Catalog ===");
-  const db = await getDatabase();
+interface ParsedVariant {
+  id: string;
+  code: string;
+  name: string;
+  kind: "kain_harian" | "olahraga";
+  gender: "male" | "female";
+  jenjang: "tk" | "sd" | "smp" | "sma";
+  academicYear: string;
+  price: number;
+  sizeChartUrl: string | null;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  sizes: string[];
+}
 
-  const excelPath = process.env.CATALOG_EXCEL_PATH || path.resolve("data/katalog seragam aw.xlsx");
-  const sizeChartUrl = "/size-chart-olahraga-2026.jpeg";
-  const academicYear = "2026/2027";
-  const now = new Date().toISOString();
+const SPORT_SIZES_BY_JENJANG: Record<string, string[]> = {
+  tk: ["S", "M", "L", "XL"],
+  sd: ["S", "M", "L", "XL", "2XL", "3XL", "4XL"],
+  smp: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"],
+  sma: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"],
+};
 
-  // 1. Kosongkan tabel seragam lokal (child -> parent)
-  console.log("Cleaning up local uniform tables...");
-  await db.delete(uniformRejects);
-  await db.delete(uniformRefunds);
-  await db.delete(uniformExchanges);
-  await db.delete(uniformOrderItems);
-  await db.delete(uniformOrders);
-  await db.delete(uniformPoItems);
-  await db.delete(uniformPos);
-  await db.delete(uniformPackageStock);
-  await db.delete(uniformPackageBom);
-  await db.delete(uniformPackages);
-  await db.delete(uniformStock);
-  await db.delete(uniformSizes);
-  await db.delete(uniformVariants);
-  console.log("Local uniform tables cleared.");
+function parseJenjang(header: string): "tk" | "sd" | "smp" | "sma" {
+  const h = header.toUpperCase();
+  if (h.includes("TK")) return "tk";
+  if (h.includes("SD")) return "sd";
+  if (h.includes("SMP")) return "smp";
+  return "sma";
+}
 
-  // 2. Baca file Excel
+function parseGender(header: string): "male" | "female" {
+  return header.toUpperCase().includes("AKHWAT") ? "female" : "male";
+}
+
+export function parseCatalogWorkbook(excelPath: string, sizeChartUrl: string, academicYear: string, now: string): ParsedVariant[] {
   const wb = xlsx.readFile(excelPath);
   const sheet = wb.Sheets["Sheet1"];
-  const raw: any[][] = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+  const raw: unknown[][] = xlsx.utils.sheet_to_json(sheet, { header: 1 });
 
   let currentHeader = "";
-  const variantsToInsert: Array<{
-    id: string;
-    code: string;
-    name: string;
-    kind: "kain_harian" | "olahraga";
-    gender: "male" | "female";
-    jenjang: "tk" | "sd" | "smp" | "sma";
-    academicYear: string;
-    price: number;
-    sizeChartUrl: string | null;
-    description: string;
-    createdAt: string;
-    updatedAt: string;
-  }> = [];
-
-  const sizesToInsert: Array<{
-    id: string;
-    variantId: string;
-    size: string;
-    sortOrder: number;
-    createdAt: string;
-  }> = [];
-
-  const sportSizesByJenjang: Record<string, string[]> = {
-    tk: ["S", "M", "L", "XL"],
-    sd: ["S", "M", "L", "XL", "2XL", "3XL", "4XL"],
-    smp: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"],
-    sma: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"],
-  };
+  const variants: ParsedVariant[] = [];
 
   for (let i = 1; i < raw.length; i++) {
     const row = raw[i];
@@ -91,18 +62,8 @@ async function main() {
     const price = row[2];
     if (!itemName || typeof price !== "number") continue;
 
-    let jenjang: "tk" | "sd" | "smp" | "sma" = "tk";
-    let gender: "male" | "female" = "male";
-
-    const h = currentHeader.toUpperCase();
-    if (h.includes("TK")) jenjang = "tk";
-    else if (h.includes("SD")) jenjang = "sd";
-    else if (h.includes("SMP")) jenjang = "smp";
-    else if (h.includes("SMA")) jenjang = "sma";
-
-    if (h.includes("IKHWAN")) gender = "male";
-    else if (h.includes("AKHWAT")) gender = "female";
-
+    const jenjang = parseJenjang(currentHeader);
+    const gender = parseGender(currentHeader);
     const isSport = itemName.toUpperCase().includes("OLAHRAGA");
     const kind: "kain_harian" | "olahraga" = isSport ? "olahraga" : "kain_harian";
 
@@ -110,7 +71,9 @@ async function main() {
     const code = `UNI-${jenjang.toUpperCase()}-${gender === "male" ? "IKH" : "AKH"}-${itemSlug}`;
     const id = `uv-${code.toLowerCase().replace(/_/g, "-")}`;
 
-    const variantRecord = {
+    const sizes = isSport ? (SPORT_SIZES_BY_JENJANG[jenjang] ?? []) : [KAIN_SIZE];
+
+    variants.push({
       id,
       code,
       name: `${itemName} (${jenjang.toUpperCase()} ${gender === "male" ? "Ikhwan" : "Akhwat"})`,
@@ -123,15 +86,59 @@ async function main() {
       description: `Katalog Seragam ${academicYear} - ${currentHeader}`,
       createdAt: now,
       updatedAt: now,
-    };
-    variantsToInsert.push(variantRecord);
+      sizes,
+    });
+  }
 
-    if (isSport) {
-      const allowedSizes = sportSizesByJenjang[jenjang] || [];
-      allowedSizes.forEach((sz, idx) => {
+  return variants;
+}
+
+async function main() {
+  console.log("=== Import Uniform Catalog ===");
+  const db = await getDatabase();
+
+  const excelPath = process.env.CATALOG_EXCEL_PATH || path.resolve("data/katalog seragam aw.xlsx");
+  const sizeChartUrl = "/size-chart-olahraga-2026.jpeg";
+  const academicYear = "2026/2027";
+  const now = new Date().toISOString();
+
+  const variants = parseCatalogWorkbook(excelPath, sizeChartUrl, academicYear, now);
+  console.log(`Parsed ${variants.length} catalog items from spreadsheet.`);
+
+  // 1. Bersihkan varian lama secara aman di DB lokal
+  console.log("Resetting local uniform catalog tables...");
+  await db.delete(uniformSizes);
+  await db.delete(uniformVariants);
+
+  // 2. Insert variants in chunks (max 10 rows per insert, sesuai D1 & ADR-0010 §10.1)
+  const D1_CHUNK_SIZE = 10;
+  for (let i = 0; i < variants.length; i += D1_CHUNK_SIZE) {
+    const chunk = variants.slice(i, i + D1_CHUNK_SIZE).map((v) => ({
+      id: v.id,
+      code: v.code,
+      name: v.name,
+      kind: v.kind,
+      gender: v.gender,
+      jenjang: v.jenjang,
+      academicYear: v.academicYear,
+      price: v.price,
+      sizeChartUrl: v.sizeChartUrl,
+      description: v.description,
+      createdAt: v.createdAt,
+      updatedAt: v.updatedAt,
+    }));
+    await db.insert(uniformVariants).values(chunk);
+  }
+  console.log(`Inserted ${variants.length} variants.`);
+
+  // 3. Insert uniform sizes
+  const sizesToInsert: Array<{ id: string; variantId: string; size: string; sortOrder: number; createdAt: string }> = [];
+  for (const v of variants) {
+    if (v.kind === "olahraga") {
+      v.sizes.forEach((sz, idx) => {
         sizesToInsert.push({
-          id: `usz-${id}-${sz.toLowerCase()}`,
-          variantId: id,
+          id: `usz-${v.id}-${sz.toLowerCase()}`,
+          variantId: v.id,
           size: sz,
           sortOrder: idx + 1,
           createdAt: now,
@@ -140,82 +147,29 @@ async function main() {
     }
   }
 
-  console.log(`Parsed ${variantsToInsert.length} variants and ${sizesToInsert.length} size options.`);
-
-  // 3. Insert ke database lokal
-  // Batch insert variants
-  const CHUNK_SIZE = 20;
-  for (let i = 0; i < variantsToInsert.length; i += CHUNK_SIZE) {
-    const chunk = variantsToInsert.slice(i, i + CHUNK_SIZE);
-    await db.insert(uniformVariants).values(chunk);
-  }
-  console.log("Uniform variants inserted successfully.");
-
-  for (let i = 0; i < sizesToInsert.length; i += CHUNK_SIZE) {
-    const chunk = sizesToInsert.slice(i, i + CHUNK_SIZE);
+  for (let i = 0; i < sizesToInsert.length; i += D1_CHUNK_SIZE) {
+    const chunk = sizesToInsert.slice(i, i + D1_CHUNK_SIZE);
     await db.insert(uniformSizes).values(chunk);
   }
-  console.log("Uniform sizes inserted successfully.");
+  console.log(`Inserted ${sizesToInsert.length} sizes for sport variants.`);
 
-  // Also initialize uniform stock records with 0
-  const stockToInsert: Array<{
-    id: string;
-    variantId: string;
-    size: string;
-    quantity: number;
-    updatedAt: string;
-  }> = [];
-
-  for (const v of variantsToInsert) {
-    if (v.kind === "kain_harian") {
-      stockToInsert.push({
-        id: `ustk-${v.id}-kain`,
-        variantId: v.id,
-        size: KAIN_SIZE,
-        quantity: 0,
-        updatedAt: now,
-      });
-    } else {
-      const allowedSizes = sportSizesByJenjang[v.jenjang] || [];
-      for (const sz of allowedSizes) {
-        stockToInsert.push({
-          id: `ustk-${v.id}-${sz.toLowerCase()}`,
-          variantId: v.id,
-          size: sz,
-          quantity: 0,
-          updatedAt: now,
-        });
-      }
+  // 4. Inisialisasi stok awal via single-writer seam (setVariantStockQuery)
+  console.log("Initializing stock balances via single-writer seam (setVariantStockQuery)...");
+  let stockRowsCount = 0;
+  for (const v of variants) {
+    for (const sz of v.sizes) {
+      await setVariantStockQuery(db, { variantId: v.id, size: sz, quantity: 0 }, { now });
+      stockRowsCount++;
     }
   }
+  console.log(`Initialized ${stockRowsCount} stock rows.`);
 
-  for (let i = 0; i < stockToInsert.length; i += CHUNK_SIZE) {
-    const chunk = stockToInsert.slice(i, i + CHUNK_SIZE);
-    await db.insert(uniformStock).values(chunk);
-  }
-  console.log(`Initialized ${stockToInsert.length} uniform stock rows with 0.`);
-
-  // 4. Generate SQL migration script for remote D1
-  console.log("Generating SQL file for Cloudflare D1 migration...");
+  // 5. Generate safe D1 SQL migration file
   const sqlStatements: string[] = [];
+  sqlStatements.push("DELETE FROM uniform_sizes;");
+  sqlStatements.push("DELETE FROM uniform_variants;");
 
-  // Cleanup D1 statements
-  sqlStatements.push(`DELETE FROM uniform_rejects;`);
-  sqlStatements.push(`DELETE FROM uniform_refunds;`);
-  sqlStatements.push(`DELETE FROM uniform_exchanges;`);
-  sqlStatements.push(`DELETE FROM uniform_order_items;`);
-  sqlStatements.push(`DELETE FROM uniform_orders;`);
-  sqlStatements.push(`DELETE FROM uniform_po_items;`);
-  sqlStatements.push(`DELETE FROM uniform_pos;`);
-  sqlStatements.push(`DELETE FROM uniform_package_stock;`);
-  sqlStatements.push(`DELETE FROM uniform_package_bom;`);
-  sqlStatements.push(`DELETE FROM uniform_packages;`);
-  sqlStatements.push(`DELETE FROM uniform_stock;`);
-  sqlStatements.push(`DELETE FROM uniform_sizes;`);
-  sqlStatements.push(`DELETE FROM uniform_variants;`);
-
-  // Insert variants
-  for (const v of variantsToInsert) {
+  for (const v of variants) {
     const chartVal = v.sizeChartUrl ? `'${v.sizeChartUrl}'` : "NULL";
     const descVal = v.description.replace(/'/g, "''");
     const nameVal = v.name.replace(/'/g, "''");
@@ -224,28 +178,22 @@ async function main() {
     );
   }
 
-  // Insert sizes
   for (const s of sizesToInsert) {
     sqlStatements.push(
       `INSERT INTO uniform_sizes (id, variant_id, size, sort_order, created_at) VALUES ('${s.id}', '${s.variantId}', '${s.size}', ${s.sortOrder}, '${s.createdAt}');`
     );
   }
 
-  // Insert stock
-  for (const st of stockToInsert) {
-    sqlStatements.push(
-      `INSERT INTO uniform_stock (id, variant_id, size, quantity, updated_at) VALUES ('${st.id}', '${st.variantId}', '${st.size}', ${st.quantity}, '${st.updatedAt}');`
-    );
-  }
-
   const d1SqlPath = "data/migrate-uniforms-d1.sql";
   fs.writeFileSync(d1SqlPath, sqlStatements.join("\n"), "utf8");
-  console.log(`Saved ${sqlStatements.length} SQL statements to ${d1SqlPath}`);
+  console.log(`Generated ${sqlStatements.length} migration statements to ${d1SqlPath}`);
 
   console.log("=== Import Finished Successfully ===");
 }
 
-main().catch((err) => {
-  console.error("Migration error:", err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("Migration error:", err);
+    process.exit(1);
+  });
+}
