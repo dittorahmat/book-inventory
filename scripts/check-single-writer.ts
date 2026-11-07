@@ -107,6 +107,8 @@ const walk = (dir: string, out: string[] = []): string[] => {
   return out;
 };
 
+const RAW_SQL_STOCK_PATTERN = /INSERT\s+INTO\s+(book_stocks|uniform_stock|stock_adjustments|payment_receipts|payment_allocations)/i;
+
 function getTargetFiles(): string[] {
   if (ALL) {
     return [...walk("src"), ...walk("scripts")];
@@ -138,15 +140,25 @@ const isCommentLine = (line: string): boolean => /^\s*(\/\/|\/\*|\*)/.test(line)
 const targetFiles = getTargetFiles();
 const findings: Array<{ file: string; line: number; table: string; detail: string }> = [];
 for (const file of targetFiles) {
+  const isScriptFile = file.startsWith("scripts/");
   const owned = OWNED_WRITES.filter((rule) => rule.owner !== file);
-  if (owned.length === 0) continue;
+  if (owned.length === 0 && !isScriptFile) continue;
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((line, index) => {
     if (isCommentLine(line)) return;
+    if (line.includes("RAW_SQL_STOCK_PATTERN")) return;
     for (const rule of owned) {
       if (rule.pattern.test(line)) {
         findings.push({ file, line: index + 1, table: rule.table, detail: rule.detail });
       }
+    }
+    if (isScriptFile && RAW_SQL_STOCK_PATTERN.test(line)) {
+      findings.push({
+        file,
+        line: index + 1,
+        table: "raw_sql",
+        detail: "dilarang merakit raw INSERT ke tabel stok/ledger di folder scripts/ (pakai seam kanonik)",
+      });
     }
   });
 }
