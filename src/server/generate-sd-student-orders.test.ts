@@ -160,14 +160,14 @@ describe("generateSdStudentOrdersAndHandover (§0.4, §0.20, §0.62)", () => {
     expect(res.totalOrderAmount).toBe(440000);
 
     // Verify orders
-    const orders = await db.select().from(studentBookOrders);
+    const orders = await db.select().from(studentBookOrders).where(eq(studentBookOrders.schoolId, schoolId));
     expect(orders.length).toBe(2);
     expect(orders[0].paymentStatus).toBe("paid");
     expect(orders[0].fulfillmentStatus).toBe("picked_up");
     expect(orders[0].handoverDeliveryNumber).toContain("SJ-SERAH-AW1-2026");
 
     // Verify students updated
-    const updatedStudents = await db.select().from(students);
+    const updatedStudents = await db.select().from(students).where(eq(students.schoolId, schoolId));
     expect(updatedStudents.every((s) => s.hasTakenPackage)).toBe(true);
 
     // Verify stock deducted
