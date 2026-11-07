@@ -6,7 +6,7 @@ import { mockActor, restoreActor } from "./test-actor";
 import { createPurchaseOrder } from "../services/purchase-order";
 import { calcPoHeader } from "../../lib/book-pricing";
 import { db } from "../../db";
-import { books, bookItems, purchaseOrders, purchaseOrderItems, purchaseOrderReceipts, purchaseOrderReceiptItems, suppliers } from "../../db/schema";
+import { books, bookItems, bookStocks, purchaseOrders, purchaseOrderItems, purchaseOrderReceipts, purchaseOrderReceiptItems, stockAdjustments, suppliers } from "../../db/schema";
 
 beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
@@ -194,9 +194,9 @@ describe("Supplier Procurement & Purchase Order API", () => {
       expect(bulkJson.data.status).toBe("received");
       expect(bulkJson.data.totalReceivedThisBatch).toBe(30);
 
-      const created = await db.select().from(bookItems).where(eq(bookItems.bookId, bookId));
-      expect(created.length).toBe(30);
-      expect(new Set(created.map((b: any) => b.barcode)).size).toBe(30);
+      const created = await db.select().from(bookStocks).where(eq(bookStocks.bookId, bookId));
+      expect(created.length).toBe(1);
+      expect(created[0].availableQuantity).toBe(30);
 
       // Over-receive setelah lunas: 400, bukan 500.
       const overRes = await procurementRouter.request(`/purchase-orders/${poId}/receive`, {
@@ -867,7 +867,7 @@ describe("spec-57 T4 PO receipt atomic write-set", () => {
       expect(dup.status).toBe(400);
       expect(((await dup.json()) as any).message).toMatch(/Surat Jalan/);
 
-      expect((await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId))).length).toBe(5);
+      expect((await db.select().from(bookStocks).where(eq(bookStocks.bookId, ctx.bookId)))[0]?.availableQuantity).toBe(5);
       const history = await (await procurementRouter.request(`/purchase-orders/${ctx.poId}/receipts`, { method: "GET" })).json();
       expect(history.data.length).toBe(1);
     } finally {
@@ -886,7 +886,7 @@ describe("spec-57 T4 PO receipt atomic write-set", () => {
       expect(res.status).toBe(400);
       const history = await (await procurementRouter.request(`/purchase-orders/${ctx.poId}/receipts`, { method: "GET" })).json();
       expect(history.data.length).toBe(0);
-      expect((await db.select().from(bookItems).where(eq(bookItems.bookId, ctx.bookId))).length).toBe(0);
+      expect((await db.select().from(bookStocks).where(eq(bookStocks.bookId, ctx.bookId)))[0]?.availableQuantity ?? 0).toBe(0);
     } finally {
       await cleanupPo10(ctx);
     }
@@ -990,12 +990,17 @@ describe("Supplier PO list seam (T3: list + readiness behind the module)", () =>
       expect(recRes.status).toBe(200);
       expect((await recRes.json()).data.totalReceivedThisBatch).toBe(4);
 
-      const damaged = await db
+      const stockRows = await db
         .select()
-        .from(bookItems)
-        .where(eq(bookItems.bookId, bookId));
-      expect(damaged.filter((b: typeof bookItems.$inferSelect) => b.condition === "damaged")).toHaveLength(1);
-      expect(damaged.filter((b: typeof bookItems.$inferSelect) => b.condition === "new")).toHaveLength(3);
+        .from(bookStocks)
+        .where(eq(bookStocks.bookId, bookId));
+      expect(stockRows[0]?.availableQuantity).toBe(3);
+
+      const adj = await db
+        .select()
+        .from(stockAdjustments)
+        .where(eq(stockAdjustments.bookId, bookId));
+      expect(adj.filter((a) => a.reason === "damaged")).toHaveLength(1);
 
       const history = await (await procurementRouter.request(`/purchase-orders/${poId}/receipts`, { method: "GET" })).json();
       const conditions = history.data[0].items.map((i: any) => i.condition).sort();

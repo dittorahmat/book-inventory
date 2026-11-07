@@ -53,3 +53,8 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 4. Pada form mutasi/entri master (seperti varian katalog, form penyesuaian stok, atau form reject), draft input wajib dikoordinasikan dalam model state terpadu (anti-data-clump), filter pencarian didelegasikan ke predikat domain, dan tombol aksi dilarang terkunci tanpa penjelasan klik.
 5. Aksi formulir lanjutan berbasis baris data (seperti input ongkir, resi ekspedisi, atau bayar kasir manual) yang dipicu dari baris tabel/kartu wajib menggunakan modal pop-up kontekstual yang membawa identitas entitas (nomor order & nama murid), dilarang merender inline-form melayang di atas halaman yang memutus konteks data pengguna.
 
+### §0.67. Unifikasi Adapter Klien Publik & Larangan Overload Usang
+1. Seluruh adapter fetch klien portal publik (buku dan seragam) wajib terkonsentrasi di `src/components/portal/portal-api.ts`. File `uniform-portal-api.ts` hanya bertindak sebagai wrapper re-export tipis untuk backward-compatibility tanpa logika fetch duplikat.
+2. Adapter klien terpadu dilarang membawa kembali parameter overload usang (seperti `paramsOrQuery: ... | string, legacySchoolId?: string`). Seluruh pemanggil pencarian wajib menggunakan objek parameter terstruktur (`StudentSearchParams`, §0.12).
+3. Endpoint publik untuk daftar sekolah adalah `/api/public/orders/schools`. Dilarang mengarahkan portal publik ke endpoint staf `/api/schools` (§0.1).
+

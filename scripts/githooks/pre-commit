@@ -29,6 +29,16 @@ if [ -z "$IN_PROGRESS" ] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
   esac
 fi
 
+# Empty commit guard: tolak commit tanpa staged changes kecuali ada izin eksplisit ALLOW_EMPTY_COMMIT=1
+if [ "${ALLOW_EMPTY_COMMIT:-0}" != "1" ] && [ -z "$IN_PROGRESS" ]; then
+  if git diff --cached --quiet; then
+    echo "Pre-commit: commit kosong (--allow-empty) ditolak."
+    echo "  Pastikan ada perubahan file yang di-stage sebelum commit."
+    echo "  Paksa bila memang disengaja: ALLOW_EMPTY_COMMIT=1 git commit ..."
+    exit 1
+  fi
+fi
+
 # Seluruh gate file berubah (eslint staged, type-check, gate kondisional) ada di
 # satu skrip yang juga dipakai `check:fast`, supaya loop cepat tidak pernah lebih
 # longgar dari pre-commit.

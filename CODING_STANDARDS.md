@@ -56,7 +56,8 @@ Speculative Generality · Message Chains · Middle Man · Refused Bequest.
 Aturan repo mengalahkan baseline. Contoh yang sering muncul di repo ini:
 guard/loop verbose yang setara `map`/`filter`/`??`/ternary satu baris;
 helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali;
-menduplikasi mapping tipe/label/opsi UI di beberapa komponen daripada mengekstrak ke helper kanonik (`src/lib/<domain>.ts`).
+menduplikasi mapping tipe/label/opsi UI di beberapa komponen daripada mengekstrak ke helper kanonik (`src/lib/<domain>.ts`);
+menduplikasi loop mutasi stok agregat pada multiple endpoint/handler intake (konsolidasikan ke helper intake tunggal yang menerapkan §0.61 & §0.62).
 
 ## 3. Checklist UI (anti-slop)
 

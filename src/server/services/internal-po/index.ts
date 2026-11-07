@@ -12,7 +12,14 @@ export type {
   InternalShipmentListRow,
   ListInternalShipmentsResult,
 } from "./po";
-export { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "./po";
+export {
+  createInternalPo,
+  fulfillInternalPo,
+  listInternalPOs,
+  listInternalShipments,
+  createInternalPo as submitInternalPo,
+  fulfillInternalPo as dispatchInternalPo,
+} from "./po";
 export type {
   InternalReceiptCondition,
   InternalReceiptLineInput,

@@ -1,15 +1,55 @@
 import { eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
-  bookItems,
   books,
   purchaseOrderItems,
   purchaseOrderReceipts,
   purchaseOrderReceiptItems,
   purchaseOrders,
 } from "../../../db/schema";
-import { chunkRows, D1_WRITE_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, type WriteDeps } from "../../lib/d1-write";
 import { moveInventoryStock } from "../stock";
+
+/**
+ * Mutasi stok agregat untuk seluruh item diterima (baik maupun rusak).
+ * Sesuai §0.61, item berkondisi rusak dicatat sebagai audit penyesuaian
+ * tanpa memotong saldo aktif yang belum pernah masuk (updateStockBalance: false).
+ */
+async function applyReceivedStockMovements(
+  database: AppDatabase,
+  targetSchoolId: string,
+  referenceDoc: string,
+  items: ReceivedItemInput[],
+  poItemMap: Map<string, string>,
+  deps?: WriteDeps
+): Promise<void> {
+  for (const rec of items) {
+    const bookId = poItemMap.get(rec.poItemId);
+    if (!bookId) continue;
+
+    if (rec.condition === "damaged") {
+      await moveInventoryStock(database, {
+        movementType: "adjustment",
+        schoolId: targetSchoolId,
+        itemType: "loose",
+        bookId,
+        quantity: rec.quantityToReceive,
+        reason: "damaged",
+        referenceDocumentNumber: referenceDoc,
+        notes: "Penerimaan PO dengan kondisi rusak",
+        updateStockBalance: false,
+      }, deps);
+    } else {
+      await moveInventoryStock(database, {
+        movementType: "receipt",
+        toSchoolId: targetSchoolId,
+        itemType: "loose",
+        bookId,
+        quantity: rec.quantityToReceive,
+      }, deps);
+    }
+  }
+}
 
 /** Baris terima per item PO — dimiliki modul intake ini, bukan modul pembuatan. */
 export interface ReceivedItemInput {
@@ -50,7 +90,6 @@ export type PoReceivePlanDeps = WriteDeps;
 
 export interface PlannedPoReceive {
   itemUpdates: Array<{ poItemId: string; quantityReceived: number }>;
-  stockRows: Array<typeof bookItems.$inferInsert>;
   totalReceivedThisBatch: number;
   newStatus: "received" | "partially_received";
 }
@@ -61,20 +100,19 @@ export type PoReceivePlanResult =
 
 /**
  * Perencana murni intake Supplier PO: validasi keanggotaan item + sisa
- * kuantitas sebelum tulis apa pun (400, bukan 500), lalu susun write-set
- * stok + status. Dipakai receivePurchaseOrder dan recordPoReceipt agar
- * kedua jalan mengeksekusi tepat satu rencana yang sama.
+ * kuantitas sebelum tulis apa pun (400, bukan 500), lalu susun pembaruan
+ * status PO dan sisa item PO.
  */
 export const planPoReceive = (
   po: { poNumber: string; targetSchoolId: string },
   poItems: Array<{ id: string; bookId: string; quantityOrdered: number; quantityReceived: number }>,
   receivedItems: ReceivedItemInput[],
-  deps?: PoReceivePlanDeps
+  _deps?: PoReceivePlanDeps
 ): PoReceivePlanResult => {
-  const now = writeNow(deps);
   const poItemById = new Map(poItems.map((it) => [it.id, it]));
 
   const increments = new Map<string, number>();
+  let totalReceivedThisBatch = 0;
   for (const rec of receivedItems) {
     const poItem = poItemById.get(rec.poItemId);
     if (!poItem) {
@@ -86,30 +124,9 @@ export const planPoReceive = (
       return { ok: false, status: 400, message: `Jumlah terima melebihi sisa ${remaining} eks untuk PO ${po.poNumber}` };
     }
     increments.set(rec.poItemId, next);
+    totalReceivedThisBatch += rec.quantityToReceive;
   }
 
-  const epoch = String(Date.parse(now) % 1000000).padStart(6, "0");
-  let totalReceivedThisBatch = 0;
-  const stockRows: Array<typeof bookItems.$inferInsert> = [];
-  for (const rec of receivedItems) {
-    const poItem = poItemById.get(rec.poItemId)!;
-    const condition = rec.condition ?? "good";
-    for (let k = 0; k < rec.quantityToReceive; k++) {
-      const newId = newWriteId(deps);
-      stockRows.push({
-        id: newId,
-        bookId: poItem.bookId,
-        currentSchoolId: po.targetSchoolId,
-        barcode: `INB-PO-${epoch}-${rec.poItemId.replace(/-/g, "").slice(0, 4).toUpperCase()}-${k + 1}-${newId.replace(/-/g, "").slice(0, 4).toUpperCase()}`,
-        condition: condition === "damaged" ? "damaged" : "new",
-        status: "in_stock",
-        notes: condition === "damaged" ? `Rusak saat terima dari ${po.poNumber}` : `Inbound receiving from ${po.poNumber}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalReceivedThisBatch++;
-    }
-  }
   if (totalReceivedThisBatch === 0) {
     return { ok: false, status: 400, message: "Tidak ada item yang diterima" };
   }
@@ -127,7 +144,6 @@ export const planPoReceive = (
         poItemId,
         quantityReceived: poItemById.get(poItemId)!.quantityReceived + qty,
       })),
-      stockRows,
       totalReceivedThisBatch,
       newStatus,
     },
@@ -181,44 +197,17 @@ export async function receivePurchaseOrder(
           .set({ quantityReceived: u.quantityReceived })
           .where(eq(purchaseOrderItems.id, u.poItemId))
       ),
-      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
-        database.insert(bookItems).values(rows)
-      ),
       database
         .update(purchaseOrders)
         .set({ status: planned.plan.newStatus, updatedAt: now })
         .where(eq(purchaseOrders.id, poId)),
     ]);
 
-    // Update saldo stok kuantitas agregat (Ticket 2)
+    // Update saldo stok kuantitas agregat via deep stock movement engine
     const targetSchoolId = (loaded.po as { targetSchoolId: string }).targetSchoolId;
     const poNum = (loaded.po as { poNumber: string }).poNumber;
     const poItemMap = new Map(loaded.items.map((p) => [p.id, p.bookId]));
-    for (const rec of receivedItems) {
-      const bookId = poItemMap.get(rec.poItemId);
-      if (bookId) {
-        if (rec.condition === "damaged") {
-          await moveInventoryStock(database, {
-            movementType: "adjustment",
-            schoolId: targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: -rec.quantityToReceive,
-            reason: "damaged",
-            referenceDocumentNumber: poNum,
-            notes: "Penerimaan PO dengan kondisi rusak",
-          }, deps);
-        } else {
-          await moveInventoryStock(database, {
-            movementType: "receipt",
-            toSchoolId: targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-          }, deps);
-        }
-      }
-    }
+    await applyReceivedStockMovements(database, targetSchoolId, poNum, receivedItems, poItemMap, deps);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat penerimaan");
     if (mapped) return { ok: false, ...mapped };
@@ -295,9 +284,6 @@ export async function recordPoReceipt(
           .set({ quantityReceived: u.quantityReceived })
           .where(eq(purchaseOrderItems.id, u.poItemId))
       ),
-      ...chunkRows(planned.plan.stockRows, D1_WRITE_CHUNK_SIZE).map((rows) =>
-        database.insert(bookItems).values(rows)
-      ),
       database
         .update(purchaseOrders)
         .set({ status: planned.plan.newStatus, updatedAt: now })
@@ -315,31 +301,7 @@ export async function recordPoReceipt(
     ]);
 
     // Update saldo stok kuantitas agregat via deep stock movement engine
-    for (const rec of input.receivedItems) {
-      const bookId = poItemMap.get(rec.poItemId);
-      if (bookId) {
-        if (rec.condition === "damaged") {
-          await moveInventoryStock(database, {
-            movementType: "adjustment",
-            schoolId: loaded.po.targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: -rec.quantityToReceive,
-            reason: "damaged",
-            referenceDocumentNumber: note,
-            notes: "Penerimaan PO berkondisi rusak",
-          }, deps);
-        } else {
-          await moveInventoryStock(database, {
-            movementType: "receipt",
-            toSchoolId: loaded.po.targetSchoolId,
-            itemType: "loose",
-            bookId,
-            quantity: rec.quantityToReceive,
-          }, deps);
-        }
-      }
-    }
+    await applyReceivedStockMovements(database, loaded.po.targetSchoolId, note, input.receivedItems, poItemMap, deps);
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "mencatat Surat Jalan");
     if (mapped) return { ok: false, ...mapped };

@@ -15,6 +15,11 @@ import type {
   PortalOrderLookup,
   PortalBookChoice,
 } from "../../lib/portal-types";
+import type {
+  UniformCatalog,
+  SubmitUniformOrderPayload,
+  UniformStudent,
+} from "../../lib/uniform-types";
 
 export const fetchSchools = (): Promise<SchoolOption[]> =>
   getJson<SchoolOption[]>("/api/public/orders/schools", "Gagal memuat daftar sekolah.");
@@ -131,17 +136,13 @@ export const checkPendingOrders = (studentId: string): Promise<StudentPendingOrd
     `/api/public/orders/check-pending/${encodeURIComponent(studentId)}`,
     "Gagal memeriksa status pesanan gantung."
   );
+
 export const fetchWprEligibility = (studentId: string): Promise<WprEligibility> =>
   getJson<WprEligibility>(
     buildQuery("/api/public/orders/wpr-eligibility", { studentId }),
     "Gagal memeriksa status WPR."
   );
 
-/**
- * Pencarian pesanan untuk alur refund buku. Server membalas 404 saat tidak ada
- * yang cocok; itu keadaan normal (empty state), bukan kegagalan, jadi
- * dikembalikan sebagai daftar kosong alih-alih melempar banner galat.
- */
 export interface LookupReturnableOrdersParams {
   query: string;
   schoolId: string;
@@ -194,3 +195,90 @@ export const submitReturnReport = (payload: ReturnReportPayload): Promise<Return
     payload,
     "Gagal mengirimkan pengajuan refund buku."
   );
+
+/* =========================================================================
+ * Unified Uniform Portal Client Endpoints
+ * ========================================================================= */
+
+export const fetchUniformSchools = (): Promise<SchoolOption[]> =>
+  getJson<SchoolOption[]>("/api/public/orders/schools", "Gagal memuat daftar sekolah.");
+
+export const searchUniformStudents = (
+  params: StudentSearchParams
+): Promise<UniformStudent[]> =>
+  getJson<UniformStudent[]>(
+    buildQuery("/api/public/uniform-orders/search-students", {
+      query: params.query.trim(),
+      schoolId: params.schoolId,
+    }),
+    "Gagal melakukan pencarian siswa."
+  );
+
+export const fetchUniformCatalog = (academicYear: string): Promise<UniformCatalog> =>
+  getJson<UniformCatalog>(
+    buildQuery("/api/public/uniform-orders/catalog", { academicYear }),
+    "Gagal memuat katalog seragam."
+  );
+
+export const fetchUniformSatuanStatus = (): Promise<{ open: boolean }> =>
+  getJson<{ open: boolean }>("/api/public/uniform-orders/satuan-status", "Gagal memuat status satuan.");
+
+export interface SubmittedUniformOrder {
+  order: { id: string; orderNumber: string; shipmentStatus: string };
+  totalAmount: number;
+}
+
+export const submitUniformOrder = (payload: SubmitUniformOrderPayload): Promise<SubmittedUniformOrder> =>
+  postJson<SubmittedUniformOrder>("/api/public/uniform-orders/orders", payload, "Gagal memproses pesanan seragam.");
+
+export interface UniformLookupOrder {
+  id: string;
+  orderNumber: string;
+  studentId: string;
+  studentName: string;
+  schoolId: string;
+  academicYear: string;
+  shipmentStatus: "belum_dikirim" | "sudah_dikirim";
+  shippedAt: string | null;
+  totalAmount: number;
+  createdAt: string;
+}
+
+export interface UniformLookupItem {
+  id: string;
+  orderId: string;
+  packageId: string | null;
+  variantId: string | null;
+  size: string;
+  quantity: number;
+  unitPriceSnapshot: number;
+}
+
+export const lookupUniformOrders = (params: { orderNumber?: string; studentId?: string; schoolId?: string }): Promise<{
+  orders: UniformLookupOrder[];
+  items: UniformLookupItem[];
+  itemsByOrder: Record<string, UniformLookupItem[]>;
+}> =>
+  getJson(buildQuery("/api/public/uniform-orders/lookup-order", params), "Pesanan tidak ditemukan.");
+
+export const requestUniformExchange = (payload: {
+  orderId: string; studentId: string;
+  oldVariantId: string; oldSize: string;
+  newVariantId: string; newSize: string; reason: string;
+  courierResi?: string;
+}): Promise<unknown> =>
+  postJson("/api/public/uniform-orders/exchange-requests", payload, "Gagal mengajukan tukar ukuran.");
+
+export const getSportsExchangeTracking = (exchangeId: string): Promise<{
+  courierResi?: string;
+  fulfillmentType?: "ready" | "backorder";
+  replacementResi?: string;
+  estimatedShipDate?: string;
+  updatedAt?: string;
+}> =>
+  getJson(`/api/public/uniform-orders/exchange-tracking/${exchangeId}`, "Gagal memuat pelacakan status penukaran.");
+
+export const requestUniformRefund = (payload: {
+  orderId: string; studentId: string; amount?: number; reason: string;
+}): Promise<unknown> =>
+  postJson("/api/public/uniform-orders/refund-requests", payload, "Gagal mengajukan refund.");
