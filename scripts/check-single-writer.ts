@@ -109,10 +109,10 @@ const walk = (dir: string, out: string[] = []): string[] => {
 
 function getTargetFiles(): string[] {
   if (ALL) {
-    return walk("src");
+    return [...walk("src"), ...walk("scripts")];
   }
   try {
-    const out = execSync("git status --porcelain -- src", { encoding: "utf8" });
+    const out = execSync("git status --porcelain -- src scripts", { encoding: "utf8" });
     const changed = out
       .split(/\r?\n/)
       .map((l) => l.trim().split(/\s+/).pop() || "")
@@ -129,7 +129,7 @@ function getTargetFiles(): string[] {
       });
     return changed;
   } catch {
-    return walk("src");
+    return [...walk("src"), ...walk("scripts")];
   }
 }
 

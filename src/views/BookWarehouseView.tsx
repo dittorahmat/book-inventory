@@ -52,8 +52,8 @@ export function BookWarehouseView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] shadow-xs">
-        <div className="flex items-center gap-3 shrink-0">
+      <div className="flex flex-col gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] shadow-xs">
+        <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1877F2] to-[#145DBF] flex items-center justify-center text-white shrink-0 shadow-xs">
             <Warehouse className="w-5 h-5" />
           </div>
@@ -65,7 +65,9 @@ export function BookWarehouseView({
           </div>
         </div>
 
-        <SegmentedSubNav items={SUB_TABS} activeId={activeSection} onChange={setActiveSection} className="shrink-0" />
+        <div className="pt-1 border-t border-[#F0F2F5]">
+          <SegmentedSubNav items={SUB_TABS} activeId={activeSection} onChange={setActiveSection} className="w-full overflow-x-auto" />
+        </div>
       </div>
 
       <div>
