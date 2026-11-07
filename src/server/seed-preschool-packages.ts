@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../db";
 import { bookPackageItems, bookPackages, books, bookSuppliers } from "../db/schema";
 import { chunkRows } from "./lib/d1-write";
+import { recalcPackagePrice } from "./services/pricing";
 
 export interface PreschoolBookItemDef {
   title: string;
@@ -197,7 +198,11 @@ export async function seedPreschoolPackages(targetDb: AppDatabase) {
       for (const chunk of chunkRows(packageItemRows)) {
         await targetDb.insert(bookPackageItems).values(chunk).onConflictDoNothing();
       }
+
+      // Hitung ulang total harga paket secara kanonik dari penjumlahan komponennya (§0.28)
+      await recalcPackagePrice(targetDb, pkg.id);
     } else {
+      await recalcPackagePrice(targetDb, pkg.id);
       createdPackagesCount++;
     }
   }

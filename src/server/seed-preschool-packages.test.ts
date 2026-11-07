@@ -22,8 +22,14 @@ describe("seedPreschoolPackages", () => {
       );
     expect(pkgs.length).toBe(3);
 
-    // Verifikasi item di dalam paket PG
     const [pgPkg] = pkgs.filter((p) => p.code === "PKG-PG-2026-2027");
+    expect(pgPkg).toBeDefined();
+
+    // Verifikasi harga paket tersinkronisasi otomatis via recalcPackagePrice
+    expect(pgPkg.price).toBeGreaterThan(0);
+    expect(pgPkg.price).not.toBe(450000); // Bukan hardcoded, melainkan hasil akumulasi komponen
+
+    // Verifikasi item di dalam paket PG
     const pgItems = await db
       .select()
       .from(bookPackageItems)

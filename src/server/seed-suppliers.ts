@@ -173,26 +173,71 @@ export async function seedMasterSuppliers(targetDb: AppDatabase) {
 
     let matchedSupplierId: string | null = null;
 
-    if (pub.includes("scholastic") || title.includes("PRIME MATH")) {
-      matchedSupplierId = "sup-cnl";
-    } else if (pub.includes("pelangi") || title.includes("I LEAP") || title.includes("YOK!HOP") || title.includes("MY PRESCHOOL")) {
-      matchedSupplierId = "sup-pelangi";
-    } else if (title.includes("PHYSICS") || title.includes("CHEMISTRY") || title.includes("BIOLOGY")) {
+    // 1. Mentari Books: Cambridge Secondary (Phys/Chem/Bio/Maths higher)
+    if (
+      title.includes("PHYSICS") ||
+      title.includes("CHEMISTRY") ||
+      title.includes("BIOLOGY") ||
+      (pub.includes("mentari") && title.includes("CAMBRIDGE"))
+    ) {
       matchedSupplierId = "sup-mentari";
-    } else if (pub.includes("erlangga") || title.includes("MATEMATIKA") || title.includes("PENDIDIKAN PANCASILA") || title.includes("BAHASA INDONESIA") || title.includes("PJOK") || title.includes("SENI")) {
-      matchedSupplierId = "sup-erlangga";
-    } else if (pub.includes("darsyafi") || title.includes("AKIDAH") || title.includes("FIKIH") || title.includes("HADIST") || title.includes("TAJWID") || title.includes("SKI")) {
-      matchedSupplierId = "sup-darsyafii";
-    } else if (title.includes("ARAB") || title.includes("LUGHAH")) {
-      matchedSupplierId = "sup-segara-makmur";
-    } else if (title.includes("QUR'AN") || title.includes("QURAN") || title.includes("NURRONIYAH")) {
-      matchedSupplierId = "sup-manzilla";
-    } else if (title.includes("WPR") || title.includes("PROGRESS REPORT") || title.includes("MUTABAAH") || title.includes("QC IBADAH")) {
-      matchedSupplierId = "sup-mega-wira";
-    } else if (pub.includes("cambridge")) {
+    }
+    // 2. Chandra Naya Laksana (CNL): Scholastic & Cambridge Primary (English, Prime Math, Primary Science)
+    else if (
+      pub.includes("scholastic") ||
+      title.includes("PRIME MATH") ||
+      (pub.includes("cambridge") && (title.includes("ENGLISH") || title.includes("MATH") || title.includes("SCIENCE")))
+    ) {
       matchedSupplierId = "sup-cnl";
-    } else {
-      matchedSupplierId = "sup-darsyafii"; // fallback default buku al-wildan
+    }
+    // 3. Pelangi Books: Preschool / PAUD / TK
+    else if (
+      pub.includes("pelangi") ||
+      title.includes("I LEAP") ||
+      title.includes("YOK!HOP") ||
+      title.includes("MY PRESCHOOL") ||
+      title.includes("LEARNING PARK")
+    ) {
+      matchedSupplierId = "sup-pelangi";
+    }
+    // 4. Erlangga Mahameru: Buku Diknas Kurikulum Nasional
+    else if (
+      pub.includes("erlangga") ||
+      ((title.includes("MATEMATIKA") ||
+        title.includes("PENDIDIKAN PANCASILA") ||
+        title.includes("BAHASA INDONESIA") ||
+        title.includes("PJOK") ||
+        title.includes("SENI")) &&
+        !title.includes("PRIME"))
+    ) {
+      matchedSupplierId = "sup-erlangga";
+    }
+    // 5. Pustaka Imam Asy-Syafi'i / Darsyafi'i: Diniyyah
+    else if (
+      pub.includes("darsyafi") ||
+      title.includes("AKIDAH") ||
+      title.includes("FIKIH") ||
+      title.includes("HADIST") ||
+      title.includes("TAJWID") ||
+      title.includes("SKI")
+    ) {
+      matchedSupplierId = "sup-darsyafii";
+    }
+    // 6. Percetakan Segara Makmur: Bahasa Arab
+    else if (title.includes("ARAB") || title.includes("LUGHAH")) {
+      matchedSupplierId = "sup-segara-makmur";
+    }
+    // 7. Percetakan Manzilla Makmur: Al-Qur'an & Qoidah Nurroniyah
+    else if (title.includes("QUR'AN") || title.includes("QURAN") || title.includes("NURRONIYAH")) {
+      matchedSupplierId = "sup-manzilla";
+    }
+    // 8. Mega Wira Perkasa: WPR & Mutabaah
+    else if (title.includes("WPR") || title.includes("PROGRESS REPORT") || title.includes("MUTABAAH") || title.includes("QC IBADAH")) {
+      matchedSupplierId = "sup-mega-wira";
+    }
+    // 9. Default Al-Wildan Press Diniyyah
+    else {
+      matchedSupplierId = "sup-darsyafii";
     }
 
     if (matchedSupplierId) {
