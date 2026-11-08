@@ -299,7 +299,7 @@ interface Finding {
   detail: string;
 }
 
-const files = walk("src");
+const files = [...walk("src"), ...walk("scripts")];
 const findings: Finding[] = [];
 for (const file of files) {
   const src = readFileSync(file, "utf8");

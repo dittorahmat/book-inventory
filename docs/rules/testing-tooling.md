@@ -7,7 +7,7 @@ Dokumen ini memuat aturan kanonik dan mandat anti-kambuh untuk pengujian unit/E2
 ## Mandat Anti-Kambuh
 
 ### §0.13. Disiplin PowerShell & Shell Tools
-Saat menjalankan perintah CLI yang menulis teks multibaris / markdown bertanda backtick (misal `gh pr create --body`), hindari interpolasi string inline langsung di PowerShell pwsh karena karakter backtick ` dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`) atau single-quoted here-string (`@' ... '@`).
+Saat menjalankan perintah CLI yang menulis teks multibaris / markdown bertanda backtick (misal `gh pr create --body`), hindari interpolasi string inline langsung di PowerShell pwsh karena karakter backtick ` dapat memicu error escape sequence; gunakan argumen file (`--body-file <file>`) atau single-quoted here-string (`@' ... '@`). Untuk pembuatan Pull Request, tulis ringkasan perubahan ke file temporer terlebih dahulu melalui tool `write_file` (misal `.pr-body.txt`) lalu jalankan `gh pr create ... --body-file .pr-body.txt` dan hapus berkas tersebut setelah PR dibuat. Pembuatan dan pelepasan git worktree dilarang merakit string pwsh mentah (`git worktree add ...`), wajib menggunakan runner otomatis `bun run worktree:add` dan `bun run worktree:remove` (§0.51.4 & §0.51.6).
 
 ### §0.17. Disiplin Artefak Bersih & Anti-Blob Liar
 Dilarang melakukan commit atas file biner liar atau dokumen presentasi/ekspor PDF/DOCX (`*.pdf`, `*.docx`, dsb.) ke dalam tree git; dokumentasi spesifikasi dan skenario sistem wajib berformat teks markdown murni (`.md`). Ditegakkan mekanis oleh `check:clean-artifacts`.
