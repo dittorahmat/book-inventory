@@ -2010,4 +2010,300 @@ describe("Struk bayar ganda di intake publik", () => {
     await db.delete(books).where(inArray(books.id, [bookInPkg, bookOtherPkg, bookOverride]));
     await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
   });
+
+  describe("Public Student Curriculum Override API (Issue #338)", () => {
+    it("rejects when student is not found or NIS does not match", async () => {
+      const res = await publicOrdersRouter.request("/students/st-unknown-999/curriculum", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis: "12345",
+          parentName: "Budi",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(res.status).toBe(404);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.success).toBe(false);
+    });
+
+    it("rejects when NIS does not match existing student record", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-ovr-${stamp}`;
+      const studentId = `st-curr-mismatch-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-${stamp}`,
+        name: "Sekolah Override Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis: `NIS-CURR-${stamp}`,
+        name: "Siswa Mismatch",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis: "WRONG-NIS",
+          parentName: "Budi Santoso",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.message).toContain("NIS");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+
+    it("updates curriculumType, parentPhone, parentName, and preserves canOrder = true", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-ok-${stamp}`;
+      const studentId = `st-curr-ok-${stamp}`;
+      const nis = `NIS-OK-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-OK-${stamp}`,
+        name: "Sekolah OK Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa Pindah Kurikulum",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Ayahanda Siswa",
+          parentPhone: "081299998888",
+          curriculumType: "MQ",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        success: boolean;
+        data: {
+          id: string;
+          curriculumType: string;
+          canOrder: boolean;
+          name: string;
+        };
+      };
+      expect(json.success).toBe(true);
+      expect(json.data.curriculumType).toBe("MQ");
+      expect(json.data.canOrder).toBe(true);
+
+      const [updated] = await db.select().from(students).where(eq(students.id, studentId));
+      expect(updated?.curriculumType).toBe("MQ");
+      expect(updated?.parentName).toBe("Ayahanda Siswa");
+      expect(updated?.parentPhone).toBe("081299998888");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+
+    it("updates stream for high school students", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-sma-${stamp}`;
+      const studentId = `st-sma-ok-${stamp}`;
+      const nis = `NIS-SMA-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-SMA-${stamp}`,
+        name: "Sekolah SMA Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa SMA Pindah Jurusan",
+        gradeLevel: "10",
+        curriculumType: "AE",
+        stream: "IPA",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Ibunda Siswa",
+          parentPhone: "081377776666",
+          curriculumType: "AE",
+          stream: "IPS",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        success: boolean;
+        data: {
+          id: string;
+          curriculumType: string;
+          stream?: string | null;
+          canOrder: boolean;
+        };
+      };
+      expect(json.success).toBe(true);
+      expect(json.data.curriculumType).toBe("AE");
+      expect(json.data.stream).toBe("IPS");
+      expect(json.data.canOrder).toBe(true);
+
+      const [updated] = await db.select().from(students).where(eq(students.id, studentId));
+      expect(updated?.stream).toBe("IPS");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+
+    it("supports end-to-end flow: curriculum override matches BOM package and replaces active pending order", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-e2e-${stamp}`;
+      const studentId = `st-e2e-${stamp}`;
+      const nis = `NIS-E2E-${stamp}`;
+      const now = new Date().toISOString();
+
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-E2E-${stamp}`,
+        name: "Sekolah E2E Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 1. Insert 2 BOM packages: AE and MQ
+      const pkgAeId = `pkg-ae-${stamp}`;
+      const pkgMqId = `pkg-mq-${stamp}`;
+      await db.insert(bookPackages).values([
+        {
+          id: pkgAeId,
+          code: `PKG-AE-${stamp}`,
+          name: "Paket Kelas 7 AE",
+          gradeLevel: "7",
+          curriculumType: "AE",
+          academicYear: "2026/2027",
+          price: 500000,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: pkgMqId,
+          code: `PKG-MQ-${stamp}`,
+          name: "Paket Kelas 7 MQ",
+          gradeLevel: "7",
+          curriculumType: "MQ",
+          academicYear: "2026/2027",
+          price: 450000,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      // 2. Student starts as AE
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa E2E Supersede",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 3. Ortu updates curriculum from AE to MQ
+      const patchRes = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Wali Siswa E2E",
+          parentPhone: "081211112222",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(patchRes.status).toBe(200);
+
+      // 4. Verify search returns updated curriculum and canOrder = true
+      const searchRes = await publicOrdersRouter.request(
+        `/search-students?query=${encodeURIComponent(nis)}&schoolId=${testSchoolId}`
+      );
+      expect(searchRes.status).toBe(200);
+      const searchJson = (await searchRes.json()) as {
+        success: boolean;
+        data: Array<{ id: string; curriculumType: string; canOrder: boolean }>;
+      };
+      expect(searchJson.data[0].curriculumType).toBe("MQ");
+      expect(searchJson.data[0].canOrder).toBe(true);
+
+      // 5. Submit new order with MQ package and verify order replacement
+      const submitRes = await publicOrdersRouter.request("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          packageId: pkgMqId,
+          orderType: "regular",
+          payment: {
+            transferAmount: 450000,
+            bookAllocationAmount: 450000,
+            paymentProofBase64:
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          },
+        }),
+      });
+      expect(submitRes.status).toBe(201);
+      const submitJson = (await submitRes.json()) as { success: boolean; data: { order: { id: string; packageId: string } } };
+      expect(submitJson.success).toBe(true);
+      expect(submitJson.data.order.packageId).toBe(pkgMqId);
+
+      // Cleanup
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.studentId, studentId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(inArray(bookPackages.id, [pkgAeId, pkgMqId]));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+  });
 });

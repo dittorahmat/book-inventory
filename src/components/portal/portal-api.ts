@@ -5,7 +5,7 @@
  * Total optimistik tinggal di `lib/book-pricing` + `lib/transfer-pricing`,
  * resolusi paket di `lib/resolve-package`, perakitan payload di `order-payload`.
  */
-import { ApiError, buildQuery, getJson, postJson } from "../../lib/api";
+import { ApiError, buildQuery, getJson, patchJson, postJson } from "../../lib/api";
 import type {
   SchoolOption,
   StudentSearchResult,
@@ -64,6 +64,24 @@ export const searchStudents = (
 
 export const registerStudent = (payload: NewStudentForm): Promise<any> =>
   postJson("/api/public/orders/register-student", payload, "Gagal mendaftarkan siswa baru");
+
+export interface UpdateStudentCurriculumPayload {
+  nis: string;
+  parentName: string;
+  parentPhone: string;
+  curriculumType: string;
+  stream?: string | null;
+}
+
+export const updateStudentCurriculum = (
+  studentId: string,
+  payload: UpdateStudentCurriculumPayload
+): Promise<StudentSearchResult> =>
+  patchJson<StudentSearchResult>(
+    `/api/public/orders/students/${encodeURIComponent(studentId)}/curriculum`,
+    payload,
+    "Gagal memperbarui kurikulum siswa."
+  );
 
 export interface FinalOrderPayload {
   studentId: string;

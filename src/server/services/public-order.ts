@@ -19,6 +19,7 @@ export interface VerifiedStudentRow {
   gender: "male" | "female" | null;
   gradeLevel: string;
   curriculumType: string;
+  stream?: string | null;
   academicYear: string;
   status: string;
   isScholarship: boolean;
@@ -43,6 +44,7 @@ export const searchVerifiedStudents = async (
       gender: students.gender,
       gradeLevel: students.gradeLevel,
       curriculumType: students.curriculumType,
+      stream: students.stream,
       academicYear: students.academicYear,
       status: students.status,
       isScholarship: students.isScholarship,
@@ -70,6 +72,7 @@ export const toBookSearchView = (row: VerifiedStudentRow) => ({
   name: row.name,
   gradeLevel: row.gradeLevel,
   curriculumType: row.curriculumType,
+  stream: row.stream ?? null,
   academicYear: row.academicYear,
   status: row.status,
   isScholarship: row.isScholarship,

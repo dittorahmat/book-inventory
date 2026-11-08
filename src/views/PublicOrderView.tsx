@@ -143,6 +143,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
                 setSearchQuery={order.setSearchQuery}
                 isSearching={order.isSearching}
                 searchResults={order.searchResults}
+                onUpdateStudent={order.updateSearchResult}
                 isNewStudentMode={order.isNewStudentMode}
                 setIsNewStudentMode={order.setIsNewStudentMode}
                 newStudent={order.newStudent}

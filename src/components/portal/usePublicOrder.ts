@@ -84,7 +84,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const {
     searchSchoolId, setSearchSchoolId,
     searchQuery, setSearchQuery,
-    isSearching, searchResults,
+    isSearching, searchResults, setSearchResults,
     selectedStudent, setSelectedStudent,
     isNewStudentMode, setIsNewStudentMode,
     pendingNoResult,
@@ -271,7 +271,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     activePortalTab, setActivePortalTab,
     schools, packages, step, setStep, goToStep,
     searchSchoolId, setSearchSchoolId,
-    searchQuery, setSearchQuery, isSearching, searchResults,
+    searchQuery, setSearchQuery, isSearching, searchResults, setSearchResults,
     selectedStudent, isNewStudentMode, setIsNewStudentMode,
     pendingNoResult, confirmCreateNewStudent, cancelNoResult, editNoResultKeyword,
     verificationPending, setVerificationPending,
@@ -284,6 +284,9 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,
     resetOrderFlow,
+    updateSearchResult: (updated: StudentSearchResult) => {
+      setSearchResults((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    },
     pendingBookOrder,
     confirmReplaceOrder: () => {
       if (pendingStudentTarget && pendingBookOrder) {

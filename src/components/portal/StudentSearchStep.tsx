@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Search, UserCheck, UserPlus } from "lucide-react";
+import { Search, UserCheck, UserPlus, Settings2 } from "lucide-react";
 import { PORTAL_STUDENT_SEARCH_INPUT_ID } from "./usePublicOrder";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { NewStudentRegistrationForm } from "./NewStudentRegistrationForm";
+import { StudentCurriculumOverrideModal } from "./StudentCurriculumOverrideModal";
+import { curriculumLabel } from "../../lib/curriculum";
 import {
   validateRequiredSelect,
   validateRequiredText,
@@ -22,6 +24,7 @@ interface StudentSearchStepProps {
   setSearchQuery: (val: string) => void;
   isSearching: boolean;
   searchResults: StudentSearchResult[];
+  onUpdateStudent?: (updated: StudentSearchResult) => void;
   isNewStudentMode: boolean;
   setIsNewStudentMode: (val: boolean) => void;
   newStudent: NewStudentForm;
@@ -40,6 +43,7 @@ export function StudentSearchStep({
   setSearchQuery,
   isSearching,
   searchResults,
+  onUpdateStudent,
   isNewStudentMode,
   setIsNewStudentMode,
   newStudent,
@@ -49,6 +53,7 @@ export function StudentSearchStep({
   onSelectStudent,
   onRegister,
 }: StudentSearchStepProps) {
+  const [editingStudent, setEditingStudent] = useState<StudentSearchResult | null>(null);
   const [searchErrors, setSearchErrors] = useState<{ schoolId?: string; query?: string }>({});
   const [searchAttempted, setSearchAttempted] = useState(false);
 
@@ -172,8 +177,13 @@ export function StudentSearchStep({
                           </span>
                         )}
                         <span className="text-[10px] font-bold text-[#050505] bg-[#F0F2F5] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          {st.curriculumType === "international" ? "Internasional" : "Nasional"}
+                          {curriculumLabel(st.curriculumType)}
                         </span>
+                        {st.stream && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            {st.stream}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-[#65676B] mt-1 flex items-center gap-2 flex-wrap">
                         <span>{st.schoolName}</span>
@@ -186,16 +196,28 @@ export function StudentSearchStep({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onSelectStudent(st)}
-                      disabled={st.canOrder === false}
-                      title={st.canOrder === false ? st.orderBlockedReason ?? undefined : undefined}
-                      className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      <span>Pilih</span>
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditingStudent(st)}
+                        title="Ubah program atau kurikulum murid"
+                        className="px-2.5 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5"
+                      >
+                        <Settings2 className="w-3.5 h-3.5 text-[#65676B]" />
+                        <span className="hidden sm:inline">Ubah Kurikulum</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onSelectStudent(st)}
+                        disabled={st.canOrder === false}
+                        title={st.canOrder === false ? st.orderBlockedReason ?? undefined : undefined}
+                        className="px-3.5 py-1.5 bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] text-[#1877F2] font-semibold text-xs rounded-lg transition-all shrink-0 flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>Pilih</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -249,6 +271,20 @@ export function StudentSearchStep({
             setRegisterErrors={setRegisterErrors}
           />
         </div>
+      )}
+
+      {editingStudent && (
+        <StudentCurriculumOverrideModal
+          student={editingStudent}
+          isOpen={!!editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onUpdated={(updated) => {
+            if (onUpdateStudent) {
+              onUpdateStudent(updated);
+            }
+            setEditingStudent(null);
+          }}
+        />
       )}
     </div>
   );

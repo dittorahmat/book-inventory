@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { determineIntakeType, curriculumLabel, CANONICAL_CURRICULUM_OPTIONS } from "./curriculum";
+import {
+  determineIntakeType,
+  curriculumLabel,
+  CANONICAL_CURRICULUM_OPTIONS,
+  getAvailableCurriculaForGrade,
+} from "./curriculum";
 
 describe("curriculum helpers", () => {
   it("determines intake type correctly from academic year and NIS prefix", () => {
@@ -34,5 +39,19 @@ describe("curriculum helpers", () => {
       "DI",
       "MQ",
     ]);
+  });
+
+  it("filters available curricula strictly by grade level", () => {
+    const tkCurricula = getAvailableCurriculaForGrade("TK").map((c) => c.value);
+    expect(tkCurricula).toEqual(["TK"]);
+
+    const sdCurricula = getAvailableCurriculaForGrade("3").map((c) => c.value);
+    expect(sdCurricula).toEqual(["INTER", "MQ"]);
+
+    const smpCurricula = getAvailableCurriculaForGrade("8").map((c) => c.value);
+    expect(smpCurricula).toEqual(["AE", "ME", "DI", "MQ"]);
+
+    const smaCurricula = getAvailableCurriculaForGrade("10").map((c) => c.value);
+    expect(smaCurricula).toEqual(["AE", "ME", "DI", "MQ"]);
   });
 });

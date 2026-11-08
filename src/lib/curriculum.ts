@@ -11,6 +11,29 @@ export const CANONICAL_CURRICULUM_OPTIONS: Array<{ value: CurriculumType; label:
   { value: "MQ", label: "Markaz Al-Qur'an (MQ)" },
 ];
 
+/**
+ * Filter kurikulum yang valid berdasarkan jenjang tingkat kelas murid:
+ * - TK (gradeLevel "TK" atau "0"): TK
+ * - SD (gradeLevel "1".."6"): INTER, MQ
+ * - SMP/SMA (gradeLevel "7".."12"): AE, ME, DI, MQ
+ */
+export function getAvailableCurriculaForGrade(gradeLevel: string): Array<{ value: CurriculumType; label: string }> {
+  const norm = gradeLevel.trim().toUpperCase();
+  if (norm.startsWith("TK") || norm === "0") {
+    return CANONICAL_CURRICULUM_OPTIONS.filter((c) => c.value === "TK");
+  }
+  const gradeNum = parseInt(norm, 10);
+  if (!Number.isNaN(gradeNum)) {
+    if (gradeNum >= 1 && gradeNum <= 6) {
+      return CANONICAL_CURRICULUM_OPTIONS.filter((c) => c.value === "INTER" || c.value === "MQ");
+    }
+    if (gradeNum >= 7 && gradeNum <= 12) {
+      return CANONICAL_CURRICULUM_OPTIONS.filter((c) => ["AE", "ME", "DI", "MQ"].includes(c.value));
+    }
+  }
+  return CANONICAL_CURRICULUM_OPTIONS;
+}
+
 export const curriculumLabel = (curriculumType: string): string => {
   const norm = curriculumType.toUpperCase();
   switch (norm) {

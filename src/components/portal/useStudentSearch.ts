@@ -129,6 +129,7 @@ export function useStudentSearch<T extends StudentSearchResult = StudentSearchRe
     setSearchQuery,
     isSearching,
     searchResults,
+    setSearchResults,
     selectedStudent,
     setSelectedStudent,
     isNewStudentMode,
