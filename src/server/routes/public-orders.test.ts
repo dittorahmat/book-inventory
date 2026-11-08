@@ -2010,4 +2010,180 @@ describe("Struk bayar ganda di intake publik", () => {
     await db.delete(books).where(inArray(books.id, [bookInPkg, bookOtherPkg, bookOverride]));
     await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));
   });
+
+  describe("Public Student Curriculum Override API (Issue #338)", () => {
+    it("rejects when student is not found or NIS does not match", async () => {
+      const res = await publicOrdersRouter.request("/students/st-unknown-999/curriculum", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis: "12345",
+          parentName: "Budi",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(res.status).toBe(404);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.success).toBe(false);
+    });
+
+    it("rejects when NIS does not match existing student record", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-ovr-${stamp}`;
+      const studentId = `st-curr-mismatch-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-${stamp}`,
+        name: "Sekolah Override Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis: `NIS-CURR-${stamp}`,
+        name: "Siswa Mismatch",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis: "WRONG-NIS",
+          parentName: "Budi Santoso",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.message).toContain("NIS");
+    });
+
+    it("updates curriculumType, parentPhone, parentName, and preserves canOrder = true", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-ok-${stamp}`;
+      const studentId = `st-curr-ok-${stamp}`;
+      const nis = `NIS-OK-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-OK-${stamp}`,
+        name: "Sekolah OK Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa Pindah Kurikulum",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Ayahanda Siswa",
+          parentPhone: "081299998888",
+          curriculumType: "MQ",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        success: boolean;
+        data: {
+          id: string;
+          curriculumType: string;
+          canOrder: boolean;
+          name: string;
+        };
+      };
+      expect(json.success).toBe(true);
+      expect(json.data.curriculumType).toBe("MQ");
+      expect(json.data.canOrder).toBe(true);
+
+      const [updated] = await db.select().from(students).where(eq(students.id, studentId));
+      expect(updated?.curriculumType).toBe("MQ");
+      expect(updated?.parentName).toBe("Ayahanda Siswa");
+      expect(updated?.parentPhone).toBe("081299998888");
+    });
+
+    it("updates stream for high school students", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-sma-${stamp}`;
+      const studentId = `st-sma-ok-${stamp}`;
+      const nis = `NIS-SMA-${stamp}`;
+      const now = new Date().toISOString();
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-SMA-${stamp}`,
+        name: "Sekolah SMA Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa SMA Pindah Jurusan",
+        gradeLevel: "10",
+        curriculumType: "AE",
+        stream: "IPA",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Ibunda Siswa",
+          parentPhone: "081377776666",
+          curriculumType: "AE",
+          stream: "IPS",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        success: boolean;
+        data: {
+          id: string;
+          curriculumType: string;
+          stream?: string | null;
+          canOrder: boolean;
+        };
+      };
+      expect(json.success).toBe(true);
+      expect(json.data.curriculumType).toBe("AE");
+      expect(json.data.stream).toBe("IPS");
+      expect(json.data.canOrder).toBe(true);
+
+      const [updated] = await db.select().from(students).where(eq(students.id, studentId));
+      expect(updated?.stream).toBe("IPS");
+    });
+  });
 });

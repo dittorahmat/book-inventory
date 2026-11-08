@@ -30,6 +30,8 @@ import {
   toBookSearchView,
   toConfirmOrderView,
 } from "../services/public-order";
+import { updateStudentCurriculum } from "../services/student-curriculum-override";
+import { CURRICULUM_TYPES, STREAMS } from "../../db/schema";
 import { publicOrderReturnsRouter } from "./public-order-returns";
 export const publicOrdersRouter = new Hono();
 publicOrdersRouter.route("/", publicOrderReturnsRouter);
@@ -202,6 +204,33 @@ publicOrdersRouter.get("/search-students", zValidator("query", searchStudentSche
 
   return c.json({ success: true, data: results });
 });
+
+const updateCurriculumSchema = z.object({
+  nis: z.string().min(1, "NIS wajib diisi"),
+  parentName: z.string().min(2, "Nama orang tua wajib diisi minimal 2 karakter"),
+  parentPhone: z.string().min(6, "Nomor telepon/WA wajib diisi minimal 6 karakter"),
+  curriculumType: z.enum(CURRICULUM_TYPES),
+  stream: z.enum(STREAMS).optional().nullable(),
+});
+
+// 1b. Update student curriculum & stream independently by parent (Issue #338)
+publicOrdersRouter.patch(
+  "/students/:id/curriculum",
+  zValidator("json", updateCurriculumSchema),
+  async (c) => {
+    const studentId = c.req.param("id");
+    const body = c.req.valid("json");
+    const result = await updateStudentCurriculum(db, studentId, body);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+    return c.json({
+      success: true,
+      message: "Kurikulum berhasil diperbarui",
+      data: result.data,
+    });
+  }
+);
 
 // 2. Register New Student via Public Form (Status: new_pending)
 publicOrdersRouter.post("/register-student", zValidator("json", createNewStudentSchema), async (c) => {
