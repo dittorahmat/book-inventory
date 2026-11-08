@@ -20,7 +20,8 @@ export function executeD1BatchSql(databaseName: string, sqlStatements: string[],
       // Tulis chunk ke file sementara portabel untuk menghindari limit panjang baris cmd/pwsh di Windows
       writeFileSync(tmpFile, combined, "utf8");
 
-      execSync(`npx wrangler d1 execute ${databaseName} --remote --file="${tmpFile}"`, {
+      // Gunakan runtime bun untuk eksekusi file SQL guna menghindari crash GC FileHandle Node di Windows (§10.9)
+      execSync(`bun run wrangler d1 execute ${databaseName} --remote --file="${tmpFile}"`, {
         stdio: "inherit",
       });
     }
