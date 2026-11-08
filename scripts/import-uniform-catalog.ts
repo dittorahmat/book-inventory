@@ -219,30 +219,34 @@ async function main() {
   const defaultPackages = buildDefaultPackages(variants, academicYear);
   console.log(`Creating ${defaultPackages.length} default uniform packages...`);
 
-  for (const p of defaultPackages) {
-    await db.insert(uniformPackages).values({
-      id: p.id,
-      code: p.code,
-      name: p.name,
-      academicYear: p.academicYear,
-      price: p.price,
-      description: p.description,
-      createdAt: now,
-      updatedAt: now,
-    });
+  // Batch insert packages (chunked, §0.19)
+  const packageRecords = defaultPackages.map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    academicYear: p.academicYear,
+    price: p.price,
+    description: p.description,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  for (let i = 0; i < packageRecords.length; i += D1_CHUNK_SIZE) {
+    await db.insert(uniformPackages).values(packageRecords.slice(i, i + D1_CHUNK_SIZE));
+  }
 
-    const bomRows = p.items.map((it) => ({
+  const allBomRows = defaultPackages.flatMap((p) =>
+    p.items.map((it) => ({
       id: `bom-${p.id}-${it.variantId}`,
       packageId: p.id,
       variantId: it.variantId,
       size: KAIN_SIZE,
       quantity: it.quantity,
       createdAt: now,
-    }));
+    }))
+  );
 
-    for (let i = 0; i < bomRows.length; i += D1_CHUNK_SIZE) {
-      await db.insert(uniformPackageBom).values(bomRows.slice(i, i + D1_CHUNK_SIZE));
-    }
+  for (let i = 0; i < allBomRows.length; i += D1_CHUNK_SIZE) {
+    await db.insert(uniformPackageBom).values(allBomRows.slice(i, i + D1_CHUNK_SIZE));
   }
   console.log(`Inserted ${defaultPackages.length} default packages with all BOM items.`);
 

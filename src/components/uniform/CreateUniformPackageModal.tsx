@@ -255,7 +255,7 @@ export function CreateUniformPackageModal({
             </button>
             <button
               type="submit"
-              disabled={busy || !code.trim() || !name.trim() || items.length === 0}
+              disabled={busy}
               className="px-5 py-2 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98] disabled:opacity-50 transition-colors shadow-xs"
             >
               {busy ? "Menyimpan..." : "Simpan Master Paket"}
