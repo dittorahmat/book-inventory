@@ -112,8 +112,8 @@ describe("UniformView", () => {
       fireEvent.click(packagesTab);
     });
 
-    expect(screen.getByText(/Tambah Paket & Rakit Paket Seragam/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /Simpan Definisi Paket/i })).toBeDefined();
+    expect(screen.getByText(/Master Paket & Rakit Seragam/i)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Tambah Paket Baru/i })).toBeDefined();
 
     const catalogTab = screen.getByRole("button", { name: /Katalog Seragam/i });
     await act(async () => {
