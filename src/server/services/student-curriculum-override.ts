@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { type AppDatabase } from "../../db";
 import { students, schools, type CurriculumType, type StreamType } from "../../db/schema";
 import { toBookSearchView } from "./public-order";
+import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 
 export interface UpdateStudentCurriculumInput {
   nis: string;
@@ -67,6 +68,16 @@ export async function updateStudentCurriculum(
       ok: false,
       status: 400,
       message: "NIS tidak sesuai dengan data siswa terdaftar",
+    };
+  }
+
+  // Validasi kurikulum valid sesuai jenjang kelas
+  const allowedCurricula = getAvailableCurriculaForGrade(existing.gradeLevel).map((c) => c.value);
+  if (!allowedCurricula.includes(input.curriculumType)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Pilihan kurikulum tidak tersedia untuk tingkat kelas ${existing.gradeLevel}`,
     };
   }
 

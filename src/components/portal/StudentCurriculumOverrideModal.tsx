@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { X, Check } from "lucide-react";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { validatePhone, validateRequiredSelect, validateRequiredText } from "../../lib/form-validation";
-import { CANONICAL_CURRICULUM_OPTIONS, curriculumLabel } from "../../lib/curriculum";
+import { getAvailableCurriculaForGrade, curriculumLabel } from "../../lib/curriculum";
 import { updateStudentCurriculum } from "./portal-api";
 import type { StudentSearchResult } from "../../lib/portal-types";
 
@@ -33,8 +33,10 @@ export function StudentCurriculumOverrideModal({
 
   if (!isOpen) return null;
 
-  const targetGradeNum = parseInt(student.targetGradeLevel, 10);
+  const effectiveGrade = student.targetGradeLevel || student.gradeLevel || "1";
+  const targetGradeNum = parseInt(effectiveGrade, 10);
   const isHighSchool = !Number.isNaN(targetGradeNum) && targetGradeNum >= 10;
+  const availableCurricula = getAvailableCurriculaForGrade(effectiveGrade);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +152,7 @@ export function StudentCurriculumOverrideModal({
                   : "border-transparent focus:border-[#1877F2]"
               }`}
             >
-              {CANONICAL_CURRICULUM_OPTIONS.map((opt) => (
+              {availableCurricula.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>

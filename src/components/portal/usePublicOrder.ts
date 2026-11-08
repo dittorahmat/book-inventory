@@ -284,6 +284,9 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
     handleSearch, handleSelectStudent, handleRegisterNewStudent,
     handleFileUpload, handleSubmitFinalOrder,
     resetOrderFlow,
+    updateSearchResult: (updated: StudentSearchResult) => {
+      setSearchResults((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    },
     pendingBookOrder,
     confirmReplaceOrder: () => {
       if (pendingStudentTarget && pendingBookOrder) {

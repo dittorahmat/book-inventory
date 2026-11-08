@@ -2067,6 +2067,9 @@ describe("Struk bayar ganda di intake publik", () => {
       expect(res.status).toBe(400);
       const json = (await res.json()) as { success: boolean; message: string };
       expect(json.message).toContain("NIS");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
     });
 
     it("updates curriculumType, parentPhone, parentName, and preserves canOrder = true", async () => {
@@ -2125,6 +2128,9 @@ describe("Struk bayar ganda di intake publik", () => {
       expect(updated?.curriculumType).toBe("MQ");
       expect(updated?.parentName).toBe("Ayahanda Siswa");
       expect(updated?.parentPhone).toBe("081299998888");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
     });
 
     it("updates stream for high school students", async () => {
@@ -2184,6 +2190,9 @@ describe("Struk bayar ganda di intake publik", () => {
 
       const [updated] = await db.select().from(students).where(eq(students.id, studentId));
       expect(updated?.stream).toBe("IPS");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
     });
 
     it("supports end-to-end flow: curriculum override matches BOM package and replaces active pending order", async () => {
@@ -2268,6 +2277,33 @@ describe("Struk bayar ganda di intake publik", () => {
       };
       expect(searchJson.data[0].curriculumType).toBe("MQ");
       expect(searchJson.data[0].canOrder).toBe(true);
+
+      // 5. Submit new order with MQ package and verify order replacement
+      const submitRes = await publicOrdersRouter.request("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          packageId: pkgMqId,
+          orderType: "regular",
+          payment: {
+            transferAmount: 450000,
+            bookAllocationAmount: 450000,
+            paymentProofBase64:
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          },
+        }),
+      });
+      expect(submitRes.status).toBe(201);
+      const submitJson = (await submitRes.json()) as { success: boolean; data: { order: { id: string; packageId: string } } };
+      expect(submitJson.success).toBe(true);
+      expect(submitJson.data.order.packageId).toBe(pkgMqId);
+
+      // Cleanup
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.studentId, studentId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(inArray(bookPackages.id, [pkgAeId, pkgMqId]));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
     });
   });
 });

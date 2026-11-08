@@ -216,9 +216,10 @@ const updateCurriculumSchema = z.object({
 // 1b. Update student curriculum & stream independently by parent (Issue #338)
 publicOrdersRouter.patch(
   "/students/:id/curriculum",
+  zValidator("param", z.object({ id: idSchema })),
   zValidator("json", updateCurriculumSchema),
   async (c) => {
-    const studentId = c.req.param("id");
+    const { id: studentId } = c.req.valid("param");
     const body = c.req.valid("json");
     const result = await updateStudentCurriculum(db, studentId, body);
     if (!result.ok) {
