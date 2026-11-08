@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import { Package, Plus } from "lucide-react";
 import type { UniformPackageRow, UniformVariantRow } from "./uniform-admin-api";
 import {
   assembleUniformPackage,
-  createUniformPackage,
   fetchUniformPackages,
   fetchUniformVariants,
 } from "./uniform-admin-api";
+import { CreateUniformPackageModal } from "./CreateUniformPackageModal";
 import { EditUniformPackageModal } from "./EditUniformPackageModal";
+import { formatRupiah } from "../../lib/transfer-pricing";
 
 interface UniformAssemblySectionProps {
   defaultAcademicYear?: string;
@@ -15,20 +17,14 @@ interface UniformAssemblySectionProps {
 export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: UniformAssemblySectionProps) {
   const [packages, setPackages] = useState<UniformPackageRow[]>([]);
   const [editingPackage, setEditingPackage] = useState<UniformPackageRow | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [pCode, setPCode] = useState("");
-  const [pName, setPName] = useState("");
-  const [academicYear, setAcademicYear] = useState(defaultAcademicYear);
-  const [pItems, setPItems] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [asmQty, setAsmQty] = useState<Record<string, string>>({});
   const [asmSize, setAsmSize] = useState<Record<string, string>>({});
-
-  const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
-  const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
 
   const reload = async () => {
     try {
@@ -67,149 +63,51 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">{notice}</div>}
 
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-[#050505]">Tambah Paket & Rakit Paket Seragam</h3>
-          <p className="text-xs text-[#65676B]">
-            Buat bundling paket seragam ber-BOM dan rakit stok siap kirim dari bahan baku gudang.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-[#E4E6EB] bg-[#F8F9FA] p-3 space-y-3">
-          <h4 className="text-xs font-bold text-[#050505]">Buat Definisi Paket Seragam Baru</h4>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className={labelCls}>Kode Paket (Unik)</label>
-              <input
-                placeholder="Contoh: PKG-UNIF-SD-PUTRA-2026"
-                value={pCode}
-                onChange={(e) => setPCode(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Nama Paket Seragam</label>
-              <input
-                placeholder="Contoh: Paket Seragam Lengkap SD Putra (Kain + Olahraga)"
-                value={pName}
-                onChange={(e) => setPName(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Tahun Ajaran</label>
-              <input
-                placeholder="2026/2027"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          </div>
-
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-5 space-y-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E4E6EB]">
           <div>
-            <label className={labelCls}>Pilih Komponen Penyusun (BOM):</label>
-            <div className="flex flex-wrap gap-2">
-              {variants.map(({ variant: v }) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() =>
-                    setPItems((prev) =>
-                      prev.some((item) => item.variantId === v.id)
-                        ? prev.filter((item) => item.variantId !== v.id)
-                        : [...prev, { variantId: v.id, quantity: 1 }]
-                    )
-                  }
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    pItems.some((item) => item.variantId === v.id)
-                      ? "bg-[#1877F2] text-white border-[#1877F2]"
-                      : "bg-white text-[#050505] border-[#CED0D4] hover:bg-[#F0F2F5]"
-                  }`}
-                >
-                  {pItems.some((item) => item.variantId === v.id) ? "✓ " : "+ "}
-                  {v.name} ({v.code})
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-md">
+                Rakit Seragam
+              </span>
+              <span className="text-xs text-[#65676B]">• TA {defaultAcademicYear}</span>
             </div>
+            <h3 className="text-base font-bold text-[#050505] tracking-tight mt-1">Master Paket & Rakit Seragam</h3>
+            <p className="text-xs text-[#65676B] max-w-xl">
+              Kelola definisi bundling paket seragam ber-BOM dan rakit stok siap kirim dari persediaan gudang.
+            </p>
           </div>
-
-          {pItems.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-[#E4E6EB]">
-              <span className="text-xs font-bold text-[#050505]">Atur Kuantitas per Paket:</span>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {pItems.map((item) => {
-                  const v = variants.find((x) => x.variant.id === item.variantId);
-                  return (
-                    <div
-                      key={item.variantId}
-                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-[#E4E6EB]"
-                    >
-                      <span className="text-xs font-semibold text-[#050505] truncate">
-                        {v?.variant.name ?? item.variantId}
-                      </span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            setPItems((prev) =>
-                              prev.map((pi) => (pi.variantId === item.variantId ? { ...pi, quantity: val } : pi))
-                            );
-                          }}
-                          className="w-16 rounded-lg border border-[#CED0D4] px-2 py-1 text-xs text-center"
-                        />
-                        <span className="text-xs text-[#65676B]">unit</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <button
             type="button"
-            disabled={busy || !pCode.trim() || !pName.trim() || !academicYear.trim() || pItems.length === 0}
-            onClick={() =>
-              run(
-                () =>
-                  createUniformPackage({
-                    code: pCode.trim(),
-                    name: pName.trim(),
-                    academicYear: academicYear.trim(),
-                    items: pItems,
-                  }).then(() => {
-                    setPCode("");
-                    setPName("");
-                    setPItems([]);
-                  }),
-                "Definisi paket seragam baru berhasil dibuat."
-              )
-            }
-            className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98] disabled:opacity-50 transition-colors"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98] transition-all shadow-xs shrink-0"
           >
-            Simpan Definisi Paket
+            <Plus className="w-4 h-4" />
+            <span>Tambah Paket Baru</span>
           </button>
         </div>
 
         <div className="space-y-3">
           <h4 className="text-xs font-bold text-[#050505]">Daftar Paket & Aksi Rakit</h4>
           {packages.length === 0 ? (
-            <p className="text-xs text-[#65676B] py-2">Belum ada paket seragam yang terdefinisi.</p>
+            <div className="text-center py-10 border border-dashed border-[#CED0D4] rounded-2xl">
+              <Package className="w-8 h-8 text-[#65676B] mx-auto mb-2 opacity-50" />
+              <p className="text-xs font-semibold text-[#050505]">Belum ada paket seragam yang terdefinisi</p>
+              <p className="text-[11px] text-[#65676B] mt-0.5">Klik tombol Tambah Paket Baru di atas untuk mulai membuat paket bundling.</p>
+            </div>
           ) : (
             packages.map((p) => (
               <div
                 key={p.package.id}
-                className="rounded-xl border border-[#E4E6EB] p-3.5 space-y-3 bg-white hover:border-[#1877F2]/40 transition-colors"
+                className="rounded-xl border border-[#E4E6EB] p-4 space-y-3 bg-white hover:border-[#1877F2]/40 transition-colors shadow-2xs"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-[#E4E6EB]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#E4E6EB]">
                   <div>
                     <h5 className="text-xs font-bold text-[#050505]">{p.package.name}</h5>
                     <p className="text-[11px] text-[#65676B]">
-                      Kode: <span className="font-mono">{p.package.code}</span> · Th. Ajaran: {p.package.academicYear}
+                      Kode: <span className="font-mono font-semibold">{p.package.code}</span> · Th. Ajaran: {p.package.academicYear} · Harga:{" "}
+                      <strong className="text-[#1877F2]">{formatRupiah(p.package.price)}</strong>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -219,14 +117,14 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                     <button
                       type="button"
                       onClick={() => setEditingPackage(p)}
-                      className="px-2.5 py-1 border border-[#CED0D4] rounded-lg text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5]"
+                      className="px-3 py-1.5 border border-[#CED0D4] rounded-lg text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] active:scale-[0.98] transition-all"
                     >
                       Edit
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <span className="text-[11px] font-semibold text-[#65676B]">Komponen BOM & Ketersediaan Bahan:</span>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {p.bom.map((b) => {
@@ -239,7 +137,7 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                       return (
                         <div
                           key={`${b.variantId}-${b.size}`}
-                          className="flex items-center justify-between p-2 rounded-lg bg-[#F8F9FA] border border-[#E4E6EB] text-xs"
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-[#F8F9FA] border border-[#E4E6EB] text-xs"
                         >
                           <div>
                             <p className="font-semibold text-[#050505]">{b.variantName}</p>
@@ -250,56 +148,47 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                               </strong>
                             </p>
                           </div>
-                          <span className="font-bold text-[#1877F2]">{b.quantity} unit / paket</span>
+                          <span className="text-[11px] font-bold text-[#050505] bg-white px-2 py-0.5 border border-[#E4E6EB] rounded-md">
+                            ×{b.quantity}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-xs font-semibold text-[#050505]">Rakit Paket:</span>
+                <div className="pt-2 border-t border-[#E4E6EB] flex flex-wrap items-center gap-2">
                   <input
+                    type="number"
+                    min="1"
+                    placeholder="Jml rakit"
                     value={asmQty[p.package.id] ?? ""}
-                    inputMode="numeric"
-                    placeholder="Kuantitas"
-                    onChange={(e) => setAsmQty((s) => ({ ...s, [p.package.id]: e.target.value }))}
-                    className="w-24 rounded-xl border border-[#CED0D4] px-2.5 py-1.5 text-xs bg-white"
+                    onChange={(e) => setAsmQty({ ...asmQty, [p.package.id]: e.target.value })}
+                    className="w-24 rounded-lg border border-[#CED0D4] px-2.5 py-1 text-xs text-center font-bold"
                   />
-                  {p.bom.some((b) => b.kind === "olahraga" && b.size === "—") && (
-                    <input
-                      value={asmSize[p.package.id] ?? ""}
-                      placeholder="Size kaos (mis. M)"
-                      onChange={(e) => setAsmSize((s) => ({ ...s, [p.package.id]: e.target.value }))}
-                      className="w-36 rounded-xl border border-[#CED0D4] px-2.5 py-1.5 text-xs bg-white"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    placeholder="Ukuran (opsional)"
+                    value={asmSize[p.package.id] ?? ""}
+                    onChange={(e) => setAsmSize({ ...asmSize, [p.package.id]: e.target.value })}
+                    className="w-32 rounded-lg border border-[#CED0D4] px-2.5 py-1 text-xs"
+                  />
                   <button
                     type="button"
-                    disabled={busy || !asmQty[p.package.id]}
-                    onClick={() => {
-                      const sizeVal = (asmSize[p.package.id] ?? "").trim();
-                      const overrides: Record<string, string> = {};
-                      if (sizeVal) {
-                        p.bom
-                          .filter((b) => b.kind === "olahraga" && b.size === "—")
-                          .forEach((b) => {
-                            overrides[b.variantId] = sizeVal;
-                          });
-                      }
+                    disabled={busy || !(parseInt(asmQty[p.package.id] ?? "0", 10) > 0)}
+                    onClick={() =>
                       run(
                         () =>
                           assembleUniformPackage(
                             p.package.id,
-                            Number(asmQty[p.package.id]) || 0,
-                            Object.keys(overrides).length > 0 ? overrides : undefined
+                            parseInt(asmQty[p.package.id] ?? "0", 10)
                           ),
-                        "Paket berhasil dirakit ke stok siap kirim."
-                      );
-                    }}
-                    className="px-4 py-1.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98] disabled:opacity-50 transition-colors"
+                        `Berhasil merakit ${asmQty[p.package.id]} paket "${p.package.name}".`
+                      )
+                    }
+                    className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                   >
-                    Konfirmasi Rakit
+                    Rakit Paket
                   </button>
                 </div>
               </div>
@@ -308,16 +197,21 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
         </div>
       </div>
 
+      <CreateUniformPackageModal
+        variants={variants}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={reload}
+        defaultAcademicYear={defaultAcademicYear}
+      />
+
       {editingPackage && (
         <EditUniformPackageModal
           packageRow={editingPackage}
           variants={variants}
           isOpen={true}
           onClose={() => setEditingPackage(null)}
-          onSuccess={() => {
-            setNotice("Paket seragam berhasil diperbarui.");
-            reload();
-          }}
+          onSuccess={reload}
         />
       )}
     </div>

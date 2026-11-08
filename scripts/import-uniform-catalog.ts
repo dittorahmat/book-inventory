@@ -5,6 +5,8 @@ import { getDatabase } from "../src/db";
 import {
   uniformVariants,
   uniformSizes,
+  uniformPackages,
+  uniformPackageBom,
 } from "../src/db/schema";
 import { KAIN_SIZE } from "../src/server/services/uniform/catalog";
 import { setVariantStockQuery } from "../src/server/services/uniform/stock";
@@ -23,6 +25,18 @@ interface ParsedVariant {
   createdAt: string;
   updatedAt: string;
   sizes: string[];
+}
+
+interface DefaultPackageDefinition {
+  id: string;
+  code: string;
+  name: string;
+  jenjang: "tk" | "sd" | "smp" | "sma";
+  gender: "male" | "female";
+  academicYear: string;
+  price: number;
+  description: string;
+  items: Array<{ variantId: string; quantity: number }>;
 }
 
 const SPORT_SIZES_BY_JENJANG: Record<string, string[]> = {
@@ -93,8 +107,43 @@ export function parseCatalogWorkbook(excelPath: string, sizeChartUrl: string, ac
   return variants;
 }
 
+export function buildDefaultPackages(variants: ParsedVariant[], academicYear: string): DefaultPackageDefinition[] {
+  const groups: Record<string, ParsedVariant[]> = {};
+  for (const v of variants) {
+    const key = `${v.jenjang}_${v.gender}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(v);
+  }
+
+  const defs: DefaultPackageDefinition[] = [];
+  for (const [key, list] of Object.entries(groups)) {
+    const [jenjang, gender] = key.split("_") as ["tk" | "sd" | "smp" | "sma", "male" | "female"];
+    const jenjangLabel = jenjang.toUpperCase();
+    const genderLabel = gender === "male" ? "Ikhwan" : "Akhwat";
+    const genderSlug = gender === "male" ? "IKH" : "AKH";
+    const code = `PKG-UNIF-${jenjangLabel}-${genderSlug}-2026`;
+    const id = `pkg-${code.toLowerCase().replace(/_/g, "-")}`;
+    const name = `Paket Seragam Lengkap ${jenjangLabel} ${genderLabel} TA ${academicYear}`;
+    const totalPrice = list.reduce((sum, item) => sum + item.price, 0);
+
+    defs.push({
+      id,
+      code,
+      name,
+      jenjang,
+      gender,
+      academicYear,
+      price: totalPrice,
+      description: `Paket bundling lengkap seragam ${jenjangLabel} ${genderLabel} TA ${academicYear} (${list.length} item).`,
+      items: list.map((item) => ({ variantId: item.id, quantity: 1 })),
+    });
+  }
+
+  return defs;
+}
+
 async function main() {
-  console.log("=== Import Uniform Catalog ===");
+  console.log("=== Import Uniform Catalog & Default Packages ===");
   const db = await getDatabase();
 
   const excelPath = process.env.CATALOG_EXCEL_PATH || path.resolve("data/katalog seragam aw.xlsx");
@@ -105,8 +154,10 @@ async function main() {
   const variants = parseCatalogWorkbook(excelPath, sizeChartUrl, academicYear, now);
   console.log(`Parsed ${variants.length} catalog items from spreadsheet.`);
 
-  // 1. Bersihkan varian lama secara aman di DB lokal
-  console.log("Resetting local uniform catalog tables...");
+  // 1. Bersihkan varian & paket lama secara aman di DB lokal
+  console.log("Resetting local uniform catalog & package tables...");
+  await db.delete(uniformPackageBom);
+  await db.delete(uniformPackages);
   await db.delete(uniformSizes);
   await db.delete(uniformVariants);
 
@@ -164,8 +215,41 @@ async function main() {
   }
   console.log(`Initialized ${stockRowsCount} stock rows.`);
 
-  // 5. Generate safe D1 SQL migration file
+  // 5. Inisialisasi 8 Default Packages & BOM
+  const defaultPackages = buildDefaultPackages(variants, academicYear);
+  console.log(`Creating ${defaultPackages.length} default uniform packages...`);
+
+  for (const p of defaultPackages) {
+    await db.insert(uniformPackages).values({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      academicYear: p.academicYear,
+      price: p.price,
+      description: p.description,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const bomRows = p.items.map((it) => ({
+      id: `bom-${p.id}-${it.variantId}`,
+      packageId: p.id,
+      variantId: it.variantId,
+      size: KAIN_SIZE,
+      quantity: it.quantity,
+      createdAt: now,
+    }));
+
+    for (let i = 0; i < bomRows.length; i += D1_CHUNK_SIZE) {
+      await db.insert(uniformPackageBom).values(bomRows.slice(i, i + D1_CHUNK_SIZE));
+    }
+  }
+  console.log(`Inserted ${defaultPackages.length} default packages with all BOM items.`);
+
+  // 6. Generate safe D1 SQL migration file
   const sqlStatements: string[] = [];
+  sqlStatements.push("DELETE FROM uniform_package_bom;");
+  sqlStatements.push("DELETE FROM uniform_packages;");
   sqlStatements.push("DELETE FROM uniform_sizes;");
   sqlStatements.push("DELETE FROM uniform_variants;");
 
@@ -182,6 +266,21 @@ async function main() {
     sqlStatements.push(
       `INSERT INTO uniform_sizes (id, variant_id, size, sort_order, created_at) VALUES ('${s.id}', '${s.variantId}', '${s.size}', ${s.sortOrder}, '${s.createdAt}');`
     );
+  }
+
+  for (const p of defaultPackages) {
+    const descVal = p.description.replace(/'/g, "''");
+    const nameVal = p.name.replace(/'/g, "''");
+    sqlStatements.push(
+      `INSERT INTO uniform_packages (id, code, name, academic_year, price, description, created_at, updated_at) VALUES ('${p.id}', '${p.code}', '${nameVal}', '${p.academicYear}', ${p.price}, '${descVal}', '${now}', '${now}');`
+    );
+
+    for (const it of p.items) {
+      const bomId = `bom-${p.id}-${it.variantId}`;
+      sqlStatements.push(
+        `INSERT INTO uniform_package_bom (id, package_id, variant_id, size, quantity, created_at) VALUES ('${bomId}', '${p.id}', '${it.variantId}', '${KAIN_SIZE}', ${it.quantity}, '${now}');`
+      );
+    }
   }
 
   const d1SqlPath = "data/migrate-uniforms-d1.sql";
