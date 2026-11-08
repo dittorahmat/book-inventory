@@ -148,4 +148,19 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
     const phoneErrors = screen.getAllByText(/Nomor WhatsApp \/ HP wajib diisi/i);
     expect(phoneErrors.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("renders Ubah Kurikulum button and opens curriculum override modal", () => {
+    renderStep(
+      [student({ id: "st-edit-curr", name: "Anak Edit Kurikulum", curriculumType: "AE" })],
+      noop
+    );
+
+    const ubahBtn = screen.getByRole("button", { name: /Ubah Kurikulum/i });
+    expect(ubahBtn).toBeDefined();
+    fireEvent.click(ubahBtn);
+
+    expect(screen.getByText("Penyesuaian Program & Kurikulum")).toBeDefined();
+    expect(screen.getByText(/Pembaruan kurikulum mandiri untuk Anak Edit Kurikulum/i)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Simpan Perubahan/i })).toBeDefined();
+  });
 });

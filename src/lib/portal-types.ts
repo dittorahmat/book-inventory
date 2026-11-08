@@ -10,7 +10,8 @@ export interface StudentSearchResult {
   nis: string;
   name: string;
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  curriculumType: string;
+  stream?: string | null;
   academicYear: string;
   status: string;
   isScholarship: boolean;
@@ -40,7 +41,8 @@ export interface BookPackageOption {
   code: string;
   name: string;
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  curriculumType: string;
+  stream?: string | null;
   academicYear: string;
   price: number;
   totalItemsCount: number;
