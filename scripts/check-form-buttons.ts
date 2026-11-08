@@ -22,6 +22,9 @@ const targetDirs = [
   join(process.cwd(), "src", "components", "students"),
   join(process.cwd(), "src", "components", "orders"),
   join(process.cwd(), "src", "components", "uniform"),
+  join(process.cwd(), "src", "components", "packages"),
+  join(process.cwd(), "src", "components", "books"),
+  join(process.cwd(), "src", "components", "procurement"),
 ];
 
 const files = targetDirs.flatMap((dir) => walk(dir));
@@ -34,6 +37,7 @@ const FORBIDDEN_PATTERNS = [
   /disabled=\{[^}]*(!canContinue|isMissingProof|!allocationCheck\.ok)[^}]*\}/,
   /disabled=\{[^}]*(!searchSchoolId|!schoolId|query\.trim\(\)\.length)[^}]*\}/,
   /disabled=\{[^}]*(!stVariant|!rjVariant|!hasSchoolSelected|!has[A-Z]\w*Selected)[^}]*\}/,
+  /disabled=\{[^}]*(!isFormValid|!canSave|!canSubmit|!isComplete)[^}]*\}/,
 ];
 
 for (const file of files) {
