@@ -2185,5 +2185,89 @@ describe("Struk bayar ganda di intake publik", () => {
       const [updated] = await db.select().from(students).where(eq(students.id, studentId));
       expect(updated?.stream).toBe("IPS");
     });
+
+    it("supports end-to-end flow: curriculum override matches BOM package and replaces active pending order", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-e2e-${stamp}`;
+      const studentId = `st-e2e-${stamp}`;
+      const nis = `NIS-E2E-${stamp}`;
+      const now = new Date().toISOString();
+
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-E2E-${stamp}`,
+        name: "Sekolah E2E Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 1. Insert 2 BOM packages: AE and MQ
+      const pkgAeId = `pkg-ae-${stamp}`;
+      const pkgMqId = `pkg-mq-${stamp}`;
+      await db.insert(bookPackages).values([
+        {
+          id: pkgAeId,
+          code: `PKG-AE-${stamp}`,
+          name: "Paket Kelas 7 AE",
+          gradeLevel: "7",
+          curriculumType: "AE",
+          academicYear: "2026/2027",
+          price: 500000,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: pkgMqId,
+          code: `PKG-MQ-${stamp}`,
+          name: "Paket Kelas 7 MQ",
+          gradeLevel: "7",
+          curriculumType: "MQ",
+          academicYear: "2026/2027",
+          price: 450000,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      // 2. Student starts as AE
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa E2E Supersede",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 3. Ortu updates curriculum from AE to MQ
+      const patchRes = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Wali Siswa E2E",
+          parentPhone: "081211112222",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(patchRes.status).toBe(200);
+
+      // 4. Verify search returns updated curriculum and canOrder = true
+      const searchRes = await publicOrdersRouter.request(
+        `/search-students?query=${encodeURIComponent(nis)}&schoolId=${testSchoolId}`
+      );
+      expect(searchRes.status).toBe(200);
+      const searchJson = (await searchRes.json()) as {
+        success: boolean;
+        data: Array<{ id: string; curriculumType: string; canOrder: boolean }>;
+      };
+      expect(searchJson.data[0].curriculumType).toBe("MQ");
+      expect(searchJson.data[0].canOrder).toBe(true);
+    });
   });
 });
