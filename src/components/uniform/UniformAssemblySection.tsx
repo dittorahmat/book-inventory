@@ -168,24 +168,40 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                   />
                   <input
                     type="text"
-                    placeholder="Ukuran (opsional)"
+                    placeholder="Ukuran kaos (mis. M)"
                     value={asmSize[p.package.id] ?? ""}
                     onChange={(e) => setAsmSize({ ...asmSize, [p.package.id]: e.target.value })}
-                    className="w-32 rounded-lg border border-[#CED0D4] px-2.5 py-1 text-xs"
+                    className="w-36 rounded-lg border border-[#CED0D4] px-2.5 py-1 text-xs"
                   />
                   <button
                     type="button"
-                    disabled={busy || !(parseInt(asmQty[p.package.id] ?? "0", 10) > 0)}
-                    onClick={() =>
+                    disabled={busy}
+                    onClick={() => {
+                      const qty = parseInt(asmQty[p.package.id] ?? "0", 10);
+                      if (qty <= 0) {
+                        setError("Kuantitas rakit minimal 1 unit.");
+                        return;
+                      }
+                      const sizeVal = (asmSize[p.package.id] ?? "").trim();
+                      const overrides: Record<string, string> = {};
+                      if (sizeVal) {
+                        p.bom
+                          .filter((b) => b.kind === "olahraga" && (!b.size || b.size === "—"))
+                          .forEach((b) => {
+                            overrides[b.variantId] = sizeVal;
+                          });
+                      }
+
                       run(
                         () =>
                           assembleUniformPackage(
                             p.package.id,
-                            parseInt(asmQty[p.package.id] ?? "0", 10)
+                            qty,
+                            Object.keys(overrides).length > 0 ? overrides : undefined
                           ),
-                        `Berhasil merakit ${asmQty[p.package.id]} paket "${p.package.name}".`
-                      )
-                    }
+                        `Berhasil merakit ${qty} paket "${p.package.name}".`
+                      );
+                    }}
                     className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                   >
                     Rakit Paket

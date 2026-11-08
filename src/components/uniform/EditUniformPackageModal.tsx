@@ -26,6 +26,8 @@ export function EditUniformPackageModal({
   const [code, setCode] = useState(pkg.code);
   const [academicYear, setAcademicYear] = useState(pkg.academicYear);
   const [description, setDescription] = useState(pkg.description ?? "");
+  const [manualPrice, setManualPrice] = useState<string>(String(pkg.price));
+  const [useCustomPrice, setUseCustomPrice] = useState(false);
   const [items, setItems] = useState<Array<{ variantId: string; quantity: number }>>(
     initialBom.map((b) => ({ variantId: b.variantId, quantity: b.quantity }))
   );
@@ -81,12 +83,13 @@ export function EditUniformPackageModal({
 
     setLoading(true);
     setError(null);
+    const finalPrice = useCustomPrice ? (parseInt(manualPrice, 10) || 0) : computedPrice;
     try {
       await updateUniformPackage(pkg.id, {
         name: name.trim(),
         code: code.trim().toUpperCase(),
         academicYear: academicYear.trim(),
-        price: computedPrice,
+        price: finalPrice,
         description: description.trim() || null,
         items,
       });
@@ -186,10 +189,31 @@ export function EditUniformPackageModal({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">Total Harga Paket (Otomatis)</label>
-              <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]">
-                {formatRupiah(computedPrice)}
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-[#050505]">Harga Paket (Rp) *</label>
+                <button
+                  type="button"
+                  onClick={() => setUseCustomPrice(!useCustomPrice)}
+                  className="text-[10px] text-[#1877F2] hover:underline"
+                >
+                  {useCustomPrice ? "Gunakan harga otomatis" : "Ubah manual"}
+                </button>
               </div>
+              {useCustomPrice ? (
+                <input
+                  type="number"
+                  min="0"
+                  value={manualPrice}
+                  onChange={(e) => setManualPrice(e.target.value)}
+                  placeholder="Harga manual..."
+                  required
+                  className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2] focus:outline-hidden focus:border-[#1877F2]"
+                />
+              ) : (
+                <div className="w-full px-3 py-2 bg-[#F0F2F5] border border-[#CED0D4] rounded-xl text-xs font-bold text-[#1877F2]">
+                  {formatRupiah(computedPrice)}
+                </div>
+              )}
             </div>
           </div>
 
@@ -291,7 +315,7 @@ export function EditUniformPackageModal({
               </button>
               <button
                 type="submit"
-                disabled={loading || deleting || !code.trim() || !name.trim() || items.length === 0}
+                disabled={loading || deleting}
                 className="px-5 py-2 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98] disabled:opacity-50 transition-colors shadow-xs"
               >
                 {loading ? "Menyimpan..." : "Simpan Perubahan"}
