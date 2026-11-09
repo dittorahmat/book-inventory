@@ -11,6 +11,7 @@ import { CashBreakdownDrawer } from "../components/dashboard/CashBreakdownDrawer
 import { OrderBreakdownDrawer } from "../components/dashboard/OrderBreakdownDrawer";
 import { StudentBreakdownDrawer } from "../components/dashboard/StudentBreakdownDrawer";
 import { StockBreakdownDrawer } from "../components/dashboard/StockBreakdownDrawer";
+import { PoBreakdownDrawer } from "../components/dashboard/PoBreakdownDrawer";
 
 interface DashboardViewProps {
   activeSchool: School | null;
@@ -218,21 +219,13 @@ function ExecutiveDashboard({
         academicYear={academicYear}
       />
 
-      {/* Placeholder info drawer lainnya */}
-      {activeDrawer && activeDrawer !== "cash" && activeDrawer !== "orders" && activeDrawer !== "students" && activeDrawer !== "stock" && (
-        <div className="bg-white rounded-2xl border border-[#1877F2] p-5 shadow-sm flex items-center justify-between">
-          <div className="text-sm font-semibold text-[#050505]">
-            Mode Breakdown: <span className="capitalize text-[#1877F2] font-black">{activeDrawer}</span> ({breakdowns[activeDrawer]?.length || 0} cabang terdata)
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveDrawer(null)}
-            className="text-xs font-bold text-[#65676B] hover:text-[#050505] px-3 py-1 bg-[#F0F2F5] rounded-lg cursor-pointer"
-          >
-            Tutup
-          </button>
-        </div>
-      )}
+      {/* PO Breakdown Drawer */}
+      <PoBreakdownDrawer
+        isOpen={activeDrawer === "po"}
+        onClose={() => setActiveDrawer(null)}
+        data={breakdowns.po}
+        academicYear={academicYear}
+      />
     </div>
   );
 }
