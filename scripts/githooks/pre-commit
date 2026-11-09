@@ -30,6 +30,7 @@ if [ -z "$IN_PROGRESS" ] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
 fi
 
 # Empty commit guard: tolak commit tanpa staged changes kecuali ada izin eksplisit ALLOW_EMPTY_COMMIT=1
+# Short-circuit dini sebelum menjalankan suite check-changed.ts
 if [ "${ALLOW_EMPTY_COMMIT:-0}" != "1" ] && [ -z "$IN_PROGRESS" ]; then
   if git diff --cached --quiet; then
     echo "Pre-commit: commit kosong (--allow-empty) ditolak."

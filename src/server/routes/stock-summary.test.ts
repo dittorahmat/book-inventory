@@ -7,7 +7,7 @@ afterEach(() => {
 });
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { bookItems, bookPackages, books, packageItems, schools } from "../../db/schema";
+import { bookItems, bookPackages, books, bookStocks, packageItems, packageStocks, schools } from "../../db/schema";
 import { stockSummaryRouter } from "./stock-summary";
 import { shipmentsRouter } from "./shipments";
 import { allocateInventoryStock, getLooseStockSummary, getPackageStockSummary } from "../services/stock";
@@ -183,6 +183,102 @@ describe("Agregasi stok per judul & per paket (spec: inventory-summary)", () => 
     await db.delete(bookItems).where(eq(bookItems.currentSchoolId, locationId));
     await db.delete(books).where(eq(books.id, bookId));
     await db.delete(schools).where(eq(schools.id, locationId));
+  });
+
+  it("membaca saldo stok satuan dan paket dari tabel agregat book_stocks & package_stocks", async () => {
+    const locId = await seedLocation("aggrloc");
+    const bookId = await seedBook("aggrbk", 45000);
+    const pkgId = await seedPackage("aggrpkg");
+    const nowIso = iso(0);
+
+    await db.insert(bookStocks).values({
+      id: `bs-${Date.now()}-${Math.random()}`,
+      bookId,
+      schoolId: locId,
+      availableQuantity: 30,
+      reservedQuantity: 5,
+      updatedAt: nowIso,
+    });
+
+    await db.insert(packageStocks).values({
+      id: `ps-${Date.now()}-${Math.random()}`,
+      packageId: pkgId,
+      schoolId: locId,
+      availableQuantity: 12,
+      reservedQuantity: 2,
+      updatedAt: nowIso,
+    });
+
+    const looseRes = await stockSummaryRouter.request(`/loose?schoolId=${locId}`);
+    expect(looseRes.status).toBe(200);
+    const looseJson = await looseRes.json();
+    expect(looseJson.success).toBe(true);
+    const lRow = looseJson.data.find((r: { bookId: string }) => r.bookId === bookId);
+    expect(lRow).toBeDefined();
+    expect(lRow.availableQty).toBe(30);
+    expect(lRow.totalQty).toBe(35);
+
+    const pkgRes = await stockSummaryRouter.request(`/packages?schoolId=${locId}`);
+    expect(pkgRes.status).toBe(200);
+    const pkgJson = await pkgRes.json();
+    expect(pkgJson.success).toBe(true);
+    const pRow = pkgJson.data.find((r: { packageId: string }) => r.packageId === pkgId);
+    expect(pRow).toBeDefined();
+    expect(pRow.readyQty).toBe(12);
+    expect(pRow.totalQty).toBe(14);
+
+    const overview = await stockSummaryRouter.request(`/overview?schoolId=${locId}`);
+    expect(overview.status).toBe(200);
+    const overviewJson = await overview.json();
+    const locOverview = overviewJson.data.find((r: { schoolId: string }) => r.schoolId === locId);
+    expect(locOverview.looseAvailableQty).toBe(30);
+    expect(locOverview.looseTotalQty).toBe(35);
+    expect(locOverview.packageReadyQty).toBe(12);
+    expect(locOverview.packageTotalQty).toBe(14);
+
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, locId));
+    await db.delete(packageStocks).where(eq(packageStocks.schoolId, locId));
+    await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, locId));
+  });
+
+  it("mendukung kueri multi-sekolah campuran (sekolah berstok agregat + sekolah fallback fisik)", async () => {
+    const locAggr = await seedLocation("multiAggr");
+    const locLegacy = await seedLocation("multiLegacy");
+    const bookId = await seedBook("mixedBook", 50000);
+    const nowIso = iso(0);
+
+    // locAggr diisi di book_stocks
+    await db.insert(bookStocks).values({
+      id: `bs-mix-${Date.now()}`,
+      bookId,
+      schoolId: locAggr,
+      availableQuantity: 40,
+      reservedQuantity: 0,
+      updatedAt: nowIso,
+    });
+
+    // locLegacy diisi di book_items (legacy)
+    await seedLooseCopies({ bookId, schoolId: locLegacy, count: 7 });
+
+    const mixedSummary = await getLooseStockSummary(db, [locAggr, locLegacy]);
+    expect(mixedSummary).toHaveLength(2);
+
+    const aggrEntry = mixedSummary.find((r) => r.schoolId === locAggr);
+    const legacyEntry = mixedSummary.find((r) => r.schoolId === locLegacy);
+
+    expect(aggrEntry?.totalQty).toBe(40);
+    expect(aggrEntry?.availableQty).toBe(40);
+
+    expect(legacyEntry?.totalQty).toBe(7);
+    expect(legacyEntry?.availableQty).toBe(7);
+
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, locAggr));
+    await db.delete(bookItems).where(eq(bookItems.currentSchoolId, locLegacy));
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, locAggr));
+    await db.delete(schools).where(eq(schools.id, locLegacy));
   });
 });
 

@@ -71,7 +71,7 @@ describe("Packages & Bundling/Unbundling API", () => {
     const createJson = await createRes.json();
     const pkgId = createJson.data.id;
 
-    // 3. Add loose items in school: 5 of book1 and 3 of book2
+    // 3. Add loose items in school: 5 of book1 and 3 of book2 (baik di bookItems maupun bookStocks)
     for (let i = 0; i < 5; i++) {
       await db.insert(bookItems).values({
         id: `bi-1-${i}-${Date.now()}`,
@@ -96,6 +96,26 @@ describe("Packages & Bundling/Unbundling API", () => {
         updatedAt: now,
       });
     }
+
+    const { bookStocks: bsTable } = await import("../../db/schema");
+    await db.insert(bsTable).values([
+      {
+        id: `bs-1-${Date.now()}`,
+        bookId: bookId1,
+        schoolId,
+        availableQuantity: 5,
+        reservedQuantity: 0,
+        updatedAt: now,
+      },
+      {
+        id: `bs-2-${Date.now()}`,
+        bookId: bookId2,
+        schoolId,
+        availableQuantity: 3,
+        reservedQuantity: 0,
+        updatedAt: now,
+      },
+    ]);
 
     // 4. Check stock potential (should be limited by 3 of book2)
     const stockRes = await packagesRouter.request(`/${pkgId}/stock/${schoolId}`, { method: "GET" });
@@ -684,6 +704,86 @@ describe("Packages & Bundling/Unbundling API", () => {
       }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("reads package ready count and potential from aggregate stock tables (book_stocks & package_stocks)", async () => {
+    const stamp = `aggr-${Date.now()}`;
+    const schId = `sch-${stamp}`;
+    const bId = `book-${stamp}`;
+    const pkgCode = `PKG-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schId,
+      name: "Aggr Stock School",
+      code: `S-${stamp.slice(-6)}`,
+      type: "warehouse",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(books).values({
+      id: bId,
+      isbn: `ISBN-${stamp}`,
+      title: "Aggr Book Component",
+      author: "Aggr Author",
+      publisher: "Aggr Pub",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const createPkg = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: pkgCode,
+        name: "Paket Aggr Test",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        price: 500000,
+        items: [{ bookId: bId, quantity: 2 }],
+      }),
+    });
+    expect(createPkg.status).toBe(201);
+    const createdPkg = (await createPkg.json()).data;
+
+    // Seed book_stocks: 20 available loose items
+    const { bookStocks, packageStocks } = await import("../../db/schema");
+    await db.insert(bookStocks).values({
+      id: `bs-${stamp}`,
+      bookId: bId,
+      schoolId: schId,
+      availableQuantity: 20,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Seed package_stocks: 5 ready bundles
+    await db.insert(packageStocks).values({
+      id: `ps-${stamp}`,
+      packageId: createdPkg.id,
+      schoolId: schId,
+      availableQuantity: 5,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Request package stock potential
+    const stockRes = await packagesRouter.request(`/${createdPkg.id}/stock/${schId}`, { method: "GET" });
+    expect(stockRes.status).toBe(200);
+    const stockJson = await stockRes.json();
+    expect(stockJson.data.readyBundleCount).toBe(5);
+    // 20 loose items / 2 needed per package = 10 potential bundles
+    expect(stockJson.data.maxPossibleBundles).toBe(10);
+    expect(stockJson.data.looseStockBreakdown[0].availableLooseStock).toBe(20);
+
+    // Clean up
+    await db.delete(packageStocks).where(eq(packageStocks.id, `ps-${stamp}`));
+    await db.delete(bookStocks).where(eq(bookStocks.id, `bs-${stamp}`));
+    await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
+    await db.delete(books).where(eq(books.id, bId));
+    await db.delete(schools).where(eq(schools.id, schId));
   });
 });
 

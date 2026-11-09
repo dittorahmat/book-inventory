@@ -46,6 +46,11 @@ console.log(
   `Gate file berubah (${staged ? "staged" : "working"}): ${changed.length} file.`
 );
 
+// Short-circuit jika staged mode dipanggil tetapi tidak ada file yang berubah
+if (staged && changed.length === 0) {
+  process.exit(0);
+}
+
 // Lint mengikuti mode: bila ada tsFiles yang berubah, lint file tersebut untuk efisiensi memori & performa loop cepat.
 if (tsFiles.length > 0) {
   run([...eslintCommand, ...tsFiles]);
@@ -76,6 +81,7 @@ if (has(/^src\//)) {
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
+  runBun("check:server-structure");
   runBun("check:route-tests");
   if (has(/^src\/server\/routes\//)) {
     run(["bun", "scripts/check-route-tests.ts", "--diff"]);

@@ -86,6 +86,14 @@ export const books = sqliteTable("books", {
   updatedAt: text("updated_at").notNull(),
 });
 
+// ==========================================
+// 1.5. PHYSICAL UNITS / BARCODES (HISTORICAL / READ-ONLY)
+// ==========================================
+/**
+ * @deprecated Saldo operasional buku dikelola secara agregat kuantitas pada tabel `book_stocks`.
+ * Tabel `book_items` diarsipkan sebagai data historis/pelacakan barcode fisik lama (AGENTS.md §3.1).
+ * Dilarang menghitung ketersediaan stok buku operasional dari tabel ini.
+ */
 export const bookItems = sqliteTable("book_items", {
   id: text("id").primaryKey(),
   bookId: text("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
@@ -348,6 +356,11 @@ export const bookSuppliers = sqliteTable("book_suppliers", {
   unique("book_suppliers_book_supplier_unq").on(t.bookId, t.supplierId),
 ]);
 
+/**
+ * @deprecated Saldo operasional paket buku dikelola secara agregat kuantitas pada tabel `package_stocks`.
+ * Tabel `package_items` diarsipkan sebagai data historis/pelacakan barcode bundel fisik lama (AGENTS.md §3.1).
+ * Dilarang menghitung ketersediaan paket operasional dari tabel ini.
+ */
 export const packageItems = sqliteTable("package_items", {
   id: text("id").primaryKey(),
   packageId: text("package_id").notNull().references(() => bookPackages.id, { onDelete: "cascade" }),
