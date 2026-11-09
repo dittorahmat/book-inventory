@@ -56,7 +56,7 @@
     "db:d1:seed:export": "bun scripts/export-d1-seed.ts",
     "db:d1:seed": "bun run wrangler d1 execute book-inventory-db --remote --file=./drizzle/seed-d1.sql",
     "db:d1:query": "bun run wrangler d1 execute book-inventory-db --remote --command",
-    "db:d1:exec": "bun run wrangler d1 execute book-inventory-db --remote",
+    "db:d1:exec": "bun scripts/db-d1-exec.ts",
     "db:d1:batch": "bun scripts/d1-remote-batch.ts",
     "deploy": "bun run check:d1-drift && wrangler deploy",
     "demo:automate": "bun scripts/run-demo-automation.ts",

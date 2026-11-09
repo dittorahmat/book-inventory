@@ -11,6 +11,7 @@ import {
   buildSupplierPoItems,
   buyPriceOfBook,
   calcDemandQty,
+  filterSupplierEligibleBooks,
   makePoItemRow,
 } from "./po-demand-helpers";
 import { PoItemRow } from "./PoItemRow";
@@ -42,25 +43,15 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
 
-  // Buku valid per supplier: universal (tanpa mapping) atau memuat supplier terpilih.
+  // Buku valid per supplier: strictly hanya buku yang memuat supplier terpilih.
   const eligibleBooks = useMemo(
-    () =>
-      !poSupplierId
-        ? catalogBooks
-        : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(poSupplierId)),
+    () => filterSupplierEligibleBooks(catalogBooks, poSupplierId),
     [catalogBooks, poSupplierId]
   );
 
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
-    const eligible = !defaultSupplierId
-      ? catalogBooks
-      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
-    return eligible.length > 0
-      ? buildSupplierPoItems(eligible, catalogBooks, {}, 10)
-      : [];
-  });
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>([]);
 
-  // Muat ringkasan demand siswa per buku dari server
+  // Muat ringkasan demand siswa per buku dari server dan populate baris PO awal
   useEffect(() => {
     let active = true;
     getJson<{ success: boolean; data: { bufferPercentage: number; items: Record<string, BookDemandItemInfo> } }>(
@@ -68,10 +59,12 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     )
       .then((res) => {
         if (!active || !res?.data) return;
-        setDemandMap(res.data.items || {});
-        if (typeof res.data.bufferPercentage === "number") {
-          setBufferPercent(res.data.bufferPercentage);
-        }
+        const items = res.data.items || {};
+        const buffer = typeof res.data.bufferPercentage === "number" ? res.data.bufferPercentage : 10;
+        setDemandMap(items);
+        setBufferPercent(buffer);
+        // Sinkronkan baris awal PO dari eligibleBooks dan demand yang baru saja dimuat
+        setPoItems(buildSupplierPoItems(eligibleBooks, catalogBooks, items, buffer));
       })
       .catch((err: unknown) => {
         if (active) {
@@ -82,23 +75,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     return () => {
       active = false;
     };
-  }, []);
-
-  // Update kuantitas buku saat demandMap atau bufferPercent termuat pertama kali
-  useEffect(() => {
-    if (Object.keys(demandMap).length === 0) return;
-    setPoItems((prev) => {
-      if (prev.length === 0) return prev;
-      return prev.map((item) => {
-        // Jangan timpa jika user sudah pernah mengedit manual baris buku ini
-        if (editedBookIds.has(item.bookId)) return item;
-        const d = demandMap[item.bookId];
-        if (!d) return item;
-        const autoQty = calcDemandQty(d.studentCount || 0, bufferPercent);
-        return item.quantityOrdered === 0 ? { ...item, quantityOrdered: autoQty } : item;
-      });
-    });
-  }, [demandMap, bufferPercent, editedBookIds]);
+  }, [eligibleBooks, catalogBooks]);
 
   function buyPriceOf(bookId: string, fallback = 0): number {
     return buyPriceOfBook(catalogBooks, bookId, fallback);
@@ -107,9 +84,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const handleSupplierChange = (next: string) => {
     setPoSupplierId(next);
     setEditedBookIds(new Set());
-    const targetBooks = !next
-      ? catalogBooks
-      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next));
+    const targetBooks = filterSupplierEligibleBooks(catalogBooks, next);
     const newItems = buildSupplierPoItems(targetBooks, catalogBooks, demandMap, bufferPercent);
     setPoItems(newItems);
   };

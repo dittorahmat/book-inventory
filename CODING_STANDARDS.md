@@ -57,7 +57,8 @@ Aturan repo mengalahkan baseline. Contoh yang sering muncul di repo ini:
 guard/loop verbose yang setara `map`/`filter`/`??`/ternary satu baris;
 helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali;
 menduplikasi mapping tipe/label/opsi UI di beberapa komponen daripada mengekstrak ke helper kanonik (`src/lib/<domain>.ts`);
-menduplikasi loop mutasi stok agregat pada multiple endpoint/handler intake (konsolidasikan ke helper intake tunggal yang menerapkan §0.61 & §0.62).
+menduplikasi loop mutasi stok agregat pada multiple endpoint/handler intake (konsolidasikan ke helper intake tunggal yang menerapkan §0.61 & §0.62);
+anti-asumsi relasi kosong (*Unmapped Entity Fallback*): entitas berelasi foreign/associative (misal `supplierIds`) dilarang diasumsikan "berlaku universal untuk semua parent" saat array-nya kosong, kecuali jika ada flag eksplisit di skema model domain.
 
 ## 3. Checklist UI (anti-slop)
 

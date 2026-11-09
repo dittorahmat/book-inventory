@@ -37,7 +37,17 @@ export const makePoItemRow = (
 });
 
 /**
- * Membentuk baris-baris PO secara otomatis dari seluruh buku yang dipasok oleh supplier terpilih.
+ * Filter daftar buku yang valid secara eksklusif untuk suatu supplier.
+ * Buku tanpa supplier (supplierIds kosong) tidak lagi dianggap universal.
+ */
+export function filterSupplierEligibleBooks(catalogBooks: Book[], supplierId: string): Book[] {
+  if (!supplierId) return [];
+  return catalogBooks.filter((b) => Array.isArray(b.supplierIds) && b.supplierIds.includes(supplierId));
+}
+
+/**
+ * Membentuk baris-baris PO secara otomatis dari buku yang dipasok oleh supplier terpilih.
+ * Hanya menyertakan buku yang memiliki permintaan siswa (demand/studentCount > 0).
  * Kuantitas pesan otomatis terisi dari perhitungan: ceil(studentCount * (1 + bufferPercent / 100)).
  */
 export function buildSupplierPoItems(
@@ -46,11 +56,15 @@ export function buildSupplierPoItems(
   demandMap: Record<string, BookDemandItemInfo>,
   bufferPercent: number
 ): NewPOItemInput[] {
-  return eligibleBooks.map((book) => {
+  const result: NewPOItemInput[] = [];
+  for (const book of eligibleBooks) {
     const demand = demandMap[book.id];
     const studentCount = demand?.studentCount ?? 0;
+    if (studentCount <= 0) continue;
     const qty = calcDemandQty(studentCount, bufferPercent);
+    if (qty <= 0) continue;
     const unitPrice = buyPriceOfBook(catalogBooks, book.id);
-    return makePoItemRow(book.id, unitPrice, qty);
-  });
+    result.push(makePoItemRow(book.id, unitPrice, qty));
+  }
+  return result;
 }
