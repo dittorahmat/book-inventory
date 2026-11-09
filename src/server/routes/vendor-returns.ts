@@ -7,6 +7,7 @@ import {
   vendorReturns,
   vendorReturnItems,
   suppliers,
+  schools,
   books,
   bookItems,
 } from "../../db/schema";
@@ -16,7 +17,7 @@ import {
 } from "../services/access-scope";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, selectInChunks } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
-import { planVendorReturnDispose } from "../services/stock";
+import { planVendorReturnDispose, moveInventoryStock } from "../services/stock";
 
 export const vendorReturnsRouter = new Hono();
 
@@ -152,6 +153,23 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
             .where(eq(bookItems.id, id))
         ),
       ]);
+
+      const [warehouse] = await db.select({ id: schools.id }).from(schools).where(eq(schools.type, "warehouse")).limit(1);
+      const whId = warehouse?.id;
+      if (whId) {
+        for (const item of body.items) {
+          await moveInventoryStock(db, {
+            movementType: "adjustment",
+            itemType: "loose",
+            bookId: item.bookId,
+            schoolId: whId,
+            quantity: -item.quantity,
+            reason: "damaged",
+            referenceDocumentNumber: returnNumber,
+            notes: `RTV #${returnNumber}: ${body.reason}`,
+          });
+        }
+      }
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, `retur supplier ${returnNumber}`);
       if (mapped) return c.json({ success: false, message: mapped.message }, mapped.status);

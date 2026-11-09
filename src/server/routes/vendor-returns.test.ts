@@ -8,6 +8,7 @@ afterEach(() => {
 import { vendorReturnsRouter } from "./vendor-returns";
 import { studentOrdersRouter } from "./student-orders";
 import { db } from "../../db";
+import { eq } from "drizzle-orm";
 import { schools, suppliers, books, bookItems, studentBookOrders, students, bookReturns } from "../../db/schema";
 
 describe("Returns & RTV API Suite", () => {
@@ -213,5 +214,71 @@ describe("Returns & RTV API Suite", () => {
     expect(resolveJson.success).toBe(true);
     expect(resolveJson.data.status).toBe("refunded");
     expect(resolveJson.data.restoredBookItemId).toBeDefined();
+  });
+
+  it("processes RTV and decrements book_stocks in warehouse", async () => {
+    const stamp = `rtv-aggr-${Date.now()}`;
+    const supplierId = `sup-rtv-${stamp}`;
+    const bookId = `book-rtv-${stamp}`;
+    const whId = `wh-rtv-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: whId,
+      name: "Gudang Logistik RTV Test",
+      code: `WHR-${stamp.slice(-6)}`,
+      type: "warehouse",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(suppliers).values({
+      id: supplierId,
+      code: `SUP-RTV-${stamp.slice(-6)}`,
+      name: "Penerbit RTV Aggr",
+      contactPerson: "Pak Aggr",
+      phone: "08129999333",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-RTV-AGGR-${stamp}`,
+      title: "Buku RTV Aggr Test",
+      author: "Penulis Aggr",
+      publisher: "Penerbit RTV Aggr",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { bookStocks } = await import("../../db/schema");
+    await db.insert(bookStocks).values({
+      id: `bs-rtv-${stamp}`,
+      bookId,
+      schoolId: whId,
+      availableQuantity: 15,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    const res = await vendorReturnsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId,
+        reason: "Buku cacat pabrik",
+        creditNoteAmount: 50000,
+        items: [{ bookId, quantity: 5, reason: "Cacat fisik" }],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.returnNumber).toMatch(/^RTV-/);
+
+    const [stock] = await db.select().from(bookStocks).where(eq(bookStocks.id, `bs-rtv-${stamp}`));
+    expect(stock.availableQuantity).toBe(10);
   });
 });

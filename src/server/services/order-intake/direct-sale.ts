@@ -13,6 +13,7 @@ import { validateOrderLines } from "./validation";
 import { allocateLooseLines, resolveLooseLines } from "./intake";
 import { normalizeNis } from "../student-lifecycle";
 import { buildBookOrderWriteQueries } from "./book-order-write";
+import { moveInventoryStock } from "../stock";
 
 export interface DirectSaleItemInput {
   bookId: string;
@@ -177,15 +178,30 @@ export async function sellDirect(
         })
         .onConflictDoNothing(),
       ...orderQueries,
-      // Guard status di WHERE: flip hanya menyentuh eksemplar yang masih
-      // tersedia — balapan dua kasir tidak bisa menjual ulang baris yang sama.
-      ...chunkRows(allocatedIds).map((chunk) =>
+      // Guard status di WHERE: flip hanya menyentuh eksemplar fisik jika ada
+      ...chunkRows(allocatedIds.filter((id) => !id.startsWith("aggr-"))).map((chunk) =>
         database
           .update(bookItems)
           .set({ status: "sold", updatedAt: now })
           .where(and(inArray(bookItems.id, chunk), eq(bookItems.status, "in_stock")))
       ),
     ]);
+
+    // Potong saldo stok agregat di book_stocks
+    for (const line of saleLines) {
+      await moveInventoryStock(
+        database,
+        {
+          movementType: "handover",
+          itemType: "loose",
+          bookId: line.bookId,
+          schoolId: input.schoolId,
+          quantity: line.quantity,
+          referenceDocumentNumber: orderNumber,
+        },
+        { now }
+      );
+    }
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "penjualan langsung");
     if (mapped) return { ok: false, ...mapped };

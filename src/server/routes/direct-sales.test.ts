@@ -238,4 +238,66 @@ describe("Direct Sales API", () => {
       await db.delete(schools).where(eq(schools.id, hqId));
     }
   });
+
+  it("sells directly from aggregate book_stocks when book_items has 0 rows", async () => {
+    const stamp = `ds-aggr-${Date.now()}`;
+    const hqId = `school-wh-${stamp}`;
+    const bookId = `book-aggr-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: hqId,
+      name: "Gudang Direct Aggr",
+      code: `WHD-${stamp.slice(-6)}`,
+      type: "warehouse",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-DAGGR-${stamp}`,
+      title: "Buku Aggr Direct",
+      author: "Penulis Aggr",
+      publisher: "Penerbit Aggr",
+      sellPrice: 75000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { bookStocks } = await import("../../db/schema");
+    await db.insert(bookStocks).values({
+      id: `bs-daggr-${stamp}`,
+      bookId,
+      schoolId: hqId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    const res = await directSalesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: hqId,
+        buyerName: "Pembeli Aggr",
+        buyerPhone: "08199988877",
+        paymentMethod: "cash",
+        items: [{ bookId, quantity: 4 }],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    const [updatedStock] = await db.select().from(bookStocks).where(eq(bookStocks.id, `bs-daggr-${stamp}`));
+    expect(updatedStock.availableQuantity).toBe(6);
+
+    // Clean up
+    await deleteReceiptsForOrders([json.data.id]);
+    await db.delete(studentOrderItems).where(eq(studentOrderItems.orderId, json.data.id));
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, json.data.id));
+    await db.delete(bookStocks).where(eq(bookStocks.id, `bs-daggr-${stamp}`));
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, hqId));
+  });
 });
