@@ -77,6 +77,9 @@ isolasi partisi fallback multi-cabang (*Scope Shadowing in Fallback Branching*):
 - State lengkap: loading, empty edukatif, error inline eksplisit.
 - Otorisasi tombol aksi: setiap tombol mutasi administratif pada kartu/tabel (buat, edit, hapus paket/buku/seragam) wajib disaring dengan predikat peran kanonik (`isBookWarehouseStaffRole`, `isUniformStaffRole`, atau `isCentralRole`) di level view pemanggil, bukan hanya mengandalkan pengecekan backend.
 - Kelengkapan visual entitas admin: setiap penambahan master/whitelist/pengaturan baru di backend wajib menyediakan antarmuka pengguna visual (modal/form/tabel di Settings atau tab terkait) yang terintegrasi penuh, dilarang berhenti pada level route backend semata.
+- Form Validation & Feedback Loops (§0.63): modal form mutasi dan entri data wajib mengonsumsi komponen kanonik `FormFieldFeedback` (inline di bawah input) dan `FormSummaryAlert` (ringkasan error di atas submit button) dengan garis batas merah interaktif, dilarang merakit div banner error ad-hoc.
+- Unifikasi Token Styling UI: kelas kontrol input dan label dalam satu domain modul wajib menggunakan token styling terpadu (mis. `UNIFORM_INPUT_CLS`, `UNIFORM_LABEL_CLS`), dilarang menduplikasi deklarasi konstanta string kelas lokal di berbagai file komponen tetangga.
+- Dual Layout & Table Discipline: tampilan master data berkapasitas besar wajib menyediakan layout ganda (tabel berkolom terstruktur desktop `hidden md:block` dan kartu mobile `md:hidden`) dengan bilah pencarian instan (search toolbar). Data agregat/rekapitulasi pada laporan wajib menggunakan elemen tabel semantik `<table>`.
 - Dilarang merombak layout kontainer (mis. grid → scrollable flex) kecuali
   disyaratkan spec.
 - Navigasi data-driven: daftar tab wajib array (`PUBLIC_TABS`, `DESKTOP_TABS`)
