@@ -47,26 +47,24 @@ export function filterSupplierEligibleBooks(catalogBooks: Book[], supplierId: st
 
 /**
  * Membentuk baris-baris PO secara otomatis dari buku yang dipasok oleh supplier terpilih.
- * Hanya menyertakan buku yang memiliki permintaan siswa (demand/studentCount > 0)
- * kecuali bila opsi includeZeroDemand diaktifkan.
+ * Hanya menyertakan buku yang memiliki permintaan siswa (demand/studentCount > 0).
  * Kuantitas pesan otomatis terisi dari perhitungan: ceil(studentCount * (1 + bufferPercent / 100)).
  */
 export function buildSupplierPoItems(
   eligibleBooks: Book[],
   catalogBooks: Book[],
   demandMap: Record<string, BookDemandItemInfo>,
-  bufferPercent: number,
-  options?: { includeZeroDemand?: boolean }
+  bufferPercent: number
 ): NewPOItemInput[] {
-  const includeZero = options?.includeZeroDemand ?? false;
-  return eligibleBooks
-    .map((book) => {
-      const demand = demandMap[book.id];
-      const studentCount = demand?.studentCount ?? 0;
-      const qty = calcDemandQty(studentCount, bufferPercent);
-      const unitPrice = buyPriceOfBook(catalogBooks, book.id);
-      return { item: makePoItemRow(book.id, unitPrice, qty), studentCount, qty };
-    })
-    .filter(({ studentCount, qty }) => includeZero || studentCount > 0 || qty > 0)
-    .map(({ item }) => item);
+  const result: NewPOItemInput[] = [];
+  for (const book of eligibleBooks) {
+    const demand = demandMap[book.id];
+    const studentCount = demand?.studentCount ?? 0;
+    if (studentCount <= 0) continue;
+    const qty = calcDemandQty(studentCount, bufferPercent);
+    if (qty <= 0) continue;
+    const unitPrice = buyPriceOfBook(catalogBooks, book.id);
+    result.push(makePoItemRow(book.id, unitPrice, qty));
+  }
+  return result;
 }

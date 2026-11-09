@@ -70,7 +70,7 @@ describe("po-demand-helpers: supplier eligibility & demand population", () => {
     expect(emptySupplierBooks).toEqual([]);
   });
 
-  it("buildSupplierPoItems populates only books with active demand by default", () => {
+  it("buildSupplierPoItems populates only books with active demand", () => {
     const cnlBooks = filterSupplierEligibleBooks(mockBooks, "sup-cnl");
     const demandMap: Record<string, BookDemandItemInfo> = {
       "b-cnl-1": {
@@ -92,22 +92,5 @@ describe("po-demand-helpers: supplier eligibility & demand population", () => {
     expect(items.length).toBe(1);
     expect(items[0].bookId).toBe("b-cnl-1");
     expect(items[0].quantityOrdered).toBe(calcDemandQty(15, 10)); // ceil(15 * 1.1) = 17
-  });
-
-  it("buildSupplierPoItems can include zero demand books when explicitly requested", () => {
-    const cnlBooks = filterSupplierEligibleBooks(mockBooks, "sup-cnl");
-    const demandMap: Record<string, BookDemandItemInfo> = {
-      "b-cnl-1": {
-        bookId: "b-cnl-1",
-        studentCount: 10,
-        warehouseStock: 0,
-        recommendedOrderQty: 11,
-      },
-    };
-
-    const items = buildSupplierPoItems(cnlBooks, mockBooks, demandMap, 10, { includeZeroDemand: true });
-    expect(items.length).toBe(2);
-    expect(items.map((i) => i.bookId)).toEqual(["b-cnl-1", "b-cnl-2"]);
-    expect(items[1].quantityOrdered).toBe(0);
   });
 });

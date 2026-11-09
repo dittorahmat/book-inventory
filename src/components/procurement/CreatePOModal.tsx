@@ -49,14 +49,9 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     [catalogBooks, poSupplierId]
   );
 
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
-    const eligible = filterSupplierEligibleBooks(catalogBooks, defaultSupplierId);
-    return eligible.length > 0
-      ? buildSupplierPoItems(eligible, catalogBooks, {}, 10)
-      : [];
-  });
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>([]);
 
-  // Muat ringkasan demand siswa per buku dari server
+  // Muat ringkasan demand siswa per buku dari server dan populate baris PO awal
   useEffect(() => {
     let active = true;
     getJson<{ success: boolean; data: { bufferPercentage: number; items: Record<string, BookDemandItemInfo> } }>(
@@ -64,10 +59,12 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     )
       .then((res) => {
         if (!active || !res?.data) return;
-        setDemandMap(res.data.items || {});
-        if (typeof res.data.bufferPercentage === "number") {
-          setBufferPercent(res.data.bufferPercentage);
-        }
+        const items = res.data.items || {};
+        const buffer = typeof res.data.bufferPercentage === "number" ? res.data.bufferPercentage : 10;
+        setDemandMap(items);
+        setBufferPercent(buffer);
+        // Sinkronkan baris awal PO dari eligibleBooks dan demand yang baru saja dimuat
+        setPoItems(buildSupplierPoItems(eligibleBooks, catalogBooks, items, buffer));
       })
       .catch((err: unknown) => {
         if (active) {
@@ -78,26 +75,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     return () => {
       active = false;
     };
-  }, []);
-
-  // Update kuantitas buku saat demandMap atau bufferPercent termuat pertama kali
-  useEffect(() => {
-    if (Object.keys(demandMap).length === 0) return;
-    setPoItems((prev) => {
-      // Jika saat mount awal poItems kosong karena belum ada demand, populate dari eligibleBooks
-      if (prev.length === 0 && eligibleBooks.length > 0) {
-        return buildSupplierPoItems(eligibleBooks, catalogBooks, demandMap, bufferPercent);
-      }
-      return prev.map((item) => {
-        // Jangan timpa jika user sudah pernah mengedit manual baris buku ini
-        if (editedBookIds.has(item.bookId)) return item;
-        const d = demandMap[item.bookId];
-        if (!d) return item;
-        const autoQty = calcDemandQty(d.studentCount || 0, bufferPercent);
-        return item.quantityOrdered === 0 ? { ...item, quantityOrdered: autoQty } : item;
-      });
-    });
-  }, [demandMap, bufferPercent, editedBookIds, eligibleBooks, catalogBooks]);
+  }, [eligibleBooks, catalogBooks]);
 
   function buyPriceOf(bookId: string, fallback = 0): number {
     return buyPriceOfBook(catalogBooks, bookId, fallback);
