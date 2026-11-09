@@ -4,6 +4,10 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Penjelajahan Stok Lintas Cabang (Cross-Branch Stock Roaming)**:
+Hak akses peninjauan dan pengelolaan saldo stok satuan (`book_stocks`) serta paket kitting (`package_stocks`) di gudang pusat maupun cabang-cabang sekolah fisik oleh role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`) melalui in-view selector di antarmuka tab, tanpa memanipulasi penugasan akun global di header utama.
+_Avoid_: Dropdown switcher di header navbar yang menimpa penugasan sesi login, penguncian kaku tampilan stok hanya pada gudang penugasan, isolasi buta bagi pengelola logistik terpusat
+
 **Paket Khusus Cabang (Branch-Assigned Package)**:
 Penugasan paket buku ke satu atau beberapa sekolah cabang spesifik (`book_package_schools`). Paket tanpa relasi cabang berlaku universal untuk semua cabang; paket yang di-assign khusus hanya terlihat dan dapat dipesan oleh murid di sekolah cabang tersebut (contoh: paket Al-Wildan 1 berbeda kurikulum/komposisi dari Al-Wildan 4).
 _Avoid_: Paket hardcoded per sekolah, duplikasi redundan paket umum

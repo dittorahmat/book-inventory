@@ -1,6 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import { isWarehouseLocation, isBranchLocation, filterBranchSchools } from "./location-helpers";
+import "../test-dom";
+import { isWarehouseLocation, isBranchLocation, filterBranchSchools, useRoamingLocation } from "./location-helpers";
 import type { School } from "../types";
+
+const { renderHook, act } = await import("@testing-library/react");
 
 describe("location-helpers", () => {
   it("identifies warehouse locations correctly", () => {
@@ -38,5 +41,38 @@ describe("location-helpers", () => {
       { id: "school-2", type: "main" },
       { id: "school-3" },
     ]);
+  });
+
+  it("provides canonical useRoamingLocation behavior for global vs branch actors", () => {
+    const whSchool: School = { id: "sch-wh", name: "Pusat", code: "PST", type: "warehouse" };
+    const branchSchool: School = { id: "sch-1", name: "Cabang 1", code: "CB1", type: "branch" };
+    const schools = [whSchool, branchSchool];
+
+    // Global role can roam and switch
+    const { result: globalRes } = renderHook(() =>
+      useRoamingLocation(whSchool, schools, "warehouse_admin")
+    );
+    expect(globalRes.current.isGlobalUser).toBe(true);
+    expect(globalRes.current.effectiveSchoolId).toBe("sch-wh");
+    expect(globalRes.current.effectiveSchool?.name).toBe("Pusat");
+
+    act(() => {
+      globalRes.current.setSelectedSchoolId("sch-1");
+    });
+    expect(globalRes.current.effectiveSchoolId).toBe("sch-1");
+    expect(globalRes.current.effectiveSchool?.name).toBe("Cabang 1");
+
+    // Local branch role is strictly locked to activeSchool
+    const { result: branchRes } = renderHook(() =>
+      useRoamingLocation(branchSchool, schools, "school_admin")
+    );
+    expect(branchRes.current.isGlobalUser).toBe(false);
+    expect(branchRes.current.effectiveSchoolId).toBe("sch-1");
+
+    act(() => {
+      branchRes.current.setSelectedSchoolId("sch-wh");
+    });
+    // Tetap terkunci ke branchSchool karena !isGlobalUser
+    expect(branchRes.current.effectiveSchoolId).toBe("sch-1");
   });
 });

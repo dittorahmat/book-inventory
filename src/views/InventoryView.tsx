@@ -6,12 +6,24 @@ import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
 import { DirectSaleModal, type TransferLinePreview } from "../components/inventory/DirectSaleModal";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
+import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { useRoamingLocation } from "../lib/location-helpers";
+import type { StaffRole } from "../lib/staff-roles";
 
 interface InventoryViewProps {
   activeSchool: School | null;
+  schools?: School[];
+  userRole?: StaffRole;
 }
 
-export function InventoryView({ activeSchool }: InventoryViewProps) {
+export function InventoryView({ activeSchool, schools = [], userRole }: InventoryViewProps) {
+  const {
+    isGlobalUser,
+    effectiveSchoolId,
+    effectiveSchool,
+    setSelectedSchoolId,
+  } = useRoamingLocation(activeSchool, schools, userRole);
+
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,18 +32,18 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
 
   const loadOverview = useCallback(async () => {
-    if (!activeSchool) return;
+    if (!effectiveSchoolId) return;
     setIsLoading(true);
     setError(null);
     try {
       const rows = await getJson<StockOverviewPayload[]>(
-        buildQuery("/api/stock-summary/overview", { schoolId: activeSchool.id }),
+        buildQuery("/api/stock-summary/overview", { schoolId: effectiveSchoolId }),
         "Gagal memuat ringkasan stok."
       );
-      const row: StockOverviewPayload | undefined = rows.find((r) => r.schoolId === activeSchool.id);
+      const row: StockOverviewPayload | undefined = rows.find((r) => r.schoolId === effectiveSchoolId);
       setOverview(
         row ?? {
-          schoolId: activeSchool.id,
+          schoolId: effectiveSchoolId,
           looseTitleCount: 0,
           looseTotalQty: 0,
           looseAvailableQty: 0,
@@ -47,7 +59,7 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSchool]);
+  }, [effectiveSchoolId]);
 
   useEffect(() => {
     loadOverview();
@@ -97,13 +109,24 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
           </h2>
           <p className="text-xs text-[#65676B] mt-0.5">
             Stok di{" "}
-            <span className="font-semibold text-[#050505]">{activeSchool ? activeSchool.name : "..."}</span> &bull;{" "}
+            <span className="font-semibold text-[#050505]">{effectiveSchool ? effectiveSchool.name : "..."}</span> &bull;{" "}
             {overview?.looseAvailableQty ?? 0} satuan tersedia dari {overview?.looseTitleCount ?? 0} judul &bull;{" "}
             {overview?.packageReadyQty ?? 0} paket siap
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          {isGlobalUser && schools.length > 0 && (
+            <div className="w-full sm:w-56">
+              <SearchableSingleSelect
+                label="Pilih Lokasi Stok"
+                options={schools.map((s) => ({ value: s.id, label: s.name }))}
+                value={effectiveSchoolId}
+                onChange={setSelectedSchoolId}
+                placeholder="Pilih lokasi stok..."
+              />
+            </div>
+          )}
           <div className="relative flex-1 sm:flex-initial">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#65676B]" />
             <input
@@ -144,7 +167,7 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
             >
               Batal
             </button>
-            {activeSchool?.type === "warehouse" && (
+            {effectiveSchool?.type === "warehouse" && (
               <button
                 type="button"
                 onClick={() => setIsDirectSaleOpen(true)}
@@ -167,7 +190,7 @@ export function InventoryView({ activeSchool }: InventoryViewProps) {
 
       <DirectSaleModal
         open={isDirectSaleOpen}
-        school={activeSchool}
+        school={effectiveSchool}
         lines={transferLines}
         onClose={() => setIsDirectSaleOpen(false)}
         onSuccess={() => {

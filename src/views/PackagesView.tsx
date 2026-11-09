@@ -9,6 +9,7 @@ import { CreatePackageModal } from "../components/packages/CreatePackageModal";
 import { EditPackageModal } from "../components/packages/EditPackageModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { useRoamingLocation } from "../lib/location-helpers";
 
 type BookPackage = PackageRow;
 
@@ -21,6 +22,13 @@ interface PackagesViewProps {
 /** Orkestrator tipis (cerminan CatalogView): data-hook + filter-hook + kartu + modal. */
 export function PackagesView({ activeSchool, schools = [], userRole }: PackagesViewProps) {
   const {
+    isGlobalUser,
+    effectiveSchoolId,
+    effectiveSchool,
+    setSelectedSchoolId,
+  } = useRoamingLocation(activeSchool, schools, userRole);
+
+  const {
     packages,
     catalogBooks,
     stockMap,
@@ -30,7 +38,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
     createPackage,
     updatePackage,
     deletePackage,
-  } = usePackagesData(activeSchool);
+  } = usePackagesData(effectiveSchool);
   const { searchQuery, setSearchQuery, selectedCurriculum, setSelectedCurriculum, filteredPackages } =
     usePackagesFilter(packages);
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
@@ -68,7 +76,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
             <span className="text-xs font-bold uppercase tracking-wider text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-md">
               Rakit Bundling
             </span>
-            <span className="text-xs text-[#65676B]">&bull; {activeSchool?.name || "Pilih Cabang"}</span>
+            <span className="text-xs text-[#65676B]">&bull; {effectiveSchool?.name || "Pilih Cabang"}</span>
           </div>
           <h1 className="text-xl font-bold text-[#050505] tracking-tight mt-1">
             Master Paket Buku & Rakit Bundling
@@ -78,22 +86,36 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => loadPackagesData()}
-            className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
-            title="Refresh Stok"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+          {isGlobalUser && schools.length > 0 && (
+            <div className="w-full sm:w-56">
+              <SearchableSingleSelect
+                label="Pilih Lokasi Bundling"
+                options={schools.map((s) => ({ value: s.id, label: s.name }))}
+                value={effectiveSchoolId}
+                onChange={setSelectedSchoolId}
+                placeholder="Pilih lokasi bundling..."
+              />
+            </div>
+          )}
 
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-xs transition-colors shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Buat Paket Baru</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadPackagesData()}
+              className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
+              title="Refresh Stok"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
+
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-xs transition-colors shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Buat Paket Baru</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -196,7 +218,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
       {modalPkg && (
         <BundlingModal
           pkg={modalPkg}
-          activeSchool={activeSchool}
+          activeSchool={effectiveSchool}
           stockPotential={stockMap[modalPkg.id] || null}
           mode={modalMode}
           onClose={() => setModalPkg(null)}
