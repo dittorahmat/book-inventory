@@ -10,6 +10,7 @@ import { ExecutiveKpiCard } from "../components/dashboard/ExecutiveKpiCard";
 import { CashBreakdownDrawer } from "../components/dashboard/CashBreakdownDrawer";
 import { OrderBreakdownDrawer } from "../components/dashboard/OrderBreakdownDrawer";
 import { StudentBreakdownDrawer } from "../components/dashboard/StudentBreakdownDrawer";
+import { StockBreakdownDrawer } from "../components/dashboard/StockBreakdownDrawer";
 
 interface DashboardViewProps {
   activeSchool: School | null;
@@ -209,8 +210,16 @@ function ExecutiveDashboard({
         academicYear={academicYear}
       />
 
+      {/* Stock Breakdown Drawer */}
+      <StockBreakdownDrawer
+        isOpen={activeDrawer === "stock"}
+        onClose={() => setActiveDrawer(null)}
+        data={breakdowns.stock}
+        academicYear={academicYear}
+      />
+
       {/* Placeholder info drawer lainnya */}
-      {activeDrawer && activeDrawer !== "cash" && activeDrawer !== "orders" && activeDrawer !== "students" && (
+      {activeDrawer && activeDrawer !== "cash" && activeDrawer !== "orders" && activeDrawer !== "students" && activeDrawer !== "stock" && (
         <div className="bg-white rounded-2xl border border-[#1877F2] p-5 shadow-sm flex items-center justify-between">
           <div className="text-sm font-semibold text-[#050505]">
             Mode Breakdown: <span className="capitalize text-[#1877F2] font-black">{activeDrawer}</span> ({breakdowns[activeDrawer]?.length || 0} cabang terdata)
