@@ -154,7 +154,12 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
         ),
       ]);
 
-      const [warehouse] = await db.select({ id: schools.id }).from(schools).where(eq(schools.type, "warehouse")).limit(1);
+      const [warehouse] = await db
+        .select({ id: schools.id })
+        .from(schools)
+        .where(eq(schools.type, "warehouse"))
+        .orderBy(desc(schools.createdAt))
+        .limit(1);
       const whId = warehouse?.id;
       if (whId) {
         for (const item of body.items) {

@@ -217,6 +217,7 @@ describe("Returns & RTV API Suite", () => {
   });
 
   it("processes RTV and decrements book_stocks in warehouse", async () => {
+    // Isolasi: pastikan warehouse terisolasi dan decrement berjalan di warehouse aktif
     const stamp = `rtv-aggr-${Date.now()}`;
     const supplierId = `sup-rtv-${stamp}`;
     const bookId = `book-rtv-${stamp}`;

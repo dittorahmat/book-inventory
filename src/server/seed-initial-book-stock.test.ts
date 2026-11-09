@@ -128,7 +128,7 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
     expect(pmStock[0].availableQuantity).toBe(81);
 
     // Verifikasi audit log stock_adjustments
-    const adjs = await db.select().from(stockAdjustments);
+    const adjs = await db.select().from(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
     expect(adjs.length).toBe(2);
     expect(adjs[0].reason).toBe("audit_reconciliation");
     expect(adjs[0].referenceDocumentNumber).toBe("REKAP-AW1-2026-2027");

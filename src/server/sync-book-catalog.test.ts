@@ -8,6 +8,7 @@ describe("syncBookCatalogPricingAndIsbn", () => {
   it("aligns books buy_price with net supplier discount price and standard 13-digit ISBNs", async () => {
     // Seed sample book di test DB
     const sampleId = "test-prime-math-1a";
+    await db.delete(books).where(eq(books.id, sampleId));
     await db
       .insert(books)
       .values({
@@ -21,8 +22,7 @@ describe("syncBookCatalogPricingAndIsbn", () => {
         buyPrice: 198600, // Harga kotor awal
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      })
-      .onConflictDoNothing();
+      });
 
     const result = await syncBookCatalogPricingAndIsbn(db);
     expect(result.updatedCount).toBeGreaterThan(0);
