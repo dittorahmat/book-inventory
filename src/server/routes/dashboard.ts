@@ -7,12 +7,36 @@ import {
   DashboardHttpError,
   getDashboardSummary,
 } from "../services/reporting";
+import {
+  ExecutiveDashboardHttpError,
+  getExecutiveDashboardSummary,
+} from "../services/reporting/executive-dashboard";
 import { idSchema } from "../lib/validators";
 
 export const dashboardRouter = new Hono();
 
 const summaryQuerySchema = z.object({
   schoolId: idSchema.optional(),
+});
+
+const executiveQuerySchema = z.object({
+  academicYear: z.string().optional(),
+  compareAcademicYear: z.string().optional(),
+});
+
+dashboardRouter.get("/executive/summary", zValidator("query", executiveQuerySchema), async (c) => {
+  const { academicYear, compareAcademicYear } = c.req.valid("query");
+
+  try {
+    const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    const data = await getExecutiveDashboardSummary(db, actor, academicYear, compareAcademicYear);
+    return c.json({ success: true, data });
+  } catch (err) {
+    if (err instanceof ExecutiveDashboardHttpError) {
+      return c.json({ success: false, message: err.message }, err.status as 400 | 403 | 404);
+    }
+    throw err;
+  }
 });
 
 dashboardRouter.get("/summary", zValidator("query", summaryQuerySchema), async (c) => {

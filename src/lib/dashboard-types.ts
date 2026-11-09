@@ -115,3 +115,123 @@ export interface DashboardSummaryResponse {
   data?: DashboardSummaryPayload;
   message?: string;
 }
+
+// ==========================================
+// Executive / Presdir Dashboard Types
+// ==========================================
+
+export interface ExecutiveMetricValue {
+  current: number;
+  previous: number | null;
+  /** Persentase delta: ((current - previous) / previous) * 100. null bila previous null atau 0. */
+  deltaPercent: number | null;
+}
+
+export interface ExecutiveBranchCashBreakdown {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  realizedRp: number;
+  outstandingRp: number;
+  pendingRefundRp: number;
+  scholarshipRp: number;
+  paidCount: number;
+  unpaidCount: number;
+}
+
+export interface ExecutiveBranchOrderBreakdown {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  orderCount: number;
+  gmvRp: number;
+  aovRp: number;
+  packageCount: number;
+  looseCount: number;
+  uniformCount: number;
+  fulfilledCount: number;
+  waitingCount: number;
+}
+
+export interface ExecutiveBranchStudentBreakdown {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  totalStudents: number;
+  orderedStudents: number;
+  adoptionRate: number; // 0..1
+  fulfilledStudents: number;
+  byGrade: Array<{ grade: string; total: number; ordered: number }>;
+}
+
+export interface ExecutiveBranchStockBreakdown {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  inboundUnits: number;
+  outboundUnits: number;
+  adjustmentUnits: number;
+  valuationRp: number;
+  looseStock: number;
+  packageStock: number;
+}
+
+export interface ExecutiveBranchPoBreakdown {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  poCount: number;
+  commitmentRp: number;
+  fulfilledUnits: number;
+  totalUnits: number;
+  fulfillmentRate: number; // 0..1
+}
+
+export interface ExecutiveDashboardSummary {
+  academicYear: string;
+  compareAcademicYear: string | null;
+  availableAcademicYears: string[];
+  kpis: {
+    cash: {
+      realizedRp: ExecutiveMetricValue;
+      outstandingRp: ExecutiveMetricValue;
+      pendingRefundRp: ExecutiveMetricValue;
+      scholarshipRp: ExecutiveMetricValue;
+    };
+    orders: {
+      totalOrders: ExecutiveMetricValue;
+      gmvRp: ExecutiveMetricValue;
+      aovRp: ExecutiveMetricValue;
+    };
+    students: {
+      totalStudents: ExecutiveMetricValue;
+      adoptionRate: ExecutiveMetricValue; // percentage
+      fulfillmentRate: ExecutiveMetricValue;
+    };
+    stockMovement: {
+      inboundUnits: ExecutiveMetricValue;
+      outboundUnits: ExecutiveMetricValue;
+      adjustmentUnits: ExecutiveMetricValue;
+      totalValuationRp: ExecutiveMetricValue;
+    };
+    po: {
+      totalPoCount: ExecutiveMetricValue;
+      commitmentRp: ExecutiveMetricValue;
+      fulfillmentRate: ExecutiveMetricValue;
+    };
+  };
+  breakdowns: {
+    cash: ExecutiveBranchCashBreakdown[];
+    orders: ExecutiveBranchOrderBreakdown[];
+    students: ExecutiveBranchStudentBreakdown[];
+    stock: ExecutiveBranchStockBreakdown[];
+    po: ExecutiveBranchPoBreakdown[];
+  };
+}
+
+export interface ExecutiveDashboardResponse {
+  success: boolean;
+  data?: ExecutiveDashboardSummary;
+  message?: string;
+}
+
