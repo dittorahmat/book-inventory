@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { db } from "../db";
 import { generateSdStudentOrdersAndHandover } from "./generate-sd-student-orders";
 import {
@@ -176,5 +176,17 @@ describe("generateSdStudentOrdersAndHandover (§0.4, §0.20, §0.62)", () => {
 
     const [sciStock] = await db.select().from(bookStocks).where(eq(bookStocks.bookId, "book-sci-1"));
     expect(sciStock.availableQuantity).toBe(48); // 50 - 2
+  });
+
+  afterEach(async () => {
+    await db.delete(studentOrderItems);
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.schoolId, schoolId));
+    await db.delete(students).where(eq(students.schoolId, schoolId));
+    await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, "pkg-sd1-inter"));
+    await db.delete(bookPackages).where(eq(bookPackages.id, "pkg-sd1-inter"));
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolId));
+    await db.delete(books).where(eq(books.id, "book-math-1"));
+    await db.delete(books).where(eq(books.id, "book-sci-1"));
+    await db.delete(schools).where(eq(schools.id, schoolId));
   });
 });

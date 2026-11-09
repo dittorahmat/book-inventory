@@ -1159,4 +1159,108 @@ describe("PO supplier exclusivity (#143)", () => {
       await db.delete(books).where(eq(books.id, bookId));
     }
   });
+
+  it("calculates book demand taking warehouseStock from book_stocks into account", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const { students, bookPackages, bookPackageItems, bookStocks, schools } = await import("../../db/schema");
+    const bookId = `b-dem-stk-${stamp}`;
+    const packageId = `pkg-dem-stk-${stamp}`;
+    const studentId = `std-dem-stk-${stamp}`;
+    const schoolId = "school-alw-1";
+    const year = "2026/2027";
+
+    // Resolve or seed warehouse school
+    const [existingWh] = await db.select({ id: schools.id }).from(schools).where(eq(schools.type, "warehouse")).limit(1);
+    const whId = existingWh?.id ?? "test-wh-dem";
+    if (!existingWh) {
+      await db.insert(schools).values({
+        id: whId,
+        name: "Warehouse Demand",
+        code: `WHD-${stamp}`,
+        type: "warehouse",
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing();
+    }
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-DEM-STK-${stamp}`,
+      title: "Buku Uji Demand Stock",
+      author: "Penulis",
+      publisher: "Penerbit",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-DEM-STK-${stamp}`,
+      name: "Paket Demand Stock Uji",
+      gradeLevel: "10",
+      curriculumType: "international",
+      stream: "IPA",
+      intakeType: "baru",
+      academicYear: year,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(bookPackageItems).values({
+      id: `bpi-dem-stk-${stamp}`,
+      packageId,
+      bookId,
+      quantity: 1,
+      createdAt: now,
+    });
+
+    await db.insert(students).values({
+      id: studentId,
+      schoolId,
+      nis: `NIS-DEM-STK-${stamp}`,
+      name: "Siswa Demand Stock Uji",
+      gradeLevel: "10",
+      curriculumType: "international",
+      stream: "IPA",
+      intakeType: "baru",
+      academicYear: year,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Seed 10 stock in book_stocks in warehouse
+    await db.insert(bookStocks).values({
+      id: `bs-dem-${stamp}`,
+      bookId,
+      schoolId: whId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    try {
+      mockActor("central_admin", null);
+      const res = await procurementRouter.request(
+        `/book-demand-summary?academicYear=${year}&bufferPercentage=10&bookIds=${bookId}`,
+        { method: "GET" }
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      const item = json.data.items[bookId];
+      expect(item).toBeDefined();
+      expect(item.studentCount).toBe(1);
+      expect(item.warehouseStock).toBe(10);
+      expect(item.recommendedOrderQty).toBe(2);
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(bookStocks).where(eq(bookStocks.id, `bs-dem-${stamp}`));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(books).where(eq(books.id, bookId));
+    }
+  });
 });

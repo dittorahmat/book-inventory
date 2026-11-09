@@ -49,6 +49,14 @@ export type InventoryAllocationInput =
       quantity: number;
     };
 
+/** Helper serialisasi & deserialisasi ID agregat sintetis */
+export const SYNTHETIC_STOCK_PREFIX = "aggr-";
+export const isSyntheticStockId = (id: string | null | undefined): boolean => !!id && id.startsWith(SYNTHETIC_STOCK_PREFIX);
+export const makeSyntheticBookStockId = (bookId: string, idx: number): string => `aggr-${bookId}-${idx}`;
+export const makeSyntheticPackageStockId = (packageId: string, idx: number): string => `aggr-pkg-${packageId}-${idx}`;
+export const parseSyntheticBookId = (id: string): string => id.split("-").slice(1, -1).join("-");
+export const parseSyntheticPackageId = (id: string): string => id.split("-").slice(2, -1).join("-");
+
 /**
  * Seam terpadu alokasi FIFO inventaris fisik (satuan atau paket).
  * Mengabstraksi pemilihan tabel, kueri count kekurangan stok, dan format hasil.
@@ -130,7 +138,7 @@ async function allocateLooseStock(
       return {
         ok: true,
         items: Array.from({ length: input.quantity }, (_, idx) => ({
-          id: `aggr-${input.bookId}-${idx}`,
+          id: makeSyntheticBookStockId(input.bookId, idx),
           barcode: `AGGR-${input.bookId}`,
           condition: "new",
         })),
@@ -207,7 +215,7 @@ async function allocatePackages(
       return {
         ok: true,
         items: Array.from({ length: input.quantity }, (_, idx) => ({
-          id: `aggr-pkg-${input.packageId}-${idx}`,
+          id: makeSyntheticPackageStockId(input.packageId, idx),
           barcode: `AGGR-PKG-${input.packageId}`,
           packageId: input.packageId,
         })),

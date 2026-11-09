@@ -7,6 +7,7 @@ import {
   vendorReturns,
   vendorReturnItems,
   suppliers,
+  schools,
   books,
   bookItems,
 } from "../../db/schema";
@@ -16,13 +17,14 @@ import {
 } from "../services/access-scope";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, selectInChunks } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
-import { planVendorReturnDispose } from "../services/stock";
+import { planVendorReturnDispose, moveInventoryStock } from "../services/stock";
 
 export const vendorReturnsRouter = new Hono();
 
 const createVendorReturnSchema = z.object({
   supplierId: z.string().min(1, "Supplier wajib dipilih"),
   purchaseOrderId: z.string().optional(),
+  schoolId: z.string().optional(),
   reason: z.string().min(3, "Alasan retur minimal 3 karakter"),
   creditNoteAmount: z.number().int().min(0).default(0),
   items: z.array(
@@ -152,6 +154,31 @@ vendorReturnsRouter.post("/", zValidator("json", createVendorReturnSchema), asyn
             .where(eq(bookItems.id, id))
         ),
       ]);
+
+      let whId = body.schoolId;
+      if (!whId) {
+        const [warehouse] = await db
+          .select({ id: schools.id })
+          .from(schools)
+          .where(eq(schools.type, "warehouse"))
+          .orderBy(desc(schools.createdAt))
+          .limit(1);
+        whId = warehouse?.id;
+      }
+      if (whId) {
+        for (const item of body.items) {
+          await moveInventoryStock(db, {
+            movementType: "adjustment",
+            itemType: "loose",
+            bookId: item.bookId,
+            schoolId: whId,
+            quantity: -item.quantity,
+            reason: "damaged",
+            referenceDocumentNumber: returnNumber,
+            notes: `RTV #${returnNumber}: ${body.reason}`,
+          });
+        }
+      }
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, `retur supplier ${returnNumber}`);
       if (mapped) return c.json({ success: false, message: mapped.message }, mapped.status);

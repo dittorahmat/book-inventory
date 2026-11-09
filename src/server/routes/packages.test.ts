@@ -7,7 +7,7 @@ afterEach(() => {
 });
 import { packagesRouter } from "./packages";
 import { db } from "../../db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems } from "../../db/schema";
 import { runIdempotentSeed } from "../seed";
 
@@ -781,6 +781,104 @@ describe("Packages & Bundling/Unbundling API", () => {
     // Clean up
     await db.delete(packageStocks).where(eq(packageStocks.id, `ps-${stamp}`));
     await db.delete(bookStocks).where(eq(bookStocks.id, `bs-${stamp}`));
+    await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
+    await db.delete(books).where(eq(books.id, bId));
+    await db.delete(schools).where(eq(schools.id, schId));
+  });
+
+  it("assembles and unbundles from aggregate stock tables (book_stocks & package_stocks) without book_items", async () => {
+    const stamp = `aggr-asm-${Date.now()}`;
+    const schId = `sch-${stamp}`;
+    const bId = `book-${stamp}`;
+    const pkgCode = `PKG-AASM-${stamp.slice(-6)}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schId,
+      name: "Gudang Logistik Aggr Test",
+      code: `WHA-${stamp.slice(-6)}`,
+      type: "warehouse",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(books).values({
+      id: bId,
+      isbn: `ISBN-AASM-${stamp}`,
+      title: "Buku Aggr Assembly Test",
+      author: "Aggr Auth",
+      publisher: "Aggr Pub",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const createPkg = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: pkgCode,
+        name: "Paket Aggr Assembly Test",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        price: 500000,
+        items: [{ bookId: bId, quantity: 2 }],
+      }),
+    });
+    expect(createPkg.status).toBe(201);
+    const createdPkg = (await createPkg.json()).data;
+
+    const { bookStocks, packageStocks } = await import("../../db/schema");
+    // Seed 10 loose books in book_stocks (0 rows in book_items!)
+    await db.insert(bookStocks).values({
+      id: `bs-${stamp}`,
+      bookId: bId,
+      schoolId: schId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Assemble 3 bundles (requires 3 * 2 = 6 books)
+    const bundleRes = await packagesRouter.request(`/${createdPkg.id}/bundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: schId, quantity: 3 }),
+    });
+    expect(bundleRes.status).toBe(200);
+    const bundleJson = await bundleRes.json();
+    expect(bundleJson.success).toBe(true);
+    expect(bundleJson.data.quantityAssembled).toBe(3);
+
+    // Verify book_stocks reduced by 6 (10 - 6 = 4)
+    const [updatedBs] = await db.select().from(bookStocks).where(eq(bookStocks.id, `bs-${stamp}`));
+    expect(updatedBs.availableQuantity).toBe(4);
+
+    // Verify package_stocks increased by 3
+    const [updatedPs] = await db.select().from(packageStocks).where(
+      and(eq(packageStocks.packageId, createdPkg.id), eq(packageStocks.schoolId, schId))
+    );
+    expect(updatedPs.availableQuantity).toBe(3);
+
+    // Unbundle 1 bundle back to loose
+    const unbundleRes = await packagesRouter.request(`/${createdPkg.id}/unbundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: schId, quantity: 1, reason: "Uji unbundle agregat" }),
+    });
+    expect(unbundleRes.status).toBe(200);
+
+    const [finalBs] = await db.select().from(bookStocks).where(eq(bookStocks.id, `bs-${stamp}`));
+    expect(finalBs.availableQuantity).toBe(6); // 4 + 2 = 6
+
+    const [finalPs] = await db.select().from(packageStocks).where(
+      and(eq(packageStocks.packageId, createdPkg.id), eq(packageStocks.schoolId, schId))
+    );
+    expect(finalPs.availableQuantity).toBe(2); // 3 - 1 = 2
+
+    // Clean up
+    await db.delete(packageStocks).where(eq(packageStocks.schoolId, schId));
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, schId));
     await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
     await db.delete(books).where(eq(books.id, bId));
     await db.delete(schools).where(eq(schools.id, schId));

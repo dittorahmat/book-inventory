@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { bookPackages, bookPackageItems, packageItems, books, bookItems } from "../../db/schema";
+import { bookPackages, bookPackageItems, packageItems, books, bookItems, bookStocks, packageStocks } from "../../db/schema";
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, newWriteId, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
 import { isoTimeFragment } from "../lib/document-number";
 import { kitBomWithoutWpr } from "./pricing";
@@ -74,12 +74,21 @@ export async function assemblePackageBundles(
   for (const item of kitBom) {
     neededByBook.set(item.bookId, (neededByBook.get(item.bookId) ?? 0) + item.quantity * quantity);
   }
+  const bookIds = [...neededByBook.keys()];
+
+  // Cek ketersediaan di book_stocks (agregat kuantitas)
+  const aggrStocks = await database
+    .select({ bookId: bookStocks.bookId, availableQuantity: bookStocks.availableQuantity })
+    .from(bookStocks)
+    .where(and(eq(bookStocks.schoolId, schoolId), inArray(bookStocks.bookId, bookIds)));
+  const aggrStockMap = new Map<string, number>(aggrStocks.map((s) => [s.bookId, s.availableQuantity ?? 0]));
+
   const candidates = await database
     .select({ id: bookItems.id, bookId: bookItems.bookId })
     .from(bookItems)
     .where(
       and(
-        inArray(bookItems.bookId, [...neededByBook.keys()]),
+        inArray(bookItems.bookId, bookIds),
         eq(bookItems.currentSchoolId, schoolId),
         inArray(bookItems.status, [...AVAILABLE_LOOSE_STATUSES]),
         inArray(bookItems.condition, [...KITTABLE_CONDITIONS])
@@ -93,7 +102,9 @@ export async function assemblePackageBundles(
   }
   for (const item of kitBom) {
     const requiredTotal = neededByBook.get(item.bookId) ?? 0;
-    const availableCount = availableByBook.get(item.bookId)?.length ?? 0;
+    const physicalCount = availableByBook.get(item.bookId)?.length ?? 0;
+    const aggrCount = aggrStockMap.get(item.bookId);
+    const availableCount = Math.max(aggrCount ?? 0, physicalCount);
     if (availableCount < requiredTotal) {
       return {
         ok: false,
@@ -103,19 +114,21 @@ export async function assemblePackageBundles(
     }
   }
 
-  // Potong stok satuan batch: satu UPDATE per komponen per chunk id (bukan per
-  // eksemplar, bukan satu IN raksasa) + insert bundel di-chunk — §10 D1.
+  // Potong stok satuan batch: satu UPDATE per komponen per chunk id jika baris fisik ada
   const consumeWrites = [];
   for (const item of kitBom) {
     const requiredTotal = neededByBook.get(item.bookId) ?? 0;
-    const idsToConsume = (availableByBook.get(item.bookId) ?? []).slice(0, requiredTotal).map((c) => c.id);
-    for (const ids of chunkRows(idsToConsume, D1_INLIST_CHUNK_SIZE)) {
-      consumeWrites.push(
-        database
-          .update(bookItems)
-          .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
-          .where(inArray(bookItems.id, ids))
-      );
+    const physicalItems = availableByBook.get(item.bookId) ?? [];
+    if (physicalItems.length > 0) {
+      const idsToConsume = physicalItems.slice(0, requiredTotal).map((c) => c.id);
+      for (const ids of chunkRows(idsToConsume, D1_INLIST_CHUNK_SIZE)) {
+        consumeWrites.push(
+          database
+            .update(bookItems)
+            .set({ status: "disposed", notes: `Bundled into ${pkg.name}`, updatedAt: now })
+            .where(inArray(bookItems.id, ids))
+        );
+      }
     }
   }
 
@@ -144,10 +157,13 @@ export async function assemblePackageBundles(
   }
 
   try {
-    await runWriteBatch(database, [
+    const writes = [
       ...consumeWrites,
       ...chunkRows(itemsToInsert).map((rows) => database.insert(packageItems).values(rows)),
-    ]);
+    ];
+    if (writes.length > 0) {
+      await runWriteBatch(database, writes);
+    }
 
     // Update saldo stok kuantitas agregat via deep stock movement engine
     await moveInventoryStock(
@@ -210,6 +226,12 @@ export async function disassemblePackageBundles(
     return { ok: false, status: 404, message: "Package not found" };
   }
 
+  // Cek ketersediaan di package_stocks (agregat)
+  const [aggrPkgStock] = await database
+    .select({ availableQuantity: packageStocks.availableQuantity })
+    .from(packageStocks)
+    .where(and(eq(packageStocks.packageId, packageId), eq(packageStocks.schoolId, schoolId)));
+
   const availableBundles = await database
     .select({ id: packageItems.id })
     .from(packageItems)
@@ -222,11 +244,15 @@ export async function disassemblePackageBundles(
     )
     .limit(quantity);
 
-  if (availableBundles.length < quantity) {
+  const physicalCount = availableBundles.length;
+  const aggrCount = aggrPkgStock?.availableQuantity;
+  const availableCount = Math.max(aggrCount ?? 0, physicalCount);
+
+  if (availableCount < quantity) {
     return {
       ok: false,
       status: 400,
-      message: `Not enough assembled packages to unbundle. Requested: ${quantity}, Available: ${availableBundles.length}`,
+      message: `Not enough assembled packages to unbundle. Requested: ${quantity}, Available: ${availableCount}`,
     };
   }
 
@@ -238,73 +264,79 @@ export async function disassemblePackageBundles(
     .from(bookPackageItems)
     .where(eq(bookPackageItems.packageId, packageId));
 
-  // Hapus paket fisik yang dibongkar bertahap + pulihkan satuan via seam §10 D1.
-  const unbundleWrites = chunkRows<string>(
-    availableBundles.map((b: { id: string }) => b.id),
-    D1_INLIST_CHUNK_SIZE
-  ).map((ids) => database.delete(packageItems).where(inArray(packageItems.id, ids)));
+  // Hapus paket fisik yang dibongkar bertahap jika ada di package_items
+  const unbundleWrites = availableBundles.length > 0
+    ? chunkRows<string>(
+        availableBundles.map((b: { id: string }) => b.id),
+        D1_INLIST_CHUNK_SIZE
+      ).map((ids) => database.delete(packageItems).where(inArray(packageItems.id, ids)))
+    : [];
 
-  // Pulihkan eksemplar satuan komponen BOM (WPR non-fisik dikecualikan).
+  // Pulihkan eksemplar satuan komponen BOM jika ada paket fisik yang dibongkar
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
+  const physicalBundlesToRestore = availableBundles.length;
   let totalRestoredLoose = 0;
   const timeFrag = isoTimeFragment(now, 6);
 
-  for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
-    const returnCount = item.quantity * quantity;
-    for (let j = 0; j < returnCount; j++) {
-      const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;
-      restoredBookItems.push({
-        id: newWriteId(deps),
-        bookId: item.bookId,
-        currentSchoolId: schoolId,
-        barcode,
-        condition: "new",
-        status: "in_stock",
-        notes: `Restored from unbundled package ${pkg.name}. Reason: ${reason}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalRestoredLoose++;
+  if (physicalBundlesToRestore > 0) {
+    for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
+      const returnCount = item.quantity * physicalBundlesToRestore;
+      for (let j = 0; j < returnCount; j++) {
+        const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;
+        restoredBookItems.push({
+          id: newWriteId(deps),
+          bookId: item.bookId,
+          currentSchoolId: schoolId,
+          barcode,
+          condition: "new",
+          status: "in_stock",
+          notes: `Restored from unbundled package ${pkg.name}. Reason: ${reason}`,
+          createdAt: now,
+          updatedAt: now,
+        });
+        totalRestoredLoose++;
+      }
     }
   }
 
-  if (restoredBookItems.length > 0 || unbundleWrites.length > 0) {
-    try {
-      await runWriteBatch(database, [
-        ...unbundleWrites,
-        ...chunkRows(restoredBookItems).map((rows) => database.insert(bookItems).values(rows)),
-      ]);
+  try {
+    const writes = [
+      ...unbundleWrites,
+      ...chunkRows(restoredBookItems).map((rows) => database.insert(bookItems).values(rows)),
+    ];
+    if (writes.length > 0) {
+      await runWriteBatch(database, writes);
+    }
 
-      // Update saldo stok kuantitas agregat via deep stock movement engine
+    // Update saldo stok kuantitas agregat via deep stock movement engine
+    await moveInventoryStock(
+      database,
+      {
+        movementType: "disassembly",
+        itemType: "package",
+        packageId,
+        schoolId,
+        quantity,
+      },
+      deps
+    );
+    for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
       await moveInventoryStock(
         database,
         {
-          movementType: "disassembly",
-          itemType: "package",
-          packageId,
-          schoolId,
-          quantity,
+          movementType: "receipt", // kembalikan buku satuan ke rak
+          itemType: "loose",
+          bookId: item.bookId,
+          toSchoolId: schoolId,
+          quantity: item.quantity * quantity,
         },
         deps
       );
-      for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
-        await moveInventoryStock(
-          database,
-          {
-            movementType: "receipt", // kembalikan buku satuan ke rak
-            itemType: "loose",
-            bookId: item.bookId,
-            toSchoolId: schoolId,
-            quantity: item.quantity * quantity,
-          },
-          deps
-        );
-      }
-    } catch (err) {
-      const mapped = d1WriteErrorStatus(err, "pembongkaran paket");
-      if (mapped) return { ok: false, ...mapped };
-      throw err;
     }
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "pembongkaran paket");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
   }
 
   return {

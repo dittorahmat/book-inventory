@@ -47,21 +47,23 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
 });
 
 describe("seedInitialBookStock DB execution & parity (§0.58.2, §0.62.1)", () => {
-  const schoolWarehouseId = "school-warehouse";
+  const schoolWarehouseId = `school-wh-${Date.now()}`;
+  const arabBookId = `b-test-arab-${Date.now()}`;
+  const pm1aBookId = `b-test-pm1a-${Date.now()}`;
   const now = new Date().toISOString();
 
   beforeEach(async () => {
     // Bersihkan data uji terkait
     await db.delete(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
     await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolWarehouseId));
-    await db.delete(books).where(eq(books.id, "b-test-arab"));
-    await db.delete(books).where(eq(books.id, "b-test-pm1a"));
+    await db.delete(books).where(eq(books.id, arabBookId));
+    await db.delete(books).where(eq(books.id, pm1aBookId));
     await db.delete(schools).where(eq(schools.id, schoolWarehouseId));
 
     await db.insert(schools).values({
       id: schoolWarehouseId,
       name: "Gudang Logistik Pusat",
-      code: "GUDANG-LOG",
+      code: `GDG-${Date.now().toString().slice(-4)}`,
       type: "warehouse",
       createdAt: now,
       updatedAt: now,
@@ -69,8 +71,8 @@ describe("seedInitialBookStock DB execution & parity (§0.58.2, §0.62.1)", () =
 
     await db.insert(books).values([
       {
-        id: "b-test-arab",
-        isbn: "978-0000000001",
+        id: arabBookId,
+        isbn: `978-${Date.now().toString().slice(-9)}1`,
         title: "BAHASA ARAB",
         author: "Al-Wildan",
         publisher: "Segara",
@@ -81,8 +83,8 @@ describe("seedInitialBookStock DB execution & parity (§0.58.2, §0.62.1)", () =
         updatedAt: now,
       },
       {
-        id: "b-test-pm1a",
-        isbn: "978-0000000002",
+        id: pm1aBookId,
+        isbn: `978-${Date.now().toString().slice(-9)}2`,
         title: "PRIME MATH 1A COURSEBOOK",
         author: "Scholastic",
         publisher: "Scholastic",
@@ -116,19 +118,19 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
     const arabStock = await db
       .select()
       .from(bookStocks)
-      .where(eq(bookStocks.bookId, "b-test-arab"));
+      .where(eq(bookStocks.bookId, arabBookId));
     expect(arabStock.length).toBe(1);
     expect(arabStock[0].availableQuantity).toBe(60);
 
     const pmStock = await db
       .select()
       .from(bookStocks)
-      .where(eq(bookStocks.bookId, "b-test-pm1a"));
+      .where(eq(bookStocks.bookId, pm1aBookId));
     expect(pmStock.length).toBe(1);
     expect(pmStock[0].availableQuantity).toBe(81);
 
     // Verifikasi audit log stock_adjustments
-    const adjs = await db.select().from(stockAdjustments);
+    const adjs = await db.select().from(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
     expect(adjs.length).toBe(2);
     expect(adjs[0].reason).toBe("audit_reconciliation");
     expect(adjs[0].referenceDocumentNumber).toBe("REKAP-AW1-2026-2027");
@@ -138,8 +140,8 @@ KLS 1,1,Prime Math 1A Student Book,  1.110 ,  198.600 ,  220.446.000 ,  242.490.
     // Bersihkan fixture agar tidak mencemari test lain di run bersamaan
     await db.delete(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolWarehouseId));
     await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolWarehouseId));
-    await db.delete(books).where(eq(books.id, "b-test-arab"));
-    await db.delete(books).where(eq(books.id, "b-test-pm1a"));
+    await db.delete(books).where(eq(books.id, arabBookId));
+    await db.delete(books).where(eq(books.id, pm1aBookId));
     await db.delete(schools).where(eq(schools.id, schoolWarehouseId));
   });
 });

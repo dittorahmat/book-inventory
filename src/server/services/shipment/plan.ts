@@ -8,6 +8,9 @@ import {
   allocateInventoryStock,
   isAvailableLoose,
   isReadyBundle,
+  isSyntheticStockId,
+  parseSyntheticBookId,
+  parseSyntheticPackageId,
 } from "../stock";
 
 export interface ShipmentLineInput {
@@ -58,7 +61,29 @@ export async function planCreateLines(
 
   const bookIdByLooseId = new Map<string, string>();
   const looseSnapshots = new Map<string, number>();
-  if (looseIds.length > 0) {
+
+  const physicalLooseIds = looseIds.filter((id) => !isSyntheticStockId(id));
+  const syntheticLooseIds = looseIds.filter((id) => isSyntheticStockId(id));
+
+  if (syntheticLooseIds.length > 0) {
+    const syntheticBookIds = [
+      ...new Set(syntheticLooseIds.map((id) => parseSyntheticBookId(id))),
+    ];
+    type PriceRow = { id: string; price: number; buyPrice: number; sellPrice: number };
+    const priceRows: PriceRow[] = await database
+      .select({ id: books.id, price: books.price, buyPrice: books.buyPrice, sellPrice: books.sellPrice })
+      .from(books)
+      .where(inArray(books.id, syntheticBookIds));
+    const priceMap = new Map<string, number>(priceRows.map((r: PriceRow) => [r.id, effectiveSellPrice(r)]));
+
+    syntheticLooseIds.forEach((id) => {
+      const bId = parseSyntheticBookId(id);
+      bookIdByLooseId.set(id, bId);
+      looseSnapshots.set(id, priceMap.get(bId) || 0);
+    });
+  }
+
+  if (physicalLooseIds.length > 0) {
     type LooseRow = { id: string; bookId: string; barcode: string | null; currentSchoolId: string | null; status: string };
     const selectedItems: LooseRow[] = await database
       .select({
@@ -69,9 +94,9 @@ export async function planCreateLines(
         status: bookItems.status,
       })
       .from(bookItems)
-      .where(inArray(bookItems.id, looseIds));
+      .where(inArray(bookItems.id, physicalLooseIds));
 
-    if (selectedItems.length !== looseIds.length) {
+    if (selectedItems.length !== physicalLooseIds.length) {
       return { ok: false, status: 400, message: "Some book items do not exist" };
     }
 
@@ -94,7 +119,26 @@ export async function planCreateLines(
   }
 
   const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
-  if (bundleIds.length > 0) {
+  const physicalBundleIds = bundleIds.filter((id) => !isSyntheticStockId(id));
+  const syntheticBundleIds = bundleIds.filter((id) => isSyntheticStockId(id));
+
+  if (syntheticBundleIds.length > 0) {
+    const syntheticPkgIds = [
+      ...new Set(syntheticBundleIds.map((id) => parseSyntheticPackageId(id))),
+    ];
+    type MasterRow = { id: string; price: number | null };
+    const masterRows: MasterRow[] = await database
+      .select({ id: bookPackages.id, price: bookPackages.price })
+      .from(bookPackages)
+      .where(inArray(bookPackages.id, syntheticPkgIds));
+    const masterMap = new Map<string, number>(masterRows.map((r: MasterRow) => [r.id, r.price || 0]));
+    syntheticBundleIds.forEach((id) => {
+      const pId = parseSyntheticPackageId(id);
+      bundleSnapshots.set(id, { packageId: pId, snapshot: masterMap.get(pId) || 0 });
+    });
+  }
+
+  if (physicalBundleIds.length > 0) {
     type BundleRow = { id: string; packageId: string; barcode: string | null; currentSchoolId: string | null; status: string };
     const selectedBundles: BundleRow[] = await database
       .select({
@@ -105,9 +149,9 @@ export async function planCreateLines(
         status: packageItems.status,
       })
       .from(packageItems)
-      .where(inArray(packageItems.id, bundleIds));
+      .where(inArray(packageItems.id, physicalBundleIds));
 
-    if (selectedBundles.length !== bundleIds.length) {
+    if (selectedBundles.length !== physicalBundleIds.length) {
       return { ok: false, status: 400, message: "Some packages do not exist" };
     }
 

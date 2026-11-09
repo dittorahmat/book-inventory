@@ -2,12 +2,13 @@ import { Hono } from "hono";
 import { bookBulkRouter } from "./books-bulk";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import {
   bookItems,
   bookPackageItems,
   bookPackages,
+  bookStocks,
   books,
   bookSuppliers,
   purchaseOrderItems,
@@ -312,6 +313,28 @@ booksRouter.delete("/:id", async (c) => {
       {
         success: false,
         message: `Buku tidak dapat dihapus karena tercatat dalam dokumen Purchase Order: ${poNumbers}. Buku ini memiliki riwayat pengadaan resmi.`,
+      },
+      400
+    );
+  }
+
+  // Cek saldo stok kuantitas agregat di book_stocks
+  const activeStocks = await db
+    .select({
+      schoolId: bookStocks.schoolId,
+      availableQuantity: bookStocks.availableQuantity,
+      reservedQuantity: bookStocks.reservedQuantity,
+    })
+    .from(bookStocks)
+    .where(and(eq(bookStocks.bookId, id), sql`(${bookStocks.availableQuantity} > 0 OR ${bookStocks.reservedQuantity} > 0)`))
+    .limit(5);
+
+  if (activeStocks.length > 0) {
+    const totalRemaining = activeStocks.reduce((sum, s) => sum + s.availableQuantity + s.reservedQuantity, 0);
+    return c.json(
+      {
+        success: false,
+        message: `Buku tidak dapat dihapus karena masih memiliki saldo stok aktif (${totalRemaining} unit tercatat di ${activeStocks.length} lokasi). Sesuaikan atau musnahkan stok terlebih dahulu.`,
       },
       400
     );

@@ -1,13 +1,19 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { books } from "../db/schema";
 import { syncBookCatalogPricingAndIsbn } from "./sync-book-catalog";
 
 describe("syncBookCatalogPricingAndIsbn", () => {
+  const sampleId = "test-prime-math-1a";
+
+  afterEach(async () => {
+    await db.delete(books).where(eq(books.id, sampleId));
+  });
+
   it("aligns books buy_price with net supplier discount price and standard 13-digit ISBNs", async () => {
     // Seed sample book di test DB
-    const sampleId = "test-prime-math-1a";
+    await db.delete(books).where(eq(books.id, sampleId));
     await db
       .insert(books)
       .values({
@@ -21,8 +27,7 @@ describe("syncBookCatalogPricingAndIsbn", () => {
         buyPrice: 198600, // Harga kotor awal
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      })
-      .onConflictDoNothing();
+      });
 
     const result = await syncBookCatalogPricingAndIsbn(db);
     expect(result.updatedCount).toBeGreaterThan(0);
