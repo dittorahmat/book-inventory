@@ -4,6 +4,38 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Program (sebelumnya Kurikulum)**:
+Klasifikasi peminatan, jalur studi, atau kurikulum belajar siswa (misalnya: Reguler, Tahfidz, Cambridge, Bilingual) yang menentukan komposisi Bill of Materials (BOM) paket buku dan buku satuan yang berhak dipesan siswa. Di seluruh antarmuka pengguna, label laporan, dan pesan notifikasi, istilah ini wajib menggunakan kata "Program".
+_Avoid_: Kurikulum, peminatan bebas tanpa program, duplikasi label kurikulum di UI
+
+**Surat Jalan Pengiriman Cabang (Branch Transfer Shipment)**:
+Dokumen resmi pengiriman buku/paket dari Gudang Pusat ke Sekolah Cabang. Diterbitkan dengan nomor resmi, dicetak dan dibubuhi tanda tangan & cap basah oleh Gudang Pusat sebelum dikirim. Status pengiriman ini langsung memotong saldo stok Gudang Pusat saat status menjadi `in_transit`.
+_Avoid_: Pengiriman tanpa nomor resmi, pemotongan stok manual, surat jalan non-sistem
+
+**Konfirmasi Penerimaan Cabang (Branch Delivery Checklist & Acceptance)**:
+Proses verifikasi fisik oleh staf cabang saat menerima buku kiriman Gudang Pusat bersama fisik Surat Jalan. Cabang memeriksa kelengkapan barang via formulir checklist digital, menandatangani dan mencap basah fisik Surat Jalan, lalu mengunggah foto/scan bukti Surat Jalan tersebut ke sistem. Tombol konfirmasi penerimaan terkunci hingga berkas bukti diunggah; setelah dikonfirmasi, saldo stok cabang otomatis bertambah.
+_Avoid_: Penerimaan sepihak tanpa bukti ttd basah, tombol terima aktif tanpa checklist
+
+**Finance Cabang (Branch Finance Access)**:
+Peran pengguna staf (`branch_finance`) dengan hak akses baca-saja (*read-only*) yang terisolasi ketat pada cabang penugasannya (`current_school_id = branch_id`). Digunakan untuk memantau rekapitulasi invoice resmi, status konfirmasi pembayaran wali murid, serta breakdown tagihan per jenjang dan program.
+_Avoid_: Akses mutasi stok oleh finance, akses lintas cabang tanpa isolasi, finance merangkap kasir
+
+**Template WhatsApp Konfirmasi Pembayaran (Configurable WhatsApp Blast Template)**:
+Format pesan WhatsApp resmi yang dikonfigurasi melalui pengaturan sistem (`system_settings`) dan dikirimkan secara otomatis kepada wali murid segera setelah konfirmasi pembayaran berhasil dicatat. Memuat ucapan terima kasih, instruksi penantian jadwal pembagian buku dari sekolah, dan instruksi wajib membawa pesan tersebut sebagai bukti pengambilan fisik.
+_Avoid_: Pesan hardcoded di kode sumber, blast tanpa placeholder dinamis, pesan tanpa instruksi pengambilan
+
+**Pergantian Program Terkunci (Locked Program Change)**:
+Mekanisme perubahan program belajar siswa yang dibatasi secara ketat hanya dapat dieksekusi oleh Logistik Pusat atau PIC Cabang dengan mengunggah bukti dokumen resmi persetujuan mutasi program dari pihak sekolah.
+_Avoid_: Murid ganti program mandiri di portal, ganti program tanpa bukti dokumen resmi
+
+**Retur Fisik Pergantian Program (Post-Pickup Program Change Return)**:
+Prosedur khusus ketika siswa hendak berpindah program setelah buku program lama terlanjur diserahterimakan fisik (`picked_up`). Logistik Pusat atau PIC Cabang memvalidasi kondisi fisik buku lama yang dikembalikan, mengunggah bukti surat sekolah dan foto fisik buku, mencatat penerimaan retur ke stok cabang, melepaskan status serah terima pesanan lama, lalu menerbitkan pesanan program baru dengan penyesuaian dana (*Payment Re-allocation*).
+_Avoid_: Ganti program tanpa retur fisik buku lama, buku lama hilang dari stok, manipulasi status pickup
+
+**Tarik & Bongkar Paket Cabang (Branch Package Recall & Auto-Unbundle)**:
+Aksi logistik pada menu Rakit Paket dengan memanfaatkan fitur Penjelajahan Stok Lintas Cabang (*Cross-Branch Stock Roaming*). Logistik Pusat dapat memilih cabang tertentu, melihat sisa stok paket terdistribusi yang belum terjual, dan menariknya kembali ke Gudang Pusat sekaligus otomatis membongkarnya (*auto-unbundle*) menjadi buku-buku satuan komponen BOM di saldo stok Gudang Pusat.
+_Avoid_: Penarikan paket fiktif, pembongkaran manual satu per satu, cabang membongkar paket mandiri
+
 **Penjelajahan Stok Lintas Cabang (Cross-Branch Stock Roaming)**:
 Hak akses peninjauan dan pengelolaan saldo stok satuan (`book_stocks`) serta paket kitting (`package_stocks`) di gudang pusat maupun cabang-cabang sekolah fisik oleh role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`) melalui in-view selector di antarmuka tab, tanpa memanipulasi penugasan akun global di header utama.
 _Avoid_: Dropdown switcher di header navbar yang menimpa penugasan sesi login, penguncian kaku tampilan stok hanya pada gudang penugasan, isolasi buta bagi pengelola logistik terpusat
