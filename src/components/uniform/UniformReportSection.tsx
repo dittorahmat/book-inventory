@@ -14,8 +14,7 @@ interface Props {
   logistics: boolean;
 }
 
-const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-[#1877F2]";
-const labelCls = "block text-[11px] font-semibold text-[#050505] mb-1";
+import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
 const monthOf = (d: Date) => d.toISOString().slice(0, 7);
 
@@ -198,12 +197,12 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
             />
           </div>
           <div>
-            <label className={labelCls}>Dari Tanggal</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
+            <label className={UNIFORM_LABEL_CLS}>Dari Tanggal</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={UNIFORM_INPUT_CLS} />
           </div>
           <div>
-            <label className={labelCls}>Sampai Tanggal</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
+            <label className={UNIFORM_LABEL_CLS}>Sampai Tanggal</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={UNIFORM_INPUT_CLS} />
           </div>
         </div>
 
@@ -226,8 +225,8 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
               />
             </div>
             <div>
-              <label className={labelCls}>Ukuran (Size)</label>
-              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M / L / —" className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Ukuran (Size)</label>
+              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M / L / —" className={UNIFORM_INPUT_CLS} />
             </div>
             <div>
               <SearchableSingleSelect
@@ -299,23 +298,49 @@ export function UniformReportSection({ schools, lockedSchoolId, logistics }: Pro
             {loading ? "Memuat data laporan..." : "Tidak ada catatan penjualan yang sesuai pada filter ini."}
           </div>
         ) : (
-          <div className="divide-y divide-[#E4E6EB]">
-            {filteredRows.map((r) => (
-              <div
-                key={`${r.schoolId}-${r.jenjang}-${r.size}`}
-                className="px-4 py-3 text-xs flex items-center justify-between gap-3 hover:bg-[#F0F2F5]/40 transition-colors"
-              >
-                <div>
-                  <div className="text-sm font-bold text-[#050505]">
-                    {r.schoolName} <span className="font-semibold text-[#65676B]">&bull; {r.jenjang.toUpperCase()} &bull; Ukuran: {r.size}</span>
-                  </div>
-                  <div className="text-[#65676B] mt-0.5">
-                    {r.orderCount} order &bull; {r.studentCount} murid unik &bull; Total: <span className="font-semibold text-[#050505]">{r.quantity} pcs</span>
-                  </div>
-                </div>
-                <div className="text-sm font-bold text-[#1877F2] shrink-0">{formatRupiah(r.revenue)}</div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[#E4E6EB] bg-[#F0F2F5]/80 text-[#65676B] text-[11px] font-bold uppercase tracking-wider">
+                  <th className="py-3 px-4">Sekolah / Cabang</th>
+                  <th className="py-3 px-4">Jenjang & Ukuran</th>
+                  <th className="py-3 px-4 text-center">Volume (Order / Murid)</th>
+                  <th className="py-3 px-4 text-center">Kuantitas</th>
+                  <th className="py-3 px-4 text-right">Total Omzet</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E4E6EB]">
+                {filteredRows.map((r) => (
+                  <tr
+                    key={`${r.schoolId}-${r.jenjang}-${r.size}`}
+                    className="hover:bg-[#F0F2F5]/40 transition-colors"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-[#050505] text-sm">{r.schoolName}</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-[#65676B] uppercase">
+                          {r.jenjang}
+                        </span>
+                        <span className="font-mono text-xs font-semibold text-[#050505] bg-[#F8F9FA] px-1.5 py-0.5 rounded border border-[#E4E6EB]">
+                          {r.size}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center text-[#65676B]">
+                      <span>{r.orderCount} order &bull; {r.studentCount} murid</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="font-bold text-[#050505]">{r.quantity}</span> <span className="text-[11px] text-[#65676B]">pcs</span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <span className="text-sm font-bold text-[#1877F2]">{formatRupiah(r.revenue)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

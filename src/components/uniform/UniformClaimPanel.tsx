@@ -1,4 +1,5 @@
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { UNIFORM_LABEL_CLS } from "./uniform-styles";
 import type { UniformClaimRow } from "./uniform-admin-api";
 
 interface UniformClaimPanelProps {
@@ -9,8 +10,6 @@ interface UniformClaimPanelProps {
   onLock: (id: string) => Promise<void>;
   logistics: boolean;
 }
-
-const labelCls = "block text-[11px] font-semibold text-[#050505] mb-1";
 
 export function UniformClaimPanel({
   claims,
@@ -33,7 +32,7 @@ export function UniformClaimPanel({
       {logistics && (
         <div className="flex flex-wrap items-end gap-3 p-3 bg-[#F8F9FA] rounded-xl border border-[#E4E6EB]">
           <div>
-            <label className={labelCls}>Pilih Periode Bulan</label>
+            <label className={UNIFORM_LABEL_CLS}>Pilih Periode Bulan</label>
             <input
               type="month"
               value={claimPeriod}

@@ -21,8 +21,7 @@ interface UniformReturnDetailPanelProps {
   onRequestRefund: (params: { amount?: number; reason: string }) => Promise<void>;
 }
 
-const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-xs bg-white focus:outline-none focus:border-[#1877F2]";
-const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
+import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
 export function UniformReturnDetailPanel({
   detail,
@@ -113,12 +112,12 @@ export function UniformReturnDetailPanel({
             />
           </div>
           <div>
-            <label className={labelCls}>Alasan Penukaran</label>
+            <label className={UNIFORM_LABEL_CLS}>Alasan Penukaran</label>
             <input
               value={exReason}
               onChange={(e) => setExReason(e.target.value)}
               placeholder="mis. Ukuran kekecilan..."
-              className={inputCls}
+              className={UNIFORM_INPUT_CLS}
             />
           </div>
           <button
@@ -145,22 +144,22 @@ export function UniformReturnDetailPanel({
             <h4 className="text-xs font-bold text-[#050505]">Ajukan Refund Dana</h4>
           </div>
           <div>
-            <label className={labelCls}>Nominal Refund (Maks: {formatRupiah(detail.order.totalAmount)})</label>
+            <label className={UNIFORM_LABEL_CLS}>Nominal Refund (Maks: {formatRupiah(detail.order.totalAmount)})</label>
             <input
               value={rfAmount}
               inputMode="numeric"
               onChange={(e) => setRfAmount(e.target.value)}
-              className={inputCls}
+              className={UNIFORM_INPUT_CLS}
               placeholder={String(detail.order.totalAmount)}
             />
           </div>
           <div>
-            <label className={labelCls}>Alasan Refund</label>
+            <label className={UNIFORM_LABEL_CLS}>Alasan Refund</label>
             <input
               value={rfReason}
               onChange={(e) => setRfReason(e.target.value)}
               placeholder="mis. Siswa mengundurkan diri..."
-              className={inputCls}
+              className={UNIFORM_INPUT_CLS}
             />
           </div>
           <button

@@ -14,8 +14,7 @@ import { UniformCatalogToolbar } from "./UniformCatalogToolbar";
 import { CreateUniformVariantForm } from "./CreateUniformVariantForm";
 import { UniformVariantList } from "./UniformVariantList";
 
-const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white";
-const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
+import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
 export function UniformCatalogSection() {
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
@@ -172,12 +171,12 @@ export function UniformCatalogSection() {
               />
             </div>
             <div>
-              <label className={labelCls}>Size (kosongkan untuk kain)</label>
-              <input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Size (kosongkan untuk kain)</label>
+              <input value={stSize} onChange={(e) => setStSize(e.target.value)} placeholder="S / M / ..." className={UNIFORM_INPUT_CLS} />
             </div>
             <div>
-              <label className={labelCls}>Qty</label>
-              <input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Qty</label>
+              <input value={stQty} inputMode="numeric" onChange={(e) => setStQty(e.target.value)} className={UNIFORM_INPUT_CLS} />
             </div>
             <div>
               <SearchableSingleSelect
@@ -193,8 +192,8 @@ export function UniformCatalogSection() {
             </div>
           </div>
           <div>
-            <label className={labelCls}>Alasan (wajib)</label>
-            <input value={stReason} onChange={(e) => { setStReason(e.target.value); setStError(null); }} placeholder="Stok awal / kiriman konveksi ..." className={inputCls} />
+            <label className={UNIFORM_LABEL_CLS}>Alasan (wajib)</label>
+            <input value={stReason} onChange={(e) => { setStReason(e.target.value); setStError(null); }} placeholder="Stok awal / kiriman konveksi ..." className={UNIFORM_INPUT_CLS} />
           </div>
           {stError && <p className="text-xs text-rose-600 font-medium">{stError}</p>}
           <button
@@ -256,16 +255,16 @@ export function UniformCatalogSection() {
               />
             </div>
             <div>
-              <label className={labelCls}>Size (kosongkan untuk kain)</label>
-              <input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Size (kosongkan untuk kain)</label>
+              <input value={rjSize} onChange={(e) => setRjSize(e.target.value)} className={UNIFORM_INPUT_CLS} />
             </div>
             <div>
-              <label className={labelCls}>Qty reject</label>
-              <input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Qty reject</label>
+              <input value={rjQty} inputMode="numeric" onChange={(e) => setRjQty(e.target.value)} className={UNIFORM_INPUT_CLS} />
             </div>
             <div>
-              <label className={labelCls}>Alasan</label>
-              <input value={rjReason} onChange={(e) => { setRjReason(e.target.value); setRjError(null); }} placeholder="Cacat / salah jahit ..." className={inputCls} />
+              <label className={UNIFORM_LABEL_CLS}>Alasan</label>
+              <input value={rjReason} onChange={(e) => { setRjReason(e.target.value); setRjError(null); }} placeholder="Cacat / salah jahit ..." className={UNIFORM_INPUT_CLS} />
             </div>
           </div>
           {rjError && <p className="text-xs text-rose-600 font-medium">{rjError}</p>}

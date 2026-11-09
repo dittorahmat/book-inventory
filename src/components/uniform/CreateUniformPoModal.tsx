@@ -1,8 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 import type { UniformVariantRow } from "./uniform-admin-api";
+
+export interface UniformPoLineItem {
+  variantId: string;
+  size: string;
+  quantityOrdered: number;
+  unitPrice: number;
+}
 
 interface CreateUniformPoModalProps {
   isOpen: boolean;
@@ -17,8 +26,6 @@ interface CreateUniformPoModalProps {
   onOpenSupplierModal: () => void;
 }
 
-const inputCls = "w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-xs bg-white focus:outline-none focus:border-[#1877F2]";
-
 export function CreateUniformPoModal({
   isOpen,
   suppliers,
@@ -29,8 +36,9 @@ export function CreateUniformPoModal({
   onOpenSupplierModal,
 }: CreateUniformPoModalProps) {
   const [poSupplier, setPoSupplier] = useState("");
-  const [poLines, setPoLines] = useState<Array<{ variantId: string; size: string; qty: string; price: string }>>([]);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [poLines, setPoLines] = useState<UniformPoLineItem[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+  const supplierRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
@@ -39,46 +47,59 @@ export function CreateUniformPoModal({
     if (!v) return;
     setPoLines((prev) => [
       ...prev,
-      { variantId: v.variant.id, size: "", qty: "10", price: String(v.variant.price) },
+      { variantId: v.variant.id, size: "", quantityOrdered: 10, unitPrice: v.variant.price },
     ]);
+    if (fieldErrors.lines) {
+      setFieldErrors((prev) => ({ ...prev, lines: undefined }));
+    }
   };
 
   const handleRemoveLine = (idx: number) => {
     setPoLines((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const handleUpdateLine = (idx: number, updates: Partial<UniformPoLineItem>) => {
+    setPoLines((prev) => prev.map((item, i) => (i === idx ? { ...item, ...updates } : item)));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: Record<string, string | undefined> = {};
+
     if (!poSupplier) {
-      setFormError("Pilih mitra konveksi / supplier terlebih dahulu.");
-      return;
+      errors.supplier = "Pilih mitra konveksi / supplier terlebih dahulu.";
     }
     if (poLines.length === 0) {
-      setFormError("Tambahkan minimal 1 item baris pesanan PO.");
-      return;
-    }
-    for (const l of poLines) {
-      const q = Number(l.qty) || 0;
-      if (q <= 0) {
-        setFormError("Kuantitas pemesanan tiap baris minimal 1 unit.");
-        return;
+      errors.lines = "Tambahkan minimal 1 item baris pesanan PO.";
+    } else {
+      const invalidQty = poLines.some((l) => !l.quantityOrdered || l.quantityOrdered <= 0);
+      if (invalidQty) {
+        errors.quantity = "Kuantitas pemesanan tiap baris minimal 1 unit.";
       }
     }
 
-    setFormError(null);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      if (errors.supplier && supplierRef.current) {
+        supplierRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+      return;
+    }
+
+    setFieldErrors({});
     await onSubmit({
       supplierId: poSupplier,
       lines: poLines.map((l) => ({
         variantId: l.variantId,
         size: l.size.trim() || undefined,
-        quantityOrdered: Number(l.qty) || 0,
-        unitPrice: Number(l.price) || 0,
+        quantityOrdered: l.quantityOrdered,
+        unitPrice: l.unitPrice,
       })),
     });
   };
 
   const grandTotal = poLines.reduce(
-    (acc, curr) => acc + (Number(curr.qty) || 0) * (Number(curr.price) || 0),
+    (acc, curr) => acc + (curr.quantityOrdered || 0) * (curr.unitPrice || 0),
     0
   );
 
@@ -100,15 +121,11 @@ export function CreateUniformPoModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          {formError && (
-            <div className="p-3 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl">
-              {formError}
-            </div>
-          )}
+          <FormSummaryAlert errors={fieldErrors} title="Formulir PO Belum Lengkap" />
 
-          <div>
+          <div ref={supplierRef}>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-[#050505]">Mitra Konveksi / Supplier *</label>
+              <label className={UNIFORM_LABEL_CLS}>Mitra Konveksi / Supplier *</label>
               <button
                 type="button"
                 onClick={onOpenSupplierModal}
@@ -117,20 +134,23 @@ export function CreateUniformPoModal({
                 <Plus className="w-3 h-3" /> Tambah Konveksi Baru
               </button>
             </div>
-            <SearchableSingleSelect
-              options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-              value={poSupplier}
-              onChange={(val) => {
-                setPoSupplier(val);
-                setFormError(null);
-              }}
-              placeholder={suppliers.length === 0 ? "Belum ada mitra konveksi (Klik Tambah Baru)" : "— Pilih mitra konveksi —"}
-            />
+            <div className={fieldErrors.supplier ? "rounded-xl ring-2 ring-rose-500" : ""}>
+              <SearchableSingleSelect
+                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                value={poSupplier}
+                onChange={(val) => {
+                  setPoSupplier(val);
+                  setFieldErrors((prev) => ({ ...prev, supplier: undefined }));
+                }}
+                placeholder={suppliers.length === 0 ? "Belum ada mitra konveksi (Klik Tambah Baru)" : "— Pilih mitra konveksi —"}
+              />
+            </div>
+            <FormFieldFeedback error={fieldErrors.supplier} />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-[#050505]">Pilih Varian Item Seragam:</label>
+              <label className={UNIFORM_LABEL_CLS}>Pilih Varian Item Seragam:</label>
               <span className="text-[11px] text-[#65676B]">Klik untuk menambahkan ke daftar</span>
             </div>
             <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 border border-[#E4E6EB] rounded-xl bg-[#F8F9FA]">
@@ -148,7 +168,9 @@ export function CreateUniformPoModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-[#050505]">Rincian Item Pesanan ({poLines.length}):</label>
+            <label className={UNIFORM_LABEL_CLS}>Rincian Item Pesanan ({poLines.length}):</label>
+            <FormFieldFeedback error={fieldErrors.lines || fieldErrors.quantity} />
+
             {poLines.length === 0 ? (
               <div className="p-6 text-center text-xs text-[#65676B] border border-dashed border-[#CED0D4] rounded-xl">
                 Belum ada item yang dipilih. Klik tombol varian seragam di atas.
@@ -168,12 +190,10 @@ export function CreateUniformPoModal({
                       </div>
                       <div className="col-span-4 sm:col-span-2">
                         <input
-                          placeholder="Size (S/M/..)"
+                          placeholder="Size"
                           value={line.size}
-                          onChange={(e) =>
-                            setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))
-                          }
-                          className={inputCls}
+                          onChange={(e) => handleUpdateLine(idx, { size: e.target.value })}
+                          className={UNIFORM_INPUT_CLS}
                         />
                       </div>
                       <div className="col-span-4 sm:col-span-2">
@@ -181,22 +201,22 @@ export function CreateUniformPoModal({
                           type="number"
                           placeholder="Qty"
                           min="1"
-                          value={line.qty}
+                          value={line.quantityOrdered || ""}
                           onChange={(e) =>
-                            setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))
+                            handleUpdateLine(idx, { quantityOrdered: Math.max(0, parseInt(e.target.value) || 0) })
                           }
-                          className={inputCls}
+                          className={`${UNIFORM_INPUT_CLS} ${line.quantityOrdered <= 0 ? "border-rose-500" : ""}`}
                         />
                       </div>
                       <div className="col-span-3 sm:col-span-3">
                         <input
                           type="number"
                           placeholder="Harga Satuan"
-                          value={line.price}
+                          value={line.unitPrice || ""}
                           onChange={(e) =>
-                            setPoLines((prev) => prev.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)))
+                            handleUpdateLine(idx, { unitPrice: Math.max(0, parseInt(e.target.value) || 0) })
                           }
-                          className={inputCls}
+                          className={UNIFORM_INPUT_CLS}
                         />
                       </div>
                       <div className="col-span-1 text-right">

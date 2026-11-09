@@ -64,11 +64,21 @@ export function UniformProcurementSection() {
   const filteredPos = pos.filter((p) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
-    return (
+    const matchesPo =
       p.poNumber.toLowerCase().includes(q) ||
       p.status.toLowerCase().includes(q) ||
-      (p.supplierName && p.supplierName.toLowerCase().includes(q))
-    );
+      (p.supplierName && p.supplierName.toLowerCase().includes(q));
+    if (matchesPo) return true;
+
+    // Check if search query matches any variant code/name in the system
+    const matchedVariantIds = variants
+      .filter(
+        ({ variant: v }) =>
+          v.name.toLowerCase().includes(q) || v.code.toLowerCase().includes(q)
+      )
+      .map(({ variant: v }) => v.id);
+
+    return matchedVariantIds.length > 0 && p.poNumber.toLowerCase().includes(q);
   });
 
   return (

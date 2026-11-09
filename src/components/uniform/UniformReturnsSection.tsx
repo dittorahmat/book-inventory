@@ -18,7 +18,7 @@ interface Props {
   logistics: boolean;
 }
 
-const labelCls = "block text-xs font-semibold text-[#050505] mb-1";
+import { UNIFORM_LABEL_CLS } from "./uniform-styles";
 
 export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Props) {
   const [schoolId, setSchoolId] = useState(lockedSchoolId ?? "");
@@ -133,7 +133,7 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
             />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>Cari Nomor Order / Nama Siswa / NIS</label>
+            <label className={UNIFORM_LABEL_CLS}>Cari Nomor Order / Nama Siswa / NIS</label>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#65676B]" />
