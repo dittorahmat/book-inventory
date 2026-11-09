@@ -92,6 +92,28 @@ if (existsSync(demoScriptDir)) {
   }
 }
 
+// B6 — isolasi fixture entitas test (AGENTS.md §6 & §0.51.7):
+// Setiap test file yang melakukan insert data ke DB wajib membersihkan relasinya di afterEach/finally
+// atau menggunakan factory isolasi (createTest*) guna mencegah polusi antar-suite pada 'bun test' paralel.
+const ENTITY_INSERT_RE = new RegExp(
+  "\\.(?:insert)\\s*\\(\\s*(?:schools|books|bookStocks|uniformStock)\\s*\\)"
+);
+for (const file of testFiles) {
+  const content = readFileSync(file, "utf8");
+  if (
+    ENTITY_INSERT_RE.test(content) &&
+    !content.includes("afterEach") &&
+    !content.includes("finally") &&
+    !content.includes("onConflictDoUpdate") &&
+    !content.includes("onConflictDoNothing") &&
+    !content.includes("cleanDatabase") &&
+    !content.includes("resetTestDb")
+  ) {
+    // Flagging test files that insert persistent state without lifecycle cleanup
+    hits.push(`${file}: melakukan insert entitas (schools/books/stocks) tanpa afterEach/finally cleanup hook.`);
+  }
+}
+
 if (hits.length > 0) {
   console.error("Test-isolation gate FAILED:");
   for (const hit of hits) console.error(`  ${hit}`);

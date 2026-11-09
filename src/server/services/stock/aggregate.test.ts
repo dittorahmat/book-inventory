@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../../../db";
 import { books, bookStocks, packageStocks, schools, bookPackages, stockAdjustments } from "../../../db/schema";
@@ -139,5 +139,14 @@ describe("stock aggregate seam (Ticket 1)", () => {
     expect(adjLog.reason).toBe("damaged");
     expect(adjLog.quantity).toBe(-2);
     expect(adjLog.referenceDocumentNumber).toBe("BA-RECON-001");
+  });
+
+  afterEach(async () => {
+    await db.delete(stockAdjustments);
+    await db.delete(bookStocks);
+    await db.delete(packageStocks);
+    await db.delete(bookPackages);
+    await db.delete(books);
+    await db.delete(schools);
   });
 });

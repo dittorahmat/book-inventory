@@ -45,6 +45,9 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "calculateDedupMetrics", owner: "src/lib/intake-dedup.ts", module: "lib/intake-dedup" },
   { name: "selectInChunks", owner: "src/server/lib/d1-write.ts", module: "server/lib/d1-write" },
   { name: "useRoamingLocation", owner: "src/lib/location-helpers.ts", module: "lib/location-helpers" },
+  { name: "isSyntheticStockId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
+  { name: "makeSyntheticBookStockId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
+  { name: "parseSyntheticBookId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */

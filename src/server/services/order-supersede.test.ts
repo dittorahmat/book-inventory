@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import {
@@ -220,5 +220,15 @@ describe("order-supersede seam", () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(400);
     expect(res.message).toContain("sudah dikirim atau memiliki nomor resi");
+  });
+
+  afterEach(async () => {
+    await db.delete(uniformOrderItems);
+    await db.delete(uniformOrders);
+    await db.delete(uniformStock);
+    await db.delete(uniformVariants);
+    await db.delete(studentBookOrders);
+    await db.delete(packageItems);
+    await db.delete(bookPackages);
   });
 });
