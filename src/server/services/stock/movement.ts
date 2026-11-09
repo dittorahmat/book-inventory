@@ -169,17 +169,28 @@ export async function moveInventoryStock(
     case "assembly": {
       const loc = input.schoolId || input.toSchoolId;
       if (!loc) return { ok: false, message: "Lokasi rakit (schoolId) wajib diisi." };
-      if (!input.packageId) return { ok: false, message: "packageId wajib untuk assembly." };
-      const res = await adjustPackageStock(database, input.packageId, loc, qty, deps);
-      return { ok: res.ok };
+      if (input.itemType === "package") {
+        if (!input.packageId) return { ok: false, message: "packageId wajib untuk assembly paket." };
+        const res = await adjustPackageStock(database, input.packageId, loc, qty, deps);
+        return { ok: res.ok };
+      }
+      if (!input.bookId) return { ok: false, message: "bookId wajib untuk konsumsi assembly buku satuan." };
+      const debitRes = await adjustLooseStock(database, input.bookId, loc, -qty, deps);
+      if (!debitRes.ok) return { ok: false, message: "Stok buku satuan tidak mencukupi untuk perakitan paket." };
+      return { ok: true };
     }
 
     case "disassembly": {
       const loc = input.schoolId || input.fromSchoolId;
       if (!loc) return { ok: false, message: "Lokasi bongkar (schoolId) wajib diisi." };
-      if (!input.packageId) return { ok: false, message: "packageId wajib untuk disassembly." };
-      const res = await adjustPackageStock(database, input.packageId, loc, -qty, deps);
-      return { ok: res.ok };
+      if (input.itemType === "package") {
+        if (!input.packageId) return { ok: false, message: "packageId wajib untuk disassembly paket." };
+        const res = await adjustPackageStock(database, input.packageId, loc, -qty, deps);
+        return { ok: res.ok };
+      }
+      if (!input.bookId) return { ok: false, message: "bookId wajib untuk restorasi disassembly buku satuan." };
+      await adjustLooseStock(database, input.bookId, loc, qty, deps);
+      return { ok: true };
     }
 
     default:

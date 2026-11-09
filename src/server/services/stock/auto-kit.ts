@@ -1,9 +1,9 @@
-import type { AppDatabase } from "../db";
-import { bookPackageItems, bookPackages, bookStocks } from "../db/schema";
-import { moveInventoryStock } from "./services/stock";
-import { kitBomWithoutWpr } from "./services/pricing";
+import type { AppDatabase } from "../../../db";
+import { bookPackageItems, bookPackages, bookStocks } from "../../../db/schema";
+import { moveInventoryStock } from "./movement";
+import { kitBomWithoutWpr } from "../pricing";
 import { eq } from "drizzle-orm";
-import type { WriteDeps } from "./lib/d1-write";
+import type { WriteDeps } from "../../lib/d1-write";
 
 export interface AutoKitResult {
   schoolId: string;
@@ -16,18 +16,25 @@ export interface AutoKitSummary {
   assembledPackages: AutoKitResult[];
   totalPackagesAssembled: number;
   totalBooksConsumed: number;
+  dryRun?: boolean;
+}
+
+export interface AutoKitOptions {
+  dryRun?: boolean;
+  deps?: WriteDeps;
 }
 
 /**
  * Runner kitting otomatis untuk merakit paket buku secara maksimal
  * dari stok buku satuan di `book_stocks` ke `package_stocks` sesuai BOM.
- * Mengikuti aturan arsitektur single-writer moveInventoryStock.
+ * Mengikuti aturan arsitektur single-writer moveInventoryStock dengan movementType: 'assembly'.
  */
 export async function autoKitMaxPackages(
   targetDb: AppDatabase,
   schoolIds: string[],
-  deps: WriteDeps = {}
+  options: AutoKitOptions = {}
 ): Promise<AutoKitSummary> {
+  const { dryRun = false, deps = {} } = options;
   const assembledPackages: AutoKitResult[] = [];
   let totalPackagesAssembled = 0;
   let totalBooksConsumed = 0;
@@ -69,7 +76,7 @@ export async function autoKitMaxPackages(
       const kitBom = kitBomWithoutWpr(rawBom);
       if (kitBom.length === 0) continue;
 
-      // Cek stok setiap komponen
+      // Cek ketersediaan setiap komponen
       let maxKits = Number.MAX_SAFE_INTEGER;
       for (const comp of kitBom) {
         const available = stockMap.get(comp.bookId) ?? 0;
@@ -81,41 +88,48 @@ export async function autoKitMaxPackages(
 
       if (maxKits <= 0 || maxKits === Number.MAX_SAFE_INTEGER) continue;
 
-      // Potong stok lokal di map dan jalankan mutasi via moveInventoryStock
+      // Simulasi pengurangan stok di memori untuk mencegah over-commitment antar-paket
       for (const comp of kitBom) {
         const consumed = comp.quantity * maxKits;
         stockMap.set(comp.bookId, (stockMap.get(comp.bookId) ?? 0) - consumed);
-
-        const debitRes = await moveInventoryStock(
-          targetDb,
-          {
-            movementType: "handover", // serap buku satuan
-            itemType: "loose",
-            bookId: comp.bookId,
-            schoolId,
-            quantity: consumed,
-          },
-          deps
-        );
-        if (!debitRes.ok) {
-          throw new Error(`Gagal memotong stok komponen ${comp.bookId} untuk perakitan ${pkg.id}: ${debitRes.message}`);
-        }
         totalBooksConsumed += consumed;
       }
 
-      const creditRes = await moveInventoryStock(
-        targetDb,
-        {
-          movementType: "assembly", // tambah saldo paket
-          itemType: "package",
-          packageId: pkg.id,
-          schoolId,
-          quantity: maxKits,
-        },
-        deps
-      );
-      if (!creditRes.ok) {
-        throw new Error(`Gagal menambah saldo stok paket ${pkg.id}: ${creditRes.message}`);
+      if (!dryRun) {
+        // Debit komponen BOM dengan semantik assembly
+        for (const comp of kitBom) {
+          const consumed = comp.quantity * maxKits;
+          const debitRes = await moveInventoryStock(
+            targetDb,
+            {
+              movementType: "assembly",
+              itemType: "loose",
+              bookId: comp.bookId,
+              schoolId,
+              quantity: consumed,
+            },
+            deps
+          );
+          if (!debitRes.ok) {
+            throw new Error(`Gagal memotong stok komponen ${comp.bookId} untuk perakitan ${pkg.id}: ${debitRes.message}`);
+          }
+        }
+
+        // Credit stok paket dengan semantik assembly
+        const creditRes = await moveInventoryStock(
+          targetDb,
+          {
+            movementType: "assembly",
+            itemType: "package",
+            packageId: pkg.id,
+            schoolId,
+            quantity: maxKits,
+          },
+          deps
+        );
+        if (!creditRes.ok) {
+          throw new Error(`Gagal menambah saldo stok paket ${pkg.id}: ${creditRes.message}`);
+        }
       }
 
       assembledPackages.push({
@@ -132,5 +146,6 @@ export async function autoKitMaxPackages(
     assembledPackages,
     totalPackagesAssembled,
     totalBooksConsumed,
+    dryRun,
   };
 }

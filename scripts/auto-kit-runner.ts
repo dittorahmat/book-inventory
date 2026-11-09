@@ -12,11 +12,12 @@
 
 import { db } from "../src/db";
 import { schools } from "../src/db/schema";
-import { autoKitMaxPackages } from "../src/server/auto-kit-service";
+import { autoKitMaxPackages } from "../src/server/services/stock";
 
 async function main() {
   const args = process.argv.slice(2);
   const schoolArg = args.find((a) => a.startsWith("--school="))?.split("=")[1];
+  const dryRun = args.includes("--dry-run");
 
   let targetSchools: string[] = [];
   if (schoolArg) {
@@ -26,13 +27,16 @@ async function main() {
     targetSchools = all.map((s) => s.id);
   }
 
-  console.log(`Menjalankan Auto-Kitting Paket untuk sekolah: ${targetSchools.join(", ")}...`);
+  console.log(`Menjalankan Auto-Kitting Paket (${dryRun ? "MODE DRY-RUN / SIMULASI" : "MODE MUTASI"}) untuk sekolah: ${targetSchools.join(", ")}...`);
 
-  const summary = await autoKitMaxPackages(db, targetSchools);
+  const summary = await autoKitMaxPackages(db, targetSchools, { dryRun });
 
   console.log("\n=== Ringkasan Perakitan Paket Otomatis ===");
-  console.log(`Total Paket Dirakit : ${summary.totalPackagesAssembled}`);
-  console.log(`Total Buku Dipotong : ${summary.totalBooksConsumed}`);
+  if (dryRun) {
+    console.log(">> CATATAN: Simulasi berjalan tanpa memutasi database (--dry-run).");
+  }
+  console.log(`Total Paket Potensial Dirakit : ${summary.totalPackagesAssembled}`);
+  console.log(`Total Buku Satuan Diserap     : ${summary.totalBooksConsumed}`);
   console.log("\nRincian Paket per Lokasi:");
   for (const item of summary.assembledPackages) {
     console.log(`- [${item.schoolId}] ${item.packageName}: +${item.quantityAssembled} paket`);
