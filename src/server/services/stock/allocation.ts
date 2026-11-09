@@ -125,24 +125,18 @@ async function allocateLooseStock(
 
   if (aggrStock !== undefined) {
     const available = aggrStock.availableQuantity ?? 0;
-    if (available < input.quantity) {
+    if (available >= input.quantity) {
+      // Jika agregat mencukupi, kembalikan alokasi kuantitas
       return {
-        ok: false,
-        status: 400,
-        message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${available}.`,
-        available,
-        needed: input.quantity,
+        ok: true,
+        items: Array.from({ length: input.quantity }, (_, idx) => ({
+          id: `aggr-${input.bookId}-${idx}`,
+          barcode: `AGGR-${input.bookId}`,
+          condition: "new",
+        })),
       };
     }
-    // Jika agregat mencukupi, kembalikan alokasi kuantitas
-    return {
-      ok: true,
-      items: Array.from({ length: input.quantity }, (_, idx) => ({
-        id: `aggr-${input.bookId}-${idx}`,
-        barcode: `AGGR-${input.bookId}`,
-        condition: "new",
-      })),
-    };
+    // Jika tidak mencukupi, cek fallback ke eksemplar fisik di book_items terlebih dahulu
   }
 
   // 2. Fallback untuk data historis/test lama di book_items
@@ -170,11 +164,12 @@ async function allocateLooseStock(
       .select({ total: count() })
       .from(bookItems)
       .where(filters);
+    const availableTotal = aggrStock !== undefined ? Math.max(aggrStock.availableQuantity ?? 0, total) : total;
     return {
       ok: false,
       status: 400,
-      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${total}.`,
-      available: total,
+      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${availableTotal}.`,
+      available: availableTotal,
       needed: input.quantity,
     };
   }
@@ -208,23 +203,16 @@ async function allocatePackages(
 
   if (aggrStock !== undefined) {
     const available = aggrStock.availableQuantity ?? 0;
-    if (available < input.quantity) {
+    if (available >= input.quantity) {
       return {
-        ok: false,
-        status: 400,
-        message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${available}.`,
-        available,
-        needed: input.quantity,
+        ok: true,
+        items: Array.from({ length: input.quantity }, (_, idx) => ({
+          id: `aggr-pkg-${input.packageId}-${idx}`,
+          barcode: `AGGR-PKG-${input.packageId}`,
+          packageId: input.packageId,
+        })),
       };
     }
-    return {
-      ok: true,
-      items: Array.from({ length: input.quantity }, (_, idx) => ({
-        id: `aggr-pkg-${input.packageId}-${idx}`,
-        barcode: `AGGR-PKG-${input.packageId}`,
-        packageId: input.packageId,
-      })),
-    };
   }
 
   // 2. Fallback untuk data historis/test lama di package_items
@@ -250,11 +238,12 @@ async function allocatePackages(
       .select({ total: count() })
       .from(packageItems)
       .where(filters);
+    const availableTotal = aggrStock !== undefined ? Math.max(aggrStock.availableQuantity ?? 0, total) : total;
     return {
       ok: false,
       status: 400,
-      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${total}.`,
-      available: total,
+      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${availableTotal}.`,
+      available: availableTotal,
       needed: input.quantity,
     };
   }

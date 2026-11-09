@@ -12,8 +12,9 @@ Semua mutasi stok seragam wajib lewat `uniform/stock` (`check:single-writer`), d
 ### §0.9. Lokasi & Branch Roaming Gudang
 Header (`AppHeader.tsx`) tetap merupakan badge identitas murni tanpa mutasi global lokasi transaksi; pemilihan cabang untuk role gudang/logistik dilakukan di tingkat view/tab transaksi spesifik (filter view, form pengiriman, dan selector query), bukan menimpa state penugasan akun.
 
-### §0.15. Seam Alokasi Stok Terpadu
+### §0.15. Seam Alokasi Stok Terpadu & Transisi Agregat
 Alokasi fisik berbasis FIFO (`allocateInventoryStock` di `src/server/services/stock/allocation.ts`) adalah titik masuk tunggal untuk unit satuan maupun bundel paket; hindari percabangan pemanggil langsung ke implementasi tabel terpisah.
+- **§0.15.1. Transisi Agregat Graceful**: Dalam masa migrasi dari barcode fisik (`book_items` / `package_items`) ke saldo agregat (`book_stocks` / `package_stocks`), alokasi wajib memprioritaskan saldo agregat jika mencukupi (`availableQuantity >= needed`). Jika saldo agregat belum terisi atau kurang dari yang dibutuhkan, alokator wajib fallback memeriksa ketersediaan eksemplar fisik di tabel legasi sebelum menyatakan kekurangan stok (`insufficient_stock`), guna mencegah kegagalan pada lingkungan demo/staging yang sedang bertransisi bertahap.
 
 ### §0.16. Otoritas Server pada Audit Rekonsiliasi
 Alur Berita Acara / Rekonsiliasi akhir periode (`term-reconciliation`) wajib server-authoritative; input fisik dapat disubmit mandiri tanpa mewajibkan kalkulasi delta atau penarikan ulang angka inbound di sisi klien.
