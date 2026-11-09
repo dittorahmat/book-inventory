@@ -67,3 +67,5 @@ export type { LooseStockSummaryRow, PackageStockSummaryRow } from "./summary";
 export { getLooseStockSummary, getPackageStockSummary } from "./summary";
 export type { VendorReturnDisposeCandidate } from "./vendor-return";
 export { planVendorReturnDispose } from "./vendor-return";
+export type { AutoKitOptions, AutoKitResult, AutoKitSummary } from "./auto-kit";
+export { autoKitMaxPackages } from "./auto-kit";

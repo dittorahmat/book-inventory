@@ -1,7 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../../db";
-import { bookItems, packageItems } from "../../../db/schema";
+import { bookItems, bookStocks, packageItems, packageStocks } from "../../../db/schema";
 import {
   ALLOCATABLE_CONDITIONS,
   AVAILABLE_LOOSE_STATUSES,
@@ -115,6 +115,31 @@ async function allocateLooseStock(
   },
   database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; condition: string }>> {
+  // 1. Coba verifikasi ketersediaan stok dari tabel agregat book_stocks
+  const [aggrStock] = await database
+    .select({
+      availableQuantity: bookStocks.availableQuantity,
+    })
+    .from(bookStocks)
+    .where(and(eq(bookStocks.bookId, input.bookId), eq(bookStocks.schoolId, input.schoolId)));
+
+  if (aggrStock !== undefined) {
+    const available = aggrStock.availableQuantity ?? 0;
+    if (available >= input.quantity) {
+      // Jika agregat mencukupi, kembalikan alokasi kuantitas
+      return {
+        ok: true,
+        items: Array.from({ length: input.quantity }, (_, idx) => ({
+          id: `aggr-${input.bookId}-${idx}`,
+          barcode: `AGGR-${input.bookId}`,
+          condition: "new",
+        })),
+      };
+    }
+    // Jika tidak mencukupi, cek fallback ke eksemplar fisik di book_items terlebih dahulu
+  }
+
+  // 2. Fallback untuk data historis/test lama di book_items
   const conditions = input.conditions ?? ALLOCATABLE_CONDITIONS;
   const filters = and(
     eq(bookItems.bookId, input.bookId),
@@ -139,11 +164,12 @@ async function allocateLooseStock(
       .select({ total: count() })
       .from(bookItems)
       .where(filters);
+    const availableTotal = aggrStock !== undefined ? Math.max(aggrStock.availableQuantity ?? 0, total) : total;
     return {
       ok: false,
       status: 400,
-      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${total}.`,
-      available: total,
+      message: `Stok tidak cukup. Dibutuhkan ${input.quantity} eksemplar, tersedia ${availableTotal}.`,
+      available: availableTotal,
       needed: input.quantity,
     };
   }
@@ -167,6 +193,29 @@ async function allocatePackages(
   },
   database: AppDatabase
 ): Promise<AllocationResult<{ id: string; barcode: string; packageId: string }>> {
+  // 1. Coba verifikasi ketersediaan stok dari tabel agregat package_stocks
+  const [aggrStock] = await database
+    .select({
+      availableQuantity: packageStocks.availableQuantity,
+    })
+    .from(packageStocks)
+    .where(and(eq(packageStocks.packageId, input.packageId), eq(packageStocks.schoolId, input.schoolId)));
+
+  if (aggrStock !== undefined) {
+    const available = aggrStock.availableQuantity ?? 0;
+    if (available >= input.quantity) {
+      return {
+        ok: true,
+        items: Array.from({ length: input.quantity }, (_, idx) => ({
+          id: `aggr-pkg-${input.packageId}-${idx}`,
+          barcode: `AGGR-PKG-${input.packageId}`,
+          packageId: input.packageId,
+        })),
+      };
+    }
+  }
+
+  // 2. Fallback untuk data historis/test lama di package_items
   const filters = and(
     eq(packageItems.packageId, input.packageId),
     eq(packageItems.currentSchoolId, input.schoolId),
@@ -189,11 +238,12 @@ async function allocatePackages(
       .select({ total: count() })
       .from(packageItems)
       .where(filters);
+    const availableTotal = aggrStock !== undefined ? Math.max(aggrStock.availableQuantity ?? 0, total) : total;
     return {
       ok: false,
       status: 400,
-      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${total}.`,
-      available: total,
+      message: `Bundel paket tidak cukup. Dibutuhkan ${input.quantity}, tersedia ${availableTotal}.`,
+      available: availableTotal,
       needed: input.quantity,
     };
   }

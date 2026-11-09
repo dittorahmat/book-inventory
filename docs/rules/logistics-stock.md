@@ -12,8 +12,9 @@ Semua mutasi stok seragam wajib lewat `uniform/stock` (`check:single-writer`), d
 ### §0.9. Lokasi & Branch Roaming Gudang
 Header (`AppHeader.tsx`) tetap merupakan badge identitas murni tanpa mutasi global lokasi transaksi; pemilihan cabang untuk role gudang/logistik dilakukan di tingkat view/tab transaksi spesifik (filter view, form pengiriman, dan selector query), bukan menimpa state penugasan akun.
 
-### §0.15. Seam Alokasi Stok Terpadu
+### §0.15. Seam Alokasi Stok Terpadu & Transisi Agregat
 Alokasi fisik berbasis FIFO (`allocateInventoryStock` di `src/server/services/stock/allocation.ts`) adalah titik masuk tunggal untuk unit satuan maupun bundel paket; hindari percabangan pemanggil langsung ke implementasi tabel terpisah.
+- **§0.15.1. Transisi Agregat Graceful**: Dalam masa migrasi dari barcode fisik (`book_items` / `package_items`) ke saldo agregat (`book_stocks` / `package_stocks`), alokasi wajib memprioritaskan saldo agregat jika mencukupi (`availableQuantity >= needed`). Jika saldo agregat belum terisi atau kurang dari yang dibutuhkan, alokator wajib fallback memeriksa ketersediaan eksemplar fisik di tabel legasi sebelum menyatakan kekurangan stok (`insufficient_stock`), guna mencegah kegagalan pada lingkungan demo/staging yang sedang bertransisi bertahap.
 
 ### §0.16. Otoritas Server pada Audit Rekonsiliasi
 Alur Berita Acara / Rekonsiliasi akhir periode (`term-reconciliation`) wajib server-authoritative; input fisik dapat disubmit mandiri tanpa mewajibkan kalkulasi delta atau penarikan ulang angka inbound di sisi klien.
@@ -68,3 +69,12 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
 1. **Titik Masuk Tunggal Mutasi Stok Agregat**: Seluruh operasi pergerakan stok agregat (`receipt`, `handover`, `transfer`, `transfer_discrepancy`, `assembly`, `disassembly`, `adjustment`) wajib melalui engine `moveInventoryStock` (`src/server/services/stock/movement.ts`). Dilarang memanggil `adjustLooseStock`, `adjustPackageStock`, atau `recordStockAdjustment` secara langsung di router atau orchestrator lain.
 2. **Anti-Feature-Envy pada Selisih Pengiriman**: Penanganan selisih pengiriman transfer (`damaged` / `missing`) wajib menggunakan tipe mutasi native `transfer_discrepancy`. Dilarang menduplikasi orkestrasi berurutan (`handover` debit asal + `adjustment` audit tujuan) di pemanggil; engine bertanggung jawab penuh atas debit asal dan pencatatan audit di tujuan secara atomik.
 3. **Penyatuan Lifecycle Paket & Pembatalan**: Operasi kitting/unbundling dan modifikasi BOM buku memusat pada deep module `src/server/services/package/index.ts`. Alur pembatalan/pengunduran diri murid (`order-withdrawal`) memusat pada `src/server/services/order-withdrawal/index.ts` untuk buku dan seragam.
+4. **Auto-Kit Perakitan Paket Maksimum & Single-Writer Seam**:
+   - Layanan perakitan paket otomatis berbasis BOM dan saldo agregat buku berlokasi di domain `src/server/services/stock/auto-kit.ts` dan diekspos melalui barrel `src/server/services/stock/index.ts`. Dilarang meletakkan file service logika bisnis langsung di root `src/server/` (ditegakkan mekanis oleh `check:server-structure`).
+   - Setiap debit komponen buku satuan dan kredit penambahan paket wajib melalui seam `moveInventoryStock` dengan `movementType: "assembly"`.
+   - Script runner eksternal (`scripts/auto-kit-runner.ts`) dilarang melakukan kalkulasi/mutasi stok mentah sendiri; wajib memanggil `autoKitMaxPackages` dan menyediakan flag `--dry-run` untuk preview kalkulasi sebelum eksekusi mutasi ke database.
+5. **Pemisahan Tabel Stok Agregat Aktif vs Unit Barcode Historis**:
+   - Saldo operasional buku satuan dan bundel paket hidup di tabel agregat `book_stocks` dan `package_stocks`.
+   - Tabel `book_items` dan `package_items` diarsipkan sebagai data historis unit barcode fisik lama (read-only); query pelaporan stok (dashboard, summary, status ketersediaan) dilarang mengandalkan baris dari tabel fisik lama tersebut.
+   - **Isolasi Partisi Cabang pada Fallback Multi-Sekolah**: Helper ringkasan stok (`getLooseStockSummary`, `getPackageStockSummary`) dilarang melakukan branching fallback global (seperti `aggrRows.length > 0` untuk semua sekolah); evaluasi ada/tidaknya data agregat wajib diisolasi per `schoolId` agar cabang yang belum bermigrasi tetap memicu fallback secara independen tanpa menghilangkan data cabang lainnya.
+   - **Konsistensi Kondisi Fisik vs Kuantitas Terikat**: Pada model agregat, `reservedQuantity` adalah kuantitas terikat alokasi pesanan (bukan kondisi buku bekas/cacat); pemetaan kondisi fisik ringkasan agregat wajib memetakan `totalQty` ke kondisi `new` dan dilarang memetakan kuantitas `reserved` ke `good`/`fair`/`damaged`.

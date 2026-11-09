@@ -58,7 +58,8 @@ guard/loop verbose yang setara `map`/`filter`/`??`/ternary satu baris;
 helper harga/fetch/rupiah duplikat; factory yang hanya dipakai sekali;
 menduplikasi mapping tipe/label/opsi UI di beberapa komponen daripada mengekstrak ke helper kanonik (`src/lib/<domain>.ts`);
 menduplikasi loop mutasi stok agregat pada multiple endpoint/handler intake (konsolidasikan ke helper intake tunggal yang menerapkan §0.61 & §0.62);
-anti-asumsi relasi kosong (*Unmapped Entity Fallback*): entitas berelasi foreign/associative (misal `supplierIds`) dilarang diasumsikan "berlaku universal untuk semua parent" saat array-nya kosong, kecuali jika ada flag eksplisit di skema model domain.
+anti-asumsi relasi kosong (*Unmapped Entity Fallback*): entitas berelasi foreign/associative (misal `supplierIds`) dilarang diasumsikan "berlaku universal untuk semua parent" saat array-nya kosong, kecuali jika ada flag eksplisit di skema model domain;
+isolasi partisi fallback multi-cabang (*Scope Shadowing in Fallback Branching*): fungsi helper atau endpoint yang menerima daftar identifier (`ids: string[]` / `schoolIds: string[]`) dilarang melakukan branching fallback biner secara global (seperti `if (rows.length > 0) return ...` untuk seluruh input); evaluasi ketersediaan data modern vs legasi wajib diisolasi per identifier agar data entitas yang belum bermigrasi tidak tereliminasi secara diam-diam.
 
 ## 3. Checklist UI (anti-slop)
 
