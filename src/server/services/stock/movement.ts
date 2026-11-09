@@ -169,7 +169,8 @@ export async function moveInventoryStock(
     case "assembly": {
       const loc = input.schoolId || input.toSchoolId;
       if (!loc) return { ok: false, message: "Lokasi rakit (schoolId) wajib diisi." };
-      if (input.itemType === "package") {
+      const isPackage = input.itemType === "package";
+      if (isPackage) {
         if (!input.packageId) return { ok: false, message: "packageId wajib untuk assembly paket." };
         const res = await adjustPackageStock(database, input.packageId, loc, qty, deps);
         return { ok: res.ok };
@@ -183,7 +184,8 @@ export async function moveInventoryStock(
     case "disassembly": {
       const loc = input.schoolId || input.fromSchoolId;
       if (!loc) return { ok: false, message: "Lokasi bongkar (schoolId) wajib diisi." };
-      if (input.itemType === "package") {
+      const isPackage = input.itemType === "package";
+      if (isPackage) {
         if (!input.packageId) return { ok: false, message: "packageId wajib untuk disassembly paket." };
         const res = await adjustPackageStock(database, input.packageId, loc, -qty, deps);
         return { ok: res.ok };

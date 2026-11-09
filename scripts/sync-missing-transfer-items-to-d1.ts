@@ -20,11 +20,7 @@ export function generateSyncTransferItemsSql(
     return { sql: "", count: 0 };
   }
   const localDb = new Database(localDbPath, { readonly: true });
-  const localItems = localDb.query(`
-    SELECT id, shipment_id, item_type, book_id, quantity, unit_price_snapshot, received_condition, created_at
-    FROM transfer_shipment_items
-    WHERE shipment_id = 'trf-aw1-2026-initial'
-  `).all() as Array<{
+  let localItems: Array<{
     id: string;
     shipment_id: string;
     item_type: string;
@@ -34,6 +30,15 @@ export function generateSyncTransferItemsSql(
     received_condition: string;
     created_at: string;
   }>;
+  try {
+    localItems = localDb.query(`
+      SELECT id, shipment_id, item_type, book_id, quantity, unit_price_snapshot, received_condition, created_at
+      FROM transfer_shipment_items
+      WHERE shipment_id = 'trf-aw1-2026-initial'
+    `).all() as typeof localItems;
+  } finally {
+    localDb.close();
+  }
 
   const missing = remoteItemIds ? localItems.filter((i) => !remoteItemIds.has(i.id)) : localItems;
 

@@ -19,11 +19,7 @@ export function generateSyncBooksSql(localDbPath = "./data/inventory.db", remote
     return { sql: "", count: 0 };
   }
   const localDb = new Database(localDbPath, { readonly: true });
-  const localBooks = localDb.query(`
-    SELECT id, isbn, title, author, publisher, publish_year, category, description,
-           cover_url, price, buy_price, sell_price, public_title, created_at, updated_at
-    FROM books
-  `).all() as Array<{
+  let localBooks: Array<{
     id: string;
     isbn: string;
     title: string;
@@ -40,6 +36,15 @@ export function generateSyncBooksSql(localDbPath = "./data/inventory.db", remote
     created_at: string;
     updated_at: string;
   }>;
+  try {
+    localBooks = localDb.query(`
+      SELECT id, isbn, title, author, publisher, publish_year, category, description,
+             cover_url, price, buy_price, sell_price, public_title, created_at, updated_at
+      FROM books
+    `).all() as typeof localBooks;
+  } finally {
+    localDb.close();
+  }
 
   const missingBooks = remoteBookIds ? localBooks.filter((b) => !remoteBookIds.has(b.id)) : localBooks;
 
