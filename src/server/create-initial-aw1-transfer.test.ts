@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { db } from "../db";
 import {
   books,
@@ -123,5 +123,15 @@ describe("createInitialAw1TransferShipment (§0.20, §0.62)", () => {
       .where(and(eq(bookStocks.bookId, "b-test-math1a"), eq(bookStocks.schoolId, aw1Id)));
     expect(mathStock).toBeDefined();
     expect(mathStock.availableQuantity).toBe(120);
+  });
+
+  afterEach(async () => {
+    await db.delete(transferShipmentItems);
+    await db.delete(transferShipments).where(eq(transferShipments.shipmentNumber, "TRF-AW1-2026-INITIAL"));
+    await db.delete(bookStocks).where(eq(bookStocks.schoolId, aw1Id));
+    await db.delete(books).where(eq(books.id, "b-test-akidah1"));
+    await db.delete(books).where(eq(books.id, "b-test-math1a"));
+    await db.delete(schools).where(eq(schools.id, warehouseId));
+    await db.delete(schools).where(eq(schools.id, aw1Id));
   });
 });
