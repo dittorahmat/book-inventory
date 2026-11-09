@@ -259,7 +259,8 @@ export async function receiveShipment(
         .where(and(eq(transferShipmentItems.shipmentId, id), eq(transferShipmentItems.packageItemId, r.packageItemId)))
     ),
   ];
-  const looseWrites = looseReceipts.map((r) => {
+  const physicalLooseReceipts = looseReceipts.filter((r) => !r.bookItemId.startsWith("aggr-"));
+  const looseWrites = physicalLooseReceipts.map((r) => {
     const patch: Partial<typeof bookItems.$inferInsert> =
       r.condition === "missing"
         ? { status: "lost", updatedAt: now }
@@ -268,18 +269,22 @@ export async function receiveShipment(
           : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };
     return database.update(bookItems).set(patch).where(eq(bookItems.id, r.bookItemId));
   });
-  const missingBundleIds = bundleReceipts.filter((r) => r.condition === "missing").map((r) => r.packageItemId);
+  const missingBundleIds = bundleReceipts
+    .filter((r) => r.condition === "missing" && !r.packageItemId.startsWith("aggr-"))
+    .map((r) => r.packageItemId);
   const bundleWrites = [
     ...chunkRows<string>(missingBundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
       database.delete(packageItems).where(inArray(packageItems.id, ids))
     ),
-    ...bundleReceipts.filter((r) => r.condition !== "missing").map((r) => {
-      const patch: Partial<typeof packageItems.$inferInsert> =
-        r.condition === "damaged"
-          ? { currentSchoolId: shipment.toSchoolId, status: "in_stock", notes: r.notes ? `Rusak saat transit: ${r.notes}` : "Rusak saat transit", updatedAt: now }
-          : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };
-      return database.update(packageItems).set(patch).where(eq(packageItems.id, r.packageItemId));
-    }),
+    ...bundleReceipts
+      .filter((r) => r.condition !== "missing" && !r.packageItemId.startsWith("aggr-"))
+      .map((r) => {
+        const patch: Partial<typeof packageItems.$inferInsert> =
+          r.condition === "damaged"
+            ? { currentSchoolId: shipment.toSchoolId, status: "in_stock", notes: r.notes ? `Rusak saat transit: ${r.notes}` : "Rusak saat transit", updatedAt: now }
+            : { currentSchoolId: shipment.toSchoolId, status: "in_stock", updatedAt: now };
+        return database.update(packageItems).set(patch).where(eq(packageItems.id, r.packageItemId));
+      }),
   ];
 
   try {
@@ -297,13 +302,19 @@ export async function receiveShipment(
     for (const r of looseReceipts) {
       const line = lines.find((l) => l.bookItemId === r.bookItemId);
       if (line && line.bookItemId) {
-        const [bItem] = await database.select({ bookId: bookItems.bookId }).from(bookItems).where(eq(bookItems.id, line.bookItemId));
-        if (bItem) {
+        let targetBookId: string | undefined;
+        if (line.bookItemId.startsWith("aggr-")) {
+          targetBookId = line.bookItemId.split("-").slice(1, -1).join("-");
+        } else {
+          const [bItem] = await database.select({ bookId: bookItems.bookId }).from(bookItems).where(eq(bookItems.id, line.bookItemId));
+          targetBookId = bItem?.bookId;
+        }
+        if (targetBookId) {
           if (r.condition === "good") {
             await moveInventoryStock(database, {
               movementType: "transfer",
               itemType: "loose",
-              bookId: bItem.bookId,
+              bookId: targetBookId,
               fromSchoolId: shipment.fromSchoolId,
               toSchoolId: shipment.toSchoolId,
               quantity: 1,
@@ -312,7 +323,7 @@ export async function receiveShipment(
             await moveInventoryStock(database, {
               movementType: "transfer_discrepancy",
               itemType: "loose",
-              bookId: bItem.bookId,
+              bookId: targetBookId,
               fromSchoolId: shipment.fromSchoolId,
               toSchoolId: shipment.toSchoolId,
               quantity: 1,
