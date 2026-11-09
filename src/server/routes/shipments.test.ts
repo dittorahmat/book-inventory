@@ -831,6 +831,7 @@ describe("spec-57 T5 transfer read partition (§11)", () => {
     const originSchoolId = crypto.randomUUID();
     const destSchoolId = crypto.randomUUID();
     const bookId = crypto.randomUUID();
+    const packageId = crypto.randomUUID();
     const now = new Date().toISOString();
 
     try {
@@ -850,7 +851,19 @@ describe("spec-57 T5 transfer read partition (§11)", () => {
         updatedAt: now,
       });
 
-      // Seed aggregate stock only at origin (no rows in book_items)
+      await db.insert(bookPackages).values({
+        id: packageId,
+        code: `PKG-${Date.now().toString().slice(-6)}`,
+        name: "Pure Aggregate Transfer Package",
+        gradeLevel: "1",
+        curriculumType: "national",
+        academicYear: "2026/2027",
+        price: 150000,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Seed aggregate stock only at origin (no rows in book_items or package_items)
       const { moveInventoryStock } = await import("../services/stock/movement");
       await moveInventoryStock(db, {
         movementType: "receipt",
@@ -859,22 +872,29 @@ describe("spec-57 T5 transfer read partition (§11)", () => {
         schoolId: originSchoolId,
         quantity: 5,
       });
+      await moveInventoryStock(db, {
+        movementType: "receipt",
+        itemType: "package",
+        packageId,
+        schoolId: originSchoolId,
+        quantity: 3,
+      });
 
-      // Create draft shipment using quantity lines
+      // Create draft shipment using quantity lines (mixed loose and package)
       const draftRes = await shipmentsRouter.request("/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fromSchoolId: originSchoolId,
           toSchoolId: destSchoolId,
-          items: [{ itemType: "loose", bookId, quantity: 2 }],
+          items: [
+            { itemType: "loose", bookId, quantity: 2 },
+            { itemType: "package", packageId, quantity: 1 },
+          ],
           notes: "Aggregate stock transfer",
         }),
       });
       const draftJson = await draftRes.json();
-      if (draftRes.status !== 201) {
-        console.error("Draft creation error:", draftJson);
-      }
       expect(draftRes.status).toBe(201);
       expect(draftJson.data.status).toBe("draft");
       const shipmentId = draftJson.data.id;
@@ -887,9 +907,18 @@ describe("spec-57 T5 transfer read partition (§11)", () => {
       const detailRes = await shipmentsRouter.request(`/${shipmentId}`);
       const detailJson = await detailRes.json();
       expect(detailRes.status).toBe(200);
-      expect(detailJson.data.items.length).toBe(2);
-      const itemReceipts = detailJson.data.items.map((it: { bookItemId: string }) => ({
+      expect(detailJson.data.items.length).toBe(3);
+      const looseDetailItems = detailJson.data.items.filter((it: { itemType: string }) => it.itemType === "loose");
+      const pkgDetailItems = detailJson.data.items.filter((it: { itemType: string }) => it.itemType === "package");
+      expect(looseDetailItems.length).toBe(2);
+      expect(pkgDetailItems.length).toBe(1);
+
+      const itemReceipts = looseDetailItems.map((it: { bookItemId: string }) => ({
         bookItemId: it.bookItemId,
+        condition: "good" as const,
+      }));
+      const packageReceipts = pkgDetailItems.map((it: { packageItemId: string }) => ({
+        packageItemId: it.packageItemId,
         condition: "good" as const,
       }));
 
@@ -897,23 +926,31 @@ describe("spec-57 T5 transfer read partition (§11)", () => {
       const receiveRes = await shipmentsRouter.request(`/${shipmentId}/receive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemReceipts }),
+        body: JSON.stringify({ itemReceipts, packageReceipts }),
       });
       expect(receiveRes.status).toBe(200);
 
-      // Verify book_stocks at destination increased and origin decreased
-      const { bookStocks } = await import("../../db/schema");
+      // Verify book_stocks and package_stocks at destination increased and origin decreased
+      const { bookStocks, packageStocks } = await import("../../db/schema");
       const [originStock] = await db.select().from(bookStocks).where(eq(bookStocks.schoolId, originSchoolId));
       const [destStock] = await db.select().from(bookStocks).where(eq(bookStocks.schoolId, destSchoolId));
 
       expect(originStock.availableQuantity).toBe(3);
       expect(destStock.availableQuantity).toBe(2);
 
+      const [originPkgStock] = await db.select().from(packageStocks).where(eq(packageStocks.schoolId, originSchoolId));
+      const [destPkgStock] = await db.select().from(packageStocks).where(eq(packageStocks.schoolId, destSchoolId));
+
+      expect(originPkgStock.availableQuantity).toBe(2);
+      expect(destPkgStock.availableQuantity).toBe(1);
+
       await db.delete(transferShipmentItems).where(eq(transferShipmentItems.shipmentId, shipmentId));
       await db.delete(transferShipments).where(eq(transferShipments.id, shipmentId));
     } finally {
-      const { bookStocks } = await import("../../db/schema");
+      const { bookStocks, packageStocks } = await import("../../db/schema");
       await db.delete(bookStocks).where(eq(bookStocks.bookId, bookId));
+      await db.delete(packageStocks).where(eq(packageStocks.packageId, packageId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
       await db.delete(books).where(eq(books.id, bookId));
       await db.delete(schools).where(inArray(schools.id, [originSchoolId, destSchoolId]));
     }

@@ -5,7 +5,12 @@ import { transferShipments, transferShipmentItems, bookItems, packageItems } fro
 import { chunkRows, D1_INLIST_CHUNK_SIZE, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../../lib/document-number";
 import { planCreateLines, type ShipmentLineInput } from "./plan";
-import { moveInventoryStock } from "../stock";
+import {
+  moveInventoryStock,
+  isSyntheticStockId,
+  parseSyntheticBookId,
+  parseSyntheticPackageId,
+} from "../stock";
 
 export interface CreateShipmentInput {
   fromSchoolId: string;
@@ -259,7 +264,7 @@ export async function receiveShipment(
         .where(and(eq(transferShipmentItems.shipmentId, id), eq(transferShipmentItems.packageItemId, r.packageItemId)))
     ),
   ];
-  const physicalLooseReceipts = looseReceipts.filter((r) => !r.bookItemId.startsWith("aggr-"));
+  const physicalLooseReceipts = looseReceipts.filter((r) => !isSyntheticStockId(r.bookItemId));
   const looseWrites = physicalLooseReceipts.map((r) => {
     const patch: Partial<typeof bookItems.$inferInsert> =
       r.condition === "missing"
@@ -270,14 +275,14 @@ export async function receiveShipment(
     return database.update(bookItems).set(patch).where(eq(bookItems.id, r.bookItemId));
   });
   const missingBundleIds = bundleReceipts
-    .filter((r) => r.condition === "missing" && !r.packageItemId.startsWith("aggr-"))
+    .filter((r) => r.condition === "missing" && !isSyntheticStockId(r.packageItemId))
     .map((r) => r.packageItemId);
   const bundleWrites = [
     ...chunkRows<string>(missingBundleIds, D1_INLIST_CHUNK_SIZE).map((ids) =>
       database.delete(packageItems).where(inArray(packageItems.id, ids))
     ),
     ...bundleReceipts
-      .filter((r) => r.condition !== "missing" && !r.packageItemId.startsWith("aggr-"))
+      .filter((r) => r.condition !== "missing" && !isSyntheticStockId(r.packageItemId))
       .map((r) => {
         const patch: Partial<typeof packageItems.$inferInsert> =
           r.condition === "damaged"
@@ -303,8 +308,8 @@ export async function receiveShipment(
       const line = lines.find((l) => l.bookItemId === r.bookItemId);
       if (line && line.bookItemId) {
         let targetBookId: string | undefined;
-        if (line.bookItemId.startsWith("aggr-")) {
-          targetBookId = line.bookItemId.split("-").slice(1, -1).join("-");
+        if (isSyntheticStockId(line.bookItemId)) {
+          targetBookId = parseSyntheticBookId(line.bookItemId);
         } else {
           const [bItem] = await database.select({ bookId: bookItems.bookId }).from(bookItems).where(eq(bookItems.id, line.bookItemId));
           targetBookId = bItem?.bookId;
@@ -337,12 +342,13 @@ export async function receiveShipment(
     }
     for (const r of bundleReceipts) {
       const line = lines.find((l) => l.packageItemId === r.packageItemId);
-      if (line && line.packageId) {
+      const targetPackageId = line?.packageId || (isSyntheticStockId(line?.packageItemId) ? parseSyntheticPackageId(line!.packageItemId!) : undefined);
+      if (targetPackageId) {
         if (r.condition === "good") {
           await moveInventoryStock(database, {
             movementType: "transfer",
             itemType: "package",
-            packageId: line.packageId,
+            packageId: targetPackageId,
             fromSchoolId: shipment.fromSchoolId,
             toSchoolId: shipment.toSchoolId,
             quantity: 1,
@@ -351,7 +357,7 @@ export async function receiveShipment(
           await moveInventoryStock(database, {
             movementType: "transfer_discrepancy",
             itemType: "package",
-            packageId: line.packageId,
+            packageId: targetPackageId,
             fromSchoolId: shipment.fromSchoolId,
             toSchoolId: shipment.toSchoolId,
             quantity: 1,

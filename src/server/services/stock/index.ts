@@ -48,7 +48,14 @@ export type {
   AllocationResult,
   InventoryAllocationInput,
 } from "./allocation";
-export { allocateInventoryStock } from "./allocation";
+export {
+  allocateInventoryStock,
+  isSyntheticStockId,
+  makeSyntheticBookStockId,
+  makeSyntheticPackageStockId,
+  parseSyntheticBookId,
+  parseSyntheticPackageId,
+} from "./allocation";
 export {
   adjustLooseStock,
   adjustPackageStock,

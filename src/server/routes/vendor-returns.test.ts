@@ -268,6 +268,7 @@ describe("Returns & RTV API Suite", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         supplierId,
+        schoolId: whId,
         reason: "Buku cacat pabrik",
         creditNoteAmount: 50000,
         items: [{ bookId, quantity: 5, reason: "Cacat fisik" }],

@@ -272,27 +272,30 @@ export async function disassemblePackageBundles(
       ).map((ids) => database.delete(packageItems).where(inArray(packageItems.id, ids)))
     : [];
 
-  // Pulihkan eksemplar satuan komponen BOM (WPR non-fisik dikecualikan).
+  // Pulihkan eksemplar satuan komponen BOM jika ada paket fisik yang dibongkar
   const restoredBookItems: Array<typeof bookItems.$inferInsert> = [];
+  const physicalBundlesToRestore = availableBundles.length;
   let totalRestoredLoose = 0;
   const timeFrag = isoTimeFragment(now, 6);
 
-  for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
-    const returnCount = item.quantity * quantity;
-    for (let j = 0; j < returnCount; j++) {
-      const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;
-      restoredBookItems.push({
-        id: newWriteId(deps),
-        bookId: item.bookId,
-        currentSchoolId: schoolId,
-        barcode,
-        condition: "new",
-        status: "in_stock",
-        notes: `Restored from unbundled package ${pkg.name}. Reason: ${reason}`,
-        createdAt: now,
-        updatedAt: now,
-      });
-      totalRestoredLoose++;
+  if (physicalBundlesToRestore > 0) {
+    for (const item of kitBomWithoutWpr<{ bookId: string; quantity: number }>(bom)) {
+      const returnCount = item.quantity * physicalBundlesToRestore;
+      for (let j = 0; j < returnCount; j++) {
+        const barcode = `RET-UNB-${timeFrag}-${Math.floor(Math.random() * 1000)}`;
+        restoredBookItems.push({
+          id: newWriteId(deps),
+          bookId: item.bookId,
+          currentSchoolId: schoolId,
+          barcode,
+          condition: "new",
+          status: "in_stock",
+          notes: `Restored from unbundled package ${pkg.name}. Reason: ${reason}`,
+          createdAt: now,
+          updatedAt: now,
+        });
+        totalRestoredLoose++;
+      }
     }
   }
 

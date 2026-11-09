@@ -173,12 +173,14 @@ export async function calculateBookDemandSummary(
   }
 
   const stockMap = new Map<string, number>();
-  for (const row of stockCounts) {
-    stockMap.set(row.bookId, Number(row.stockCount || 0));
-  }
   for (const row of aggrStockCounts) {
-    const prev = stockMap.get(row.bookId) ?? 0;
-    stockMap.set(row.bookId, Math.max(prev, row.availableQuantity ?? 0));
+    stockMap.set(row.bookId, row.availableQuantity ?? 0);
+  }
+  // Fallback untuk buku yang belum memiliki saldo di book_stocks
+  for (const row of stockCounts) {
+    if (!stockMap.has(row.bookId)) {
+      stockMap.set(row.bookId, Number(row.stockCount || 0));
+    }
   }
 
   // Kumpulkan list buku target

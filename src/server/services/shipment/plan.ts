@@ -8,6 +8,9 @@ import {
   allocateInventoryStock,
   isAvailableLoose,
   isReadyBundle,
+  isSyntheticStockId,
+  parseSyntheticBookId,
+  parseSyntheticPackageId,
 } from "../stock";
 
 export interface ShipmentLineInput {
@@ -59,17 +62,12 @@ export async function planCreateLines(
   const bookIdByLooseId = new Map<string, string>();
   const looseSnapshots = new Map<string, number>();
 
-  const physicalLooseIds = looseIds.filter((id) => !id.startsWith("aggr-"));
-  const syntheticLooseIds = looseIds.filter((id) => id.startsWith("aggr-"));
+  const physicalLooseIds = looseIds.filter((id) => !isSyntheticStockId(id));
+  const syntheticLooseIds = looseIds.filter((id) => isSyntheticStockId(id));
 
   if (syntheticLooseIds.length > 0) {
     const syntheticBookIds = [
-      ...new Set(
-        syntheticLooseIds.map((id) => {
-          const parts = id.split("-");
-          return parts.slice(1, -1).join("-");
-        })
-      ),
+      ...new Set(syntheticLooseIds.map((id) => parseSyntheticBookId(id))),
     ];
     type PriceRow = { id: string; price: number; buyPrice: number; sellPrice: number };
     const priceRows: PriceRow[] = await database
@@ -79,7 +77,7 @@ export async function planCreateLines(
     const priceMap = new Map<string, number>(priceRows.map((r: PriceRow) => [r.id, effectiveSellPrice(r)]));
 
     syntheticLooseIds.forEach((id) => {
-      const bId = id.split("-").slice(1, -1).join("-");
+      const bId = parseSyntheticBookId(id);
       bookIdByLooseId.set(id, bId);
       looseSnapshots.set(id, priceMap.get(bId) || 0);
     });
@@ -121,17 +119,12 @@ export async function planCreateLines(
   }
 
   const bundleSnapshots = new Map<string, { packageId: string; snapshot: number }>();
-  const physicalBundleIds = bundleIds.filter((id) => !id.startsWith("aggr-"));
-  const syntheticBundleIds = bundleIds.filter((id) => id.startsWith("aggr-"));
+  const physicalBundleIds = bundleIds.filter((id) => !isSyntheticStockId(id));
+  const syntheticBundleIds = bundleIds.filter((id) => isSyntheticStockId(id));
 
   if (syntheticBundleIds.length > 0) {
     const syntheticPkgIds = [
-      ...new Set(
-        syntheticBundleIds.map((id) => {
-          const parts = id.split("-");
-          return parts.slice(2, -1).join("-");
-        })
-      ),
+      ...new Set(syntheticBundleIds.map((id) => parseSyntheticPackageId(id))),
     ];
     type MasterRow = { id: string; price: number | null };
     const masterRows: MasterRow[] = await database
@@ -140,7 +133,7 @@ export async function planCreateLines(
       .where(inArray(bookPackages.id, syntheticPkgIds));
     const masterMap = new Map<string, number>(masterRows.map((r: MasterRow) => [r.id, r.price || 0]));
     syntheticBundleIds.forEach((id) => {
-      const pId = id.split("-").slice(2, -1).join("-");
+      const pId = parseSyntheticPackageId(id);
       bundleSnapshots.set(id, { packageId: pId, snapshot: masterMap.get(pId) || 0 });
     });
   }
