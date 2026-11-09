@@ -4,6 +4,7 @@ import {
   bookItems,
   bookPackageItems,
   bookPackages,
+  bookStocks,
   schoolGradeAllowedBooks,
   students,
 } from "../../../db/schema";
@@ -123,7 +124,24 @@ export async function calculateBookDemandSummary(
     .where(and(...allowedConditions))
     .groupBy(schoolGradeAllowedBooks.bookId);
 
-  // 3. Hitung stok fisik lepas di Gudang Logistik
+  // 3. Hitung stok fisik lepas di Gudang Logistik dari book_stocks (agregat)
+  const aggrConditions = [];
+  if (warehouseId) {
+    aggrConditions.push(eq(bookStocks.schoolId, warehouseId));
+  }
+  if (options?.bookIds && options.bookIds.length > 0) {
+    aggrConditions.push(inArray(bookStocks.bookId, options.bookIds));
+  }
+
+  const aggrStockCounts = await database
+    .select({
+      bookId: bookStocks.bookId,
+      availableQuantity: bookStocks.availableQuantity,
+    })
+    .from(bookStocks)
+    .where(aggrConditions.length > 0 ? and(...aggrConditions) : undefined);
+
+  // Ambil juga fallback dari book_items jika ada data historis/test
   const stockConditions = [
     eq(bookItems.status, "in_stock"),
     eq(bookItems.isRejected, false),
@@ -157,6 +175,10 @@ export async function calculateBookDemandSummary(
   const stockMap = new Map<string, number>();
   for (const row of stockCounts) {
     stockMap.set(row.bookId, Number(row.stockCount || 0));
+  }
+  for (const row of aggrStockCounts) {
+    const prev = stockMap.get(row.bookId) ?? 0;
+    stockMap.set(row.bookId, Math.max(prev, row.availableQuantity ?? 0));
   }
 
   // Kumpulkan list buku target

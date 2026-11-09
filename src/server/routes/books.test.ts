@@ -378,4 +378,50 @@ describe("Books alias + supplier M2M (#143)", () => {
       await db.delete(suppliers).where(inArray(suppliers.id, [supA, supB]));
     }
   });
+
+  it("rejects DELETE when book has active stock in book_stocks even without book_items", async () => {
+    const stamp = Date.now();
+    const bookId = `b-del-aggr-${stamp}`;
+    const schoolId = `sch-del-aggr-${stamp}`;
+    const now = new Date().toISOString();
+    const { schools, bookStocks } = await import("../../db/schema");
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Sekolah Uji Hapus Aggr",
+      code: `DELA-${String(stamp).slice(-6)}`,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `978-DEL-${String(stamp).slice(-6)}`,
+      title: "Buku Uji Hapus Aggr",
+      author: "Penulis",
+      publisher: "Penerbit",
+      sellPrice: 50000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookStocks).values({
+      id: `bs-del-${stamp}`,
+      bookId,
+      schoolId,
+      availableQuantity: 7,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    const delRes = await booksRouter.request(`/${bookId}`, { method: "DELETE" });
+    expect(delRes.status).toBe(400);
+    const delJson = await delRes.json();
+    expect(delJson.success).toBe(false);
+    expect(delJson.message).toContain("saldo stok aktif");
+
+    // Clean up
+    await db.delete(bookStocks).where(eq(bookStocks.id, `bs-del-${stamp}`));
+    const cleanDel = await booksRouter.request(`/${bookId}`, { method: "DELETE" });
+    expect(cleanDel.status).toBe(200);
+    await db.delete(schools).where(eq(schools.id, schoolId));
+  });
 });
