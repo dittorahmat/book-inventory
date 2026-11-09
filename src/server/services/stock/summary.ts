@@ -44,7 +44,7 @@ export async function getLooseStockSummary(
 ): Promise<LooseStockSummaryRow[]> {
   if (schoolIds.length === 0) return [];
 
-  // 1. Coba baca dari tabel agregat book_stocks
+  // 1. Ambil data agregat book_stocks untuk seluruh lokasi yang diminta
   const aggrRows = await database
     .select({
       schoolId: bookStocks.schoolId,
@@ -63,13 +63,56 @@ export async function getLooseStockSummary(
     .innerJoin(schools, eq(bookStocks.schoolId, schools.id))
     .where(inArray(bookStocks.schoolId, schoolIds));
 
-  if (aggrRows.length > 0) {
-    return aggrRows
-      .map((row) => {
-        const avail = row.availableQuantity ?? 0;
-        const res = row.reservedQuantity ?? 0;
-        const total = avail + res;
-        return {
+  // Catat sekolah mana saja yang sudah memiliki data agregat
+  const schoolsWithAggr = new Set(aggrRows.map((r) => r.schoolId));
+  const schoolsNeedingFallback = schoolIds.filter((sId) => !schoolsWithAggr.has(sId));
+
+  const result: LooseStockSummaryRow[] = aggrRows.map((row) => {
+    const avail = row.availableQuantity ?? 0;
+    const res = row.reservedQuantity ?? 0;
+    const total = avail + res;
+    return {
+      schoolId: row.schoolId,
+      schoolName: row.schoolName,
+      bookId: row.bookId,
+      title: row.title,
+      isbn: row.isbn,
+      coverUrl: row.coverUrl,
+      sellPrice: effectiveSellPrice(row),
+      totalQty: total,
+      availableQty: avail,
+      inTransitQty: 0,
+      byCondition: { new: total, good: 0, fair: 0, damaged: 0 },
+      byStatus: { in_stock: avail, in_transit: 0, disposed: 0, lost: 0, sold: 0 },
+    };
+  });
+
+  // 2. Fallback per-sekolah ke tabel fisik historis book_items untuk sekolah tanpa data agregat
+  if (schoolsNeedingFallback.length > 0) {
+    const rows = await database
+      .select({
+        schoolId: bookItems.currentSchoolId,
+        schoolName: schools.name,
+        bookId: bookItems.bookId,
+        title: books.title,
+        isbn: books.isbn,
+        coverUrl: books.coverUrl,
+        price: books.price,
+        sellPrice: books.sellPrice,
+        condition: bookItems.condition,
+        status: bookItems.status,
+      })
+      .from(bookItems)
+      .innerJoin(books, eq(bookItems.bookId, books.id))
+      .innerJoin(schools, eq(bookItems.currentSchoolId, schools.id))
+      .where(inArray(bookItems.currentSchoolId, schoolsNeedingFallback));
+
+    type Row = (typeof rows)[number];
+    const metas = new Map<string, Omit<LooseStockSummaryRow, "totalQty" | "availableQty" | "inTransitQty" | "byCondition" | "byStatus">>();
+    for (const row of rows as Row[]) {
+      const key = `${row.schoolId}|${row.bookId}`;
+      if (!metas.has(key)) {
+        metas.set(key, {
           schoolId: row.schoolId,
           schoolName: row.schoolName,
           bookId: row.bookId,
@@ -77,68 +120,25 @@ export async function getLooseStockSummary(
           isbn: row.isbn,
           coverUrl: row.coverUrl,
           sellPrice: effectiveSellPrice(row),
-          totalQty: total,
-          availableQty: avail,
-          inTransitQty: 0,
-          byCondition: { new: avail, good: res, fair: 0, damaged: 0 },
-          byStatus: { in_stock: avail, in_transit: 0, disposed: 0, lost: 0, sold: 0 },
-        };
-      })
-      .sort((a, b) => a.schoolId.localeCompare(b.schoolId) || a.title.localeCompare(b.title));
-  }
-
-  // 2. Fallback ke tabel fisik historis book_items jika book_stocks kosong
-  const rows = await database
-    .select({
-      schoolId: bookItems.currentSchoolId,
-      schoolName: schools.name,
-      bookId: bookItems.bookId,
-      title: books.title,
-      isbn: books.isbn,
-      coverUrl: books.coverUrl,
-      price: books.price,
-      sellPrice: books.sellPrice,
-      condition: bookItems.condition,
-      status: bookItems.status,
-    })
-    .from(bookItems)
-    .innerJoin(books, eq(bookItems.bookId, books.id))
-    .innerJoin(schools, eq(bookItems.currentSchoolId, schools.id))
-    .where(inArray(bookItems.currentSchoolId, schoolIds));
-
-  type Row = (typeof rows)[number];
-  const metas = new Map<string, Omit<LooseStockSummaryRow, "totalQty" | "availableQty" | "inTransitQty" | "byCondition" | "byStatus">>();
-  for (const row of rows as Row[]) {
-    const key = `${row.schoolId}|${row.bookId}`;
-    if (!metas.has(key)) {
-      metas.set(key, {
-        schoolId: row.schoolId,
-        schoolName: row.schoolName,
-        bookId: row.bookId,
-        title: row.title,
-        isbn: row.isbn,
-        coverUrl: row.coverUrl,
-        sellPrice: effectiveSellPrice(row),
-      });
+        });
+      }
     }
-  }
-  const tallies = tallyLooseByKey(rows as Row[], (row) => `${row.schoolId}|${row.bookId}`);
+    const tallies = tallyLooseByKey(rows as Row[], (row) => `${row.schoolId}|${row.bookId}`);
 
-  return [...tallies.entries()]
-    .map(([key, tally]) => {
+    for (const [key, tally] of tallies.entries()) {
       const meta = metas.get(key)!;
-      return {
+      result.push({
         ...meta,
         totalQty: tally.totalQty,
         availableQty: tally.availableQty,
         inTransitQty: tally.inTransitQty,
         byCondition: tally.byConditionAll,
         byStatus: tally.byStatus,
-      };
-    })
-    .sort(
-    (a, b) => a.schoolId.localeCompare(b.schoolId) || a.title.localeCompare(b.title)
-  );
+      });
+    }
+  }
+
+  return result.sort((a, b) => a.schoolId.localeCompare(b.schoolId) || a.title.localeCompare(b.title));
 }
 
 /**
@@ -152,7 +152,7 @@ export async function getPackageStockSummary(
 ): Promise<PackageStockSummaryRow[]> {
   if (schoolIds.length === 0) return [];
 
-  // 1. Coba baca dari tabel agregat package_stocks
+  // 1. Ambil data agregat package_stocks untuk seluruh lokasi yang diminta
   const aggrRows = await database
     .select({
       schoolId: packageStocks.schoolId,
@@ -171,13 +171,54 @@ export async function getPackageStockSummary(
     .innerJoin(schools, eq(packageStocks.schoolId, schools.id))
     .where(inArray(packageStocks.schoolId, schoolIds));
 
-  if (aggrRows.length > 0) {
-    return aggrRows
-      .map((row) => {
-        const ready = row.availableQuantity ?? 0;
-        const res = row.reservedQuantity ?? 0;
-        const total = ready + res;
-        return {
+  const schoolsWithAggr = new Set(aggrRows.map((r) => r.schoolId));
+  const schoolsNeedingFallback = schoolIds.filter((sId) => !schoolsWithAggr.has(sId));
+
+  const result: PackageStockSummaryRow[] = aggrRows.map((row) => {
+    const ready = row.availableQuantity ?? 0;
+    const res = row.reservedQuantity ?? 0;
+    const total = ready + res;
+    return {
+      schoolId: row.schoolId,
+      schoolName: row.schoolName,
+      packageId: row.packageId,
+      code: row.code,
+      name: row.name,
+      gradeLevel: row.gradeLevel,
+      curriculumType: row.curriculumType,
+      price: row.price,
+      totalQty: total,
+      readyQty: ready,
+      byStatus: { in_stock: ready, reserved: res, dispatched: 0, delivered: 0 },
+    };
+  });
+
+  // 2. Fallback per-sekolah ke tabel fisik historis package_items jika lokasi belum punya stok agregat
+  if (schoolsNeedingFallback.length > 0) {
+    const rows = await database
+      .select({
+        schoolId: packageItems.currentSchoolId,
+        schoolName: schools.name,
+        packageId: packageItems.packageId,
+        code: bookPackages.code,
+        name: bookPackages.name,
+        gradeLevel: bookPackages.gradeLevel,
+        curriculumType: bookPackages.curriculumType,
+        price: bookPackages.price,
+        status: packageItems.status,
+      })
+      .from(packageItems)
+      .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
+      .innerJoin(schools, eq(packageItems.currentSchoolId, schools.id))
+      .where(inArray(packageItems.currentSchoolId, schoolsNeedingFallback));
+
+    type Row = (typeof rows)[number];
+    const grouped = tallyPackagesByKey(rows as Row[], (row) => `${row.schoolId}|${row.packageId}`);
+    const metas = new Map<string, Omit<PackageStockSummaryRow, "totalQty" | "readyQty" | "byStatus">>();
+    for (const row of rows as Row[]) {
+      const key = `${row.schoolId}|${row.packageId}`;
+      if (!metas.has(key)) {
+        metas.set(key, {
           schoolId: row.schoolId,
           schoolName: row.schoolName,
           packageId: row.packageId,
@@ -186,54 +227,19 @@ export async function getPackageStockSummary(
           gradeLevel: row.gradeLevel,
           curriculumType: row.curriculumType,
           price: row.price,
-          totalQty: total,
-          readyQty: ready,
-          byStatus: { in_stock: ready, reserved: res, dispatched: 0, delivered: 0 },
-        };
-      })
-      .sort((a, b) => a.schoolId.localeCompare(b.schoolId) || a.name.localeCompare(b.name));
-  }
+        });
+      }
+    }
 
-  // 2. Fallback ke tabel fisik historis package_items jika package_stocks kosong
-  const rows = await database
-    .select({
-      schoolId: packageItems.currentSchoolId,
-      schoolName: schools.name,
-      packageId: packageItems.packageId,
-      code: bookPackages.code,
-      name: bookPackages.name,
-      gradeLevel: bookPackages.gradeLevel,
-      curriculumType: bookPackages.curriculumType,
-      price: bookPackages.price,
-      status: packageItems.status,
-    })
-    .from(packageItems)
-    .innerJoin(bookPackages, eq(packageItems.packageId, bookPackages.id))
-    .innerJoin(schools, eq(packageItems.currentSchoolId, schools.id))
-    .where(inArray(packageItems.currentSchoolId, schoolIds));
-
-  type Row = (typeof rows)[number];
-  const grouped = tallyPackagesByKey(rows as Row[], (row) => `${row.schoolId}|${row.packageId}`);
-  const metas = new Map<string, Omit<PackageStockSummaryRow, "totalQty" | "readyQty" | "byStatus">>();
-  for (const row of rows as Row[]) {
-    const key = `${row.schoolId}|${row.packageId}`;
-    if (!metas.has(key)) {
-      metas.set(key, {
-        schoolId: row.schoolId,
-        schoolName: row.schoolName,
-        packageId: row.packageId,
-        code: row.code,
-        name: row.name,
-        gradeLevel: row.gradeLevel,
-        curriculumType: row.curriculumType,
-        price: row.price,
+    for (const [key, tally] of grouped.entries()) {
+      result.push({
+        ...metas.get(key)!,
+        totalQty: tally.totalQty,
+        readyQty: tally.readyQty,
+        byStatus: tally.byStatus,
       });
     }
   }
 
-  return [...grouped.entries()]
-    .map(([key, tally]) => ({ ...metas.get(key)!, totalQty: tally.totalQty, readyQty: tally.readyQty, byStatus: tally.byStatus }))
-    .sort(
-    (a, b) => a.schoolId.localeCompare(b.schoolId) || a.name.localeCompare(b.name)
-  );
+  return result.sort((a, b) => a.schoolId.localeCompare(b.schoolId) || a.name.localeCompare(b.name));
 }

@@ -12,12 +12,7 @@ import { Database } from "bun:sqlite";
 import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-
-function escapeSql(val: unknown): string {
-  if (val === null || val === undefined) return "NULL";
-  if (typeof val === "number") return String(val);
-  return `'${String(val).replace(/'/g, "''")}'`;
-}
+import { escapeSql } from "./lib/sql-chunk-builder";
 
 export function generateSyncBooksSql(localDbPath = "./data/inventory.db", remoteBookIds?: Set<string>): { sql: string; count: number } {
   const localDb = new Database(localDbPath, { readonly: true });

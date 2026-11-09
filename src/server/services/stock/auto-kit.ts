@@ -91,7 +91,8 @@ export async function autoKitMaxPackages(
       // Simulasi pengurangan stok di memori untuk mencegah over-commitment antar-paket
       for (const comp of kitBom) {
         const consumed = comp.quantity * maxKits;
-        stockMap.set(comp.bookId, (stockMap.get(comp.bookId) ?? 0) - consumed);
+        const current = stockMap.get(comp.bookId) ?? 0;
+        stockMap.set(comp.bookId, Math.max(0, current - consumed));
         totalBooksConsumed += consumed;
       }
 
