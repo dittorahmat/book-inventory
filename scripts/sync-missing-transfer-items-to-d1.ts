@@ -16,6 +16,9 @@ export function generateSyncTransferItemsSql(
   localDbPath = "./data/inventory.db",
   remoteItemIds?: Set<string>
 ): { sql: string; count: number } {
+  if (!fs.existsSync(localDbPath)) {
+    return { sql: "", count: 0 };
+  }
   const localDb = new Database(localDbPath, { readonly: true });
   const localItems = localDb.query(`
     SELECT id, shipment_id, item_type, book_id, quantity, unit_price_snapshot, received_condition, created_at

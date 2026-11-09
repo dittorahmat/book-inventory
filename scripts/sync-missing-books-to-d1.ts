@@ -15,6 +15,9 @@ import * as path from "node:path";
 import { escapeSql } from "./lib/sql-chunk-builder";
 
 export function generateSyncBooksSql(localDbPath = "./data/inventory.db", remoteBookIds?: Set<string>): { sql: string; count: number } {
+  if (!fs.existsSync(localDbPath)) {
+    return { sql: "", count: 0 };
+  }
   const localDb = new Database(localDbPath, { readonly: true });
   const localBooks = localDb.query(`
     SELECT id, isbn, title, author, publisher, publish_year, category, description,
