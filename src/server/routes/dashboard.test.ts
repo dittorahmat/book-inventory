@@ -11,8 +11,11 @@ import {
   bookItems,
   bookPackages,
   books,
+  bookStocks,
   packageItems,
+  packageStocks,
   schools,
+  stockAdjustments,
   studentBookOrders,
   students,
   transferShipments,
@@ -126,6 +129,72 @@ describe("Dashboard summary API", () => {
       expect(s.payments.paidShare).toBe(1);
     } finally {
       await cleanup();
+    }
+  });
+
+  it("reads loose stock and package stock from aggregate tables (book_stocks & package_stocks)", async () => {
+    const stamp = Date.now();
+    const schoolAggr = `school-aggr-${stamp}`;
+    const bookAggr = `book-aggr-${stamp}`;
+    const pkgAggr = `pkg-aggr-${stamp}`;
+    const nowAggr = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolAggr, name: `Aggr School ${stamp}`, code: `AGGR-${stamp}`, type: "branch",
+      createdAt: nowAggr, updatedAt: nowAggr,
+    });
+    await db.insert(books).values({
+      id: bookAggr, isbn: `ISBN-AGGR-${stamp}`, title: `Buku Aggr ${stamp}`,
+      author: "Test", publisher: "Test", createdAt: nowAggr, updatedAt: nowAggr,
+    });
+    await db.insert(bookPackages).values({
+      id: pkgAggr, code: `PKG-AGGR-${stamp}`, name: `Paket Aggr ${stamp}`, gradeLevel: "1",
+      curriculumType: "international", academicYear: "2026/2027", createdAt: nowAggr, updatedAt: nowAggr,
+    });
+
+    // Seed into aggregate tables book_stocks and package_stocks (no bookItems / packageItems)
+    await db.insert(bookStocks).values({
+      id: `bs-${stamp}`, bookId: bookAggr, schoolId: schoolAggr,
+      availableQuantity: 45, reservedQuantity: 5, updatedAt: nowAggr,
+    });
+    await db.insert(packageStocks).values({
+      id: `ps-${stamp}`, packageId: pkgAggr, schoolId: schoolAggr,
+      availableQuantity: 12, reservedQuantity: 0, updatedAt: nowAggr,
+    });
+    await db.insert(stockAdjustments).values({
+      id: `adj-${stamp}`, schoolId: schoolAggr, itemType: "loose", bookId: bookAggr,
+      quantity: -2, reason: "damaged", createdAt: nowAggr,
+    });
+
+    try {
+      const res = await dashboardRouter.request(`/summary?schoolId=${schoolAggr}`, { method: "GET" });
+      expect(res.status).toBe(200);
+      const [s] = (await res.json()).data.schools;
+      expect(s.stock.looseInStock).toBe(45);
+      expect(s.stock.packagesReady).toBe(12);
+      expect(s.stock.byCondition).toMatchObject({
+        new: 45,
+        good: 5,
+        fair: 0,
+        damaged: 2,
+      });
+      expect(s.stock.byTitle.find((t: { bookId: string }) => t.bookId === bookAggr)).toMatchObject({
+        bookId: bookAggr,
+        totalQty: 50,
+        availableQty: 45,
+      });
+      expect(s.stock.byPackage.find((p: { packageId: string }) => p.packageId === pkgAggr)).toMatchObject({
+        packageId: pkgAggr,
+        totalQty: 12,
+        readyQty: 12,
+      });
+    } finally {
+      await db.delete(stockAdjustments).where(eq(stockAdjustments.schoolId, schoolAggr));
+      await db.delete(bookStocks).where(eq(bookStocks.schoolId, schoolAggr));
+      await db.delete(packageStocks).where(eq(packageStocks.schoolId, schoolAggr));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgAggr));
+      await db.delete(books).where(eq(books.id, bookAggr));
+      await db.delete(schools).where(eq(schools.id, schoolAggr));
     }
   });
 
