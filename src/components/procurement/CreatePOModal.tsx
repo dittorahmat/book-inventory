@@ -11,6 +11,7 @@ import {
   buildSupplierPoItems,
   buyPriceOfBook,
   calcDemandQty,
+  filterSupplierEligibleBooks,
   makePoItemRow,
 } from "./po-demand-helpers";
 import { PoItemRow } from "./PoItemRow";
@@ -42,19 +43,14 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const [isSubmittingPO, setIsSubmittingPO] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
 
-  // Buku valid per supplier: universal (tanpa mapping) atau memuat supplier terpilih.
+  // Buku valid per supplier: strictly hanya buku yang memuat supplier terpilih.
   const eligibleBooks = useMemo(
-    () =>
-      !poSupplierId
-        ? catalogBooks
-        : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(poSupplierId)),
+    () => filterSupplierEligibleBooks(catalogBooks, poSupplierId),
     [catalogBooks, poSupplierId]
   );
 
   const [poItems, setPoItems] = useState<NewPOItemInput[]>(() => {
-    const eligible = !defaultSupplierId
-      ? catalogBooks
-      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(defaultSupplierId));
+    const eligible = filterSupplierEligibleBooks(catalogBooks, defaultSupplierId);
     return eligible.length > 0
       ? buildSupplierPoItems(eligible, catalogBooks, {}, 10)
       : [];
@@ -88,7 +84,10 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   useEffect(() => {
     if (Object.keys(demandMap).length === 0) return;
     setPoItems((prev) => {
-      if (prev.length === 0) return prev;
+      // Jika saat mount awal poItems kosong karena belum ada demand, populate dari eligibleBooks
+      if (prev.length === 0 && eligibleBooks.length > 0) {
+        return buildSupplierPoItems(eligibleBooks, catalogBooks, demandMap, bufferPercent);
+      }
       return prev.map((item) => {
         // Jangan timpa jika user sudah pernah mengedit manual baris buku ini
         if (editedBookIds.has(item.bookId)) return item;
@@ -98,7 +97,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
         return item.quantityOrdered === 0 ? { ...item, quantityOrdered: autoQty } : item;
       });
     });
-  }, [demandMap, bufferPercent, editedBookIds]);
+  }, [demandMap, bufferPercent, editedBookIds, eligibleBooks, catalogBooks]);
 
   function buyPriceOf(bookId: string, fallback = 0): number {
     return buyPriceOfBook(catalogBooks, bookId, fallback);
@@ -107,9 +106,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   const handleSupplierChange = (next: string) => {
     setPoSupplierId(next);
     setEditedBookIds(new Set());
-    const targetBooks = !next
-      ? catalogBooks
-      : catalogBooks.filter((b) => !b.supplierIds || b.supplierIds.length === 0 || b.supplierIds.includes(next));
+    const targetBooks = filterSupplierEligibleBooks(catalogBooks, next);
     const newItems = buildSupplierPoItems(targetBooks, catalogBooks, demandMap, bufferPercent);
     setPoItems(newItems);
   };
