@@ -117,6 +117,51 @@ describe("handoverPackage langsung via seam modul (T5)", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("serah terima berhasil dari saldo package_stocks tanpa baris fisik package_items", async () => {
+    const schoolId = await seedSchool("handaggr");
+    const studentId = await seedStudent(schoolId);
+    const packageId = await seedPackage("handaggr");
+    const orderId = `ord-ful-aggr-${stamp()}`;
+    const { packageStocks } = await import("../../db/schema");
+    try {
+      // Seed stok agregat paket di package_stocks (0 di package_items)
+      await db.insert(packageStocks).values({
+        id: `ps-ful-${stamp()}`,
+        packageId,
+        schoolId,
+        availableQuantity: 5,
+        reservedQuantity: 0,
+        updatedAt: now,
+      });
+
+      await db.insert(studentBookOrders).values({
+        id: orderId, orderNumber: `ORD-FUL-AGGR-${stamp()}`, studentId, schoolId, packageId,
+        orderType: "regular", paymentStatus: "paid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 160000, paidAmount: 160000, createdAt: now, updatedAt: now,
+      });
+
+      const result = await handoverPackage(db, orderId, { recipientName: "Orang Tua Aggr" });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.assignedPackageItemId).toBeNull();
+        expect(result.data.fulfillmentStatus).toBe("picked_up");
+      }
+
+      // Pastikan package_stocks berkurang dari 5 menjadi 4
+      const [ps] = await db.select().from(packageStocks).where(eq(packageStocks.packageId, packageId));
+      expect(ps.availableQuantity).toBe(4);
+
+      const [order] = await db.select().from(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      expect(order.fulfillmentStatus).toBe("picked_up");
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await db.delete(packageStocks).where(eq(packageStocks.packageId, packageId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });
 
 describe("assemble/disassemble langsung via seam modul (T5)", () => {

@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { packageItems, studentBookOrders, students } from "../../db/schema";
+import { packageItems, packageStocks, studentBookOrders, students } from "../../db/schema";
 import { canHandoverBookOrder } from "../../lib/order-handover-guard";
 import { READY_BUNDLE_STATUSES } from "./stock";
 import { d1WriteErrorStatus, runWriteBatch, writeNow, type WriteDeps } from "../lib/d1-write";
@@ -196,6 +196,12 @@ export async function handoverPackage(
     };
   }
 
+  // 1. Cek stok agregat di package_stocks
+  const [aggrStock] = await database
+    .select({ availableQuantity: packageStocks.availableQuantity })
+    .from(packageStocks)
+    .where(and(eq(packageStocks.packageId, order.packageId), eq(packageStocks.schoolId, order.schoolId)));
+
   const [availableBundle] = await database
     .select()
     .from(packageItems)
@@ -209,7 +215,11 @@ export async function handoverPackage(
     .orderBy(packageItems.createdAt)
     .limit(1);
 
-  if (!availableBundle) {
+  const aggrAvailable = aggrStock?.availableQuantity;
+  const physicalAvailable = availableBundle ? 1 : 0;
+  const totalAvailable = Math.max(aggrAvailable ?? 0, physicalAvailable);
+
+  if (totalAvailable < 1) {
     return {
       ok: false,
       status: 400,
@@ -218,15 +228,22 @@ export async function handoverPackage(
     };
   }
 
+  const assignedPackageItemId = availableBundle?.id ?? null;
+  const bundleUpdates = availableBundle
+    ? [
+        database
+          .update(packageItems)
+          .set({ status: "delivered", updatedAt: now })
+          .where(eq(packageItems.id, availableBundle.id)),
+      ]
+    : [];
+
   try {
     await runWriteBatch(database, [
-      database
-        .update(packageItems)
-        .set({ status: "delivered", updatedAt: now })
-        .where(eq(packageItems.id, availableBundle.id)),
+      ...bundleUpdates,
       database
         .update(studentBookOrders)
-        .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, availableBundle.id))
+        .set(handoverOrderPatch(orderNotes, deliveryNumber, now, input, assignedPackageItemId))
         .where(eq(studentBookOrders.id, orderId)),
       database.update(students).set({ hasTakenPackage: true, packageReceivedAt: now, updatedAt: now }).where(eq(students.id, order.studentId)),
       emitChargeQuery(database, {
@@ -237,6 +254,19 @@ export async function handoverPackage(
         goodsAmount: order.totalAmount,
       }, deps),
     ]);
+
+    // Kurangi saldo paket teralokasi dari stok cabang
+    await moveInventoryStock(
+      database,
+      {
+        movementType: "handover",
+        itemType: "package",
+        packageId: order.packageId,
+        schoolId: order.schoolId,
+        quantity: 1,
+      },
+      deps
+    );
   } catch (err) {
     const mapped = d1WriteErrorStatus(err, "serah terima paket");
     if (mapped) return { ok: false, ...mapped };
@@ -251,7 +281,7 @@ export async function handoverPackage(
       handoverDate: now,
       handoverRecipient: input.recipientName,
       fulfillmentStatus: "picked_up",
-      assignedPackageItemId: availableBundle.id,
+      assignedPackageItemId,
     },
   };
 }
