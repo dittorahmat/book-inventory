@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { School } from "../types";
-import { isBookWarehouseStaffRole, isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { isBookWarehouseStaffRole, type StaffRole } from "../lib/staff-roles";
 import { usePackagesData, type PackageRow } from "../components/packages/usePackagesData";
 import { usePackagesFilter } from "../components/packages/usePackagesFilter";
 import { PackageCard } from "../components/packages/PackageCard";
@@ -9,6 +9,7 @@ import { CreatePackageModal } from "../components/packages/CreatePackageModal";
 import { EditPackageModal } from "../components/packages/EditPackageModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { useRoamingLocation } from "../lib/location-helpers";
 
 type BookPackage = PackageRow;
 
@@ -20,13 +21,12 @@ interface PackagesViewProps {
 
 /** Orkestrator tipis (cerminan CatalogView): data-hook + filter-hook + kartu + modal. */
 export function PackagesView({ activeSchool, schools = [], userRole }: PackagesViewProps) {
-  const isGlobalUser = isCentralRole(userRole) || isLogisticsRole(userRole);
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeSchool?.id ?? "");
-  const effectiveSchoolId = (isGlobalUser && selectedSchoolId) ? selectedSchoolId : (activeSchool?.id ?? "");
-
-  const effectiveSchool = useMemo(() => {
-    return schools.find((s) => s.id === effectiveSchoolId) || activeSchool;
-  }, [schools, effectiveSchoolId, activeSchool]);
+  const {
+    isGlobalUser,
+    effectiveSchoolId,
+    effectiveSchool,
+    setSelectedSchoolId,
+  } = useRoamingLocation(activeSchool, schools, userRole);
 
   const {
     packages,

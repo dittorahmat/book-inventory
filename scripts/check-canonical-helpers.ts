@@ -44,6 +44,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "setVariantStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
   { name: "calculateDedupMetrics", owner: "src/lib/intake-dedup.ts", module: "lib/intake-dedup" },
   { name: "selectInChunks", owner: "src/server/lib/d1-write.ts", module: "server/lib/d1-write" },
+  { name: "useRoamingLocation", owner: "src/lib/location-helpers.ts", module: "lib/location-helpers" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */

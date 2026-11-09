@@ -7,7 +7,8 @@ import { DirectSaleModal, type TransferLinePreview } from "../components/invento
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
-import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { useRoamingLocation } from "../lib/location-helpers";
+import type { StaffRole } from "../lib/staff-roles";
 
 interface InventoryViewProps {
   activeSchool: School | null;
@@ -16,13 +17,12 @@ interface InventoryViewProps {
 }
 
 export function InventoryView({ activeSchool, schools = [], userRole }: InventoryViewProps) {
-  const isGlobalUser = isCentralRole(userRole) || isLogisticsRole(userRole);
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeSchool?.id ?? "");
-  const effectiveSchoolId = (isGlobalUser && selectedSchoolId) ? selectedSchoolId : (activeSchool?.id ?? "");
-
-  const effectiveSchool = useMemo(() => {
-    return schools.find((s) => s.id === effectiveSchoolId) || activeSchool;
-  }, [schools, effectiveSchoolId, activeSchool]);
+  const {
+    isGlobalUser,
+    effectiveSchoolId,
+    effectiveSchool,
+    setSelectedSchoolId,
+  } = useRoamingLocation(activeSchool, schools, userRole);
 
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);

@@ -87,7 +87,7 @@ Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`, `sr
 ## 8. YAGNI, One-Liner Discipline & Single-Writer
 
 - Dilarang speculative generality: wrapper sekali pakai wajib jadi fungsi polos atau inline.
-- Helper duplikat dikanonikalisasi ke pemilik tunggal (`lib/curriculum.ts`, `lib/transfer-pricing.ts`, `lib/book-pricing.ts`, `lib/api.ts`, `lib/staff-roles.ts`, `lib/book-return.ts`, dsb.). Penegak mekanis: `check:canonical-helpers` + `check:single-writer`.
+- Helper duplikat dikanonikalisasi ke pemilik tunggal (`lib/curriculum.ts`, `lib/transfer-pricing.ts`, `lib/book-pricing.ts`, `lib/api.ts`, `lib/staff-roles.ts`, `lib/location-helpers.ts`, `lib/book-return.ts`, dsb.). Penegak mekanis: `check:canonical-helpers` + `check:single-writer`.
 - Kode mati dihapus beserta test-nya (`check:dead`).
 - Dilarang hardcoded host path (`D:/...`, `C:\...`) di seluruh skrip/kode (`check:no-hardcoded-paths`).
 - Prefer one-liner ekspresif (`map`/`filter`/`reduce`/`??`). Pengecualian D1: `Promise.all` hanya untuk query BACA independen; TULIS wajib sekuensial atau satu `db.batch()`.
