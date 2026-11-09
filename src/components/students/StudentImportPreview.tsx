@@ -48,7 +48,7 @@ export function StudentImportPreview({
                   <th className="p-2">NIS</th>
                   <th className="p-2">Nama</th>
                   <th className="p-2">Kelas</th>
-                  <th className="p-2">Kurikulum</th>
+                  <th className="p-2">Program</th>
                   <th className="p-2">Gender</th>
                 </tr>
               </thead>

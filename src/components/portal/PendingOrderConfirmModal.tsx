@@ -68,7 +68,7 @@ export function PendingOrderConfirmModal({
         </div>
 
         <div className="text-xs text-[#65676B] leading-relaxed">
-          Pilih <strong>Ganti Pesanan Lama</strong> jika ada revisi kurikulum / ukuran / paket. Pembayaran lama akan dialihkan otomatis dan kelebihan dana diterbitkan refund slip. Atau pilih <strong>Pesanan Baru Terpisah</strong> jika ingin menambah {itemLabel} baru.
+          Pilih <strong>Ganti Pesanan Lama</strong> jika ada revisi program / ukuran / paket. Pembayaran lama akan dialihkan otomatis dan kelebihan dana diterbitkan refund slip. Atau pilih <strong>Pesanan Baru Terpisah</strong> jika ingin menambah {itemLabel} baru.
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 pt-2">

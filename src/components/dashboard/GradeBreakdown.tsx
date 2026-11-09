@@ -5,7 +5,7 @@ import { formatCount } from "../../lib/transfer-pricing";
 export function GradeBreakdown({ breakdown }: { breakdown: DashboardTierBreakdown[] }) {
   const rows = [...breakdown].sort((a, b) => b.shortfall - a.shortfall || b.waitingOrders - a.waitingOrders);
   return (
-    <ChartCard title="Per Jenjang" subtitle="Siswa, antrean, dan kesiapan per kelas dan kurikulum">
+    <ChartCard title="Per Jenjang" subtitle="Siswa, antrean, dan kesiapan per kelas dan program">
       {rows.length === 0 ? (
         <ChartEmpty message="Belum ada data siswa pada sekolah ini." hint="Daarkan siswa lewat tab Siswa atau portal publik." />
       ) : (

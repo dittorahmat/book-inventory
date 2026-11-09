@@ -159,14 +159,14 @@ export function CreatePackageModal({ catalogBooks, createPackage, onClose, onCre
 
             <div>
               <SearchableSingleSelect
-                label="Kurikulum *"
+                label="Program *"
                 options={[
                   { value: "international", label: "Internasional (Cambridge)" },
                   { value: "national", label: "Nasional (Kemendikbud)" },
                 ]}
                 value={newPkgCurriculum}
                 onChange={(v) => setNewPkgCurriculum(v as "international" | "national")}
-                placeholder="Pilih kurikulum..."
+                placeholder="Pilih program..."
                 required
               />
             </div>

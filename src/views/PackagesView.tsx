@@ -135,7 +135,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
         <div className="w-full sm:w-64">
           <SearchableSingleSelect
             options={[
-              { value: "all", label: "Semua Program / Kurikulum" },
+              { value: "all", label: "Semua Program Belajar" },
               { value: "TK", label: "TK / Preschool" },
               { value: "INTER", label: "SD Internasional" },
               { value: "AE", label: "Al-Wildan English (AE)" },
@@ -145,7 +145,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
             ]}
             value={selectedCurriculum}
             onChange={setSelectedCurriculum}
-            placeholder="Filter kurikulum..."
+            placeholder="Filter program..."
           />
         </div>
       </div>

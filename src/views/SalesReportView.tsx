@@ -301,7 +301,7 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
 
           <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
             <header className="px-5 py-3 border-b border-[#E4E6EB]">
-              <h2 className="text-sm font-bold text-[#050505]">Per Program (Kurikulum · Kelas)</h2>
+              <h2 className="text-sm font-bold text-[#050505]">Per Program &amp; Jenjang</h2>
             </header>
             {(report.byProgram ?? []).length === 0 ? (
               <p className="px-5 py-8 text-xs text-[#65676B] text-center">
