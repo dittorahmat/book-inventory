@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
-import { bookItems, bookPackageItems, bookPackageSchools, bookPackages, books, packageItems } from "../../db/schema";
+import { bookItems, bookPackageItems, bookPackageSchools, bookPackages, books, bookStocks, packageItems, packageStocks } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
 import {
   AVAILABLE_LOOSE_STATUSES,
@@ -140,6 +140,13 @@ export async function getStockPotentials(
   // "siap" dan "tersedia" berubah di satu tempat.
   const readyByPkg = tallyPackagesByKey(readyRows, (r) => r.packageId);
 
+  // Ambil saldo paket siap dari tabel agregat package_stocks
+  const aggrPackageRows = await database
+    .select({ packageId: packageStocks.packageId, availableQuantity: packageStocks.availableQuantity })
+    .from(packageStocks)
+    .where(eq(packageStocks.schoolId, schoolId));
+  const aggrReadyMap = new Map(aggrPackageRows.map((r) => [r.packageId, r.availableQuantity ?? 0]));
+
   const looseRows: Array<{ bookId: string; status: string; condition: string }> = await database
     .select({ bookId: bookItems.bookId, status: bookItems.status, condition: bookItems.condition })
     .from(bookItems)
@@ -152,6 +159,13 @@ export async function getStockPotentials(
     );
   const looseTallies = tallyLooseByKey(looseRows, (r) => r.bookId);
 
+  // Ambil saldo buku satuan dari tabel agregat book_stocks
+  const aggrBookRows = await database
+    .select({ bookId: bookStocks.bookId, availableQuantity: bookStocks.availableQuantity })
+    .from(bookStocks)
+    .where(eq(bookStocks.schoolId, schoolId));
+  const aggrBookMap = new Map(aggrBookRows.map((r) => [r.bookId, r.availableQuantity ?? 0]));
+
   const bomByPkg = new Map<string, typeof bom>();
   for (const row of kitBomWithoutWpr(bom)) {
     const list = bomByPkg.get(row.packageId) ?? [];
@@ -163,7 +177,10 @@ export async function getStockPotentials(
     const components = bomByPkg.get(pkg.id) ?? [];
     let maxPossibleBundles = Infinity;
     const looseStockBreakdown = components.map((item) => {
-      const availableCount = looseTallies.get(item.bookId)?.byConditionAvailable.new ?? 0;
+      const physicalCount = looseTallies.get(item.bookId)?.byConditionAvailable.new ?? 0;
+      const aggrCount = aggrBookMap.get(item.bookId);
+      // Prioritaskan stok agregat jika tercatat; fallback ke fisik jika belum tercatat
+      const availableCount = aggrCount !== undefined ? aggrCount : physicalCount;
       const canMake = Math.floor(availableCount / item.quantityNeeded);
       if (canMake < maxPossibleBundles) maxPossibleBundles = canMake;
       return {
@@ -175,10 +192,15 @@ export async function getStockPotentials(
         maxBundlesFromComponent: canMake,
       };
     });
+
+    const physicalReady = readyByPkg.get(pkg.id)?.readyQty ?? 0;
+    const aggrReady = aggrReadyMap.get(pkg.id);
+    const readyBundleCount = aggrReady !== undefined ? aggrReady : physicalReady;
+
     return {
       packageId: pkg.id,
       schoolId,
-      readyBundleCount: readyByPkg.get(pkg.id)?.readyQty ?? 0,
+      readyBundleCount,
       maxPossibleBundles: maxPossibleBundles === Infinity ? 0 : maxPossibleBundles,
       looseStockBreakdown,
     };
