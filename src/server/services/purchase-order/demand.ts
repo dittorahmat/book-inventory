@@ -12,11 +12,14 @@ import { currentAcademicYear } from "../../../lib/wib-time";
 import {
   calcBufferQty,
   calcDemandQty,
+  resolveInitialOrderQty,
 } from "../../../lib/po-demand";
 import { readSettingsMap } from "../settings-map";
 import { resolveWarehouseId } from "./workflow";
+import { books, bookSuppliers } from "../../../db/schema";
+import { effectiveBookPrice } from "../../../lib/book-pricing";
 
-export { calcBufferQty, calcDemandQty };
+export { calcBufferQty, calcDemandQty, resolveInitialOrderQty };
 
 export const PO_BUFFER_PERCENTAGE_KEY = "po_buffer_percentage";
 export const DEFAULT_PO_BUFFER_PERCENTAGE = 10;
@@ -26,12 +29,24 @@ export interface BookDemandItem {
   studentCount: number;
   warehouseStock: number;
   recommendedOrderQty: number;
+  unitPrice?: number;
+}
+
+export interface ProposedPOItem {
+  bookId: string;
+  title: string;
+  isbn?: string;
+  unitPrice: number;
+  quantityOrdered: number;
+  studentCount: number;
+  warehouseStock: number;
 }
 
 export interface BookDemandSummary {
   academicYear: string;
   bufferPercentage: number;
   items: Record<string, BookDemandItem>;
+  proposedItems?: ProposedPOItem[];
 }
 
 /**
@@ -56,6 +71,7 @@ export async function calculateBookDemandSummary(
     academicYear?: string;
     bufferPercentage?: number;
     bookIds?: string[];
+    supplierId?: string;
   }
 ): Promise<BookDemandSummary> {
   const year = options?.academicYear?.trim() || currentAcademicYear();
@@ -197,9 +213,42 @@ export async function calculateBookDemandSummary(
     };
   }
 
+  let proposedItems: ProposedPOItem[] | undefined;
+  if (options?.supplierId) {
+    const eligible = await database
+      .select({
+        id: books.id,
+        title: books.title,
+        isbn: books.isbn,
+        buyPrice: books.buyPrice,
+        price: books.price,
+      })
+      .from(books)
+      .innerJoin(bookSuppliers, eq(books.id, bookSuppliers.bookId))
+      .where(eq(bookSuppliers.supplierId, options.supplierId));
+
+    proposedItems = eligible.map((b) => {
+      const demand = items[b.id];
+      const sCount = demand?.studentCount ?? 0;
+      const wStock = demand?.warehouseStock ?? 0;
+      const initialQty = resolveInitialOrderQty(sCount, bufferPercentage, wStock);
+      const buyPrice = effectiveBookPrice(b).buy;
+      return {
+        bookId: b.id,
+        title: b.title,
+        isbn: b.isbn ?? undefined,
+        unitPrice: buyPrice,
+        quantityOrdered: initialQty,
+        studentCount: sCount,
+        warehouseStock: wStock,
+      };
+    });
+  }
+
   return {
     academicYear: year,
     bufferPercentage,
     items,
+    proposedItems,
   };
 }

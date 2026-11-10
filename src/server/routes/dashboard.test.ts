@@ -481,4 +481,14 @@ describe("Executive Dashboard Summary API", () => {
       await db.delete(schools).where(eq(schools.id, schId));
     }
   });
+
+  it("delegates to getSchoolDashboardSummary deep seam with query object", async () => {
+    mockActor("central_admin", null);
+    const res = await dashboardRouter.request("/summary", { method: "GET" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.mode).toBe("comparison");
+    expect(body.data.total).toBeDefined();
+  });
 });
