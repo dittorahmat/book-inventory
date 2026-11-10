@@ -19,6 +19,8 @@ interface SearchableSingleSelectProps {
   disabled?: boolean;
   emptyText?: string;
   error?: string | null;
+  /** Sembunyikan tombol 'X' (clear) pada select jika sudah ada aksi hapus baris eksternal */
+  hideClearButton?: boolean;
 }
 
 /** Dropdown tunggal searchable: trigger + popover + filter ketikan + keyboard. */
@@ -34,6 +36,7 @@ export function SearchableSingleSelect({
   disabled,
   emptyText = "Tidak ada hasil yang cocok.",
   error,
+  hideClearButton,
 }: SearchableSingleSelectProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -80,7 +83,7 @@ export function SearchableSingleSelect({
           {required ? " *" : ""}
         </label>
       ) : null}
-      <div className="flex gap-2">
+      <div className="flex gap-2 min-w-0">
         <button
           id={inputId}
           type="button"
@@ -88,22 +91,22 @@ export function SearchableSingleSelect({
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex-1 px-3 py-2 bg-white border rounded-xl text-xs text-left text-[#050505] flex items-center justify-between gap-2 focus:outline-hidden disabled:opacity-60 transition-colors ${
+          className={`flex-1 min-w-0 px-3 py-2 bg-white border rounded-xl text-xs text-left text-[#050505] flex items-center justify-between gap-2 focus:outline-hidden disabled:opacity-60 transition-colors ${
             error ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-200" : "border-[#CED0D4] focus:border-[#1877F2]"
           }`}
         >
-          <span className={selected ? "font-medium truncate" : "text-[#65676B] truncate"}>
+          <span className={selected ? "font-medium truncate min-w-0" : "text-[#65676B] truncate min-w-0"}>
             {selected ? selected.label : placeholder}
           </span>
           <ChevronDown className="w-4 h-4 shrink-0 text-[#65676B]" />
         </button>
-        {value && !required ? (
+        {value && !required && !hideClearButton ? (
           <button
             type="button"
             onClick={() => onChange("")}
             disabled={disabled}
             aria-label="Bersihkan pilihan"
-            className="px-2.5 py-2 border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] active:scale-[0.98] disabled:opacity-50"
+            className="px-2.5 py-2 border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] active:scale-[0.98] disabled:opacity-50 shrink-0"
           >
             <X className="w-4 h-4 text-[#65676B]" />
           </button>

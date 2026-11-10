@@ -9,8 +9,14 @@ import {
   students,
 } from "../../../db/schema";
 import { currentAcademicYear } from "../../../lib/wib-time";
+import {
+  calcBufferQty,
+  calcDemandQty,
+} from "../../../lib/po-demand";
 import { readSettingsMap } from "../settings-map";
 import { resolveWarehouseId } from "./workflow";
+
+export { calcBufferQty, calcDemandQty };
 
 export const PO_BUFFER_PERCENTAGE_KEY = "po_buffer_percentage";
 export const DEFAULT_PO_BUFFER_PERCENTAGE = 10;
@@ -37,16 +43,6 @@ export async function getPoBufferSetting(database: AppDatabase): Promise<number>
   if (!raw) return DEFAULT_PO_BUFFER_PERCENTAGE;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_PO_BUFFER_PERCENTAGE;
-}
-
-/**
- * Formula kanonik perhitungan kuantitas kebutuhan pesanan dengan buffer:
- * CEIL(studentCount * (1 + bufferPercent / 100)).
- */
-export function calcDemandQty(studentCount: number, bufferPercent: number): number {
-  if (!Number.isFinite(studentCount) || studentCount <= 0) return 0;
-  const safeBuffer = Number.isFinite(bufferPercent) && bufferPercent >= 0 ? bufferPercent : 0;
-  return Math.ceil(studentCount * (1 + safeBuffer / 100));
 }
 
 /**
@@ -192,7 +188,7 @@ export async function calculateBookDemandSummary(
   for (const bId of targetIds) {
     const sCount = studentCountMap.get(bId) ?? 0;
     const wStock = stockMap.get(bId) ?? 0;
-    const rec = calcDemandQty(sCount, bufferPercentage);
+    const rec = calcDemandQty(sCount, bufferPercentage, wStock);
     items[bId] = {
       bookId: bId,
       studentCount: sCount,
