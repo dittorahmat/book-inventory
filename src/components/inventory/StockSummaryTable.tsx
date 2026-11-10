@@ -1,5 +1,6 @@
 import { Boxes, Package } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { isWprBook } from "../../lib/wpr";
 import type { LooseSummaryRow, PackageSummaryRow } from "../../types/stock-summary";
 
 interface StockSummaryTableProps {
@@ -68,10 +69,18 @@ export function StockSummaryTable({
               <tbody className="divide-y divide-[#E4E6EB]">
                 {looseRows.map((row) => {
                   const key = `loose:${row.bookId}`;
+                  const isWpr = isWprBook({ id: row.bookId, title: row.title, isbn: row.isbn });
                   return (
                     <tr key={row.bookId} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-[#050505]">{row.title}</div>
+                        <div className="flex items-center gap-1.5 font-semibold text-[#050505]">
+                          <span>{row.title}</span>
+                          {isWpr && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                              Layanan Non-Fisik
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-[#65676B] font-mono">{row.isbn}</div>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -126,10 +135,18 @@ export function StockSummaryTable({
           <ul className="md:hidden divide-y divide-[#E4E6EB]">
             {looseRows.map((row) => {
               const key = `loose:${row.bookId}`;
+              const isWpr = isWprBook({ id: row.bookId, title: row.title, isbn: row.isbn });
               return (
                 <li key={row.bookId} className="px-4 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-semibold text-xs text-[#050505] truncate">{row.title}</div>
+                    <div className="flex items-center gap-1.5 font-semibold text-xs text-[#050505] truncate">
+                      <span className="truncate">{row.title}</span>
+                      {isWpr && (
+                        <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          Non-Fisik
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] text-[#65676B]">
                       {row.availableQty} tersedia &bull; {formatRupiah(row.sellPrice)}
                     </div>

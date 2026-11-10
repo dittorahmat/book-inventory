@@ -8,10 +8,10 @@ export const WPR_PRICE = 750000;
 export const isWprBook = (book: { id?: string | null; title?: string | null; isbn?: string | null }): boolean => {
   if (!book) return false;
   if (book.id === WPR_BOOK_ID) return true;
-  const isbn = (book.isbn ?? "").toUpperCase();
-  if (isbn === WPR_ISBN || isbn.includes("WPR") || isbn.includes("WEEKLY-PROGRESS-REPORT")) return true;
-  const title = (book.title ?? "").toLowerCase();
-  return title.includes("weekly progress report");
+  const isbn = (book.isbn ?? "").trim().toUpperCase();
+  if (isbn === WPR_ISBN || isbn === "BK-PRE-WPR" || isbn.startsWith("BK-SDPG-WEEKLY-PROGRESS-REPORT") || isbn.startsWith("BK-SD1-WEEKLY-PROGRESS-REPORT") || isbn.startsWith("BK-SD1-PROGRAM-WEEKLY-PROGRESS-REPORT")) return true;
+  const title = (book.title ?? "").trim().toLowerCase();
+  return title === "weekly progress report" || title === "weekly progress report 1 tahun" || title === "program weekly progress report 1 tahun" || title === "weekly progress report preschool";
 };
 
 /** True bila order satuan wajib menanggung WPR: belum ada order paket untuk murid tersebut. */
