@@ -50,6 +50,22 @@ export type { StaffRole };
 export type DashboardActor = AccessActor;
 export const DashboardHttpError = AccessHttpError;
 
+export interface SchoolDashboardQuery {
+  actor: DashboardActor | null;
+  schoolId?: string;
+}
+
+/**
+ * Deep Domain Service: Mengenkapsulasi pipeline pembacaan terpartisi dan kompilasi
+ * ringkasan metrik cabang/gudang tanpa mengekspos tipe data-clump mentah.
+ */
+export async function getSchoolDashboardSummary(
+  database: AppDatabase,
+  query: SchoolDashboardQuery
+): Promise<DashboardSummaryPayload> {
+  return getDashboardSummary(database, query.actor, query.schoolId);
+}
+
 /**
  * Ambil baris ringkasan terpartisi scope sekolah di WHERE SQL (§11 anti
  * Pindai Penuh): tabel milik sekolah difilter `school IN scope`, katalog

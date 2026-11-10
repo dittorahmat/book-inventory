@@ -5,7 +5,7 @@ import { db } from "../../db";
 import { requireAuthenticatedActor, resolveRequestActor } from "../services/access-scope";
 import {
   DashboardHttpError,
-  getDashboardSummary,
+  getSchoolDashboardSummary,
 } from "../services/reporting";
 import {
   ExecutiveDashboardHttpError,
@@ -46,7 +46,7 @@ dashboardRouter.get("/summary", zValidator("query", summaryQuerySchema), async (
     // Di dalam try: kegagalan resolve actor (mis. session rusak)
     // dipetakan rapi, bukan jatuh ke envelope 500 generik.
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
-    const data = await getDashboardSummary(db, actor, schoolId);
+    const data = await getSchoolDashboardSummary(db, { actor, schoolId });
     return c.json({ success: true, data });
   } catch (err) {
     if (err instanceof DashboardHttpError) {
