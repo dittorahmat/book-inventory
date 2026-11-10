@@ -54,6 +54,23 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                   <span className="font-mono text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">{book.isbn}</span>
                   <span className="text-xs font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</span>
                 </div>
+                {book.packages && book.packages.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {book.packages.slice(0, 3).map((pkg) => (
+                      <span
+                        key={pkg.packageId}
+                        className="text-[9px] font-semibold bg-[#E7F3FF] text-[#1877F2] px-1.5 py-0.5 rounded"
+                      >
+                        {pkg.gradeLevel ? `Kelas ${pkg.gradeLevel}` : pkg.code}
+                      </span>
+                    ))}
+                    {book.packages.length > 3 && (
+                      <span className="text-[9px] text-[#65676B] px-1 py-0.5">
+                        +{book.packages.length - 3} paket
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {(onEdit || onRemove) && (
@@ -127,6 +144,23 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                   <td className="py-3 px-4">
                     <div className="font-bold text-[#050505] text-sm">{book.title}</div>
                     <div className="text-xs text-[#65676B]">{book.author}</div>
+                    {book.packages && book.packages.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {book.packages.slice(0, 3).map((pkg) => (
+                          <span
+                            key={pkg.packageId}
+                            className="text-[9px] font-semibold bg-[#E7F3FF] text-[#1877F2] px-1.5 py-0.5 rounded"
+                          >
+                            {pkg.gradeLevel ? `Kls ${pkg.gradeLevel}` : pkg.code}
+                          </span>
+                        ))}
+                        {book.packages.length > 3 && (
+                          <span className="text-[9px] text-[#65676B] px-1 py-0.5">
+                            +{book.packages.length - 3} paket
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-[#65676B]">{book.isbn}</td>
                   <td className="py-3 px-4 text-[#65676B] font-medium">{book.publisher}</td>

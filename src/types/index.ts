@@ -20,12 +20,21 @@ export interface User {
   school?: School | null;
 }
 
+export interface BookPackageRef {
+  packageId: string;
+  code: string;
+  name: string;
+  gradeLevel: string;
+  curriculumType: string;
+}
+
 export interface Book {
   id: string;
   isbn: string;
   title: string;
   publicTitle?: string | null;
   supplierIds?: string[];
+  packages?: BookPackageRef[];
   author: string;
   publisher: string;
   publishYear?: number;

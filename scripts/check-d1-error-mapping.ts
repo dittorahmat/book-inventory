@@ -31,9 +31,14 @@ interface Unmapped {
 
 const REGISTERED_UNMAPPED: Unmapped[] = [
   {
-    file: "src/server/routes/books.ts",
+    file: "src/server/services/book-packages.ts",
     reason:
-      "dua catch di sekitar replaceBookSuppliers sudah mengembalikan 400 dengan pesan domain (baris ~178/~209); catch itu juga membawa error domain 'Supplier tidak ditemukan', jadi memetakan lewat helper kanonik butuh membelah dua jalur error tanpa manfaat nyata.",
+      "replaceBookPackages memvalidasi keberadaan paket di awal, sisa kegagalan = infra/bug.",
+  },
+  {
+    file: "src/server/services/book-suppliers.ts",
+    reason:
+      "replaceBookSuppliers memvalidasi keberadaan supplier di awal, pemanggil di books.ts menangani 400 dengan pesan domain.",
   },
   {
     file: "src/server/services/email/factory.ts",
