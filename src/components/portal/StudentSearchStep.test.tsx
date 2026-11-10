@@ -160,7 +160,7 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
     fireEvent.click(ubahBtn);
 
     expect(screen.getByText("Penyesuaian Program Belajar")).toBeDefined();
-    expect(screen.getByText(/Pembaruan program mandiri untuk Anak Edit Kurikulum/i)).toBeDefined();
+    expect(screen.getByText(/Pembaruan program untuk Anak Edit Kurikulum/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Simpan Perubahan/i })).toBeDefined();
   });
 });

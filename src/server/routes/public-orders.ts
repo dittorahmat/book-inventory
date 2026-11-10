@@ -227,7 +227,7 @@ publicOrdersRouter.patch(
     }
     return c.json({
       success: true,
-      message: "Kurikulum berhasil diperbarui",
+      message: "Program berhasil diperbarui",
       data: result.data,
     });
   }

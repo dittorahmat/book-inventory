@@ -2113,6 +2113,7 @@ describe("Struk bayar ganda di intake publik", () => {
       expect(res.status).toBe(200);
       const json = (await res.json()) as {
         success: boolean;
+        message?: string;
         data: {
           id: string;
           curriculumType: string;
@@ -2121,6 +2122,7 @@ describe("Struk bayar ganda di intake publik", () => {
         };
       };
       expect(json.success).toBe(true);
+      expect(json.message).toBe("Program berhasil diperbarui");
       expect(json.data.curriculumType).toBe("MQ");
       expect(json.data.canOrder).toBe(true);
 

@@ -95,7 +95,7 @@ export function StudentCurriculumOverrideModal({
               Penyesuaian Program Belajar
             </h3>
             <p className="text-xs text-[#65676B] mt-0.5">
-              Pembaruan program mandiri untuk {student.name} ({student.schoolName})
+              Pembaruan program untuk {student.name} ({student.schoolName})
             </p>
           </div>
           <button

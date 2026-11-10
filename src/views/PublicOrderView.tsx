@@ -71,7 +71,7 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
           <div>
             <div className="text-center mb-8">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#050505]">
-                Pemesanan Paket Buku Program
+                Pemesanan Paket Buku Program Belajar
               </h1>
               <p className="text-xs text-[#65676B] mt-1 max-w-md mx-auto">
                 Layanan mandiri pemesanan buku Al Wildan untuk murid baru, kenaikan kelas, dan beasiswa.
