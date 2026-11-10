@@ -424,4 +424,93 @@ describe("Books alias + supplier M2M (#143)", () => {
     expect(cleanDel.status).toBe(200);
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
+
+  it("supports reading and updating package associations (packageIds) via books API", async () => {
+    const stamp = Date.now();
+    const bookId = `b-pkg-assoc-${stamp}`;
+    const pkgId1 = `pkg-assoc-1-${stamp}`;
+    const pkgId2 = `pkg-assoc-2-${stamp}`;
+    const now = new Date().toISOString();
+    const { bookPackages, bookPackageItems } = await import("../../db/schema");
+
+    mockActor("warehouse_admin", "school-warehouse");
+
+    await db.insert(bookPackages).values([
+      {
+        id: pkgId1,
+        code: `PKG-A-${String(stamp).slice(-6)}`,
+        name: "Paket Kelas 1 Inter",
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        price: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: pkgId2,
+        code: `PKG-B-${String(stamp).slice(-6)}`,
+        name: "Paket Kelas 2 Inter",
+        gradeLevel: "2",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        price: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `978-PKG-${String(stamp).slice(-6)}`,
+      title: "Buku Multi Paket",
+      author: "Penulis Uji",
+      publisher: "Penerbit Uji",
+      sellPrice: 35000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      // 1. Update book untuk mengaitkan ke pkgId1
+      const patchRes = await booksRouter.request(`/${bookId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageIds: [pkgId1] }),
+      });
+      expect(patchRes.status).toBe(200);
+      const patchJson = await patchRes.json();
+      expect(patchJson.data.packages).toHaveLength(1);
+      expect(patchJson.data.packages[0].packageId).toBe(pkgId1);
+
+      // 2. Baca single detail
+      const getRes = await booksRouter.request(`/${bookId}`, { method: "GET" });
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson.data.packages).toHaveLength(1);
+      expect(getJson.data.packages[0].name).toBe("Paket Kelas 1 Inter");
+
+      // 3. Update book untuk mengganti ke pkgId1 dan pkgId2
+      const patchRes2 = await booksRouter.request(`/${bookId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageIds: [pkgId1, pkgId2] }),
+      });
+      expect(patchRes2.status).toBe(200);
+      const patchJson2 = await patchRes2.json();
+      expect(patchJson2.data.packages).toHaveLength(2);
+
+      // 4. Verifikasi di list GET /
+      const listRes = await booksRouter.request("/", { method: "GET" });
+      expect(listRes.status).toBe(200);
+      const listJson = await listRes.json();
+      const found = listJson.data.find((b: { id: string }) => b.id === bookId);
+      expect(found).toBeDefined();
+      expect(found.packages).toHaveLength(2);
+    } finally {
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(bookPackages).where(inArray(bookPackages.id, [pkgId1, pkgId2]));
+    }
+  });
 });
