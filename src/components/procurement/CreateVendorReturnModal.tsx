@@ -210,7 +210,7 @@ export function CreateVendorReturnModal({
                       placeholder="Pilih Judul Buku..."
                     />
                   </div>
-                  <div className="w-20">
+                  <div className="w-20 min-w-[70px]">
                     <input
                       type="number"
                       min="1"
@@ -221,7 +221,7 @@ export function CreateVendorReturnModal({
                         })
                       }
                       placeholder="Qty"
-                      className="w-full px-2 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] text-center"
+                      className="w-full px-2 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs text-[#050505] text-center font-bold"
                     />
                   </div>
                   {items.length > 1 && (

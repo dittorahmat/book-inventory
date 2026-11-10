@@ -3,19 +3,17 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./index.css";
 
-// Cegah perubahan nilai tak disengaja pada input number saat mouse wheel diputar
+// Cegah perubahan nilai tak disengaja pada input number saat mouse wheel diputar (tanpa menghilangkan fokus pengetikan)
 if (typeof window !== "undefined") {
   window.addEventListener(
     "wheel",
-    () => {
-      if (
-        document.activeElement instanceof HTMLInputElement &&
-        document.activeElement.type === "number"
-      ) {
-        document.activeElement.blur();
+    (e: WheelEvent) => {
+      const target = e.target;
+      if (target instanceof HTMLInputElement && target.type === "number") {
+        e.preventDefault();
       }
     },
-    { passive: true }
+    { passive: false }
   );
 }
 

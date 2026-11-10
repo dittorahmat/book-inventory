@@ -73,3 +73,8 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. Tipe data dashboard eksekutif dikelola secara terpusat di `src/lib/dashboard-types.ts`; service backend wajib mengimpor langsung tipe tersebut tanpa deklarasi duplikat di `*-types.ts` lokal.
 4. Agregasi piutang (*outstanding debt*) dashboard wajib memanggil predikat kanonik `isOpenOrder(order.paymentStatus)` sebelum menjumlahkan `outstandingOf(order)`, guna mengecualikan pesanan batal atau pesanan yang telah lunas/non-aktif.
 
+### §0.72. Standar Input Numerik & Proteksi Interaksi Angka
+1. **Penghilangan Stepper**: Seluruh input angka (`input[type="number"]`) wajib bersih dari *stepper* / *spin-button* bawaan browser desktop secara global via `src/index.css` (`-webkit-appearance: none; appearance: textfield;`).
+2. **Proteksi Scroll Wheel**: Cegah perubahan angka tak disengaja saat pengguna menggulir mouse wheel di atas input numerik (`e.preventDefault()` pada target `input[type="number"]`), dilarang memanggil `document.activeElement.blur()` yang mengaborsi fokus pengetikan kursor pengguna.
+3. **Proporsi Ruang & Anti-Truncate**: Kotak input angka (Qty, Diskon, dsb.) wajib memiliki lebar minimum yang memadai (minimal `min-w-[50px]` hingga `min-w-[70px]`) dan padding proporsional (`px-1.5` atau `px-2`), menjamin angka multi-digit terlihat utuh tanpa terpotong tepi border.
+
