@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 You have been provided a spec. This spec should have tickets associated with it, describing how to implement the spec.
 
-> **Repo override (book-inventory): abaikan worktree/subagent di bawah — lihat AGENTS.md §4. Eksekusi sekuensial langsung di satu integration branch, satu tiket per commit.**
+> **Repo mandate (book-inventory): Wajib gunakan worktree baru dengan memilih salah satu folder kosong di antara `book1`, `book2`, atau `book3` (hubungkan junction node_modules lewat `bun scripts/worktree-setup.ts <branch> <target-dir>` sesuai AGENTS.md §6.5). Dilarang mengimplementasikan perubahan langsung di root repo `book-inventory`. Eksekusi tiket dilakukan sekuensial di worktree tersebut, satu tiket per commit.**
 
 The issue tracker should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
 
