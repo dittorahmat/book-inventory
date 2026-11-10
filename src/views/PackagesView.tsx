@@ -45,7 +45,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
 
   // Bundling / Unbundling Modal State
   const [modalPkg, setModalPkg] = useState<BookPackage | null>(null);
-  const [modalMode, setModalMode] = useState<"bundle" | "unbundle">("bundle");
+  const [modalMode, setModalMode] = useState<"bundle" | "unbundle" | "recall_unbundle">("bundle");
 
   // Create Package Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -180,6 +180,7 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
               stock={stockMap[pkg.id]}
               catalogBooks={catalogBooks}
               isExpanded={expandedPackageId === pkg.id}
+              isBranchLocation={effectiveSchool?.type === "branch"}
               onToggleExpand={() => setExpandedPackageId(expandedPackageId === pkg.id ? null : pkg.id)}
               onOpenBundling={(mode) => {
                 setModalPkg(pkg);

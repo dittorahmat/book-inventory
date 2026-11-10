@@ -55,6 +55,7 @@ bookReturnsRouter.post("/", zValidator("json", returnBookSchema), async (c) => {
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
+
     return c.json({ success: true, message: "Laporan retur/refund buku berhasil disimpan", data: result.created }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);

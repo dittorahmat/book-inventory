@@ -71,6 +71,7 @@ export interface UpdateStudentCurriculumPayload {
   parentPhone: string;
   curriculumType: string;
   stream?: string | null;
+  schoolApprovalProofBase64?: string;
 }
 
 export const updateStudentCurriculum = (

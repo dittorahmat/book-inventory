@@ -8,6 +8,7 @@ import { detectImageMime } from "../../../lib/book-return";
 import { WPR_BOOK_ID } from "../../../lib/wpr";
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { isOrderReportable, RETURN_OPEN_STATUSES } from "./flow";
+import { recordStockAdjustment } from "../stock";
 
 /**
  * Resolusi ID buku untuk retur pembatalan pengunduran diri (withdrawal):
@@ -235,5 +236,23 @@ export async function reportReturn(
   }
 
   const [created] = await database.select().from(bookReturns).where(eq(bookReturns.id, returnId));
+
+  // Issue #385: Jika pesanan sebelumnya berstatus picked_up dan retur fisik dilaporkan oleh staf,
+  // pulihkan stok buku satuan ke cabang melalui recordStockAdjustment secara domain-driven
+  if (input.source === "staff" && order.fulfillmentStatus === "picked_up" && order.schoolId && defectiveBookId) {
+    try {
+      await recordStockAdjustment(database, {
+        schoolId: order.schoolId,
+        itemType: "loose",
+        bookId: defectiveBookId,
+        quantity: 1,
+        reason: "manual_correction",
+        notes: `Retur fisik buku pasca-ambil: ${input.reason}`,
+      });
+    } catch {
+      // Adjustment dicatat best-effort tanpa membatalkan pembuatan dokumen retur
+    }
+  }
+
   return { ok: true, created, orderNumber: order.orderNumber };
 }

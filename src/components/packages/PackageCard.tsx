@@ -11,8 +11,9 @@ interface PackageCardProps {
   stock: StockPotential | undefined;
   catalogBooks: Book[];
   isExpanded: boolean;
+  isBranchLocation?: boolean;
   onToggleExpand: () => void;
-  onOpenBundling: (mode: "bundle" | "unbundle") => void;
+  onOpenBundling: (mode: "bundle" | "unbundle" | "recall_unbundle") => void;
   onOpenTransfer?: () => void;
   onOpenEdit?: () => void;
   deletePackage: (packageId: string) => Promise<void>;
@@ -24,6 +25,7 @@ export function PackageCard({
   stock,
   catalogBooks,
   isExpanded,
+  isBranchLocation,
   onToggleExpand,
   onOpenBundling,
   onOpenTransfer,
@@ -126,6 +128,18 @@ export function PackageCard({
             >
               Bongkar
             </button>
+
+            {isBranchLocation && (
+              <button
+                onClick={() => onOpenBundling("recall_unbundle")}
+                disabled={readyCount <= 0}
+                title="Tarik stok paket cabang ke gudang pusat & bongkar satuan"
+                className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 disabled:opacity-40 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Tarik ke Gudang & Bongkar
+              </button>
+            )}
 
             {onOpenTransfer && (
               <button

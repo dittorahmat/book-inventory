@@ -325,4 +325,46 @@ describe("Book Returns & Refund API", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("increases loose stock on physical return submission for picked up order", async () => {
+    const stamp = Date.now();
+    const schoolId = await seedSchool(`school-phy-${stamp}`, "branch");
+    const bookId = await seedBook(`book-phy-${stamp}`);
+    const studentId = await seedStudent(`stu-phy-${stamp}`, schoolId);
+    const orderId = `ord-phy-${stamp}`;
+    const now = new Date().toISOString();
+
+    try {
+      await db.insert(studentBookOrders).values({
+        id: orderId,
+        orderNumber: `ORD-PHY-${stamp}`,
+        studentId,
+        schoolId,
+        fulfillmentStatus: "picked_up",
+        paymentStatus: "paid",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await bookReturnsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          studentId,
+          defectiveBookId: bookId,
+          reason: "Retur fisik ganti kurikulum",
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.message).toContain("berhasil disimpan");
+    } finally {
+      await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+      await dropSeed({ schoolIds: [schoolId], studentIds: [studentId], bookIds: [bookId] });
+    }
+  });
 });

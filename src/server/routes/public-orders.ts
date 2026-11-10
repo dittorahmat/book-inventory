@@ -31,6 +31,7 @@ import {
   toConfirmOrderView,
 } from "../services/public-order";
 import { updateStudentCurriculum } from "../services/student-curriculum-override";
+import { resolveRequestActor } from "../services/access-scope";
 import { CURRICULUM_TYPES, STREAMS } from "../../db/schema";
 import { publicOrderReturnsRouter } from "./public-order-returns";
 export const publicOrdersRouter = new Hono();
@@ -211,9 +212,10 @@ const updateCurriculumSchema = z.object({
   parentPhone: z.string().min(6, "Nomor telepon/WA wajib diisi minimal 6 karakter"),
   curriculumType: z.enum(CURRICULUM_TYPES),
   stream: z.enum(STREAMS).optional().nullable(),
+  schoolApprovalProofBase64: base64UploadSchema,
 });
 
-// 1b. Update student curriculum & stream independently by parent (Issue #338)
+// 1b. Update student curriculum & stream independently by parent / staff (Issue #338 & #385)
 publicOrdersRouter.patch(
   "/students/:id/curriculum",
   zValidator("param", z.object({ id: idSchema })),
@@ -221,7 +223,8 @@ publicOrdersRouter.patch(
   async (c) => {
     const { id: studentId } = c.req.valid("param");
     const body = c.req.valid("json");
-    const result = await updateStudentCurriculum(db, studentId, body);
+    const actor = await resolveRequestActor(c);
+    const result = await updateStudentCurriculum(db, studentId, { ...body, actor });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -229,6 +232,7 @@ publicOrdersRouter.patch(
       success: true,
       message: "Program berhasil diperbarui",
       data: result.data,
+      replacementResult: result.replacementResult,
     });
   }
 );
