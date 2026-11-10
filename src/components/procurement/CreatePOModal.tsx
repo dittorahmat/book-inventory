@@ -249,7 +249,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
                     max={100}
                     value={bufferPercent}
                     onChange={(e) => handleBufferPercentChange(Number(e.target.value))}
-                    className="w-12 px-1.5 py-0.5 bg-white border border-[#CED0D4] rounded text-xs text-center font-bold text-[#1877F2]"
+                    className="w-14 px-2 py-0.5 bg-white border border-[#CED0D4] rounded text-xs text-center font-bold text-[#1877F2]"
                     title="Persentase cadangan pesanan di atas jumlah siswa"
                   />
                 </div>

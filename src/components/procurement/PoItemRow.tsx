@@ -66,7 +66,7 @@ export function PoItemRow({
       </div>
 
       {/* 3. Input Qty Pesan */}
-      <div className="col-span-4 sm:col-span-2 lg:col-span-1 min-w-0">
+      <div className="col-span-4 sm:col-span-2 lg:col-span-1 min-w-[56px]">
         <label className="block text-[10px] text-[#65676B] mb-0.5 text-center">Qty Pesan</label>
         <input
           type="number"
@@ -74,7 +74,7 @@ export function PoItemRow({
           placeholder="0"
           value={item.quantityOrdered === 0 ? "" : item.quantityOrdered}
           onChange={(e) => onUpdate(idx, "quantityOrdered", e.target.value)}
-          className="w-full px-2 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2] focus:border-[#1877F2] focus:outline-hidden"
+          className="w-full px-1.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs text-center font-bold text-[#1877F2] focus:border-[#1877F2] focus:outline-hidden"
           title={`Formula: max(0, Up Buffer ${upBuffer} - Stok ${wStock}) = ${Math.max(0, upBuffer - wStock)}`}
         />
       </div>
@@ -90,13 +90,13 @@ export function PoItemRow({
           tabIndex={-1}
           placeholder="0"
           value={item.unitPrice === 0 ? "" : item.unitPrice}
-          className="w-full px-2.5 py-1.5 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg text-xs font-semibold text-right text-[#65676B] cursor-not-allowed select-none"
+          className="w-full px-2 py-1.5 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg text-xs font-semibold text-right text-[#65676B] cursor-not-allowed select-none"
           title="Harga satuan terkunci mengikuti harga beli di katalog"
         />
       </div>
 
       {/* 5. Diskon (%) */}
-      <div className="col-span-3 sm:col-span-1 lg:col-span-1 min-w-0">
+      <div className="col-span-3 sm:col-span-1 lg:col-span-1 min-w-[50px]">
         <label className="block text-[10px] text-[#65676B] mb-0.5 text-right">Diskon %</label>
         <input
           type="number"
@@ -105,7 +105,7 @@ export function PoItemRow({
           placeholder="0"
           value={item.discountPercent === 0 ? "" : item.discountPercent}
           onChange={(e) => onUpdate(idx, "discountPercent", e.target.value)}
-          className="w-full px-2 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right focus:border-[#1877F2] focus:outline-hidden"
+          className="w-full px-1.5 py-1.5 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right focus:border-[#1877F2] focus:outline-hidden"
         />
       </div>
 
