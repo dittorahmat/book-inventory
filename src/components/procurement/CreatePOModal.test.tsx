@@ -1,6 +1,6 @@
 import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
-const { cleanup, fireEvent, render, screen } = await import("@testing-library/react");
+const { cleanup, render, screen } = await import("@testing-library/react");
 import { CreatePOModal } from "./CreatePOModal";
 import type { Book } from "../../types";
 import type { Supplier } from "./procurement-types";
@@ -63,11 +63,18 @@ describe("CreatePOModal with supplier auto-population and demand buffer", () => 
     expect(screen.getByText("Terbitkan Purchase Order (PO) Baru")).toBeDefined();
     // Buffer label & input
     expect(screen.getByText(/Buffer \(%\):/i)).toBeDefined();
-    // Klik Tambah Judul Buku
-    const addButton = screen.getByRole("button", { name: /Tambah Judul Buku/i });
-    fireEvent.click(addButton);
 
-    // Sekarang buku supplier Cambridge muncul di baris
+    // Seluruh buku supplier Cambridge langsung auto-populate ke tabel
     expect(screen.getByText("Cambridge Primary Math 1")).toBeDefined();
+    expect(screen.getByText("Cambridge Primary Science 1")).toBeDefined();
+
+    // Kolom pembuktian angka logistik tampil
+    expect(screen.getAllByText("Siswa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Up 10%/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Stok Gudang").length).toBeGreaterThan(0);
+
+    // Karena kedua buku sudah ada di tabel, tombol Tambah Judul Buku ter-disable
+    const addButton = screen.getByRole("button", { name: /Tambah Judul Buku/i });
+    expect(addButton.getAttribute("disabled")).toBeDefined();
   });
 });
