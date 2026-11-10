@@ -425,3 +425,60 @@ describe("Dashboard scope resolution (branch isolation)", () => {
     expect(() => scopeOf(null, "unknown", all)).toThrow(DashboardHttpError);
   });
 });
+
+describe("Executive Dashboard Summary API", () => {
+  const stamp = Date.now().toString(36);
+  const schId = `exec-sch-${stamp}`;
+
+  it("denies access to non-central-admin roles", async () => {
+    mockActor("branch_admin", schId);
+    const res = await dashboardRouter.request("/executive/summary", { method: "GET" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns executive summary with KPIs and breakdowns for central_admin", async () => {
+    mockActor("central_admin", null);
+    const nowIso = new Date().toISOString();
+    await db.insert(schools).values({ id: schId, name: "Exec Test School", code: `EX-${stamp}`.slice(0, 10), type: "branch", createdAt: nowIso, updatedAt: nowIso });
+    const stu1 = `exec-stu-1-${stamp}`;
+    const stu2 = `exec-stu-2-${stamp}`;
+    await db.insert(students).values([
+      { id: stu1, schoolId: schId, nis: `NIS-1-${stamp}`.slice(0, 20), name: "Siswa 1", gradeLevel: "1", academicYear: "2026/2027", createdAt: nowIso, updatedAt: nowIso },
+      { id: stu2, schoolId: schId, nis: `NIS-2-${stamp}`.slice(0, 20), name: "Siswa 2", gradeLevel: "1", academicYear: "2025/2026", createdAt: nowIso, updatedAt: nowIso },
+    ]);
+    const ord1 = `exec-ord-1-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: ord1,
+      orderNumber: `ORD-1-${stamp}`.slice(0, 30),
+      studentId: stu1,
+      schoolId: schId,
+      paymentStatus: "paid",
+      fulfillmentStatus: "picked_up",
+      totalAmount: 150000,
+      paidAmount: 150000,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    try {
+      const res = await dashboardRouter.request("/executive/summary?academicYear=2026/2027&compareAcademicYear=2025/2026", { method: "GET" });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.academicYear).toBe("2026/2027");
+      expect(body.data.compareAcademicYear).toBe("2025/2026");
+      expect(body.data.kpis.cash.realizedRp.current).toBeGreaterThanOrEqual(150000);
+      expect(body.data.kpis.orders.totalOrders.current).toBeGreaterThanOrEqual(1);
+      expect(body.data.kpis.students.totalStudents.current).toBeGreaterThanOrEqual(1);
+      const schCash = body.data.breakdowns.cash.find((c: { schoolId: string }) => c.schoolId === schId);
+      expect(schCash).toBeDefined();
+      expect(schCash.realizedRp).toBe(150000);
+      expect(body.data.breakdowns.cash.length).toBeGreaterThan(0);
+    } finally {
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, ord1));
+      await db.delete(students).where(eq(students.id, stu1));
+      await db.delete(students).where(eq(students.id, stu2));
+      await db.delete(schools).where(eq(schools.id, schId));
+    }
+  });
+});
