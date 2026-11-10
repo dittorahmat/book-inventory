@@ -48,6 +48,10 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "isSyntheticStockId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
   { name: "makeSyntheticBookStockId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
   { name: "parseSyntheticBookId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
+  { name: "exportCsvFile", owner: "src/lib/csv-export.ts", module: "lib/csv-export" },
+  { name: "calcBufferQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
+  { name: "calcDemandQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
+  { name: "resolveInitialOrderQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
@@ -70,6 +74,9 @@ const typeDefinitionOf = (name: string): RegExp =>
 
 /** Re-implementasi escape HTML manual (jejak `.replace(/&/g, "&amp;")`). */
 const HTML_ESCAPE_REIMPL = /\.replace\(\s*\/&\s*\/g\s*,\s*["'`]&amp;/;
+
+/** Re-implementasi download CSV manual (jejak `new Blob` dengan csv/text di komponen UI). */
+const CSV_DOWNLOAD_REIMPL = /new\s+Blob\(\s*\[.*\]\s*,\s*\{\s*type:\s*["'`]text\/csv/;
 
 const isScanned = (file: string): boolean => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file);
 
@@ -99,6 +106,9 @@ for (const { file, line } of lines) {
   }
   if (file !== "src/server/services/email/po-template.ts" && HTML_ESCAPE_REIMPL.test(text)) {
     hits.push(`${file}: escape HTML manual — pakai \`escapeHtml\` dari services/email/po-template (baris: ${text})`);
+  }
+  if (file !== "src/lib/csv-export.ts" && CSV_DOWNLOAD_REIMPL.test(text)) {
+    hits.push(`${file}: download CSV manual via Blob — pakai \`exportCsvFile\` dari lib/csv-export (baris: ${text})`);
   }
 }
 
