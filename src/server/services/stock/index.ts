@@ -76,3 +76,5 @@ export type { VendorReturnDisposeCandidate } from "./vendor-return";
 export { planVendorReturnDispose } from "./vendor-return";
 export type { AutoKitOptions, AutoKitResult, AutoKitSummary } from "./auto-kit";
 export { autoKitMaxPackages } from "./auto-kit";
+export type { KitPackageOptions, KitPackageResult, KittingError } from "./package-kitting";
+export { kitPackage } from "./package-kitting";

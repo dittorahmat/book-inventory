@@ -1264,4 +1264,61 @@ describe("PO supplier exclusivity (#143)", () => {
       await db.delete(books).where(eq(books.id, bookId));
     }
   });
+
+  it("returns proposedItems projected with buy price and initial qty when supplierId is provided", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const supplierId = `sup-prop-${stamp}`;
+    const bookId = `b-prop-${stamp}`;
+
+    await db.insert(suppliers).values({
+      id: supplierId,
+      code: `SUP-PROP-${stamp}`,
+      name: "Supplier Proposed Test",
+      type: "book",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `ISBN-PROP-${stamp}`,
+      title: "Buku Proposed Test",
+      author: "Penulis",
+      publisher: "Penerbit",
+      price: 50000,
+      buyPrice: 35000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { and } = await import("drizzle-orm");
+    const { bookSuppliers } = await import("../../db/schema");
+    await db.insert(bookSuppliers).values({
+      bookId,
+      supplierId,
+      createdAt: now,
+    });
+
+    try {
+      mockActor("central_admin", null);
+      const res = await procurementRouter.request(
+        `/book-demand-summary?supplierId=${supplierId}&bufferPercentage=10`,
+        { method: "GET" }
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data.proposedItems)).toBe(true);
+      const item = json.data.proposedItems.find((p: { bookId: string; unitPrice: number; quantityOrdered: number }) => p.bookId === bookId);
+      expect(item).toBeDefined();
+      expect(item.unitPrice).toBe(35000);
+      expect(item.quantityOrdered).toBe(10); // fallback for 0 demand & 0 stock
+    } finally {
+      mockActor("central_admin", null);
+      await db.delete(bookSuppliers).where(and(eq(bookSuppliers.bookId, bookId), eq(bookSuppliers.supplierId, supplierId)));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+    }
+  });
 });

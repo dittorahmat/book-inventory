@@ -71,7 +71,8 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
 3. **Penyatuan Lifecycle Paket & Pembatalan**: Operasi kitting/unbundling dan modifikasi BOM buku memusat pada deep module `src/server/services/package/index.ts`. Alur pembatalan/pengunduran diri murid (`order-withdrawal`) memusat pada `src/server/services/order-withdrawal/index.ts` untuk buku dan seragam.
 4. **Auto-Kit Perakitan Paket Maksimum & Single-Writer Seam**:
    - Layanan perakitan paket otomatis berbasis BOM dan saldo agregat buku berlokasi di domain `src/server/services/stock/auto-kit.ts` dan diekspos melalui barrel `src/server/services/stock/index.ts`. Dilarang meletakkan file service logika bisnis langsung di root `src/server/` (ditegakkan mekanis oleh `check:server-structure`).
-   - Setiap debit komponen buku satuan dan kredit penambahan paket wajib melalui seam `moveInventoryStock` dengan `movementType: "assembly"`.
+   - Setiap debit komponen buku satuan dan kredit penambahan paket wajib melalui seam `moveInventoryStock` dengan `movementType: "assembly"`. Dilarang menggunakan `movementType: "handover"` untuk konsumsi buku rakitan BOM (handover dikhususkan untuk penyerahan fisik buku ke siswa).
+   - Pada pembongkaran paket fisik atau penarikan cabang (`disassemble` / `recall`), pemulihan buku satuan ke rak gudang/cabang wajib menggunakan `movementType: "disassembly"` pada buku satuan dan paket.
    - Script runner eksternal (`scripts/auto-kit-runner.ts`) dilarang melakukan kalkulasi/mutasi stok mentah sendiri; wajib memanggil `autoKitMaxPackages` dan menyediakan flag `--dry-run` untuk preview kalkulasi sebelum eksekusi mutasi ke database.
 5. **Pemisahan Tabel Stok Agregat Aktif vs Unit Barcode Historis**:
    - Saldo operasional buku satuan dan bundel paket hidup di tabel agregat `book_stocks` dan `package_stocks`.
