@@ -10,6 +10,8 @@ import {
   stockAdjustments,
   studentBookOrders,
   students,
+  transferShipmentItems,
+  transferShipments,
 } from "../../../db/schema";
 import type {
   ExecutiveBranchCashBreakdown,
@@ -19,7 +21,7 @@ import type {
   ExecutiveBranchStudentBreakdown,
   ExecutiveDashboardSummary,
 } from "../../../lib/dashboard-types";
-import { outstandingOf } from "../stock/buckets";
+import { isOpenOrder, outstandingOf } from "../stock/buckets";
 import { selectInChunks } from "../../lib/d1-write";
 import { AccessHttpError, type AccessActor } from "../access-scope";
 import { computeMetric, initSchoolMaps, type PeriodMetrics } from "./executive-dashboard-types";
@@ -69,29 +71,45 @@ export async function getExecutiveDashboardSummary(
     stockBySchool: Map<string, ExecutiveBranchStockBreakdown>;
     poBySchool: Map<string, ExecutiveBranchPoBreakdown>;
   }> {
-    const [periodStudents, periodOrders, periodStocks, periodPackageStocks, periodAdjs, periodPos] = await Promise.all([
+    // Estimasi range tahun ajaran: misal "2026/2027" -> 2026-07-01 s/d 2027-06-30
+    const [startYearStr, endYearStr] = targetYear.split("/");
+    const periodStart = startYearStr ? `${startYearStr}-07-01` : "2026-07-01";
+    const periodEnd = endYearStr ? `${endYearStr}-06-30T23:59:59` : "2027-06-30T23:59:59";
+
+    const [periodStudents, periodOrders, periodStocks, periodPackageStocks, periodAdjs, periodPos, shipmentRows] = await Promise.all([
       selectInChunks(scopedSchoolIds, (c) => database.select().from(students).where(inArray(students.schoolId, c))),
       selectInChunks(scopedSchoolIds, (c) => database.select().from(studentBookOrders).where(inArray(studentBookOrders.schoolId, c))),
       selectInChunks(scopedSchoolIds, (c) => database.select().from(bookStocks).where(inArray(bookStocks.schoolId, c))),
       selectInChunks(scopedSchoolIds, (c) => database.select().from(packageStocks).where(inArray(packageStocks.schoolId, c))),
       selectInChunks(scopedSchoolIds, (c) => database.select().from(stockAdjustments).where(inArray(stockAdjustments.schoolId, c))),
       selectInChunks(scopedSchoolIds, (c) => database.select().from(purchaseOrders).where(inArray(purchaseOrders.targetSchoolId, c))),
+      database.select().from(transferShipments),
     ]);
 
     const activeStudents = periodStudents.filter((s) => s.academicYear === targetYear);
     const activeStudentIds = new Set(activeStudents.map((s) => s.id));
     const activeOrders = periodOrders.filter((o) => activeStudentIds.has(o.studentId));
 
+    // Filter PO berdasarkan orderDate atau createdAt di periode tahun ajaran
+    const activePos = periodPos.filter((po) => {
+      const d = po.orderDate || po.createdAt;
+      return d >= periodStart && d <= periodEnd;
+    });
+
     const { cashMap, orderMap, studentMap, stockMap, poMap } = initSchoolMaps(schoolRows);
 
     const studentGradeCount = new Map<string, Map<string, { total: number; ordered: number }>>();
+    const studentGradeMap = new Map<string, { schoolId: string; grade: string }>();
+
     for (const st of activeStudents) {
       const schStudent = studentMap.get(st.schoolId);
       if (schStudent) schStudent.totalStudents += 1;
 
+      const g = st.gradeLevel || "Lainnya";
+      studentGradeMap.set(st.id, { schoolId: st.schoolId, grade: g });
+
       if (!studentGradeCount.has(st.schoolId)) studentGradeCount.set(st.schoolId, new Map());
       const gradeMap = studentGradeCount.get(st.schoolId)!;
-      const g = st.gradeLevel || "Lainnya";
       const curr = gradeMap.get(g) ?? { total: 0, ordered: 0 };
       curr.total += 1;
       gradeMap.set(g, curr);
@@ -101,7 +119,17 @@ export async function getExecutiveDashboardSummary(
     const studentFulfilledSet = new Set<string>();
 
     for (const ord of activeOrders) {
-      studentOrderSet.add(ord.studentId);
+      if (!studentOrderSet.has(ord.studentId)) {
+        studentOrderSet.add(ord.studentId);
+        // Naikkan ordered counter pada grade breakdown
+        const stInfo = studentGradeMap.get(ord.studentId);
+        if (stInfo && studentGradeCount.has(stInfo.schoolId)) {
+          const gMap = studentGradeCount.get(stInfo.schoolId)!;
+          const curr = gMap.get(stInfo.grade);
+          if (curr) curr.ordered += 1;
+        }
+      }
+
       if (ord.fulfillmentStatus === "picked_up") studentFulfilledSet.add(ord.studentId);
 
       const schOrder = orderMap.get(ord.schoolId);
@@ -116,7 +144,10 @@ export async function getExecutiveDashboardSummary(
       }
       if (schCash) {
         schCash.realizedRp += ord.paidAmount || 0;
-        schCash.outstandingRp += outstandingOf(ord);
+        // Hanya hitung piutang untuk pesanan aktif (isOpenOrder: unpaid, partial)
+        if (isOpenOrder(ord.paymentStatus)) {
+          schCash.outstandingRp += outstandingOf(ord);
+        }
         if (ord.paymentStatus === "paid") schCash.paidCount += 1;
         else schCash.unpaidCount += 1;
       }
@@ -164,11 +195,33 @@ export async function getExecutiveDashboardSummary(
       const schStock = stockMap.get(ps.schoolId);
       if (schStock) schStock.packageStock += ps.availableQuantity + ps.reservedQuantity;
     }
-    for (const adj of periodAdjs) {
+
+    // Filter adjustments by targetYear date range
+    const activeAdjs = periodAdjs.filter((adj) => adj.createdAt >= periodStart && adj.createdAt <= periodEnd);
+    for (const adj of activeAdjs) {
       const schStock = stockMap.get(adj.schoolId);
       if (schStock) schStock.adjustmentUnits += Math.abs(adj.quantity);
     }
-    for (const po of periodPos) {
+
+    // Ambil pergerakan transfer masuk & keluar untuk periode ini
+    const activeShipments = shipmentRows.filter((sh) => (sh.dispatchedAt || "") >= periodStart && (sh.dispatchedAt || "") <= periodEnd);
+    if (activeShipments.length > 0) {
+      const shIds = activeShipments.map((s) => s.id);
+      const shipItems = await selectInChunks(shIds, (c) => database.select().from(transferShipmentItems).where(inArray(transferShipmentItems.shipmentId, c)));
+      const itemsByShipment = new Map<string, number>();
+      for (const it of shipItems) {
+        itemsByShipment.set(it.shipmentId, (itemsByShipment.get(it.shipmentId) || 0) + it.quantity);
+      }
+      for (const sh of activeShipments) {
+        const count = itemsByShipment.get(sh.id) || 0;
+        const fromSch = stockMap.get(sh.fromSchoolId);
+        const toSch = stockMap.get(sh.toSchoolId);
+        if (fromSch) fromSch.outboundUnits += count;
+        if (toSch) toSch.inboundUnits += count;
+      }
+    }
+
+    for (const po of activePos) {
       const schPo = poMap.get(po.targetSchoolId);
       if (schPo) {
         schPo.poCount += 1;
