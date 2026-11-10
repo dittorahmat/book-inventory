@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PackageCheck, X } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { postJson } from "../../lib/api";
 import type { InternalShipment } from "../../lib/internal-orders-types";
 
@@ -20,6 +21,8 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [transferShipmentId, setTransferShipmentId] = useState("");
   const [deliveryProofUrl, setDeliveryProofUrl] = useState("");
+  const [attempted, setAttempted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,6 +32,7 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
     reader.onload = () => {
       if (typeof reader.result === "string") {
         setDeliveryProofUrl(reader.result);
+        setFormError(null);
       }
     };
     reader.readAsDataURL(file);
@@ -36,10 +40,12 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAttempted(true);
     if (!deliveryProofUrl.trim()) {
-      alert("Wajib mengunggah atau menyertakan URL/bukti dokumen Surat Jalan yang sudah ditandatangani dan dicap.");
+      setFormError("Wajib mengunggah scan/foto dokumen Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.");
       return;
     }
+    setFormError(null);
     setIsSubmitting(true);
     try {
       const result = await postJson<{ shipmentId: string; status: string }>(
@@ -82,6 +88,7 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 p-6 text-xs">
+          <FormSummaryAlert errors={{ proof: formError ?? undefined }} />
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">
               Upload Dokumen Surat Jalan Bertanda Tangan & Cap <span className="text-red-500">*</span>
@@ -89,9 +96,10 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
             <input
               type="file"
               accept="image/*,.pdf"
-              required
               onChange={handleFileUpload}
-              className="w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5]"
+              className={`w-full text-xs text-[#65676B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white hover:file:bg-[#166FE5] ${
+                attempted && !deliveryProofUrl.trim() ? "border-red-500 rounded-lg p-1" : ""
+              }`}
             />
             {deliveryProofUrl ? (
               <p className="mt-1 text-[11px] font-semibold text-emerald-600">
@@ -102,6 +110,7 @@ export function ReceiveInternalShipmentModal({ shipment, onClose, onReceived }: 
                 Wajib unggah scan/foto dokumen Surat Jalan yang sudah ditandatangani dan dicap oleh kepala sekolah/staf cabang.
               </p>
             )}
+            <FormFieldFeedback error={attempted && !deliveryProofUrl.trim() ? "Surat Jalan bertanda tangan wajib diunggah" : undefined} />
           </div>
           <div>
             <label className="mb-1 block font-semibold text-[#050505]">ID Transfer Fisik Tertaut (Opsional)</label>

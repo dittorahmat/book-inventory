@@ -49,6 +49,7 @@ export interface InternalShipment {
   receivedDate: string | null;
   receivedByUserId: string | null;
   status: string;
+  deliveryProofUrl?: string | null;
   notes: string | null;
   createdAt: string;
   items: InternalShipmentItem[];
