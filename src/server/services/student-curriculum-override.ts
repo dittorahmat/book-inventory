@@ -1,13 +1,24 @@
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { type AppDatabase } from "../../db";
-import { students, schools, studentBookOrders, bookPackages, bookReturns, type CurriculumType, type StreamType } from "../../db/schema";
+import {
+  students,
+  schools,
+  studentBookOrders,
+  bookPackages,
+  bookReturns,
+  type CurriculumType,
+  type StreamType,
+} from "../../db/schema";
 import { toBookSearchView } from "./public-order";
 import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 import { resolveLockedPackage } from "../../lib/resolve-package";
 import { handleOrderReplacement, type PaymentReallocationResult } from "./order-reallocation";
 import { LOGISTICS_ROLES, type AccessActor } from "./access-scope";
+import { newWriteId, writeNow, type WriteDeps } from "../lib/d1-write";
+import { documentNumber, isoTimeFragment, randomSerial } from "../lib/document-number";
 
-export interface UpdateStudentCurriculumInput {
+export interface ProgramChangeRequest {
+  studentId: string;
   nis: string;
   parentName: string;
   parentPhone: string;
@@ -17,7 +28,7 @@ export interface UpdateStudentCurriculumInput {
   actor?: AccessActor | null;
 }
 
-export type UpdateStudentCurriculumResult =
+export type ProgramChangeResult =
   | {
       ok: true;
       data: ReturnType<typeof toBookSearchView>;
@@ -29,18 +40,26 @@ export type UpdateStudentCurriculumResult =
       message: string;
     };
 
+export type UpdateStudentCurriculumInput = Omit<ProgramChangeRequest, "studentId">;
+export type UpdateStudentCurriculumResult = ProgramChangeResult;
+
 /**
- * Memperbarui program & peminatan siswa (Issue #338 & #385).
- * Hanya diizinkan untuk peran LOGISTICS_ROLES atau branch_admin dengan lampiran surat persetujuan sekolah.
- * Mengunci mutasi langsung jika buku fisik sudah diserahterimakan (picked_up) dan belum ada retur fisik yang disetujui/dilaporkan.
+ * Deep Domain Engine: Mengatur siklus hidup pergantian program & peminatan siswa.
+ * Mengenkapsulasi:
+ * 1. Otorisasi peran (Logistik Pusat / PIC Cabang).
+ * 2. Validasi bukti surat persetujuan sekolah.
+ * 3. Guard fisik serah terima (mencegah ganti program jika buku sudah picked_up tanpa retur).
+ * 4. Penimpaan pesanan lama secara atomik via handleOrderReplacement & Payment-Ledger.
+ * 5. Pembaruan data siswa dan penyelarasan view pencarian buku.
  */
-export async function updateStudentCurriculum(
+export async function changeStudentProgram(
   database: AppDatabase,
-  studentId: string,
-  input: UpdateStudentCurriculumInput
-): Promise<UpdateStudentCurriculumResult> {
+  request: ProgramChangeRequest,
+  deps?: WriteDeps
+): Promise<ProgramChangeResult> {
+  const { studentId, actor } = request;
+
   // 1. Guard Peran (Issue #385): hanya LOGISTICS_ROLES atau branch_admin
-  const actor = input.actor;
   if (!actor) {
     return {
       ok: false,
@@ -59,7 +78,7 @@ export async function updateStudentCurriculum(
   }
 
   // 2. Guard Lampiran Persetujuan Sekolah (Issue #385)
-  if (!input.schoolApprovalProofBase64 || !input.schoolApprovalProofBase64.trim()) {
+  if (!request.schoolApprovalProofBase64 || !request.schoolApprovalProofBase64.trim()) {
     return {
       ok: false,
       status: 400,
@@ -97,8 +116,7 @@ export async function updateStudentCurriculum(
     };
   }
 
-  // Validasi kecocokan NIS
-  if (existing.nis.trim() !== input.nis.trim()) {
+  if (existing.nis.trim() !== request.nis.trim()) {
     return {
       ok: false,
       status: 400,
@@ -106,9 +124,8 @@ export async function updateStudentCurriculum(
     };
   }
 
-  // Validasi kurikulum valid sesuai jenjang kelas
   const allowedCurricula = getAvailableCurriculaForGrade(existing.gradeLevel).map((c) => c.value);
-  if (!allowedCurricula.includes(input.curriculumType)) {
+  if (!allowedCurricula.includes(request.curriculumType)) {
     return {
       ok: false,
       status: 400,
@@ -151,24 +168,24 @@ export async function updateStudentCurriculum(
     }
   }
 
-  const now = new Date().toISOString();
+  const now = writeNow(deps);
   await database
     .update(students)
     .set({
-      curriculumType: input.curriculumType,
-      stream: input.stream ?? null,
-      parentName: input.parentName.trim(),
-      parentPhone: input.parentPhone.trim(),
+      curriculumType: request.curriculumType,
+      stream: request.stream ?? null,
+      parentName: request.parentName.trim(),
+      parentPhone: request.parentPhone.trim(),
       updatedAt: now,
     })
     .where(eq(students.id, studentId));
 
   const updatedRow = {
     ...existing,
-    curriculumType: input.curriculumType,
-    stream: input.stream ?? null,
-    parentName: input.parentName.trim(),
-    parentPhone: input.parentPhone.trim(),
+    curriculumType: request.curriculumType,
+    stream: request.stream ?? null,
+    parentName: request.parentName.trim(),
+    parentPhone: request.parentPhone.trim(),
   };
 
   // 4. Jika ada pesanan belum diambil (waiting_preparation / ready_for_pickup), perbarui pesanan dan realokasi
@@ -200,17 +217,15 @@ export async function updateStudentCurriculum(
     const targetPackage = resolveLockedPackage(
       {
         targetGradeLevel: existing.gradeLevel,
-        curriculumType: input.curriculumType,
-        stream: input.stream ?? null,
+        curriculumType: request.curriculumType,
+        stream: request.stream ?? null,
       },
       candidatePackages
     );
 
     if (targetPackage) {
-      const newOrderId = crypto.randomUUID();
-      const orderDate = new Date();
-      const yyyymm = `${orderDate.getFullYear()}${String(orderDate.getMonth() + 1).padStart(2, "0")}`;
-      const newOrderNumber = `ORD-${yyyymm}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newOrderId = newWriteId(deps);
+      const newOrderNumber = documentNumber("ORD", isoTimeFragment(now, 6), randomSerial(4));
 
       try {
         await database.insert(studentBookOrders).values({
@@ -235,7 +250,6 @@ export async function updateStudentCurriculum(
         });
 
         if (!rep.ok) {
-          // Rollback pesanan baru bila penggantian gagal
           await database.delete(studentBookOrders).where(eq(studentBookOrders.id, newOrderId));
           return {
             ok: false,
@@ -258,4 +272,23 @@ export async function updateStudentCurriculum(
     data: searchView,
     replacementResult,
   };
+}
+
+/**
+ * Adapter kompatibilitas ke interface lama updateStudentCurriculum
+ */
+export async function updateStudentCurriculum(
+  database: AppDatabase,
+  studentId: string,
+  input: UpdateStudentCurriculumInput,
+  deps?: WriteDeps
+): Promise<UpdateStudentCurriculumResult> {
+  return changeStudentProgram(
+    database,
+    {
+      ...input,
+      studentId,
+    },
+    deps
+  );
 }
