@@ -13,6 +13,17 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     letter-spacing: -0.015em;
   }
+
+  /* Hilangkan stepper / spin-button panah up-down pada seluruh input type=number */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 /* Cetak PO: hanya dokumen PO yang keluar; shell aplikasi disembunyikan. */
