@@ -1,5 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
+import { mockActor, restoreActor } from "./test-actor";
 import { publicOrdersRouter } from "./public-orders";
 import { submitPublicOrder } from "../services/order-intake";
 import { MemoryStorageService, defaultStorage, setStorageService } from "../../services/storage";
@@ -2012,6 +2013,12 @@ describe("Struk bayar ganda di intake publik", () => {
   });
 
   describe("Public Student Curriculum Override API (Issue #338)", () => {
+    beforeEach(() => {
+      mockActor("branch_admin", "school-test");
+    });
+    afterEach(() => {
+      restoreActor();
+    });
     it("rejects when student is not found or NIS does not match", async () => {
       const res = await publicOrdersRouter.request("/students/st-unknown-999/curriculum", {
         method: "PATCH",
@@ -2178,6 +2185,45 @@ describe("Struk bayar ganda di intake publik", () => {
       const json = (await res.json()) as { success: boolean; message: string };
       expect(json.message).toContain("Buku fisik sudah diambil");
 
+      // Setelah retur fisik dilaporkan, perubahan kurikulum diizinkan kembali (Issue #385)
+      const bookId = `bk-ret-${stamp}`;
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `978-602-99${stamp}`,
+        title: "Buku Dikembalikan",
+        author: "Penulis",
+        publisher: "Penerbit",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const retId = `ret-pu-${stamp}`;
+      await db.insert(bookReturns).values({
+        id: retId,
+        orderId,
+        studentId,
+        defectiveBookId: bookId,
+        reason: "Retur fisik ganti program",
+        status: "reported",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const unblockedRes = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Wali Murid",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        }),
+      });
+      expect(unblockedRes.status).toBe(200);
+
+      await db.delete(bookReturns).where(eq(bookReturns.id, retId));
+      await db.delete(books).where(eq(books.id, bookId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, testSchoolId));

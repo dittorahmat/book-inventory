@@ -360,6 +360,7 @@ describe("Book Returns & Refund API", () => {
       expect(res.status).toBe(201);
       const data = await res.json();
       expect(data.success).toBe(true);
+      expect(data.message).toContain("berhasil disimpan");
     } finally {
       await db.delete(bookReturns).where(eq(bookReturns.orderId, orderId));
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
