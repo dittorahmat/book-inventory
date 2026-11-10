@@ -38,7 +38,7 @@ interface BundlingModalProps {
   pkg: BookPackage;
   activeSchool: School | null;
   stockPotential: StockPotential | null;
-  mode: "bundle" | "unbundle";
+  mode: "bundle" | "unbundle" | "recall_unbundle";
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -62,6 +62,8 @@ export function BundlingModal({
     ? (stockPotential?.maxPossibleBundles ?? 0)
     : (stockPotential?.readyBundleCount ?? 0);
 
+  const isDisassembly = mode === "unbundle" || mode === "recall_unbundle";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -75,25 +77,28 @@ export function BundlingModal({
       setErrorMsg(
         mode === "bundle"
           ? `Maksimal perakitan hanya ${maxAllowed} paket berdasarkan sisa stok satuan.`
-          : `Maksimal pembongkaran hanya ${maxAllowed} paket yang tersedia di gudang.`
+          : `Maksimal ${mode === "recall_unbundle" ? "penarikan" : "pembongkaran"} hanya ${maxAllowed} paket yang tersedia di cabang.`
       );
       return;
     }
 
-    if (mode === "unbundle" && !reason.trim()) {
-      setErrorMsg("Alasan pembongkaran paket wajib diisi.");
+    if (isDisassembly && !reason.trim()) {
+      setErrorMsg(`Alasan ${mode === "recall_unbundle" ? "penarikan" : "pembongkaran"} paket wajib diisi.`);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const endpoint = mode === "bundle"
-        ? `/api/packages/${pkg.id}/bundle`
-        : `/api/packages/${pkg.id}/unbundle`;
+      let endpoint = `/api/packages/${pkg.id}/bundle`;
+      let payload: Record<string, unknown> = { schoolId: activeSchool.id, quantity };
 
-      const payload = mode === "bundle"
-        ? { schoolId: activeSchool.id, quantity }
-        : { schoolId: activeSchool.id, quantity, reason: reason.trim() };
+      if (mode === "unbundle") {
+        endpoint = `/api/packages/${pkg.id}/unbundle`;
+        payload = { schoolId: activeSchool.id, quantity, reason: reason.trim() };
+      } else if (mode === "recall_unbundle") {
+        endpoint = `/api/packages/${pkg.id}/recall-unbundle`;
+        payload = { branchSchoolId: activeSchool.id, quantity, reason: reason.trim() };
+      }
 
       await postJson(
         endpoint,
@@ -117,15 +122,25 @@ export function BundlingModal({
         <div className="px-6 py-4 border-b border-[#E4E6EB] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              mode === "bundle" ? "bg-[#E7F3FF] text-[#1877F2]" : "bg-amber-50 text-amber-700"
+              mode === "bundle"
+                ? "bg-[#E7F3FF] text-[#1877F2]"
+                : mode === "recall_unbundle"
+                ? "bg-purple-50 text-purple-700"
+                : "bg-amber-50 text-amber-700"
             }`}>
               <Layers className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-[#050505]">
-                {mode === "bundle" ? "Rakit Paket Baru dari Stok Satuan" : "Bongkar Paket ke Stok Satuan"}
+                {mode === "bundle"
+                  ? "Rakit Paket Baru dari Stok Satuan"
+                  : mode === "recall_unbundle"
+                  ? "Tarik Paket ke Gudang & Bongkar Satuan"
+                  : "Bongkar Paket ke Stok Satuan"}
               </h3>
-              <p className="text-xs text-[#65676B]">{pkg.name} &bull; {activeSchool.name}</p>
+              <p className="text-xs text-[#65676B]">
+                {pkg.name} &bull; {mode === "recall_unbundle" ? `Dari ${activeSchool.name} ke Gudang Pusat` : activeSchool.name}
+              </p>
             </div>
           </div>
           <button
@@ -160,7 +175,7 @@ export function BundlingModal({
           {/* Quantity Input */}
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1.5">
-              Jumlah Paket yang Ingin {mode === "bundle" ? "Dirakit" : "Dibongkar"}
+              Jumlah Paket yang Ingin {mode === "bundle" ? "Dirakit" : mode === "recall_unbundle" ? "Ditarik & Dibongkar" : "Dibongkar"}
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -183,16 +198,16 @@ export function BundlingModal({
             </div>
           </div>
 
-          {mode === "unbundle" && (
+          {isDisassembly && (
             <div>
               <label className="block text-xs font-semibold text-[#050505] mb-1.5">
-                Alasan Pembongkaran (Audit Log)
+                Alasan {mode === "recall_unbundle" ? "Penarikan ke Pusat" : "Pembongkaran"} (Audit Log)
               </label>
               <textarea
                 rows={2}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Contoh: Alokasi stok satuan untuk penggantian retur buku cacat"
+                placeholder={mode === "recall_unbundle" ? "Contoh: Penarikan sisa stok paket akhir tahun ajaran ke gudang pusat" : "Contoh: Alokasi stok satuan untuk penggantian retur buku cacat"}
                 className="w-full px-3.5 py-2.5 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
               />
             </div>
@@ -243,6 +258,8 @@ export function BundlingModal({
               className={`px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5 ${
                 mode === "bundle"
                   ? "bg-[#1877F2] hover:bg-[#166FE5] disabled:bg-gray-300"
+                  : mode === "recall_unbundle"
+                  ? "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300"
                   : "bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300"
               }`}
             >
@@ -250,7 +267,13 @@ export function BundlingModal({
                 "Memproses..."
               ) : (
                 <>
-                  <span>{mode === "bundle" ? "Konfirmasi Rakit" : "Konfirmasi Bongkar"}</span>
+                  <span>
+                    {mode === "bundle"
+                      ? "Konfirmasi Rakit"
+                      : mode === "recall_unbundle"
+                      ? "Konfirmasi Tarik & Bongkar"
+                      : "Konfirmasi Bongkar"}
+                  </span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}

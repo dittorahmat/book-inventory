@@ -16,9 +16,11 @@ import {
 import {
   assemblePackage,
   disassemblePackage,
+  recallAndUnbundlePackage,
   removePackage,
   updatePackageBOM,
 } from "../services/package";
+import { idSchema } from "../lib/validators";
 import { ensurePackageHasWpr } from "../services/wpr";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 import { getStockPotentials, listPackagesWithBom } from "../services/package-stock";
@@ -51,6 +53,12 @@ const bundleActionSchema = z.object({
 
 const unbundleActionSchema = z.object({
   schoolId: z.string().min(1, "School ID is required"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  reason: z.string().min(1, "Reason is required"),
+});
+
+const recallUnbundleActionSchema = z.object({
+  branchSchoolId: idSchema,
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
   reason: z.string().min(1, "Reason is required"),
 });
@@ -259,6 +267,33 @@ packagesRouter.post("/:id/unbundle", zValidator("json", unbundleActionSchema), a
     return c.json({
       success: true,
       message: `Successfully unbundled ${quantity} packages. Restored ${result.data.restoredLooseCount} loose books to inventory.`,
+      data: result.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST Recall from branch & Auto-Unbundle to central warehouse loose stock (Issue #386)
+packagesRouter.post("/:id/recall-unbundle", zValidator("json", recallUnbundleActionSchema), async (c) => {
+  try {
+    await resolveBookLogisticsActor(c);
+    const packageId = c.req.param("id");
+    const { branchSchoolId, quantity, reason } = c.req.valid("json");
+
+    const result = await recallAndUnbundlePackage(db, {
+      packageId,
+      branchSchoolId,
+      quantity,
+      reason,
+    });
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `Berhasil menarik ${quantity} paket dari cabang dan membongkarnya menjadi ${result.data.restoredLooseCount} buku satuan di gudang pusat.`,
       data: result.data,
     });
   } catch (err) {

@@ -16,6 +16,10 @@ import {
   type DisassembleResult,
   type AssemblyError,
 } from "../package-assembly";
+import {
+  recallAndUnbundleBranchPackage,
+  type RecallUnbundlePayload,
+} from "../package-recall";
 
 export type {
   DeletePackageResult,
@@ -25,6 +29,7 @@ export type {
   AssembleResult,
   DisassembleResult,
   AssemblyError,
+  RecallUnbundlePayload,
 };
 
 /**
@@ -77,4 +82,12 @@ export async function unbundleAll(
   deps?: WriteDeps
 ): Promise<UnbundleAllResult> {
   return unbundleAllActiveBundles(database, packageId, reason, deps);
+}
+
+export async function recallAndUnbundlePackage(
+  database: AppDatabase,
+  payload: RecallUnbundlePayload,
+  deps?: WriteDeps
+): Promise<DisassembleResult> {
+  return recallAndUnbundleBranchPackage(database, payload, deps);
 }
