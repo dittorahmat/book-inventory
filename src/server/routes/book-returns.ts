@@ -13,6 +13,7 @@ import {
 import { reportReturn, resolveReturn } from "../services/return";
 import { approveStudentWithdrawal } from "../services/order-withdrawal";
 import { findRefundSlip } from "../services/refund-slip";
+import { recordStockAdjustment } from "../services/stock";
 import {
   accessErrorResponse,
   assertLocationAllowed,
@@ -55,6 +56,20 @@ bookReturnsRouter.post("/", zValidator("json", returnBookSchema), async (c) => {
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
+
+    // Issue #385: Jika pesanan berstatus picked_up dan retur fisik dilaporkan dengan sukses,
+    // kembalikan stok fisik ke cabang via recordStockAdjustment
+    if (scoped.order.schoolId && body.defectiveBookId) {
+      await recordStockAdjustment(db, {
+        schoolId: scoped.order.schoolId,
+        itemType: "loose",
+        bookId: body.defectiveBookId,
+        quantity: 1,
+        reason: "manual_correction",
+        notes: `Retur fisik buku pasca-ambil: ${body.reason}`,
+      });
+    }
+
     return c.json({ success: true, message: "Laporan retur/refund buku berhasil disimpan", data: result.created }, 201);
   } catch (err) {
     return accessErrorResponse(c, err);

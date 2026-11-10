@@ -23,6 +23,7 @@ export function StudentCurriculumOverrideModal({
   const [selectedStream, setSelectedStream] = useState<string>(student.stream ?? "");
   const [parentName, setParentName] = useState(student.parentName ?? "");
   const [parentPhone, setParentPhone] = useState(student.parentPhone ?? "");
+  const [approvalProofBase64, setApprovalProofBase64] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -30,6 +31,7 @@ export function StudentCurriculumOverrideModal({
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const parentNameInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -37,6 +39,20 @@ export function StudentCurriculumOverrideModal({
   const targetGradeNum = parseInt(effectiveGrade, 10);
   const isHighSchool = !Number.isNaN(targetGradeNum) && targetGradeNum >= 10;
   const availableCurricula = getAvailableCurriculaForGrade(effectiveGrade);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setApprovalProofBase64("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setApprovalProofBase64(reader.result as string);
+      if (attempted) setErrors((prev) => ({ ...prev, approvalProof: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +69,10 @@ export function StudentCurriculumOverrideModal({
     const phoneCheck = validatePhone(parentPhone);
     if (!phoneCheck.valid) newErrors.parentPhone = phoneCheck.message;
 
+    if (!approvalProofBase64.trim()) {
+      newErrors.approvalProof = "Surat persetujuan mutasi program dari sekolah wajib diunggah";
+    }
+
     if (isHighSchool && !selectedStream) {
       newErrors.stream = "Peminatan (IPA/IPS) wajib dipilih untuk jenjang SMA";
     }
@@ -64,6 +84,8 @@ export function StudentCurriculumOverrideModal({
         parentNameInputRef.current.focus();
       } else if (newErrors.parentPhone && phoneInputRef.current) {
         phoneInputRef.current.focus();
+      } else if (newErrors.approvalProof && fileInputRef.current) {
+        fileInputRef.current.focus();
       }
       return;
     }
@@ -76,6 +98,7 @@ export function StudentCurriculumOverrideModal({
         parentPhone: parentPhone.trim(),
         curriculumType: selectedCurriculum,
         stream: isHighSchool ? selectedStream || null : null,
+        schoolApprovalProofBase64: approvalProofBase64,
       });
       onUpdated(res);
       onClose();
@@ -229,6 +252,24 @@ export function StudentCurriculumOverrideModal({
                 }`}
               />
               <FormFieldFeedback error={attempted ? errors.parentPhone : undefined} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#050505] mb-1">
+                Surat Persetujuan Mutasi Program dari Sekolah <span className="text-rose-500">*</span>
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleFileChange}
+                className={`w-full px-3 py-2 bg-[#F0F2F5] border rounded-xl text-xs sm:text-sm text-[#050505] focus:bg-white focus:outline-hidden ${
+                  attempted && errors.approvalProof
+                    ? "border-rose-500 ring-1 ring-rose-200"
+                    : "border-transparent focus:border-[#1877F2]"
+                }`}
+              />
+              <FormFieldFeedback error={attempted ? errors.approvalProof : undefined} />
             </div>
           </div>
 

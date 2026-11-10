@@ -2021,6 +2021,7 @@ describe("Struk bayar ganda di intake publik", () => {
           parentName: "Budi",
           parentPhone: "081234567890",
           curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         }),
       });
       expect(res.status).toBe(404);
@@ -2062,12 +2063,122 @@ describe("Struk bayar ganda di intake publik", () => {
           parentName: "Budi Santoso",
           parentPhone: "081234567890",
           curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         }),
       });
       expect(res.status).toBe(400);
       const json = (await res.json()) as { success: boolean; message: string };
       expect(json.message).toContain("NIS");
 
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+
+    it("rejects when school approval proof is missing or role is unauthorized (Issue #385)", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-ovr-guard-${stamp}`;
+      const studentId = `st-guard-${stamp}`;
+      const nis = `NIS-GUARD-${stamp}`;
+      const now = new Date().toISOString();
+
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-G-${stamp}`,
+        name: "Sekolah Guard Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa Tanpa Surat",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 1. Ditolak jika bukti persetujuan sekolah tidak dilampirkan
+      const noProofRes = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Wali Murid",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+        }),
+      });
+      expect(noProofRes.status).toBe(400);
+      const noProofJson = (await noProofRes.json()) as { success: boolean; message: string };
+      expect(noProofJson.message).toContain("Surat persetujuan");
+
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, testSchoolId));
+    });
+
+    it("rejects when book order is already picked up (Issue #385)", async () => {
+      const stamp = Date.now().toString().slice(-6);
+      const testSchoolId = `sch-pu-${stamp}`;
+      const studentId = `st-pu-${stamp}`;
+      const orderId = `ord-pu-${stamp}`;
+      const nis = `NIS-PU-${stamp}`;
+      const now = new Date().toISOString();
+
+      await db.insert(schools).values({
+        id: testSchoolId,
+        code: `SCH-PU-${stamp}`,
+        name: "Sekolah PU Test",
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(students).values({
+        id: studentId,
+        schoolId: testSchoolId,
+        nis,
+        name: "Siswa Sudah Ambil",
+        gradeLevel: "7",
+        curriculumType: "AE",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(studentBookOrders).values({
+        id: orderId,
+        orderNumber: `ORD-PU-${stamp}`,
+        studentId,
+        schoolId: testSchoolId,
+        orderType: "regular",
+        paymentStatus: "paid",
+        fulfillmentStatus: "picked_up",
+        totalAmount: 500000,
+        paidAmount: 500000,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await publicOrdersRouter.request(`/students/${studentId}/curriculum`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nis,
+          parentName: "Wali Murid",
+          parentPhone: "081234567890",
+          curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.message).toContain("Buku fisik sudah diambil");
+
+      await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, testSchoolId));
     });
@@ -2107,6 +2218,7 @@ describe("Struk bayar ganda di intake publik", () => {
           parentName: "Ayahanda Siswa",
           parentPhone: "081299998888",
           curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         }),
       });
 
@@ -2172,6 +2284,7 @@ describe("Struk bayar ganda di intake publik", () => {
           parentPhone: "081377776666",
           curriculumType: "AE",
           stream: "IPS",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         }),
       });
 
@@ -2264,6 +2377,7 @@ describe("Struk bayar ganda di intake publik", () => {
           parentName: "Wali Siswa E2E",
           parentPhone: "081211112222",
           curriculumType: "MQ",
+          schoolApprovalProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         }),
       });
       expect(patchRes.status).toBe(200);
