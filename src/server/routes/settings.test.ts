@@ -295,7 +295,12 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     const waSave = await settingsRouter.request("/whatsapp-meta", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phoneNumberId: "123", accessToken: "secret-token-123", isEnabled: false }),
+      body: JSON.stringify({
+        phoneNumberId: "123",
+        accessToken: "secret-token-123",
+        isEnabled: false,
+        paymentConfirmationTemplate: "Template kustom: {nama_murid} kode {kode_pengambilan}",
+      }),
     });
     expect(waSave.status).toBe(200);
 
@@ -304,6 +309,7 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     const waJson = await waGet.json();
     expect(waJson.success).toBe(true);
     expect(["", "********"]).toContain(waJson.data.accessToken);
+    expect(waJson.data.paymentConfirmationTemplate).toBe("Template kustom: {nama_murid} kode {kode_pengambilan}");
 
     await cleanupEmailKeys();
     await cleanupWhatsAppKeys();

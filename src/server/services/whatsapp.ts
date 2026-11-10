@@ -3,10 +3,16 @@ import { systemSettings } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { readSettingsMap } from "./settings-map";
 
+export const WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY = "payment_confirmation_wa_template";
+
+export const DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE =
+  "Terima kasih Bapak/Ibu wali dari {nama_murid} ({nis}), pembayaran paket buku program {program} jenjang {jenjang} di {nama_sekolah} telah kami terima dan terverifikasi lunas.\nMohon tunggu pengumuman dari sekolah untuk jadwal pembagian buku fisik.\nHarap simpan dan bawa pesan WhatsApp ini beserta kode pengambilan {kode_pengambilan} sebagai bukti sah saat pengambilan buku.";
+
 export interface MetaWhatsAppConfig {
   phoneNumberId: string;
   accessToken: string;
   isEnabled: boolean;
+  paymentConfirmationTemplate?: string;
 }
 
 export async function getMetaWhatsAppConfig(database: AppDatabase): Promise<MetaWhatsAppConfig> {
@@ -15,6 +21,7 @@ export async function getMetaWhatsAppConfig(database: AppDatabase): Promise<Meta
     phoneNumberId: map["wa_meta_phone_id"] ?? "",
     accessToken: map["wa_meta_token"] ?? "",
     isEnabled: map["wa_meta_enabled"] === "true",
+    paymentConfirmationTemplate: map[WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY] ?? DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE,
   };
 }
 
@@ -25,6 +32,9 @@ export async function saveMetaWhatsAppConfig(database: AppDatabase, config: Meta
     ["wa_meta_token", config.accessToken],
     ["wa_meta_enabled", config.isEnabled ? "true" : "false"],
   ];
+  if (config.paymentConfirmationTemplate !== undefined) {
+    entries.push([WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY, config.paymentConfirmationTemplate]);
+  }
   await runWriteBatch(
     database,
     entries.map(([key, value]) =>

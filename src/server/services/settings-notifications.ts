@@ -27,6 +27,7 @@ export interface MetaSaveInput {
   phoneNumberId: string;
   accessToken?: string;
   isEnabled: boolean;
+  paymentConfirmationTemplate?: string;
 }
 
 /**
@@ -90,6 +91,7 @@ export const saveMeta = async (database: AppDatabase, input: MetaSaveInput) => {
   await saveMetaWhatsAppConfig(database, {
     ...input,
     accessToken: input.accessToken === MASKED_SECRET ? existing.accessToken : (input.accessToken ?? ""),
+    paymentConfirmationTemplate: input.paymentConfirmationTemplate ?? existing.paymentConfirmationTemplate,
   });
 };
 
