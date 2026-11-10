@@ -7,6 +7,7 @@ export function MetaWhatsAppSettingsSection() {
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isEnabled, setIsEnabled] = useState(false);
+  const [paymentConfirmationTemplate, setPaymentConfirmationTemplate] = useState("");
   const [testPhone, setTestPhone] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -22,6 +23,7 @@ export function MetaWhatsAppSettingsSection() {
         setPhoneNumberId(res.data.phoneNumberId || "");
         setAccessToken(res.data.accessToken || "");
         setIsEnabled(res.data.isEnabled ?? false);
+        setPaymentConfirmationTemplate(res.data.paymentConfirmationTemplate || "");
       } catch {
         if (!cancelled) setFeedback({ success: false, text: "Gagal memuat pengaturan Meta" });
       } finally {
@@ -38,7 +40,11 @@ export function MetaWhatsAppSettingsSection() {
     setIsSaving(true);
     setFeedback(null);
     try {
-      await postJson("/api/settings/whatsapp-meta", { phoneNumberId, accessToken, isEnabled }, "Gagal menyimpan Meta");
+      await postJson(
+        "/api/settings/whatsapp-meta",
+        { phoneNumberId, accessToken, isEnabled, paymentConfirmationTemplate },
+        "Gagal menyimpan Meta"
+      );
       setFeedback({ success: true, text: "Pengaturan WhatsApp Meta berhasil disimpan!" });
     } catch (err: any) {
       setFeedback({ success: false, text: err.message || "Gagal menyimpan" });
@@ -94,6 +100,19 @@ export function MetaWhatsAppSettingsSection() {
         <div>
           <label className="block font-semibold text-[#050505] mb-1">Access Token</label>
           <input type="password" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="Token akses Cloud API" className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs" />
+        </div>
+        <div>
+          <label className="block font-semibold text-[#050505] mb-1">Template WhatsApp Konfirmasi Pembayaran</label>
+          <textarea
+            rows={4}
+            value={paymentConfirmationTemplate}
+            onChange={(e) => setPaymentConfirmationTemplate(e.target.value)}
+            placeholder="Template pesan WA lunas..."
+            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs leading-relaxed"
+          />
+          <p className="mt-1 text-[11px] text-[#65676B]">
+            Placeholder dinamis: <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nama_murid}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nis}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{program}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{jenjang}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nama_sekolah}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{kode_pengambilan}"}</code>.
+          </p>
         </div>
         <div className="flex gap-2">
           <button type="submit" disabled={isSaving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold active:scale-[0.98] transition-all">

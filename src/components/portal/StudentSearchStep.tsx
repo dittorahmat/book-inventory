@@ -200,11 +200,11 @@ export function StudentSearchStep({
                       <button
                         type="button"
                         onClick={() => setEditingStudent(st)}
-                        title="Ubah program atau kurikulum murid"
+                        title="Ubah program belajar murid"
                         className="px-2.5 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-[0.98] text-[#050505] font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5"
                       >
                         <Settings2 className="w-3.5 h-3.5 text-[#65676B]" />
-                        <span className="hidden sm:inline">Ubah Kurikulum</span>
+                        <span className="hidden sm:inline">Ubah Program</span>
                       </button>
 
                       <button

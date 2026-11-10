@@ -24,7 +24,8 @@ export const users = sqliteTable("users", {
       "warehouse_books_admin", 
       "warehouse_uniforms_admin", 
       "school_admin", 
-      "branch_admin"
+      "branch_admin",
+      "branch_finance"
     ] 
   }).notNull().default("branch_admin"),
   schoolId: text("school_id").references(() => schools.id),

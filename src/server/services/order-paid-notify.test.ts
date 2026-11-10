@@ -2,8 +2,10 @@ import { describe, expect, it } from "bun:test";
 import type { AppDatabase } from "../../db";
 import type { EmailSendOptions, EmailSendResult } from "./email/types";
 import {
+  DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE,
   buildPaidOffNotice,
   buildRejectedNotice,
+  interpolateWaNoticeTemplate,
   notifyOrderPaidOff,
   notifyPaymentRejected,
 } from "./order-paid-notify";
@@ -53,6 +55,41 @@ describe("buildPaidOffNotice / buildRejectedNotice (murni)", () => {
     });
     expect(text).toContain("Alasan: Nominal tidak sesuai");
     expect(text).toContain("https://contoh.id/konfirmasi?t=abc");
+  });
+
+  it("menginterpolasi placeholder pada template WA konfirmasi pembayaran dinamis", () => {
+    const template =
+      "Terima kasih wali dari {nama_murid} ({nis}), pembayaran program {program} jenjang {jenjang} di {nama_sekolah} lunas. Kode: {kode_pengambilan}.";
+    const interpolated = interpolateWaNoticeTemplate(template, {
+      nama_murid: "Aisyah",
+      nis: "2026001",
+      program: "Internasional",
+      jenjang: "Kelas 1",
+      nama_sekolah: "Al Wildan 1",
+      kode_pengambilan: "AMB-001",
+    });
+    expect(interpolated).toBe(
+      "Terima kasih wali dari Aisyah (2026001), pembayaran program Internasional jenjang Kelas 1 di Al Wildan 1 lunas. Kode: AMB-001."
+    );
+  });
+
+  it("buildPaidOffNotice menggunakan template kustom bila diberikan untuk kind buku", () => {
+    const text = buildPaidOffNotice({
+      studentName: "Ahmad",
+      orderNumber: "ORD-99",
+      kind: "buku",
+      amount: 200000,
+      nis: "NIS-88",
+      program: "Tahfidz",
+      gradeLevel: "7",
+      schoolName: "Al Wildan 3 BSD",
+      pickupCode: "SJ-AMB-99",
+      template: DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE,
+    });
+    expect(text).toContain("wali dari Ahmad (NIS-88)");
+    expect(text).toContain("program Tahfidz jenjang Kelas 7 di Al Wildan 3 BSD");
+    expect(text).toContain("kode pengambilan SJ-AMB-99");
+    expect(text).toContain("sebagai bukti sah saat pengambilan buku");
   });
 });
 

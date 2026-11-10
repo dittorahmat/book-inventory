@@ -35,6 +35,9 @@ export const guardScopedOrderMutation = async (
   const scoped = await loadScopedOrder(database, actor, locations, orderId);
   if (!scoped.ok) return scoped;
   try {
+    if (actor.role === "branch_finance") {
+      throw new AccessHttpError(403, "Peran finance cabang bersifat read-only dan dilarang mengubah status pesanan.");
+    }
     if (gate === "paket") assertPaketActor(actor);
     if (gate === "satuan") assertSatuanActor(actor);
   } catch (err) {

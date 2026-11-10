@@ -10,6 +10,7 @@ export interface NewBookPayload {
   title: string;
   publicTitle?: string;
   supplierIds?: string[];
+  packageIds?: string[];
   author: string;
   publisher: string;
   publishYear: number;

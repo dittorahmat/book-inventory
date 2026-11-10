@@ -10,6 +10,7 @@ import {
   requireAuthenticatedActor,
   requireCentralAdmin,
   requireLogisticsRole,
+  requireOrderMutationRole,
   resolveLocationScope,
   type AccessActor,
 } from "./access-scope";
@@ -17,6 +18,7 @@ import {
 const LOCS = [{ id: "school-alw-1" }, { id: "school-alw-2" }, { id: "school-warehouse" }];
 const schoolA: AccessActor = { role: "school_admin", schoolId: "school-alw-1" };
 const branchA: AccessActor = { role: "branch_admin", schoolId: "school-alw-1" };
+const financeA: AccessActor = { role: "branch_finance", schoolId: "school-alw-1" };
 const warehouse: AccessActor = { role: "warehouse_admin", schoolId: "school-warehouse" };
 const central: AccessActor = { role: "central_admin", schoolId: null };
 
@@ -25,6 +27,7 @@ describe("resolveLocationScope (pure isolation contract)", () => {
     expect(resolveLocationScope(schoolA, undefined, LOCS)).toEqual(["school-alw-1"]);
     expect(resolveLocationScope(schoolA, "school-alw-1", LOCS)).toEqual(["school-alw-1"]);
     expect(resolveLocationScope(branchA, undefined, LOCS)).toEqual(["school-alw-1"]);
+    expect(resolveLocationScope(financeA, undefined, LOCS)).toEqual(["school-alw-1"]);
   });
 
   it("lets warehouse roles roam like central admin", () => {
@@ -118,7 +121,19 @@ describe("requireLogisticsRole", () => {
     expect(() => requireLogisticsRole(warehouse)).not.toThrow();
     expect(() => requireLogisticsRole(schoolA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(branchA)).toThrow(AccessHttpError);
+    expect(() => requireLogisticsRole(financeA)).toThrow(AccessHttpError);
     expect(() => requireLogisticsRole(null)).not.toThrow();
+  });
+});
+
+describe("requireOrderMutationRole", () => {
+  it("rejects branch_finance with 403 and admits other authenticated roles", () => {
+    expect(() => requireOrderMutationRole(financeA)).toThrow(AccessHttpError);
+    expect(() => requireOrderMutationRole(branchA)).not.toThrow();
+    expect(() => requireOrderMutationRole(schoolA)).not.toThrow();
+    expect(() => requireOrderMutationRole(central)).not.toThrow();
+    expect(() => requireOrderMutationRole(warehouse)).not.toThrow();
+    expect(() => requireOrderMutationRole(null)).not.toThrow();
   });
 });
 

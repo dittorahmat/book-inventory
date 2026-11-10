@@ -101,7 +101,7 @@ export function OrderItemStep({
           <p className="text-lg font-bold text-[#1877F2] mt-1">{formatRupiah(selectedPackagePrice)}</p>
           <p className="text-[11px] text-[#65676B] mt-2 inline-flex items-center gap-1">
             <Lock className="w-3 h-3" />
-            Paket dikunci sesuai kelas &amp; kurikulum murid.
+            Paket dikunci sesuai kelas &amp; program murid.
           </p>
           <PackageBreakdown items={packageItems} />
         </div>

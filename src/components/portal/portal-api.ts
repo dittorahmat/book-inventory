@@ -80,7 +80,7 @@ export const updateStudentCurriculum = (
   patchJson<StudentSearchResult>(
     `/api/public/orders/students/${encodeURIComponent(studentId)}/curriculum`,
     payload,
-    "Gagal memperbarui kurikulum siswa."
+    "Gagal memperbarui program belajar siswa."
   );
 
 export interface FinalOrderPayload {

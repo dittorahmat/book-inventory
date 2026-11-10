@@ -3,6 +3,7 @@ import {
   getDefaultTabForRole,
   getRoleBadgeLabel,
   isBookWarehouseStaffRole,
+  isBranchFinanceRole,
   isCentralRole,
   isLogisticsRole,
   isSchoolRole,
@@ -13,6 +14,7 @@ describe("staff-roles helper", () => {
   it("determines correct default tab per role", () => {
     expect(getDefaultTabForRole("warehouse_uniforms_admin")).toBe("uniforms");
     expect(getDefaultTabForRole("warehouse_books_admin")).toBe("book_warehouse");
+    expect(getDefaultTabForRole("branch_finance")).toBe("reports");
     expect(getDefaultTabForRole("branch_admin")).toBe("internal_orders");
     expect(getDefaultTabForRole("school_admin")).toBe("internal_orders");
     expect(getDefaultTabForRole("central_admin")).toBe("dashboard");
@@ -26,6 +28,7 @@ describe("staff-roles helper", () => {
     expect(getRoleBadgeLabel("warehouse_books_admin")).toBe("Admin Gudang Buku");
     expect(getRoleBadgeLabel("warehouse_admin")).toBe("Admin Gudang");
     expect(getRoleBadgeLabel("branch_admin")).toBe("Branch Admin");
+    expect(getRoleBadgeLabel("branch_finance")).toBe("Finance Cabang");
     expect(getRoleBadgeLabel("school_admin")).toBe("Branch Admin");
     expect(getRoleBadgeLabel(undefined)).toBe("Staf");
   });
@@ -48,5 +51,8 @@ describe("staff-roles helper", () => {
     expect(isSchoolRole("branch_admin")).toBe(true);
     expect(isSchoolRole("school_admin")).toBe(true);
     expect(isSchoolRole("central_admin")).toBe(false);
+
+    expect(isBranchFinanceRole("branch_finance")).toBe(true);
+    expect(isBranchFinanceRole("branch_admin")).toBe(false);
   });
 });

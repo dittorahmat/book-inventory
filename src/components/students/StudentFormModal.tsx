@@ -231,7 +231,7 @@ export function StudentFormModal({
             </div>
             <div>
               <SearchableSingleSelect
-                label="Kurikulum"
+                label="Program"
                 options={[
                   { value: "international", label: "Internasional" },
                   { value: "national", label: "Nasional" },

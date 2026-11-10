@@ -109,6 +109,7 @@ export function UsersSettingsTab({
                 options={[
                   { value: "school_admin", label: "Admin Sekolah" },
                   { value: "branch_admin", label: "Branch Admin (Admin Cabang)" },
+                  { value: "branch_finance", label: "Finance Cabang (Read-Only Invoice & Pembayaran)" },
                   { value: "warehouse_books_admin", label: "Admin Gudang Buku (Gudang Logistik)" },
                   { value: "warehouse_uniforms_admin", label: "Admin Gudang Seragam (Gudang Logistik)" },
                   { value: "warehouse_admin", label: "Admin Gudang Umum (Buku & Seragam)" },

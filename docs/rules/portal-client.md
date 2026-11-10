@@ -60,11 +60,12 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 2. Adapter klien terpadu dilarang membawa kembali parameter overload usang (seperti `paramsOrQuery: ... | string, legacySchoolId?: string`). Seluruh pemanggil pencarian wajib menggunakan objek parameter terstruktur (`StudentSearchParams`, §0.12).
 3. Endpoint publik untuk daftar sekolah adalah `/api/public/orders/schools`. Dilarang mengarahkan portal publik ke endpoint staf `/api/schools` (§0.1).
 
-### §0.68. Penyesuaian Mandiri Kurikulum Portal & Parameter Endpoint Terproteksi
-1. Pembaruan mandiri kurikulum/peminatan murid dari portal publik (`/api/public/orders/students/:id/curriculum`) wajib memvalidasi parameter route identifier menggunakan `idSchema` (`zValidator("param", z.object({ id: idSchema }))`), dilarang membaca parameter mentah tanpa skema.
-2. Pilihan kurikulum pada antarmuka publik dan validasi server wajib difilter secara ketat berdasarkan jenjang tingkat kelas murid (`getAvailableCurriculaForGrade`), dilarang menampilkan pilihan kurikulum yang tidak relevan dengan jenjang anak.
-3. Test suite baru untuk fitur pembaruan portal wajib membersihkan seluruh fixtures data dummy/seeder (`schools`, `students`, `bookPackages`, `studentBookOrders`) pada blok penyelesaian tes (`cleanup`/`finally`) guna menjamin isolasi database pengujian (§6.1).
-4. State mutation array murid di view portal wajib dibungkus dalam action hook (`updateSearchResult`), dilarang mengekspos raw array setter (`setSearchResults`) langsung ke komponen antarmuka.
+### §0.68. Penyesuaian Program Belajar Portal & Sinkronisasi Terminologi
+1. Terminologi UI wajib menggunakan kata "Program" (atau "Program Belajar") alih-alih "Kurikulum", baik pada label antarmuka portal publik, tab staf, tombol aksi, maupun pesan respons API (`"Program berhasil diperbarui"`).
+2. Pembaruan program murid dari portal publik (`/api/public/orders/students/:id/curriculum`) wajib memvalidasi parameter route identifier menggunakan `idSchema` (`zValidator("param", z.object({ id: idSchema }))`), dilarang membaca parameter mentah tanpa skema.
+3. Pilihan program pada antarmuka publik dan validasi server wajib difilter secara ketat berdasarkan jenjang tingkat kelas murid (`getAvailableCurriculaForGrade`), dilarang menampilkan pilihan program yang tidak relevan dengan jenjang anak.
+4. Test suite baru untuk fitur pembaruan portal wajib membersihkan seluruh fixtures data dummy/seeder (`schools`, `students`, `bookPackages`, `studentBookOrders`) pada blok penyelesaian tes (`cleanup`/`finally`) guna menjamin isolasi database pengujian (§6.1).
+5. State mutation array murid di view portal wajib dibungkus dalam action hook (`updateSearchResult`), dilarang mengekspos raw array setter (`setSearchResults`) langsung ke komponen antarmuka.
 
 ### §0.69. Single-Writer Ekspor CSV & Dekomposisi Shell Drawer Dashboard
 1. Seluruh pengunduhan file CSV di antarmuka web klien wajib menggunakan fungsi kanonik tunggal `exportCsvFile` (`src/lib/csv-export.ts`), dilarang merakit inline Blob dan manipulasi elemen `<a>` manual di setiap komponen view/drawer.

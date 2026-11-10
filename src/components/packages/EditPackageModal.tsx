@@ -211,7 +211,7 @@ export function EditPackageModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#050505] mb-1">Tipe Kurikulum *</label>
+              <label className="block text-xs font-semibold text-[#050505] mb-1">Tipe Program *</label>
               <select
                 value={curriculumType}
                 onChange={(e) => setCurriculumType(e.target.value as "international" | "national")}

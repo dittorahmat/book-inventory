@@ -254,6 +254,9 @@ const scholarshipDiscountSchema = z.object({
 studentOrdersRouter.post("/:id/scholarship-discount", zValidator("json", scholarshipDiscountSchema), async (c) => {
   try {
     const { actor, locations } = await requireScopedActor(db, c);
+    if (actor.role === "branch_finance") {
+      return c.json({ success: false, message: "Peran finance cabang bersifat read-only." }, 403);
+    }
     const id = c.req.param("id");
     const { discountPct } = c.req.valid("json");
 

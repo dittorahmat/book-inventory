@@ -6,6 +6,7 @@ import type { StudentOrder } from "./order-types";
 interface StudentOrdersTableProps {
   orders: StudentOrder[];
   showSchoolColumn?: boolean;
+  readOnly?: boolean;
   onOpenPayment: (order: StudentOrder) => void;
   onOpenScholarship: (order: StudentOrder) => void;
   onOpenHandover: (order: StudentOrder) => void;
@@ -20,6 +21,7 @@ interface StudentOrdersTableProps {
 export function StudentOrdersTable({
   orders,
   showSchoolColumn = false,
+  readOnly = false,
   onOpenPayment,
   onOpenScholarship,
   onOpenHandover,
@@ -123,26 +125,30 @@ export function StudentOrdersTable({
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[11px] font-bold hover:bg-amber-100 transition-colors active:scale-[0.98]"
                           >
                             <ShieldCheck className="w-3 h-3" />
-                            <span>Verifikasi Bukti ({o.pendingCount})</span>
+                            <span>{readOnly ? `Lihat Bukti (${o.pendingCount})` : `Verifikasi Bukti (${o.pendingCount})`}</span>
                           </button>
                         ) : null}
-                        {o.orderType === "scholarship" && o.paymentStatus === "scholarship_pending" ? (
-                          <button
-                            type="button"
-                            onClick={() => onOpenScholarship(o)}
-                            className="text-[11px] text-[#1877F2] hover:underline font-semibold"
-                          >
-                            Cek Bukti Beasiswa &rarr;
-                          </button>
-                        ) : o.paymentStatus !== "paid" && o.paymentStatus !== "scholarship_approved" ? (
-                          <button
-                            type="button"
-                            onClick={() => onOpenPayment(o)}
-                            className="text-[11px] text-[#1877F2] hover:underline font-semibold"
-                          >
-                            Input Bayar Kasir &rarr;
-                          </button>
-                        ) : null}
+                        {!readOnly && (
+                          <>
+                            {o.orderType === "scholarship" && o.paymentStatus === "scholarship_pending" ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenScholarship(o)}
+                                className="text-[11px] text-[#1877F2] hover:underline font-semibold"
+                              >
+                                Cek Bukti Beasiswa &rarr;
+                              </button>
+                            ) : o.paymentStatus !== "paid" && o.paymentStatus !== "scholarship_approved" ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenPayment(o)}
+                                className="text-[11px] text-[#1877F2] hover:underline font-semibold"
+                              >
+                                Input Bayar Kasir &rarr;
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
@@ -203,72 +209,76 @@ export function StudentOrdersTable({
                       ) : null}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {o.homeAddressSnapshot ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => onOpenShipping(o)}
-                              className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
-                            >
-                              <span>Input Ongkir</span>
-                            </button>
-                            {(o.shippingCost ?? 0) > 0 ? (
+                      {readOnly ? (
+                        <span className="text-[11px] text-[#65676B] italic">Hanya lihat</span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {o.homeAddressSnapshot ? (
+                            <>
                               <button
                                 type="button"
-                                onClick={() => onSendInvoice(o)}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                                onClick={() => onOpenShipping(o)}
+                                className="px-3 py-1.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
                               >
-                                <span>{o.invoiceSentAt ? "Kirim Ulang" : "Kirim Invoice"}</span>
+                                <span>Input Ongkir</span>
                               </button>
-                            ) : null}
-                          </>
-                        ) : null}
-                        {o.homeAddressSnapshot && o.satuanShipmentStatus !== "sudah_dikirim" ? (
+                              {(o.shippingCost ?? 0) > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onSendInvoice(o)}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                                >
+                                  <span>{o.invoiceSentAt ? "Kirim Ulang" : "Kirim Invoice"}</span>
+                                </button>
+                              ) : null}
+                            </>
+                          ) : null}
+                          {o.homeAddressSnapshot && o.satuanShipmentStatus !== "sudah_dikirim" ? (
+                            <button
+                              type="button"
+                              onClick={() => onMarkSatuanShipped(o)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>Tandai Terkirim</span>
+                            </button>
+                          ) : null}
+                          {!isPickedUp ? (
+                            <button
+                              onClick={() => onOpenHandover(o)}
+                              className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>Serahkan Buku</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => window.print()}
+                              className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
+                              title="Cetak SJ Serah-Terima (Ambil di Sekolah)"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#65676B]" />
+                              <span>SJ Serah-Terima</span>
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => onMarkSatuanShipped(o)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            onClick={() => onOpenDiscretion(o)}
+                            title="Diskresi Finance (Diskon / Gratis / Izin Ambil)"
+                            className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors active:scale-[0.98]"
                           >
-                            <Truck className="w-3.5 h-3.5" />
-                            <span>Tandai Terkirim</span>
+                            <ShieldAlert className="w-3.5 h-3.5" />
                           </button>
-                        ) : null}
-                        {!isPickedUp ? (
                           <button
-                            onClick={() => onOpenHandover(o)}
-                            className="px-3 py-1.5 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98]"
+                            type="button"
+                            onClick={() => onDeleteOrder(o)}
+                            title="Hapus pesanan siswa"
+                            className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
                           >
-                            <Truck className="w-3.5 h-3.5" />
-                            <span>Serahkan Buku</span>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => window.print()}
-                            className="px-3 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] font-semibold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
-                            title="Cetak SJ Serah-Terima (Ambil di Sekolah)"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-[#65676B]" />
-                            <span>SJ Serah-Terima</span>
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onOpenDiscretion(o)}
-                          title="Diskresi Finance (Diskon / Gratis / Izin Ambil)"
-                          className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors active:scale-[0.98]"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteOrder(o)}
-                          title="Hapus pesanan siswa"
-                          className="p-1.5 text-[#65676B] hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-[0.98]"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

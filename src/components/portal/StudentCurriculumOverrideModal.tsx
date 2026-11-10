@@ -44,7 +44,7 @@ export function StudentCurriculumOverrideModal({
     setApiError(null);
     const newErrors: Record<string, string | undefined> = {};
 
-    const currCheck = validateRequiredSelect(selectedCurriculum, "Pilihan Kurikulum");
+    const currCheck = validateRequiredSelect(selectedCurriculum, "Pilihan Program");
     if (!currCheck.valid) newErrors.curriculum = currCheck.message;
 
     const nameCheck = validateRequiredText(parentName, "Nama Orang Tua / Wali", 2);
@@ -80,7 +80,7 @@ export function StudentCurriculumOverrideModal({
       onUpdated(res);
       onClose();
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : "Gagal menyimpan perubahan kurikulum");
+      setApiError(err instanceof Error ? err.message : "Gagal menyimpan perubahan program");
     } finally {
       setIsSubmitting(false);
     }
@@ -92,10 +92,10 @@ export function StudentCurriculumOverrideModal({
         <div className="p-4 sm:p-5 border-b border-[#E4E6EB] flex items-center justify-between">
           <div>
             <h3 className="font-bold text-sm sm:text-base text-[#050505]">
-              Penyesuaian Program & Kurikulum
+              Penyesuaian Program Belajar
             </h3>
             <p className="text-xs text-[#65676B] mt-0.5">
-              Pembaruan kurikulum mandiri untuk {student.name} ({student.schoolName})
+              Pembaruan program untuk {student.name} ({student.schoolName})
             </p>
           </div>
           <button
@@ -131,14 +131,14 @@ export function StudentCurriculumOverrideModal({
               <span className="font-semibold text-[#050505]">Kelas {student.targetGradeLevel}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-[#65676B]">Kurikulum Saat Ini:</span>
+              <span className="text-[#65676B]">Program Saat Ini:</span>
               <span className="font-semibold text-[#1877F2]">{curriculumLabel(student.curriculumType)}</span>
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-[#050505] mb-1">
-              Pilih Kurikulum Baru <span className="text-rose-500">*</span>
+              Pilih Program Baru <span className="text-rose-500">*</span>
             </label>
             <select
               value={selectedCurriculum}

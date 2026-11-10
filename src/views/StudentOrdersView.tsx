@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { School } from "../types";
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
-import { isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
+import { isBranchFinanceRole, isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { isWarehouseLocation } from "../lib/location-helpers";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
 import { StudentOrdersTable } from "../components/orders/StudentOrdersTable";
@@ -144,6 +144,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
         <StudentOrdersTable
           orders={filteredOrders}
           showSchoolColumn={selectedSchoolId === "all"}
+          readOnly={isBranchFinanceRole(userRole)}
           onOpenPayment={setActivePaymentOrder}
           onOpenScholarship={setActiveScholarshipOrder}
           onOpenHandover={setActiveHandoverOrder}

@@ -53,7 +53,7 @@ export function NewStudentRegistrationForm({
     const gradeCheck = validateRequiredSelect(newStudent.gradeLevel, "Tingkat Kelas Masuk");
     if (!gradeCheck.valid) errors.gradeLevel = gradeCheck.message;
 
-    const curriculumCheck = validateRequiredSelect(newStudent.curriculumType, "Pilihan Kurikulum");
+    const curriculumCheck = validateRequiredSelect(newStudent.curriculumType, "Pilihan Program");
     if (!curriculumCheck.valid) errors.curriculumType = curriculumCheck.message;
 
     const parentNameCheck = validateRequiredText(newStudent.parentName, "Nama Orang Tua / Wali", 2);
@@ -162,7 +162,7 @@ export function NewStudentRegistrationForm({
 
         <div>
           <SearchableSingleSelect
-            label="Pilihan Kurikulum"
+            label="Pilihan Program"
             options={[
               { value: "international", label: "Internasional (Cambridge)" },
               { value: "national", label: "Nasional" },
@@ -174,7 +174,7 @@ export function NewStudentRegistrationForm({
                 setRegisterErrors((prev) => ({ ...prev, curriculumType: undefined }));
               }
             }}
-            placeholder="Pilih kurikulum..."
+            placeholder="Pilih program..."
             required
             error={registerAttempted ? registerErrors.curriculumType : undefined}
           />

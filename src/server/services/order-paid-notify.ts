@@ -3,7 +3,12 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import type { EmailSendOptions, EmailSendResult } from "./email/types";
 import { sendEmailNotification } from "./email/factory";
 import { escapeHtml } from "./email/po-template";
-import { MetaWhatsAppSender, type WhatsAppSender } from "./whatsapp";
+import {
+  DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE,
+  MetaWhatsAppSender,
+  getMetaWhatsAppConfig,
+  type WhatsAppSender,
+} from "./whatsapp";
 
 /**
  * Notifikasi hasil verifikasi bukti transfer ke orang tua: WhatsApp (Meta
@@ -17,18 +22,54 @@ export type NotifyKind = "buku" | "seragam";
 
 const KIND_LABEL: Record<NotifyKind, string> = { buku: "buku", seragam: "seragam" };
 
+export { DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE };
+
+/** Interpolasi placeholder template WA: {nama_murid}, {nis}, {program}, {jenjang}, {nama_sekolah}, {kode_pengambilan} */
+export const interpolateWaNoticeTemplate = (template: string, values: Record<string, string>): string =>
+  template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? "");
+
 export interface PaidOffNoticeInput {
   studentName: string;
   orderNumber: string;
   kind: NotifyKind;
   amount: number;
+  nis?: string;
+  program?: string;
+  gradeLevel?: string;
+  schoolName?: string;
+  pickupCode?: string;
+  template?: string;
 }
 
 /** Teks bukti terverifikasi + pesanan lunas. Murni: tanpa DB, tanpa IO. */
-export const buildPaidOffNotice = ({ studentName, orderNumber, kind, amount }: PaidOffNoticeInput): string =>
-  `Halo Bapak/Ibu, bukti pembayaran ${KIND_LABEL[kind]} untuk ananda ${studentName} (${orderNumber}) telah diverifikasi gudang.\n` +
-  `Nominal terverifikasi: ${formatRupiah(amount)}\n` +
-  `Status tagihan: LUNAS.\n\nTerima kasih, Al Wildan Logistics`;
+export const buildPaidOffNotice = ({
+  studentName,
+  orderNumber,
+  kind,
+  amount,
+  nis,
+  program,
+  gradeLevel,
+  schoolName,
+  pickupCode,
+  template,
+}: PaidOffNoticeInput): string => {
+  if (kind === "buku" && template) {
+    return interpolateWaNoticeTemplate(template, {
+      nama_murid: studentName,
+      nis: nis ?? "-",
+      program: program ?? "-",
+      jenjang: gradeLevel ? `Kelas ${gradeLevel}` : "-",
+      nama_sekolah: schoolName ?? "Al Wildan",
+      kode_pengambilan: pickupCode || orderNumber,
+    });
+  }
+  return (
+    `Halo Bapak/Ibu, bukti pembayaran ${KIND_LABEL[kind]} untuk ananda ${studentName} (${orderNumber}) telah diverifikasi gudang.\n` +
+    `Nominal terverifikasi: ${formatRupiah(amount)}\n` +
+    `Status tagihan: LUNAS.\n\nTerima kasih, Al Wildan Logistics`
+  );
+};
 
 export interface RejectedNoticeInput {
   studentName: string;
@@ -48,10 +89,15 @@ export interface NotifyStudent {
   name: string;
   parentPhone?: string | null;
   parentEmail?: string | null;
+  nis?: string;
+  curriculumType?: string;
+  gradeLevel?: string;
+  schoolName?: string | null;
 }
 
 export interface NotifyOrderRef {
   orderNumber: string;
+  handoverDeliveryNumber?: string | null;
 }
 
 export interface NotifyDeps {
@@ -100,23 +146,40 @@ const dispatch = async (
 };
 
 /** Notifikasi "lunas terverifikasi" ke orang tua (WA + email, fail-safe). */
-export const notifyOrderPaidOff = (
+export const notifyOrderPaidOff = async (
   database: AppDatabase,
   input: { order: NotifyOrderRef; student: NotifyStudent; amount: number; kind: NotifyKind },
   deps?: NotifyDeps
-): Promise<NotifyResult> =>
-  dispatch(
+): Promise<NotifyResult> => {
+  let template: string | undefined;
+  if (input.kind === "buku") {
+    try {
+      const config = await getMetaWhatsAppConfig(database);
+      template = config.paymentConfirmationTemplate || DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE;
+    } catch {
+      template = DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE;
+    }
+  }
+  const noticeText = buildPaidOffNotice({
+    studentName: input.student.name,
+    orderNumber: input.order.orderNumber,
+    kind: input.kind,
+    amount: input.amount,
+    nis: input.student.nis,
+    program: input.student.curriculumType,
+    gradeLevel: input.student.gradeLevel,
+    schoolName: input.student.schoolName ?? undefined,
+    pickupCode: input.order.handoverDeliveryNumber || input.order.orderNumber,
+    template,
+  });
+  return dispatch(
     database,
     deps,
     input.student,
-    buildPaidOffNotice({
-      studentName: input.student.name,
-      orderNumber: input.order.orderNumber,
-      kind: input.kind,
-      amount: input.amount,
-    }),
+    noticeText,
     `Pembayaran ${KIND_LABEL[input.kind]} ${input.order.orderNumber} terverifikasi`
   );
+};
 
 /** Notifikasi "bukti ditolak" + alasan + tautan unggah ulang (WA + email). */
 export const notifyPaymentRejected = (

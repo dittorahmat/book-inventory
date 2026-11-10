@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDatabase } from "../../db";
-import { paymentAllocations, paymentReceipts, studentBookOrders, students, uniformOrders } from "../../db/schema";
+import { paymentAllocations, paymentReceipts, schools, studentBookOrders, students, uniformOrders } from "../../db/schema";
 import {
   d1WriteErrorStatus,
   newWriteId,
@@ -108,8 +108,20 @@ const receiptAllocations = (database: AppDatabase, receiptId: string) =>
   database.select().from(paymentAllocations).where(eq(paymentAllocations.receiptId, receiptId));
 
 const loadStudent = async (database: AppDatabase, studentId: string) => {
-  const [student] = await database.select().from(students).where(eq(students.id, studentId));
-  return student ?? { name: "Ananda", parentPhone: null, parentEmail: null };
+  const [row] = await database
+    .select({
+      name: students.name,
+      parentPhone: students.parentPhone,
+      parentEmail: students.parentEmail,
+      nis: students.nis,
+      curriculumType: students.curriculumType,
+      gradeLevel: students.gradeLevel,
+      schoolName: schools.name,
+    })
+    .from(students)
+    .leftJoin(schools, eq(schools.id, students.schoolId))
+    .where(eq(students.id, studentId));
+  return row ?? { name: "Ananda", parentPhone: null, parentEmail: null };
 };
 
 export interface VerifyPaymentInput {

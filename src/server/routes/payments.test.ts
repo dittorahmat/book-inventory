@@ -142,6 +142,13 @@ describe("Payments & Cashier Verification API", () => {
       expect(order.paidAmount).toBe(500000);
       const receipts = await db.select().from(paymentReceipts).where(eq(paymentReceipts.studentId, studentId));
       expect(receipts).toHaveLength(1);
+
+      // Verifikasi branch_finance dilarang melakukan mutasi pembayaran (403)
+      mockActor("branch_finance", schoolId);
+      const finMutate = await postJson(`/orders/${orderId}/pay`, {
+        transferAmount: 100000, bookAllocationAmount: 100000, bankName: "BRI", referenceNumber: `FIN-${stamp}`,
+      });
+      expect(finMutate.status).toBe(403);
     } finally {
       await cleanup(schoolId, studentId, orderId);
     }

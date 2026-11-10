@@ -12,6 +12,7 @@ import {
   loadScopedOrder,
   requireAuthenticatedActor,
   requireCentralAdmin,
+  requireOrderMutationRole,
   resolveRequestActor,
 } from "../services/access-scope";
 import {
@@ -129,6 +130,7 @@ paymentsRouter.get("/orders/:orderId", async (c) => {
 paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSchema), async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireOrderMutationRole(actor);
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const body = c.req.valid("json");
@@ -153,6 +155,7 @@ paymentsRouter.post("/orders/:orderId/pay", zValidator("json", cashierPaymentSch
 paymentsRouter.post("/orders/:orderId/payments/:paymentId/verify", async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireOrderMutationRole(actor);
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const scoped = await loadScopedOrder(db, actor, locations, orderId);
@@ -176,6 +179,7 @@ paymentsRouter.post("/orders/:orderId/payments/:paymentId/verify", async (c) => 
 paymentsRouter.post("/orders/:orderId/payments/:paymentId/reject", zValidator("json", rejectReasonSchema), async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireOrderMutationRole(actor);
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const scoped = await loadScopedOrder(db, actor, locations, orderId);
@@ -200,6 +204,7 @@ paymentsRouter.post("/orders/:orderId/payments/:paymentId/reject", zValidator("j
 paymentsRouter.post("/orders/:orderId/scholarship", zValidator("json", scholarshipActionSchema), async (c) => {
   try {
     const actor = requireAuthenticatedActor(await resolveRequestActor(c));
+    requireOrderMutationRole(actor);
     const locations = await loadLocationIds(db);
     const orderId = c.req.param("orderId");
     const body = c.req.valid("json");
