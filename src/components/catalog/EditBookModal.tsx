@@ -19,6 +19,7 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
     title: book.title || "",
     publicTitle: book.publicTitle || "",
     supplierIds: book.supplierIds || [],
+    packageIds: book.packages ? book.packages.map((p) => p.packageId) : [],
     author: book.author || "",
     publisher: book.publisher || "",
     publishYear: book.publishYear || 2024,
@@ -29,6 +30,7 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [supplierOptions, setSupplierOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
+  const [packageOptions, setPackageOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +44,23 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
         if (!cancelled) setSupplierOptions(list.map((s) => ({ value: s.id, label: s.name, hint: s.code })));
       } catch {
         // supplier fallback
+      }
+      try {
+        const pkgList = await getJson<Array<{ id: string; name: string; code: string; gradeLevel?: string }>>(
+          "/api/packages",
+          "Gagal memuat daftar paket."
+        );
+        if (!cancelled) {
+          setPackageOptions(
+            pkgList.map((p) => ({
+              value: p.id,
+              label: p.name,
+              hint: p.gradeLevel ? `Kelas ${p.gradeLevel} (${p.code})` : p.code,
+            }))
+          );
+        }
+      } catch {
+        // package fallback
       }
     })();
     return () => {
@@ -67,6 +86,7 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
         title: formData.title.trim(),
         publicTitle: formData.publicTitle.trim() || undefined,
         supplierIds: formData.supplierIds,
+        packageIds: formData.packageIds,
         author: formData.author.trim(),
         publisher: formData.publisher.trim(),
         publishYear: Number(formData.publishYear) || 2024,
@@ -177,6 +197,16 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
                 values={formData.supplierIds}
                 onChange={(supplierIds) => setFormData({ ...formData, supplierIds })}
                 placeholder="Pilih supplier penyedia buku..."
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <SearchableMultiSelect
+                label="Paket Buku / Jenjang Kelas"
+                options={packageOptions}
+                values={formData.packageIds}
+                onChange={(packageIds) => setFormData({ ...formData, packageIds })}
+                placeholder="Pilih paket buku yang memuat buku ini..."
               />
             </div>
 

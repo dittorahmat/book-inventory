@@ -13,7 +13,6 @@ import {
   bookSuppliers,
   purchaseOrderItems,
   purchaseOrders,
-  suppliers,
 } from "../../db/schema";
 import { idSchema } from "../lib/validators";
 import { defaultStorage } from "../../services/storage";
@@ -24,41 +23,19 @@ import {
 import { resolveBookIsbn } from "../../lib/isbn";
 import { recalcPackagesUsingBook } from "../services/pricing";
 import {
+  getPackagesForBook,
+  getPackagesForBooksMap,
+  replaceBookPackages,
+} from "../services/book-packages";
+import {
   accessErrorResponse,
   resolveLogisticsActor,
 } from "../services/access-scope";
-import { chunkRows, runWriteBatch, selectInChunks } from "../lib/d1-write";
-
-/** Tulis ulang relasi Book–supplier secara atomik (chunk ≤10, sekuensial di D1). */
-async function replaceBookSuppliers(database: typeof db, bookId: string, supplierIds: string[], now: string) {
-  const uniq = [...new Set(supplierIds)];
-  if (uniq.length > 0) {
-    const known: Array<{ id: string }> = await database
-      .select({ id: suppliers.id })
-      .from(suppliers)
-      .where(inArray(suppliers.id, uniq));
-    const missing = uniq.filter((id: string) => !known.some((k: { id: string }) => k.id === id));
-    if (missing.length > 0) throw new Error(`Supplier tidak ditemukan: ${missing[0]}`);
-  }
-  await database.delete(bookSuppliers).where(eq(bookSuppliers.bookId, bookId));
-  const rows = uniq.map((supplierId) => ({ bookId, supplierId, createdAt: now }));
-  for (const chunk of chunkRows(rows)) {
-    await runWriteBatch(database, [database.insert(bookSuppliers).values(chunk)]);
-  }
-}
-
-const supplierIdsOf = async (database: typeof db, bookId: string): Promise<string[]> =>
-  (
-    (await database
-      .select({ supplierId: bookSuppliers.supplierId })
-      .from(bookSuppliers)
-      .where(eq(bookSuppliers.bookId, bookId))) as Array<{ supplierId: string }>
-  ).map((r: { supplierId: string }) => r.supplierId);
-
-const withSuppliers = async <T extends { id: string }>(database: typeof db, book: T): Promise<T & { supplierIds: string[] }> => ({
-  ...book,
-  supplierIds: await supplierIdsOf(database, book.id),
-});
+import {
+  replaceBookSuppliers,
+  withSuppliers,
+} from "../services/book-suppliers";
+import { selectInChunks } from "../lib/d1-write";
 
 export const booksRouter = new Hono();
 booksRouter.route("/", bookBulkRouter);
@@ -83,6 +60,7 @@ const updateBookSchema = z.object({
   title: z.string().min(1).optional(),
   publicTitle: z.string().nullable().optional(),
   supplierIds: z.array(idSchema).optional(),
+  packageIds: z.array(idSchema).optional(),
   author: z.string().min(1).optional(),
   publisher: z.string().min(1).optional(),
   publishYear: z.number().int().optional(),
@@ -105,9 +83,11 @@ booksRouter.get("/", async (c) => {
     const allBooks: Array<typeof books.$inferSelect> = await db.select().from(books);
     const byBook = new Map<string, string[]>();
 
+    const bookIds = allBooks.map((b: typeof books.$inferSelect) => b.id);
+    const packagesMap = await getPackagesForBooksMap(db, bookIds);
+
     if (allBooks.length > 0) {
       // Chunking agar tidak melanggar batas variabel SQLite / D1 parameter limit saat katalog memuat ratusan buku
-      const bookIds = allBooks.map((b: typeof books.$inferSelect) => b.id);
       const links = await selectInChunks(bookIds, (idChunk) =>
         db
           .select({ bookId: bookSuppliers.bookId, supplierId: bookSuppliers.supplierId })
@@ -124,7 +104,11 @@ booksRouter.get("/", async (c) => {
 
     return c.json({
       success: true,
-      data: allBooks.map((b: typeof books.$inferSelect) => ({ ...withEffectivePrices(b), supplierIds: byBook.get(b.id) ?? [] })),
+      data: allBooks.map((b: typeof books.$inferSelect) => ({
+        ...withEffectivePrices(b),
+        supplierIds: byBook.get(b.id) ?? [],
+        packages: packagesMap.get(b.id) ?? [],
+      })),
     });
   } catch (err) {
     return accessErrorResponse(c, err);
@@ -139,7 +123,14 @@ booksRouter.get("/:id", async (c) => {
     if (!book) {
       return c.json({ success: false, message: "Book not found" }, 404);
     }
-    return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, book)) });
+    const packages = await getPackagesForBook(db, id);
+    return c.json({
+      success: true,
+      data: {
+        ...withEffectivePrices(await withSuppliers(db, book)),
+        packages,
+      },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -198,7 +189,7 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
     const id = c.req.param("id");
   const body = c.req.valid("json");
 
-  const { supplierIds, publicTitle, ...rest } = body;
+  const { supplierIds, packageIds, publicTitle, ...rest } = body;
   const [updated] = await db
     .update(books)
     .set({ ...rest, ...(publicTitle !== undefined ? { publicTitle: publicTitle?.trim() || null } : {}), updatedAt: new Date().toISOString() })
@@ -217,18 +208,37 @@ booksRouter.patch("/:id", zValidator("json", updateBookSchema), async (c) => {
     }
   }
 
+  if (packageIds !== undefined) {
+    try {
+      await replaceBookPackages(db, id, packageIds, new Date().toISOString());
+    } catch (err) {
+      return c.json({ success: false, message: err instanceof Error ? err.message : "Paket tidak valid" }, 400);
+    }
+  }
+
   // Perubahan harga jual / harga lama memicu hitung ulang semua paket pemakai buku ini.
   if (body.sellPrice !== undefined || body.price !== undefined) {
     const recalcCount = await recalcPackagesUsingBook(db, id);
     if (recalcCount > 0) {
+      const packages = await getPackagesForBook(db, id);
       return c.json({
         success: true,
-        data: withEffectivePrices(await withSuppliers(db, updated)),
+        data: {
+          ...withEffectivePrices(await withSuppliers(db, updated)),
+          packages,
+        },
         message: `Harga jual diperbarui; ${recalcCount} paket dihitung ulang.`,
       });
     }
   }
-  return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, updated)) });
+  const packages = await getPackagesForBook(db, id);
+  return c.json({
+    success: true,
+    data: {
+      ...withEffectivePrices(await withSuppliers(db, updated)),
+      packages,
+    },
+  });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
