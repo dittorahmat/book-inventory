@@ -4,6 +4,16 @@ export const WPR_ISBN = "WPR-750K";
 export const WPR_TITLE = "Weekly Progress Report";
 export const WPR_PRICE = 750000;
 
+/** Predikat apakah suatu judul/ISBN/ID mengidentifikasikan WPR (Weekly Progress Report). */
+export const isWprBook = (book: { id?: string | null; title?: string | null; isbn?: string | null }): boolean => {
+  if (!book) return false;
+  if (book.id === WPR_BOOK_ID) return true;
+  const isbn = (book.isbn ?? "").toUpperCase();
+  if (isbn === WPR_ISBN || isbn.includes("WPR") || isbn.includes("WEEKLY-PROGRESS-REPORT")) return true;
+  const title = (book.title ?? "").toLowerCase();
+  return title.includes("weekly progress report");
+};
+
 /** True bila order satuan wajib menanggung WPR: belum ada order paket untuk murid tersebut. */
 export const needsWprCharge = (packageOrderCount: number): boolean => packageOrderCount === 0;
 

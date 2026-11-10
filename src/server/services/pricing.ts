@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookPackageItems, bookPackages, books } from "../../db/schema";
 import { effectiveSellPrice } from "../../lib/book-pricing";
-import { WPR_BOOK_ID, needsWprCharge, wprFeeForPackageCount } from "../../lib/wpr";
+import { isWprBook, needsWprCharge, wprFeeForPackageCount } from "../../lib/wpr";
 import { countPackageOrders } from "./wpr";
 import { writeNow, type WriteDeps } from "../lib/d1-write";
 
@@ -13,8 +13,8 @@ import { writeNow, type WriteDeps } from "../lib/d1-write";
  */
 
 /** BOM siap rakit: WPR bukan stok fisik rakitan (tetap di BOM untuk harga). */
-export function kitBomWithoutWpr<T extends { bookId: string }>(bom: T[]): T[] {
-  return bom.filter((b) => b.bookId !== WPR_BOOK_ID);
+export function kitBomWithoutWpr<T extends { bookId: string; title?: string | null; isbn?: string | null }>(bom: T[]): T[] {
+  return bom.filter((b) => !isWprBook({ id: b.bookId, title: b.title, isbn: b.isbn }));
 }
 
 /** True bila murid wajib menanggung WPR: belum ada order paket. */
