@@ -8,7 +8,7 @@ afterEach(() => {
 import { packagesRouter } from "./packages";
 import { db } from "../../db";
 import { and, eq, inArray } from "drizzle-orm";
-import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems } from "../../db/schema";
+import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems, bookStocks, packageStocks } from "../../db/schema";
 import { runIdempotentSeed } from "../seed";
 
 describe("Packages & Bundling/Unbundling API", () => {
@@ -882,6 +882,105 @@ describe("Packages & Bundling/Unbundling API", () => {
     await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
     await db.delete(books).where(eq(books.id, bId));
     await db.delete(schools).where(eq(schools.id, schId));
+  });
+
+  it("recalls package from branch and auto-unbundles to central warehouse loose stock (Issue #386)", async () => {
+    const stamp = Date.now();
+    const branchSchoolId = `sch-branch-${stamp}`;
+    const warehouseSchoolId = "school-warehouse";
+    const bookId = `book-rec-${stamp}`;
+    const now = new Date().toISOString();
+
+    // 1. Setup branch school & ensure warehouse school exists
+    await db.insert(schools).values([
+      {
+        id: branchSchoolId,
+        name: `Cabang Recall ${stamp}`,
+        code: `CB-${stamp.toString().slice(-4)}`,
+        type: "branch",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: warehouseSchoolId,
+        name: "Gudang Logistik Pusat",
+        code: "GUDANG-LOG",
+        type: "warehouse",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]).onConflictDoNothing();
+
+    // 2. Setup book & package
+    await db.insert(books).values({
+      id: bookId,
+      isbn: `978-602-${stamp.toString().slice(-6)}`,
+      title: "Buku Recall Test",
+      author: "Penulis Recall",
+      publisher: "Penerbit Recall",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const createPkgRes = await packagesRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: `PKG-REC-${stamp}`,
+        name: `Paket Recall ${stamp}`,
+        gradeLevel: "1",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        items: [{ bookId, quantity: 2 }],
+      }),
+    });
+    expect(createPkgRes.status).toBe(201);
+    const createdPkg = (await createPkgRes.json()).data;
+
+    // 3. Set branch package stock to 5
+    await db.insert(packageStocks).values({
+      id: `ps-branch-${stamp}`,
+      packageId: createdPkg.id,
+      schoolId: branchSchoolId,
+      availableQuantity: 5,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // 4. Recall 2 packages to warehouse
+    const recallRes = await packagesRouter.request(`/${createdPkg.id}/recall-unbundle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        branchSchoolId,
+        quantity: 2,
+        reason: "Sisa akhir periode ditarik ke pusat",
+      }),
+    });
+    expect(recallRes.status).toBe(200);
+    const recallJson = await recallRes.json();
+    expect(recallJson.success).toBe(true);
+    expect(recallJson.data.unbundledCount).toBe(2);
+    expect(recallJson.data.restoredLooseCount).toBe(4); // 2 packages * 2 books = 4 loose books
+
+    // 5. Verify branch package_stocks is 3 (5 - 2 = 3)
+    const [branchPs] = await db.select().from(packageStocks).where(
+      and(eq(packageStocks.packageId, createdPkg.id), eq(packageStocks.schoolId, branchSchoolId))
+    );
+    expect(branchPs.availableQuantity).toBe(3);
+
+    // 6. Verify warehouse book_stocks has at least 4 available books
+    const [warehouseBs] = await db.select().from(bookStocks).where(
+      and(eq(bookStocks.bookId, bookId), eq(bookStocks.schoolId, warehouseSchoolId))
+    );
+    expect(warehouseBs.availableQuantity).toBe(4);
+
+    // Clean up
+    await db.delete(packageStocks).where(eq(packageStocks.packageId, createdPkg.id));
+    await db.delete(bookStocks).where(eq(bookStocks.bookId, bookId));
+    await packagesRouter.request(`/${createdPkg.id}`, { method: "DELETE" });
+    await db.delete(books).where(eq(books.id, bookId));
+    await db.delete(schools).where(eq(schools.id, branchSchoolId));
   });
 });
 
