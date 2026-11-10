@@ -47,6 +47,10 @@ for (const file of files) {
       violations.push(`${file} (hanya file migrasi resmi berprefix 4 digit angka yang diizinkan di drizzle/)`);
     }
   }
+  // Larang file SQL langsung di data/ (wajib di data/sql/)
+  if (file.startsWith("data/") && file.endsWith(".sql") && !file.startsWith("data/sql/")) {
+    violations.push(`${file} (seluruh file SQL sementara atau output generator wajib disimpan di data/sql/, bukan data/ langsung)`);
+  }
 }
 
 if (violations.length > 0) {
