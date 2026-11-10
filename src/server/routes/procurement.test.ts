@@ -1253,7 +1253,8 @@ describe("PO supplier exclusivity (#143)", () => {
       expect(item).toBeDefined();
       expect(item.studentCount).toBe(1);
       expect(item.warehouseStock).toBe(10);
-      expect(item.recommendedOrderQty).toBe(2);
+      // Net demand: 1 siswa + 10% buffer = 2, stok di gudang 10 -> max(0, 2 - 10) = 0
+      expect(item.recommendedOrderQty).toBe(0);
     } finally {
       mockActor("central_admin", null);
       await db.delete(bookStocks).where(eq(bookStocks.id, `bs-dem-${stamp}`));

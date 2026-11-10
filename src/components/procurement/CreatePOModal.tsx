@@ -10,9 +10,9 @@ import {
   type BookDemandItemInfo,
   buildSupplierPoItems,
   buyPriceOfBook,
-  calcDemandQty,
   filterSupplierEligibleBooks,
   makePoItemRow,
+  resolveInitialOrderQty,
 } from "./po-demand-helpers";
 import { PoItemRow } from "./PoItemRow";
 import { PoHeaderFields } from "./PoHeaderFields";
@@ -49,7 +49,14 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     [catalogBooks, poSupplierId]
   );
 
-  const [poItems, setPoItems] = useState<NewPOItemInput[]>([]);
+  const [poItems, setPoItems] = useState<NewPOItemInput[]>(() =>
+    buildSupplierPoItems(
+      filterSupplierEligibleBooks(catalogBooks, defaultSupplierId),
+      catalogBooks,
+      {},
+      10
+    )
+  );
 
   // Muat ringkasan demand siswa per buku dari server dan populate baris PO awal
   useEffect(() => {
@@ -98,21 +105,30 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
         if (editedBookIds.has(item.bookId)) return item;
         const d = demandMap[item.bookId];
         const studentCount = d?.studentCount ?? 0;
-        const autoQty = calcDemandQty(studentCount, nextBuffer);
+        const warehouseStock = d?.warehouseStock ?? 0;
+        const autoQty = resolveInitialOrderQty(studentCount, nextBuffer, warehouseStock);
         return { ...item, quantityOrdered: autoQty };
       })
     );
   };
 
+  // Buku supplier yang belum ada di tabel item PO
+  const availableBooksToAdd = useMemo(() => {
+    const existingBookIds = new Set(poItems.map((it) => it.bookId));
+    return eligibleBooks.filter((b) => !existingBookIds.has(b.id));
+  }, [eligibleBooks, poItems]);
+
   const handleAddPOItemRow = () => {
-    if (eligibleBooks.length === 0) {
-      alert("Tidak ada judul buku yang tersedia dari supplier ini.");
+    if (availableBooksToAdd.length === 0) {
+      alert("Seluruh judul buku dari supplier ini sudah ada di daftar pesanan.");
       return;
     }
-    const defaultBook = eligibleBooks[0];
-    const d = demandMap[defaultBook.id];
-    const initialQty = calcDemandQty(d?.studentCount ?? 0, bufferPercent);
-    setPoItems((prev) => [...prev, makePoItemRow(defaultBook.id, buyPriceOf(defaultBook.id), initialQty > 0 ? initialQty : 10)]);
+    const nextBook = availableBooksToAdd[0];
+    const d = demandMap[nextBook.id];
+    const sCount = d?.studentCount ?? 0;
+    const wStock = d?.warehouseStock ?? 0;
+    const initialQty = resolveInitialOrderQty(sCount, bufferPercent, wStock);
+    setPoItems((prev) => [...prev, makePoItemRow(nextBook.id, buyPriceOf(nextBook.id), initialQty)]);
   };
 
   const handleRemovePOItemRow = (index: number) => {
@@ -241,7 +257,9 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
               <button
                 type="button"
                 onClick={handleAddPOItemRow}
-                className="text-[#1877F2] hover:text-[#166FE5] text-xs font-semibold flex items-center gap-1 active:scale-[0.98]"
+                disabled={availableBooksToAdd.length === 0}
+                className="text-[#1877F2] hover:text-[#166FE5] disabled:text-[#8A8D91] disabled:cursor-not-allowed text-xs font-semibold flex items-center gap-1 active:scale-[0.98]"
+                title={availableBooksToAdd.length === 0 ? "Semua buku supplier sudah ditambahkan ke daftar" : "Tambah judul buku lain dari supplier"}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tambah Judul Buku</span>
@@ -260,17 +278,24 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
               </div>
             ) : (
               <div className="space-y-2 pr-1">
-                {poItems.map((item, idx) => (
-                  <PoItemRow
-                    key={idx}
-                    idx={idx}
-                    item={item}
-                    eligibleBooks={eligibleBooks}
-                    demand={demandMap[item.bookId]}
-                    onUpdate={handleUpdatePOItem}
-                    onRemove={handleRemovePOItemRow}
-                  />
-                ))}
+                {poItems.map((item, idx) => {
+                  // Opsi buku untuk baris ini: buku saat ini + buku supplier yang belum ada di baris lain
+                  const selectableBooks = eligibleBooks.filter(
+                    (b) => b.id === item.bookId || !poItems.some((other, oIdx) => oIdx !== idx && other.bookId === b.id)
+                  );
+                  return (
+                    <PoItemRow
+                      key={idx}
+                      idx={idx}
+                      item={item}
+                      eligibleBooks={selectableBooks}
+                      bufferPercent={bufferPercent}
+                      demand={demandMap[item.bookId]}
+                      onUpdate={handleUpdatePOItem}
+                      onRemove={handleRemovePOItemRow}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

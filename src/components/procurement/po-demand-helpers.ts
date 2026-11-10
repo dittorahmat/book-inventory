@@ -1,22 +1,25 @@
 import type { Book } from "../../types";
 import { effectiveBookPrice } from "../../lib/book-pricing";
+import {
+  DEFAULT_EMPTY_STOCK_ORDER_QTY,
+  calcBufferQty,
+  calcDemandQty,
+  resolveInitialOrderQty,
+} from "../../lib/po-demand";
 import type { NewPOItemInput } from "./procurement-types";
+
+export {
+  DEFAULT_EMPTY_STOCK_ORDER_QTY,
+  calcBufferQty,
+  calcDemandQty,
+  resolveInitialOrderQty,
+};
 
 export interface BookDemandItemInfo {
   bookId: string;
   studentCount: number;
   warehouseStock: number;
   recommendedOrderQty: number;
-}
-
-/**
- * Formula kanonik perhitungan kuantitas kebutuhan pesanan dengan buffer:
- * CEIL(studentCount * (1 + bufferPercent / 100)).
- */
-export function calcDemandQty(studentCount: number, bufferPercent: number): number {
-  if (!Number.isFinite(studentCount) || studentCount <= 0) return 0;
-  const safeBuffer = Number.isFinite(bufferPercent) && bufferPercent >= 0 ? bufferPercent : 0;
-  return Math.ceil(studentCount * (1 + safeBuffer / 100));
 }
 
 export function buyPriceOfBook(catalogBooks: Book[], bookId: string, fallback = 0): number {
@@ -46,9 +49,10 @@ export function filterSupplierEligibleBooks(catalogBooks: Book[], supplierId: st
 }
 
 /**
- * Membentuk baris-baris PO secara otomatis dari buku yang dipasok oleh supplier terpilih.
- * Hanya menyertakan buku yang memiliki permintaan siswa (demand/studentCount > 0).
- * Kuantitas pesan otomatis terisi dari perhitungan: ceil(studentCount * (1 + bufferPercent / 100)).
+ * Membentuk baris-baris PO secara otomatis dari seluruh buku yang dipasok oleh supplier terpilih.
+ * - Buku dengan permintaan siswa (> 0) diisi formula kebutuhan bersih: MAX(0, Up Buffer - Stok Gudang).
+ * - Buku tanpa permintaan siswa (0) dengan stok kosong diisi default 10 eks; jika stok ada diisi 0.
+ * Logistik tetap memiliki diskresi penuh untuk mengubah angka pesanan.
  */
 export function buildSupplierPoItems(
   eligibleBooks: Book[],
@@ -60,9 +64,8 @@ export function buildSupplierPoItems(
   for (const book of eligibleBooks) {
     const demand = demandMap[book.id];
     const studentCount = demand?.studentCount ?? 0;
-    if (studentCount <= 0) continue;
-    const qty = calcDemandQty(studentCount, bufferPercent);
-    if (qty <= 0) continue;
+    const warehouseStock = demand?.warehouseStock ?? 0;
+    const qty = resolveInitialOrderQty(studentCount, bufferPercent, warehouseStock);
     const unitPrice = buyPriceOfBook(catalogBooks, book.id);
     result.push(makePoItemRow(book.id, unitPrice, qty));
   }
