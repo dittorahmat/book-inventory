@@ -49,6 +49,9 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "makeSyntheticBookStockId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
   { name: "parseSyntheticBookId", owner: "src/server/services/stock/allocation.ts", module: "server/services/stock/allocation" },
   { name: "exportCsvFile", owner: "src/lib/csv-export.ts", module: "lib/csv-export" },
+  { name: "calcBufferQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
+  { name: "calcDemandQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
+  { name: "resolveInitialOrderQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
