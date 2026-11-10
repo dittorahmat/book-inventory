@@ -260,8 +260,11 @@ export async function disassemblePackageBundles(
     .select({
       bookId: bookPackageItems.bookId,
       quantity: bookPackageItems.quantity,
+      title: books.title,
+      isbn: books.isbn,
     })
     .from(bookPackageItems)
+    .innerJoin(books, eq(bookPackageItems.bookId, books.id))
     .where(eq(bookPackageItems.packageId, packageId));
 
   // Hapus paket fisik yang dibongkar bertahap jika ada di package_items

@@ -10,6 +10,8 @@ describe("Pricing seam", () => {
     const bom = [
       { bookId: WPR_BOOK_ID, quantity: 1 },
       { bookId: "book-mat-1", quantity: 2 },
+      { bookId: "custom-wpr-1", title: "PROGRAM WEEKLY PROGRESS REPORT 1 TAHUN", quantity: 1 },
+      { bookId: "custom-wpr-2", isbn: "BK-SDPG-WEEKLY-PROGRESS-REPORT-53971E", quantity: 1 },
     ];
     const kit = kitBomWithoutWpr(bom);
     expect(kit.length).toBe(1);

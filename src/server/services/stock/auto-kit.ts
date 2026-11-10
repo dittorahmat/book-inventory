@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../../../db";
-import { bookPackageItems, bookPackages, bookStocks } from "../../../db/schema";
+import { bookPackageItems, bookPackages, bookStocks, books } from "../../../db/schema";
 import { moveInventoryStock } from "./movement";
 import { kitBomWithoutWpr } from "../pricing";
 import { eq } from "drizzle-orm";
@@ -49,10 +49,13 @@ export async function autoKitMaxPackages(
         packageId: bookPackageItems.packageId,
         bookId: bookPackageItems.bookId,
         quantity: bookPackageItems.quantity,
+        title: books.title,
+        isbn: books.isbn,
       })
-      .from(bookPackageItems);
+      .from(bookPackageItems)
+      .innerJoin(books, eq(bookPackageItems.bookId, books.id));
 
-    const bomsByPackage = new Map<string, Array<{ bookId: string; quantity: number }>>();
+    const bomsByPackage = new Map<string, Array<{ bookId: string; quantity: number; title: string; isbn: string }>>();
     for (const b of allBoms) {
       const list = bomsByPackage.get(b.packageId) ?? [];
       list.push(b);

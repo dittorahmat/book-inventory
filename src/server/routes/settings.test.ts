@@ -416,4 +416,30 @@ describe("Settings penomoran seragam (USO/CLM customizable)", () => {
     });
     expect(branchRes.status).toBe(403);
   });
+
+  it("Settings WPR price (GET & POST) > central admin reads and updates WPR price", async () => {
+    mockActor("central_admin");
+    const getRes = await settingsRouter.request("/wpr-price");
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as { success: boolean; data: { price: number } };
+    expect(getJson.success).toBe(true);
+    expect(getJson.data.price).toBeGreaterThan(0);
+
+    const postRes = await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 800000 }),
+    });
+    expect(postRes.status).toBe(200);
+    const postJson = (await postRes.json()) as { success: boolean; data: { price: number } };
+    expect(postJson.success).toBe(true);
+    expect(postJson.data.price).toBe(800000);
+
+    // Rollback ke 750000
+    await settingsRouter.request("/wpr-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 750000 }),
+    });
+  });
 });
