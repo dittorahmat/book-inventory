@@ -66,3 +66,9 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. Test suite baru untuk fitur pembaruan portal wajib membersihkan seluruh fixtures data dummy/seeder (`schools`, `students`, `bookPackages`, `studentBookOrders`) pada blok penyelesaian tes (`cleanup`/`finally`) guna menjamin isolasi database pengujian (§6.1).
 4. State mutation array murid di view portal wajib dibungkus dalam action hook (`updateSearchResult`), dilarang mengekspos raw array setter (`setSearchResults`) langsung ke komponen antarmuka.
 
+### §0.69. Single-Writer Ekspor CSV & Dekomposisi Shell Drawer Dashboard
+1. Seluruh pengunduhan file CSV di antarmuka web klien wajib menggunakan fungsi kanonik tunggal `exportCsvFile` (`src/lib/csv-export.ts`), dilarang merakit inline Blob dan manipulasi elemen `<a>` manual di setiap komponen view/drawer.
+2. Drawer drill-down dashboard eksekutif dan view multi-cabang wajib menggunakan shell layout bersama `ExecutiveBreakdownDrawerShell` (`src/components/dashboard/ExecutiveBreakdownDrawerShell.tsx`) guna menjamin konsistensi header, padding, escape modal, dan tombol aksi tanpa duplikasi kode.
+3. Tipe data dashboard eksekutif dikelola secara terpusat di `src/lib/dashboard-types.ts`; service backend wajib mengimpor langsung tipe tersebut tanpa deklarasi duplikat di `*-types.ts` lokal.
+4. Agregasi piutang (*outstanding debt*) dashboard wajib memanggil predikat kanonik `isOpenOrder(order.paymentStatus)` sebelum menjumlahkan `outstandingOf(order)`, guna mengecualikan pesanan batal atau pesanan yang telah lunas/non-aktif.
+

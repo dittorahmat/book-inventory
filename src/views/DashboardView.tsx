@@ -4,6 +4,7 @@ import type { School } from "../types";
 import { useDashboard } from "../components/dashboard/useDashboard";
 import { ComparisonSection } from "../components/dashboard/ComparisonSection";
 import { DetailSection } from "../components/dashboard/DetailSection";
+import { ExecutiveDashboard } from "../components/dashboard/ExecutiveDashboard";
 
 interface DashboardViewProps {
   activeSchool: School | null;
@@ -30,6 +31,11 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
   const schoolId = isCentralAdmin ? drillId : activeSchool?.id ?? null;
   const attemptedMode = !isCentralAdmin || drillId ? "detail" : "comparison";
   const { data, isLoading, error, retry } = useDashboard(schoolId);
+
+  // Jika akun adalah central_admin dan belum memilih cabang tertentu, tampilkan Presdir Executive Dashboard
+  if (isCentralAdmin && !drillId) {
+    return <ExecutiveDashboard />;
+  }
 
   if (!isCentralAdmin && !activeSchool) {
     return (
@@ -81,19 +87,18 @@ export function DashboardView({ activeSchool, isCentralAdmin, onNavigateTab }: D
       </div>
     );
   }
+
   return (
     <div className="grid gap-4">
-      {drillId ? (
-        <div>
-          <button
-            type="button"
-            onClick={() => setDrillId(null)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#050505] bg-white border border-[#CED0D4] rounded-xl hover:bg-[#F0F2F5] active:scale-[0.98] transition"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Semua Sekolah
-          </button>
-        </div>
-      ) : null}
+      {drillId && isCentralAdmin && (
+        <button
+          type="button"
+          onClick={() => setDrillId(null)}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1877F2] hover:underline self-start cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> Kembali ke Ringkasan Eksekutif
+        </button>
+      )}
       <DetailSection summary={summary} onNavigateTab={onNavigateTab} />
     </div>
   );
