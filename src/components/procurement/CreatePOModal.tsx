@@ -10,9 +10,9 @@ import {
   type BookDemandItemInfo,
   buildSupplierPoItems,
   buyPriceOfBook,
-  calcDemandQty,
   filterSupplierEligibleBooks,
   makePoItemRow,
+  resolveInitialOrderQty,
 } from "./po-demand-helpers";
 import { PoItemRow } from "./PoItemRow";
 import { PoHeaderFields } from "./PoHeaderFields";
@@ -106,12 +106,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
         const d = demandMap[item.bookId];
         const studentCount = d?.studentCount ?? 0;
         const warehouseStock = d?.warehouseStock ?? 0;
-        let autoQty = 0;
-        if (studentCount > 0) {
-          autoQty = calcDemandQty(studentCount, nextBuffer, warehouseStock);
-        } else {
-          autoQty = warehouseStock <= 0 ? 10 : 0;
-        }
+        const autoQty = resolveInitialOrderQty(studentCount, nextBuffer, warehouseStock);
         return { ...item, quantityOrdered: autoQty };
       })
     );
@@ -132,12 +127,7 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
     const d = demandMap[nextBook.id];
     const sCount = d?.studentCount ?? 0;
     const wStock = d?.warehouseStock ?? 0;
-    let initialQty = 10;
-    if (sCount > 0) {
-      initialQty = calcDemandQty(sCount, bufferPercent, wStock);
-    } else {
-      initialQty = wStock <= 0 ? 10 : 0;
-    }
+    const initialQty = resolveInitialOrderQty(sCount, bufferPercent, wStock);
     setPoItems((prev) => [...prev, makePoItemRow(nextBook.id, buyPriceOf(nextBook.id), initialQty)]);
   };
 
