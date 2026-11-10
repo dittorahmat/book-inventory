@@ -36,7 +36,7 @@ async function main() {
     "DELETE FROM stock_adjustments;",
   ].join("\n");
 
-  const tempSqlFile = resolve("./data/sql-reset-stock-temp.sql");
+  const tempSqlFile = resolve("./data/sql/sql-reset-stock-temp.sql");
   writeFileSync(tempSqlFile, sqlCommands, "utf-8");
 
   try {

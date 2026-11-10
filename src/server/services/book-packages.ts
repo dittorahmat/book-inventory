@@ -85,22 +85,26 @@ export async function replaceBookPackages(
     }
   }
 
-  // Cari paket yang sebelumnya memuat buku ini agar harganya juga dihitung ulang
+  // Cari paket yang sebelumnya memuat buku ini dan simpan quantity aslinya
   const previousRows = await database
-    .select({ packageId: bookPackageItems.packageId })
+    .select({
+      packageId: bookPackageItems.packageId,
+      quantity: bookPackageItems.quantity,
+    })
     .from(bookPackageItems)
     .where(eq(bookPackageItems.bookId, bookId));
+  const previousQuantityMap = new Map(previousRows.map((r) => [r.packageId, r.quantity]));
   const previousPackageIds = previousRows.map((r) => r.packageId);
 
   // Hapus semua relasi buku ini dari bookPackageItems
   await database.delete(bookPackageItems).where(eq(bookPackageItems.bookId, bookId));
 
-  // Masukkan relasi baru
+  // Masukkan relasi baru (pertahankan kuantitas eksisting bila paket sudah pernah memuat buku ini)
   const rowsToInsert = uniqTarget.map((packageId) => ({
     id: crypto.randomUUID(),
     packageId,
     bookId,
-    quantity: 1,
+    quantity: previousQuantityMap.get(packageId) ?? 1,
     createdAt: now,
   }));
 

@@ -255,7 +255,7 @@ async function main() {
       sqlStatements.push(`INSERT OR IGNORE INTO book_suppliers (book_id, supplier_id, created_at) VALUES ${values};`);
     }
 
-    const tempSqlFile = resolve("./data/sql-sync-d1-suppliers.sql");
+    const tempSqlFile = resolve("./data/sql/sql-sync-d1-suppliers.sql");
     writeFileSync(tempSqlFile, sqlStatements.join("\n"), "utf-8");
 
     try {
