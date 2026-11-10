@@ -49,6 +49,18 @@ describe("Users API & School Assignment", () => {
     });
     expect(resFailBranch.status).toBe(400);
 
+    const resFailFinance = await usersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Branch Finance Without School",
+        email: "fail.finance@example.com",
+        password: "password123",
+        role: "branch_finance",
+      }),
+    });
+    expect(resFailFinance.status).toBe(400);
+
     // 2. Successful creation of Branch Admin
     const resBranch = await usersRouter.request("/", {
       method: "POST",

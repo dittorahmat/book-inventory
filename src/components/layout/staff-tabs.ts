@@ -16,6 +16,7 @@ import {
 import type { ComponentType } from "react";
 import {
   isBookWarehouseStaffRole,
+  isBranchFinanceRole,
   isCentralRole,
   isSchoolRole,
   isUniformStaffRole,
@@ -82,7 +83,7 @@ export const DESKTOP_TABS: DesktopTabItem[] = [
     id: "student_orders",
     label: () => "Pesanan Siswa",
     icon: Users,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r) || isSchoolRole(r),
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r) || isSchoolRole(r) || isBranchFinanceRole(r),
   },
   {
     id: "internal_orders",
@@ -130,7 +131,7 @@ export const DESKTOP_TABS: DesktopTabItem[] = [
     id: "reports",
     label: () => "Laporan",
     icon: BarChart3,
-    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r),
+    visible: (r) => isCentralRole(r) || isBookWarehouseStaffRole(r) || isBranchFinanceRole(r),
   },
   {
     id: "settings",

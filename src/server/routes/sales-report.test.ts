@@ -289,6 +289,17 @@ describe("Rekap penjualan (spec: sales-report)", () => {
       const cross = await salesReportRouter.request(`/?from=${FROM}&to=${TO}&schoolId=${schoolB}`);
       expect(cross.status).toBe(403);
 
+      // Finance Cabang juga terkunci pada sekolah penugasannya
+      mockActor("branch_finance", schoolA);
+      const finScoped = await salesReportRouter.request(`/?from=${FROM}&to=${TO}`);
+      expect(finScoped.status).toBe(200);
+      const finJson = await finScoped.json();
+      expect(finJson.data.scopeSchoolIds).toEqual([schoolA]);
+      expect(finJson.data.totals.revenue).toBe(500_000);
+
+      const finCross = await salesReportRouter.request(`/?from=${FROM}&to=${TO}&schoolId=${schoolB}`);
+      expect(finCross.status).toBe(403);
+
       mockActor("central_admin");
       const all = await salesReportRouter.request(`/?from=${FROM}&to=${TO}&schoolId=${schoolA}`);
       const allJson = await all.json();

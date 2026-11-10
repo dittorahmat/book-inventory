@@ -9,7 +9,8 @@ export type StaffRole =
   | "warehouse_books_admin" 
   | "warehouse_uniforms_admin" 
   | "school_admin" 
-  | "branch_admin";
+  | "branch_admin"
+  | "branch_finance";
 
 export const STAFF_ROLES: StaffRole[] = [
   "central_admin", 
@@ -17,7 +18,8 @@ export const STAFF_ROLES: StaffRole[] = [
   "warehouse_books_admin", 
   "warehouse_uniforms_admin", 
   "school_admin", 
-  "branch_admin"
+  "branch_admin",
+  "branch_finance"
 ];
 
 /** Logistics managers: allowed to run procurement and package-master mutations. */
@@ -138,6 +140,14 @@ export function requireBookLogisticsRole(actor: AccessActor | null): void {
   if (!actor) return;
   if (actor.role !== "central_admin" && actor.role !== "warehouse_admin" && actor.role !== "warehouse_books_admin") {
     throw new AccessHttpError(403, "Hanya central admin atau admin gudang buku yang berhak mengelola master paket buku");
+  }
+}
+
+/** Throw unless the actor holds an order mutation role (non-read-only). branch_finance is strictly read-only. */
+export function requireOrderMutationRole(actor: AccessActor | null): void {
+  if (!actor) return;
+  if (actor.role === "branch_finance") {
+    throw new AccessHttpError(403, "Peran finance cabang bersifat read-only dan dilarang mengubah status pembayaran atau pesanan.");
   }
 }
 

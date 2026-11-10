@@ -126,7 +126,7 @@ usersRouter.put("/:id", zValidator("json", updateUserSchema), async (c) => {
   const targetRole = body.role || existingUser.role;
   const targetSchoolId = body.schoolId !== undefined ? body.schoolId : existingUser.schoolId;
 
-  if (targetRole === "branch_admin" && !targetSchoolId) {
+  if ((targetRole === "branch_admin" || targetRole === "branch_finance") && !targetSchoolId) {
     return c.json({ success: false, message: "Branch administrator must be assigned to a school" }, 400);
   }
 

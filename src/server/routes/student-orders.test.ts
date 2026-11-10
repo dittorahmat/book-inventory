@@ -395,6 +395,15 @@ describe("Student Orders Handover Surat Jalan & Return API", () => {
     expect(persisted.discountAmount).toBe(100000);
     expect(persisted.totalAmount).toBe(400000);
     expect(persisted.paymentStatus).toBe("unpaid");
+
+    // Peran branch_finance dilarang melakukan mutasi diskon (403 read-only)
+    mockActor("branch_finance", schoolId);
+    const finDiscRes = await studentOrdersRouter.request(`/${discOrder}/scholarship-discount`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ discountPct: 10 }),
+    });
+    expect(finDiscRes.status).toBe(403);
   });
 });
 
