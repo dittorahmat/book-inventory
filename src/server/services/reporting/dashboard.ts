@@ -56,17 +56,6 @@ export interface SchoolDashboardQuery {
 }
 
 /**
- * Deep Domain Service: Mengenkapsulasi pipeline pembacaan terpartisi dan kompilasi
- * ringkasan metrik cabang/gudang tanpa mengekspos tipe data-clump mentah.
- */
-export async function getSchoolDashboardSummary(
-  database: AppDatabase,
-  query: SchoolDashboardQuery
-): Promise<DashboardSummaryPayload> {
-  return getDashboardSummary(database, query.actor, query.schoolId);
-}
-
-/**
  * Ambil baris ringkasan terpartisi scope sekolah di WHERE SQL (§11 anti
  * Pindai Penuh): tabel milik sekolah difilter `school IN scope`, katalog
  * global kecil (paket, buku) tetap penuh. Retur dijangkau lewat join ke
@@ -169,11 +158,15 @@ const isDashboardSchemaError = (err: unknown): boolean => {
   return /D1_ERROR|Failed query|no such (table|column)|SQLITE_|too many (SQL variables|bound parameters)/i.test(msg);
 };
 
-export async function getDashboardSummary(
+/**
+ * Deep Domain Service: Mengenkapsulasi pipeline pembacaan terpartisi dan kompilasi
+ * ringkasan metrik cabang/gudang tanpa mengekspos tipe data-clump mentah.
+ */
+export async function getSchoolDashboardSummary(
   database: AppDatabase,
-  actor: DashboardActor | null,
-  requestedSchoolId: string | undefined,
+  query: SchoolDashboardQuery
 ): Promise<DashboardSummaryPayload> {
+  const { actor, schoolId: requestedSchoolId } = query;
   try {
     const allSchoolRows: SchoolRow[] = await database.select().from(schools);
     const scope = resolveLocationScope(actor, requestedSchoolId, allSchoolRows.map((s) => ({ id: s.id })));
@@ -198,3 +191,10 @@ export async function getDashboardSummary(
     throw err;
   }
 }
+
+/** Kompatibilitas mundur bagi caller eksisting */
+export const getDashboardSummary = (
+  database: AppDatabase,
+  actor: DashboardActor | null,
+  requestedSchoolId?: string
+): Promise<DashboardSummaryPayload> => getSchoolDashboardSummary(database, { actor, schoolId: requestedSchoolId });

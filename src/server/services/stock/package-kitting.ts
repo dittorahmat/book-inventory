@@ -211,7 +211,7 @@ export async function kitPackage(
         await moveInventoryStock(
           database,
           {
-            movementType: "handover",
+            movementType: "assembly",
             itemType: "loose",
             bookId: comp.bookId,
             schoolId,
@@ -333,10 +333,10 @@ export async function kitPackage(
       await moveInventoryStock(
         database,
         {
-          movementType: "receipt",
+          movementType: "disassembly",
           itemType: "loose",
           bookId: item.bookId,
-          toSchoolId,
+          schoolId: toSchoolId,
           quantity: item.quantity * quantity,
         },
         deps
