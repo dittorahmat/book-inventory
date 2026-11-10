@@ -22,7 +22,6 @@ export function BookPriceFields({ buyPrice, sellPrice, onChange }: BookPriceFiel
         <input
           type="number"
           min={0}
-          step={5000}
           className={inputClass}
           placeholder="0"
           value={buyPrice === 0 ? "" : buyPrice}
@@ -37,7 +36,6 @@ export function BookPriceFields({ buyPrice, sellPrice, onChange }: BookPriceFiel
         <input
           type="number"
           min={0}
-          step={5000}
           className={inputClass}
           placeholder="0"
           value={sellPrice === 0 ? "" : sellPrice}
