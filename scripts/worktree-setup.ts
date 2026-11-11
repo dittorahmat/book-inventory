@@ -21,7 +21,22 @@ const targetDir = targetDirInput
 console.log(`[worktree-setup] Menyiapkan worktree '${branchName}' di '${targetDir}'...`);
 
 if (!existsSync(targetDir)) {
-  execFileSync("git", ["worktree", "add", "-b", branchName, targetDir, "main"], {
+  let branchExists = false;
+  try {
+    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], {
+      cwd: rootDir,
+      stdio: "ignore",
+    });
+    branchExists = true;
+  } catch {
+    branchExists = false;
+  }
+
+  const worktreeArgs = branchExists
+    ? ["worktree", "add", targetDir, branchName]
+    : ["worktree", "add", "-b", branchName, targetDir, "main"];
+
+  execFileSync("git", worktreeArgs, {
     cwd: rootDir,
     stdio: "inherit",
   });
