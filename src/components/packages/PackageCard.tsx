@@ -239,9 +239,20 @@ export function PackageCard({
 
                   <div className="mt-2.5 pt-2 border-t border-[#F0F2F5] flex items-center justify-between text-[11px]">
                     <span className="text-[#65676B]">Stok Satuan:</span>
-                    <span className={`font-semibold ${isShortage ? "text-amber-600" : "text-emerald-600"}`}>
-                      {stockInfo?.availableLooseStock ?? 0} pcs
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-semibold ${isShortage ? "text-amber-600" : "text-emerald-600"}`}>
+                        {stockInfo?.availableLooseStock ?? 0} pcs
+                      </span>
+                      {isDemoMode && schoolId && onStockOverridden && (
+                        <QuickSetStockButton
+                          label={item.title}
+                          currentQuantity={stockInfo?.availableLooseStock ?? 0}
+                          overrideEndpoint="/api/demo/stock/book-override"
+                          payload={{ schoolId, bookId: item.bookId }}
+                          onSuccess={onStockOverridden}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               );
