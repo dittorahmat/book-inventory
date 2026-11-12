@@ -1,10 +1,13 @@
 import { Shirt, Edit3 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { QuickSetStockButton } from "../inventory/QuickSetStockButton";
 import type { UniformVariantRow } from "./uniform-admin-api";
 
 interface UniformVariantListProps {
   variants: UniformVariantRow[];
   searchQuery: string;
+  isDemoMode?: boolean;
+  onStockOverridden?: () => void;
   onEdit: (row: UniformVariantRow) => void;
 }
 
@@ -21,7 +24,7 @@ function matchesUniformVariantSearch(row: UniformVariantRow, rawQuery: string): 
   );
 }
 
-export function UniformVariantList({ variants, searchQuery, onEdit }: UniformVariantListProps) {
+export function UniformVariantList({ variants, searchQuery, isDemoMode, onStockOverridden, onEdit }: UniformVariantListProps) {
   const filtered = variants.filter((row) => matchesUniformVariantSearch(row, searchQuery));
 
   return (
@@ -143,10 +146,34 @@ export function UniformVariantList({ variants, searchQuery, onEdit }: UniformVar
                       <div className="font-bold text-[#1877F2] text-sm">{formatRupiah(v.price)}</div>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <div className="font-bold text-[#050505]">{totalStock} <span className="text-[10px] font-normal text-[#65676B]">unit</span></div>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="font-bold text-[#050505]">{totalStock} <span className="text-[10px] font-normal text-[#65676B]">unit</span></span>
+                        {isDemoMode && onStockOverridden && sizes.length === 0 && (
+                          <QuickSetStockButton
+                            label={v.name}
+                            currentQuantity={totalStock}
+                            overrideEndpoint="/api/demo/stock/uniform-override"
+                            payload={{ variantId: v.id, size: "—" }}
+                            onSuccess={onStockOverridden}
+                          />
+                        )}
+                      </div>
                       {stock.length > 0 && (
-                        <div className="text-[10px] text-[#65676B] truncate max-w-[180px] mx-auto mt-0.5" title={stock.map((s) => `${s.size || "-"}:${s.quantity}`).join(" | ")}>
-                          {stock.map((s) => `${s.size || "-"}:${s.quantity}`).join(" ")}
+                        <div className="flex flex-wrap items-center justify-center gap-1 mt-1">
+                          {stock.map((s) => (
+                            <span key={s.size} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F8F9FA] border border-[#E4E6EB] text-[10px] font-mono">
+                              <span>{s.size || "-"}:{s.quantity}</span>
+                              {isDemoMode && onStockOverridden && (
+                                <QuickSetStockButton
+                                  label={`${v.name} (Size ${s.size})`}
+                                  currentQuantity={s.quantity}
+                                  overrideEndpoint="/api/demo/stock/uniform-override"
+                                  payload={{ variantId: v.id, size: s.size }}
+                                  onSuccess={onStockOverridden}
+                                />
+                              )}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </td>

@@ -20,10 +20,13 @@ import {
   suppliers,
   purchaseOrders,
   schools,
+  systemSettings,
   users,
 } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { effectiveSellPrice } from "../../lib/book-pricing";
+import { DEMO_STOCK_OVERRIDE_KEY, setDemoStockOverrideEnabled } from "../services/demo-stock-override";
+import { createTestBook, createTestPackage, createTestSchool } from "../lib/test-fixtures";
 
 const SEEDED_PACKAGE_IDS = ["pkg-sd1-int", "pkg-sd1-nas", "pkg-sd2-int", "pkg-sd2-nas"];
 
@@ -183,5 +186,139 @@ describe("Revamped Demo Seeding API", () => {
     expect(receipt.verifiedAt).toBeNull();
     const [promoted] = await db.select().from(students).where(eq(students.id, "std-alw3-03"));
     expect(promoted.status).toBe("promoted");
+  });
+
+  it("POST /stock/book-override & /stock/package-override guards demo mode and sets stock", async () => {
+    await db.delete(systemSettings).where(eq(systemSettings.key, DEMO_STOCK_OVERRIDE_KEY));
+    const s = await createTestSchool(db);
+    const b = await createTestBook(db);
+    const p = await createTestPackage(db);
+
+    // 1. Ditolak jika mode demo nonaktif (403)
+    const denyBook = await demoRouter.request("/stock/book-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, bookId: b.id, targetQuantity: 20 }),
+    });
+    expect(denyBook.status).toBe(403);
+
+    // 2. Aktifkan mode demo
+    await setDemoStockOverrideEnabled(db, true);
+
+    // 3. Set stok buku satuan
+    const okBook = await demoRouter.request("/stock/book-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, bookId: b.id, targetQuantity: 42 }),
+    });
+    expect(okBook.status).toBe(200);
+    const bookJson = await okBook.json();
+    expect(bookJson.success).toBe(true);
+    expect(bookJson.data.newQuantity).toBe(42);
+
+    // 4. Set stok paket
+    const okPkg = await demoRouter.request("/stock/package-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, packageId: p.id, targetQuantity: 15 }),
+    });
+    expect(okPkg.status).toBe(200);
+    const pkgJson = await okPkg.json();
+    expect(pkgJson.success).toBe(true);
+    expect(pkgJson.data.newQuantity).toBe(15);
+
+    // 5. Set stok seragam varian
+    const stamp = Date.now().toString().slice(-6);
+    const uvId = `uv-test-${stamp}`;
+    const upkgId = `up-test-${stamp}`;
+    const { uniformVariants, uniformPackages } = await import("../../db/schema");
+    await db.insert(uniformVariants).values({
+      id: uvId,
+      code: `UV-TEST-${stamp}`,
+      name: "Seragam Uji",
+      kind: "olahraga",
+      gender: "male",
+      jenjang: "sd",
+      academicYear: "2026/2027",
+      price: 120000,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await db.insert(uniformPackages).values({
+      id: upkgId,
+      code: `UP-TEST-${stamp}`,
+      name: "Paket Seragam Uji",
+      academicYear: "2026/2027",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const okUniform = await demoRouter.request("/stock/uniform-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variantId: uvId, size: "L", targetQuantity: 33 }),
+    });
+    expect(okUniform.status).toBe(200);
+    const uniformJson = await okUniform.json();
+    expect(uniformJson.success).toBe(true);
+    expect(uniformJson.data.newQuantity).toBe(33);
+
+    // 6. Set stok paket seragam
+    const okUniformPkg = await demoRouter.request("/stock/uniform-package-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packageId: upkgId, targetQuantity: 21 }),
+    });
+    expect(okUniformPkg.status).toBe(200);
+    const unifPkgJson = await okUniformPkg.json();
+    expect(unifPkgJson.success).toBe(true);
+    expect(unifPkgJson.data.newQuantity).toBe(21);
+
+    // 7. Allocation violation check pada seragam
+    const { uniformOrders, uniformOrderItems, students: studentTable } = await import("../../db/schema");
+    const testStudent = await db
+      .select({ id: studentTable.id })
+      .from(studentTable)
+      .limit(1);
+    const stuId = testStudent[0]?.id;
+    if (stuId) {
+      const activeOrderId = `uord-alloc-${stamp}`;
+      await db.insert(uniformOrders).values({
+        id: activeOrderId,
+        orderNumber: `ORD-ALLOC-${stamp}`,
+        studentId: stuId,
+        schoolId: s.id,
+        academicYear: "2026/2027",
+        homeAddressSnapshot: "Jl. Alloc Test",
+        shipmentStatus: "belum_dikirim",
+        paymentStatus: "paid",
+        totalAmount: 120000,
+        paidAmount: 120000,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await db.insert(uniformOrderItems).values({
+        id: `uitem-alloc-${stamp}`,
+        orderId: activeOrderId,
+        variantId: uvId,
+        size: "L",
+        quantity: 10,
+        createdAt: new Date().toISOString(),
+      });
+
+      const failAlloc = await demoRouter.request("/stock/uniform-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId: uvId, size: "L", targetQuantity: 5 }),
+      });
+      expect(failAlloc.status).toBe(400);
+      const failJson = await failAlloc.json();
+      expect(failJson.success).toBe(false);
+      expect(failJson.message).toContain("tidak boleh lebih kecil dari pesanan aktif");
+
+      await db.delete(uniformOrderItems).where(eq(uniformOrderItems.orderId, activeOrderId));
+      await db.delete(uniformOrders).where(eq(uniformOrders.id, activeOrderId));
+    }
   });
 });

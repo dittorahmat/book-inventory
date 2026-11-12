@@ -25,6 +25,9 @@ const targetDirs = [
   join(process.cwd(), "src", "components", "packages"),
   join(process.cwd(), "src", "components", "books"),
   join(process.cwd(), "src", "components", "procurement"),
+  join(process.cwd(), "src", "components", "inventory"),
+  join(process.cwd(), "src", "components", "internal-orders"),
+  join(process.cwd(), "src", "components", "settings"),
 ];
 
 const files = targetDirs.flatMap((dir) => walk(dir));
@@ -46,6 +49,7 @@ const GRANDFATHERED_FEEDBACK = new Set([
   "src/components/students/BatchPromoteModal.tsx",
   "src/components/orders/FinanceDiscretionModal.tsx",
   "src/components/procurement/CreateVendorReturnModal.tsx",
+  "src/components/internal-orders/CreateInternalShipmentModal.tsx",
 ]);
 
 for (const file of files) {

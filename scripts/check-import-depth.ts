@@ -62,7 +62,12 @@ for (const file of walk(SRC)) {
 
 if (offenders.length > 0) {
   console.error("Import-depth gate FAILED (import relatif keluar src/ atau target tak ada):");
-  for (const o of offenders) console.error(`  ${o.file}:${o.line}  "${o.spec}"  (${o.reason})`);
+  for (const o of offenders) {
+    const hint = o.spec.includes("test/fixtures")
+      ? " -> Petunjuk: untuk test server di bawah src/server/, gunakan kanonik 'src/server/lib/test-fixtures.ts'!"
+      : "";
+    console.error(`  ${o.file}:${o.line}  "${o.spec}"  (${o.reason})${hint}`);
+  }
   process.exit(1);
 }
 

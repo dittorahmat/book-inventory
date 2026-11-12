@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, Users, Mail, CalendarClock, MessageSquare, Shirt } from "lucide-react";
+import { Building2, Users, Mail, CalendarClock, MessageSquare, Shirt, ShieldAlert } from "lucide-react";
 import { SatuanCutoffSettings } from "../components/settings/SatuanCutoffSettings";
 import { UniformSatuanToggle } from "../components/settings/UniformSatuanToggle";
 import { WprPriceSettings } from "../components/settings/WprPriceSettings";
@@ -10,6 +10,7 @@ import { WarehouseReturnAddressSettings } from "../components/settings/Warehouse
 import { SchoolGradeAllowedBooksSettings } from "../components/settings/SchoolGradeAllowedBooksSettings";
 import { SchoolsSettingsTab } from "../components/settings/SchoolsSettingsTab";
 import { UsersSettingsTab } from "../components/settings/UsersSettingsTab";
+import { DemoModeSettingsSection } from "../components/settings/DemoModeSettingsSection";
 import { useSettingsData } from "../components/settings/useSettingsData";
 import { currentAcademicYear } from "../lib/wib-time";
 
@@ -18,7 +19,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp" | "whatsapp" | "cutoff" | "uniform">("schools");
+  const [activeTab, setActiveTab] = useState<"schools" | "users" | "smtp" | "whatsapp" | "cutoff" | "uniform" | "demo">("schools");
   const [cutoffYear, setCutoffYear] = useState(currentAcademicYear());
   const { schoolsList, usersList, loadError, createSchool, createUser } = useSettingsData();
 
@@ -114,6 +115,18 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
             <Shirt className="w-4 h-4" />
             Seragam
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("demo")}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all active:scale-[0.98] ${
+              activeTab === "demo"
+                ? "bg-white text-[#FA383E] font-bold shadow-xs"
+                : "text-[#65676B] hover:text-[#050505]"
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            Fitur & Demo
+          </button>
         </div>
       </div>
 
@@ -143,6 +156,10 @@ export function SettingsView({ onSchoolsUpdated }: SettingsViewProps) {
 
       {activeTab === "uniform" && (
         <UniformNumberingSettings />
+      )}
+
+      {activeTab === "demo" && (
+        <DemoModeSettingsSection />
       )}
 
       {activeTab === "cutoff" && (

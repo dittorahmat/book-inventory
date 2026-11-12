@@ -10,6 +10,7 @@ import { EditPackageModal } from "../components/packages/EditPackageModal";
 import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useRoamingLocation } from "../lib/location-helpers";
+import { useDemoMode } from "../lib/useDemoMode";
 
 type BookPackage = PackageRow;
 
@@ -27,6 +28,8 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
     effectiveSchool,
     setSelectedSchoolId,
   } = useRoamingLocation(activeSchool, schools, userRole);
+
+  const { isDemoMode } = useDemoMode();
 
   const {
     packages,
@@ -181,6 +184,9 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
               catalogBooks={catalogBooks}
               isExpanded={expandedPackageId === pkg.id}
               isBranchLocation={effectiveSchool?.type === "branch"}
+              isDemoMode={isDemoMode}
+              schoolId={effectiveSchoolId}
+              onStockOverridden={loadPackagesData}
               onToggleExpand={() => setExpandedPackageId(expandedPackageId === pkg.id ? null : pkg.id)}
               onOpenBundling={(mode) => {
                 setModalPkg(pkg);

@@ -9,12 +9,15 @@ import {
 import { CreateUniformPackageModal } from "./CreateUniformPackageModal";
 import { EditUniformPackageModal } from "./EditUniformPackageModal";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { QuickSetStockButton } from "../inventory/QuickSetStockButton";
+import { useDemoMode } from "../../lib/useDemoMode";
 
 interface UniformAssemblySectionProps {
   defaultAcademicYear?: string;
 }
 
 export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: UniformAssemblySectionProps) {
+  const { isDemoMode } = useDemoMode();
   const [packages, setPackages] = useState<UniformPackageRow[]>([]);
   const [editingPackage, setEditingPackage] = useState<UniformPackageRow | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -180,9 +183,20 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#65676B] block">
                         Siap Kirim
                       </span>
-                      <span className={`text-base font-bold ${p.readyQty > 0 ? "text-emerald-600" : "text-[#65676B]"}`}>
-                        {p.readyQty} Paket
-                      </span>
+                      <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                        <span className={`text-base font-bold ${p.readyQty > 0 ? "text-emerald-600" : "text-[#65676B]"}`}>
+                          {p.readyQty} Paket
+                        </span>
+                        {isDemoMode && (
+                          <QuickSetStockButton
+                            label={p.package.name}
+                            currentQuantity={p.readyQty}
+                            overrideEndpoint="/api/demo/stock/uniform-package-override"
+                            payload={{ packageId: p.package.id }}
+                            onSuccess={reload}
+                          />
+                        )}
+                      </div>
                     </div>
 
                     <button

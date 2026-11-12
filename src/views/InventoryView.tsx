@@ -6,6 +6,7 @@ import { StockSummaryTable } from "../components/inventory/StockSummaryTable";
 import { DirectSaleModal, type TransferLinePreview } from "../components/inventory/DirectSaleModal";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
+import { useDemoMode } from "../lib/useDemoMode";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useRoamingLocation } from "../lib/location-helpers";
 import type { StaffRole } from "../lib/staff-roles";
@@ -23,6 +24,8 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
     effectiveSchool,
     setSelectedSchoolId,
   } = useRoamingLocation(activeSchool, schools, userRole);
+
+  const { isDemoMode } = useDemoMode();
 
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -186,6 +189,9 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
         packageRows={packageRows}
         quantities={quantities}
         onQuantityChange={(key, value) => setQuantities((prev) => ({ ...prev, [key]: value }))}
+        isDemoMode={isDemoMode}
+        schoolId={effectiveSchoolId}
+        onStockOverridden={loadOverview}
       />
 
       <DirectSaleModal
