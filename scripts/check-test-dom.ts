@@ -38,6 +38,12 @@ for (const file of testFiles) {
         violations++;
       }
     }
+
+    const hasCleanup = content.includes("cleanup");
+    if (!hasCleanup) {
+      console.error(`Missing 'cleanup' from @testing-library/react in ${file}. Always import cleanup and call in afterEach to prevent DOM pollution across tests.`);
+      violations++;
+    }
   }
 }
 

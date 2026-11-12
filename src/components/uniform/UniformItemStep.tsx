@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Package, Shirt } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { UniformSizeGuideModal } from "./UniformSizeGuideModal";
 import { formatUniformSizeLabel, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
 import type { UniformOrder } from "./useUniformOrder";
@@ -29,15 +31,62 @@ const stepper = (qty: number, onChange: (delta: number) => void, disabled = fals
 
 export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
+  const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian");
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
   const stockOf = (variantId: string, size: string) =>
     order.catalog?.variants.find((v) => v.id === variantId)?.stock.find((s) => s.size === size)?.quantity ?? 0;
 
+  const isPackageMode = order.uniformMode !== "satuan";
+
+  const handleLanjut = () => {
+    setAttempted(true);
+    if (order.itemCount === 0) return;
+    if (order.hasMissingOlahragaSize) {
+      if (order.missingOlahragaVariants.length > 0) {
+        const targetId = order.missingOlahragaVariants[0].id;
+        setSizeWarningId(targetId);
+        const el = document.getElementById(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.focus();
+        }
+      }
+      return;
+    }
+    order.setStep(3);
+  };
+
   return (
     <div className="space-y-6">
-      {order.visiblePackages.length > 0 && (
+      {order.satuanOpen && (
+        <div className="inline-flex rounded-xl border border-[#CED0D4] overflow-hidden bg-white">
+          <button
+            type="button"
+            onClick={() => order.setUniformMode("package")}
+            className={`px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors active:scale-[0.98] ${
+              isPackageMode ? "bg-[#1877F2] text-white" : "text-[#65676B] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Paket Lengkap</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => order.setUniformMode("satuan")}
+            className={`px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors border-l border-[#CED0D4] active:scale-[0.98] ${
+              !isPackageMode ? "bg-[#1877F2] text-white" : "text-[#65676B] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Shirt className="w-3.5 h-3.5" />
+            <span>Satuan</span>
+          </button>
+        </div>
+      )}
+
+      {isPackageMode && order.visiblePackages.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-[#050505]">Paket Bahan Seragam Harian</h3>
@@ -89,6 +138,24 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </section>
       )}
 
+      {!isPackageMode && kain.length > 0 && (
+        <section>
+          <h3 className="text-sm font-bold text-[#050505] mb-1">Kain Harian Satuan</h3>
+          <p className="text-xs text-[#65676B] mb-3">Paket kain tanpa ukuran.</p>
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
+            {kain.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-sm font-semibold">{v.name}</div>
+                  <div className="text-xs text-[#65676B]">{formatRupiah(v.price)} · Stok: {stockOf(v.id, "—")}</div>
+                </div>
+                {stepper(order.satuanQty[v.id] ?? 0, (d) => order.bumpSatuan(v.id, d))}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {olahraga.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-1">
@@ -132,8 +199,14 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 order.bumpSatuan(key, delta);
               };
 
+              const isMissingSize = (attempted || sizeWarningId === v.id) && currentQty > 0 && !picked;
+              const errorMessage = isMissingSize ? "Wajib memilih ukuran seragam olahraga sebelum melanjutkan." : undefined;
+
               return (
-                <div key={v.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
+                <div
+                  key={v.id}
+                  className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-bold">{v.name}</div>
@@ -143,14 +216,16 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   </div>
                   <div>
                     <SearchableSingleSelect
+                      id={v.id}
                       label="Pilih Ukuran Olahraga (Wajib)"
                       options={sizeOptions}
                       value={picked}
                       onChange={handleSizeChange}
                       placeholder="— Pilih ukuran olahraga —"
+                      error={errorMessage}
                     />
-                    {(!picked || sizeWarningId === v.id) && (
-                      <p className="text-[11px] text-amber-600 mt-1">
+                    {!errorMessage && !picked && (
+                      <p className="mt-1 text-[11px] text-[#65676B]">
                         ⚠️ Wajib memilih ukuran seragam olahraga sebelum menambahkan atau melanjutkan pesanan.
                       </p>
                     )}
@@ -168,6 +243,24 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </div>
       )}
 
+      {attempted && order.itemCount === 0 && (
+        <FormSummaryAlert
+          title="Pesanan Masih Kosong"
+          errors={{
+            items: "Silakan pilih minimal 1 paket seragam atau seragam satuan sebelum melanjutkan.",
+          }}
+        />
+      )}
+
+      {attempted && order.hasMissingOlahragaSize && (
+        <FormSummaryAlert
+          title="Pilihan Ukuran Belum Lengkap"
+          errors={{
+            olahraga: "Ada seragam olahraga yang belum dipilih ukurannya. Silakan tentukan ukuran seragam olahraga sebelum melanjutkan.",
+          }}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -179,9 +272,8 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         <div className="text-sm font-bold">Total: {formatRupiah(order.total)}</div>
         <button
           type="button"
-          disabled={order.itemCount === 0}
-          onClick={() => order.setStep(3)}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-[#1664D9] active:scale-[0.98]"
+          onClick={handleLanjut}
+          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
         >
           Lanjut
         </button>

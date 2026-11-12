@@ -79,8 +79,10 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. **Proporsi Ruang & Anti-Truncate**: Kotak input angka (Qty, Diskon, dsb.) wajib memiliki lebar minimum yang memadai (minimal `min-w-[50px]` hingga `min-w-[70px]`) dan padding proporsional (`px-1.5` atau `px-2`), menjamin angka multi-digit terlihat utuh tanpa terpotong tepi border.
 
 ### §0.74. Standar Pemesanan Seragam Portal Publik & Penyajian Bundel Kain Harian
-1. **Bundel Kain Harian Utuh**: Bahan seragam kain harian (kemeja, celana/rok, jilbab/gamis) disajikan sebagai 1 entitas bundel paket utuh per jenjang & gender murid (`uniform_packages`). Dilarang memecah atau mengekspos deretan potongan kain eceran lepasan satu per satu dengan stepper kuantitas bernilai 0 di alur pemesanan utama portal publik.
+1. **Bundel Kain Harian Utuh**: Bahan seragam kain harian (kemeja, celana/rok, jilbab/gamis) disajikan sebagai 1 entitas bundel paket utuh per jenjang & gender murid (`uniform_packages`). Pada alur utama Paket Lengkap, dilarang memecah atau mengekspos deretan potongan kain eceran lepasan satu per satu dengan stepper kuantitas bernilai 0.
 2. **Default Matching Qty 1**: Saat siswa dipilih di portal seragam, sistem secara otomatis memasang kuantitas default 1 untuk Paket Bahan Seragam Harian dan 1 untuk Seragam Olahraga yang cocok.
 3. **Pemisahan Olahraga & Dekopling dari Satuan**: Seragam olahraga adalah pakaian jadi yang berdiri terpisah dari paket bahan kain dan wajib memilih ukuran sebelum checkout. Di awal tahun ajaran, seragam olahraga merupakan bagian integral seragam sekolah yang selalu ditampilkan dan diizinkan dipesan bersama paket bahan kain harian terlepas dari toggle pembelian satuan (`satuanOpen`); guard penutupan satuan admin hanya memblokir pesanan eceran murni tanpa paket.
+4. **Segmented Toggle Mode & Validasi Interaktif (§0.63)**: Portal seragam mengadopsi segmented tab `[Paket Lengkap]` dan `[Satuan]` saat `satuanOpen` aktif. Pilihan ukuran seragam olahraga wajib tervalidasi interaktif (border merah dan alert bantuan) saat tombol "Lanjut" diklik. Form pengiriman wajib menyediakan field terpisah untuk Kode Pos 5 digit yang divalidasi ketat dan digabungkan secara aman ke snapshot alamat rumah tanpa regex parser duplikat inline di antarmuka.
+
 
 

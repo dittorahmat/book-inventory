@@ -1,9 +1,13 @@
 import "../../test-dom";
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { UniformVariantList } from "./UniformVariantList";
 import type { UniformVariantRow } from "./uniform-admin-api";
 
-const { render, screen } = await import("@testing-library/react");
+const { render, screen, cleanup } = await import("@testing-library/react");
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("UniformVariantList", () => {
   const mockVariantRow: UniformVariantRow = {

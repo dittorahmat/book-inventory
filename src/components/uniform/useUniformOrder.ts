@@ -24,10 +24,12 @@ export function useUniformOrder() {
   const [satuanQty, setSatuanQty] = useState<Record<string, number>>({});
   const [sizeFor, setSizeFor] = useState<Record<string, string>>({});
   const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [notes, setNotes] = useState("");
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProof, setScholarshipProof] = useState("");
   const [satuanOpen, setSatuanOpen] = useState(true);
+  const [uniformMode, setUniformMode] = useState<"package" | "satuan">("package");
   const [step, setStep] = useState<UniformStep>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,33 +158,51 @@ export function useUniformOrder() {
     setSatuanQty({});
     setSizeFor({});
     setAddress("");
+    setPostalCode("");
     setNotes("");
     setOrderType("regular");
     setScholarshipProof("");
+    setUniformMode("package");
     setSuccess(null);
     setStep(1);
   };
 
-  const canSubmit =
-    itemCount > 0 &&
-    validateHomeAddress(address).ok &&
-    (orderType === "regular" || scholarshipProof !== "") &&
-    Object.entries(satuanQty).every(([key, qty]) => {
-      if (qty <= 0) return true;
-      const [variantId, keySize] = key.split("::");
-      const variant = catalog?.variants.find((v) => v.id === variantId);
-      if (variant?.kind !== "olahraga") return true;
-      const activeSize = keySize || sizeFor[variantId];
-      return Boolean(activeSize && activeSize.trim() !== "");
-    }) &&
-    Object.keys(packageQty).every((pkgId) => {
-      const pkg = catalog?.packages.find((p) => p.id === pkgId);
-      const needsSize = pkg?.bom.some((b) => {
+  const isPostalCodeValid = /^\d{5}$/.test(postalCode.trim());
+  const combinedAddress = postalCode.trim()
+    ? `${address.trim()}, Kode Pos ${postalCode.trim()}`
+    : address.trim();
+
+  // Getter domain untuk seragam olahraga yang belum dipilih ukurannya
+  const missingOlahragaVariants = useMemo(() => {
+    return visibleVariants.filter((v) => {
+      if (v.kind !== "olahraga") return false;
+      const picked = sizeFor[v.id] ?? "";
+      const key = picked ? `${v.id}::${picked}` : v.id;
+      const currentQty = satuanQty[key] ?? satuanQty[v.id] ?? 0;
+      return currentQty > 0 && !picked;
+    });
+  }, [visibleVariants, sizeFor, satuanQty]);
+
+  const missingPackageOlahraga = useMemo(() => {
+    return visiblePackages.filter((p) => {
+      const qty = packageQty[p.id] ?? 0;
+      if (qty <= 0) return false;
+      const needsSize = p.bom.some((b) => {
         const v = catalog?.variants.find((x) => x.id === b.variantId);
         return v?.kind === "olahraga" && b.size === "—";
       });
-      return !needsSize || (sizeFor[pkgId] ?? "") !== "";
+      return needsSize && !(sizeFor[p.id] ?? "");
     });
+  }, [visiblePackages, packageQty, catalog, sizeFor]);
+
+  const hasMissingOlahragaSize = missingOlahragaVariants.length > 0 || missingPackageOlahraga.length > 0;
+
+  const canSubmit =
+    itemCount > 0 &&
+    isPostalCodeValid &&
+    validateHomeAddress(combinedAddress).ok &&
+    (orderType === "regular" || scholarshipProof !== "") &&
+    !hasMissingOlahragaSize;
 
   const handleSubmit = async () => {
     if (!student || !canSubmit) return;
@@ -211,7 +231,7 @@ export function useUniformOrder() {
       const res = await submitUniformOrder({
         studentId: student.id,
         academicYear: student.academicYear,
-        homeAddress: address.trim(),
+        homeAddress: combinedAddress,
         items,
         sizeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
         notes: notes.trim() || undefined,
@@ -231,8 +251,10 @@ export function useUniformOrder() {
     schools, schoolId, setSchoolId, query, setQuery, searching, results, searched,
     student, catalog, loadingCatalog, visibleVariants, visiblePackages,
     packageQty, satuanQty, sizeFor, setSizeFor, bumpPackage, bumpSatuan,
-    address, setAddress, notes, setNotes, step, setStep,
+    address, setAddress, postalCode, setPostalCode, isPostalCodeValid, notes, setNotes, step, setStep,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
+    uniformMode, setUniformMode,
+    missingOlahragaVariants, missingPackageOlahraga, hasMissingOlahragaSize,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
     pendingUniformOrder,

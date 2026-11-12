@@ -1,13 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Shirt } from "lucide-react";
 import { useUniformOrder } from "../components/uniform/useUniformOrder";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
 import { UniformItemStep } from "../components/uniform/UniformItemStep";
+import { FormFieldFeedback, FormSummaryAlert } from "../components/ui/FormFieldFeedback";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { validateHomeAddress } from "../lib/home-address";
 import { PendingOrderConfirmModal } from "../components/portal/PendingOrderConfirmModal";
 
 export function PublicUniformOrderView() {
   const order = useUniformOrder();
+  const [addressAttempted, setAddressAttempted] = useState(false);
+  const addressInputRef = useRef<HTMLTextAreaElement>(null);
+  const postalCodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     order.loadSchools();
@@ -136,13 +141,43 @@ export function PublicUniformOrderView() {
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Alamat rumah pengiriman</label>
             <textarea
+              ref={addressInputRef}
               value={order.address}
               onChange={(e) => order.setAddress(e.target.value)}
               rows={3}
-              placeholder="Jalan, RT/RW, kelurahan, kecamatan, kota, kode pos (wajib RT, RW, kode pos)"
-              className="w-full rounded-xl border border-[#CED0D4] px-3 py-2.5 text-sm"
+              placeholder="Jalan, RT/RW, kelurahan, kecamatan, kota (wajib memuat RT dan RW)"
+              className={`w-full rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                addressAttempted && !order.address.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+              }`}
             />
-            <p className="text-[11px] text-[#65676B] mt-1">Wajib memuat RT, RW, dan kode pos. Satu order dikirim ke satu alamat.</p>
+            <FormFieldFeedback
+              error={addressAttempted && !order.address.trim() ? "Alamat rumah pengiriman wajib diisi lengkap." : undefined}
+              hint="Wajib memuat RT dan RW. Satu order dikirim ke satu alamat."
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Kode Pos (Wajib)</label>
+            <input
+              ref={postalCodeInputRef}
+              type="text"
+              maxLength={5}
+              value={order.postalCode}
+              onChange={(e) => order.setPostalCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="Contoh: 15310 (5 digit angka)"
+              className={`w-full max-w-xs rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                addressAttempted && !order.isPostalCodeValid ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+              }`}
+            />
+            <FormFieldFeedback
+              error={
+                addressAttempted && !order.postalCode.trim()
+                  ? "Kode pos wajib diisi."
+                  : addressAttempted && !order.isPostalCodeValid
+                  ? "Kode pos wajib 5 digit angka."
+                  : undefined
+              }
+              hint="Masukkan 5 digit kode pos tujuan pengiriman."
+            />
           </div>
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Catatan (opsional)</label>
@@ -159,6 +194,30 @@ export function PublicUniformOrderView() {
             <div className="flex justify-between"><span className="text-[#65676B]">Total bayar</span><span className="font-bold">{order.orderType === "scholarship" ? "Rp 0 (Beasiswa)" : formatRupiah(order.total)}</span></div>
             <p className="text-[#65676B]">Seragam diasumsikan lunas — gudang menagih ke sekolah cabang.</p>
           </div>
+          {addressAttempted && (!order.canSubmit || !order.isPostalCodeValid) && (
+            <FormSummaryAlert
+              title="Data Pengiriman Belum Lengkap"
+              errors={{
+                address: !order.address.trim()
+                  ? "Alamat rumah pengiriman belum diisi."
+                  : !validateHomeAddress(`${order.address.trim()}, RT 01 RW 01 15310`).ok
+                  ? "Alamat rumah wajib diisi lengkap (min. 20 karakter)."
+                  : !/(^|\W)rt\.?\s*\d/i.test(order.address) || !/(^|\W)rw\.?\s*\d/i.test(order.address)
+                  ? "Alamat wajib memuat nomor RT dan RW."
+                  : undefined,
+                postalCode: !order.postalCode.trim()
+                  ? "Kode pos pengiriman belum diisi."
+                  : !order.isPostalCodeValid
+                  ? "Kode pos harus berupa 5 digit angka."
+                  : undefined,
+                scholarship:
+                  order.orderType === "scholarship" && !order.scholarshipProof
+                    ? "Surat tanda beasiswa wajib diunggah untuk jalur beasiswa."
+                    : undefined,
+              }}
+            />
+          )}
+
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -169,9 +228,20 @@ export function PublicUniformOrderView() {
             </button>
             <button
               type="button"
-              disabled={!order.canSubmit || order.submitting}
-              onClick={order.handleSubmit}
-              className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-[#1664D9] active:scale-[0.98]"
+              disabled={order.submitting}
+              onClick={() => {
+                setAddressAttempted(true);
+                if (order.canSubmit) {
+                  order.handleSubmit();
+                } else {
+                  if (!order.address.trim() || !validateHomeAddress(`${order.address.trim()}, RT 01 RW 01 15310`).ok) {
+                    addressInputRef.current?.focus();
+                  } else if (!order.isPostalCodeValid) {
+                    postalCodeInputRef.current?.focus();
+                  }
+                }
+              }}
+              className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
             >
               {order.submitting ? "Memproses…" : "Buat Pesanan"}
             </button>

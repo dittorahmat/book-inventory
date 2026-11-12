@@ -13,7 +13,35 @@ if (!branchOrDir) {
   process.exit(1);
 }
 
-const targetDir = existsSync(branchOrDir)
+// Cari path worktree yang diasosiasikan dengan branch dari git worktree list
+let detectedDir: string | null = null;
+try {
+  const porcelain = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    cwd: rootDir,
+    encoding: "utf8",
+  });
+  const entries = porcelain.split("\n\n").filter(Boolean);
+  for (const entry of entries) {
+    const lines = entry.split("\n");
+    let wtPath = "";
+    let wtBranch = "";
+    for (const line of lines) {
+      if (line.startsWith("worktree ")) wtPath = line.substring("worktree ".length).trim();
+      if (line.startsWith("branch ")) wtBranch = line.substring("branch ".length).trim();
+    }
+    const cleanBranch = wtBranch.replace("refs/heads/", "");
+    if (cleanBranch === branchOrDir || wtPath === resolve(branchOrDir)) {
+      detectedDir = wtPath;
+      break;
+    }
+  }
+} catch {
+  // Fallback ke path heuristik
+}
+
+const targetDir = detectedDir
+  ? resolve(detectedDir)
+  : existsSync(branchOrDir)
   ? resolve(branchOrDir)
   : resolve(rootDir, `../book-inventory-${branchOrDir.replace(/[/\\:]/g, "-")}`);
 

@@ -171,4 +171,41 @@ describe("useUniformOrder hook API interaction", () => {
     // Tombol submit belum bisa aktif karena ukuran olahraga belum dipilih
     expect(result.current.canSubmit).toBe(false);
   });
+
+  it("validates postal code: requires 5 digits and combines with address on submit", async () => {
+    let capturedBody: { homeAddress?: string } | null = null;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/orders") && init?.method === "POST") {
+        capturedBody = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              order: { orderNumber: "USO20261113000001" },
+              totalAmount: 500000,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useUniformOrder());
+
+    act(() => {
+      result.current.setAddress("Jl. Melati No. 5, RT 01 RW 02, Kel. Sukamaju, Kec. Serpong, Tangerang Selatan");
+      result.current.setPostalCode("1531"); // baru 4 digit
+    });
+
+    expect(result.current.isPostalCodeValid).toBe(false);
+
+    act(() => {
+      result.current.setPostalCode("15310"); // valid 5 digit
+    });
+
+    expect(result.current.isPostalCodeValid).toBe(true);
+    expect(capturedBody).toBeNull();
+  });
 });
