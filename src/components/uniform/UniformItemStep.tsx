@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Package, Shirt } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { FormSummaryAlert } from "../ui/FormFieldFeedback";
@@ -32,10 +33,13 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
+  const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian");
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
   const stockOf = (variantId: string, size: string) =>
     order.catalog?.variants.find((v) => v.id === variantId)?.stock.find((s) => s.size === size)?.quantity ?? 0;
+
+  const isPackageMode = order.uniformMode !== "satuan";
 
   // Cek apakah ada seragam olahraga dengan qty > 0 yang belum dipilih ukurannya
   const missingOlahragaList = olahraga.filter((v) => {
@@ -70,7 +74,32 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
 
   return (
     <div className="space-y-6">
-      {order.visiblePackages.length > 0 && (
+      {order.satuanOpen && (
+        <div className="inline-flex rounded-xl border border-[#CED0D4] overflow-hidden bg-white">
+          <button
+            type="button"
+            onClick={() => order.setUniformMode("package")}
+            className={`px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors active:scale-[0.98] ${
+              isPackageMode ? "bg-[#1877F2] text-white" : "text-[#65676B] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Paket Lengkap</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => order.setUniformMode("satuan")}
+            className={`px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors border-l border-[#CED0D4] active:scale-[0.98] ${
+              !isPackageMode ? "bg-[#1877F2] text-white" : "text-[#65676B] hover:bg-[#F0F2F5]"
+            }`}
+          >
+            <Shirt className="w-3.5 h-3.5" />
+            <span>Satuan</span>
+          </button>
+        </div>
+      )}
+
+      {isPackageMode && order.visiblePackages.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-[#050505]">Paket Bahan Seragam Harian</h3>
@@ -118,6 +147,24 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {!isPackageMode && kain.length > 0 && (
+        <section>
+          <h3 className="text-sm font-bold text-[#050505] mb-1">Kain Harian Satuan</h3>
+          <p className="text-xs text-[#65676B] mb-3">Paket kain tanpa ukuran.</p>
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
+            {kain.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-sm font-semibold">{v.name}</div>
+                  <div className="text-xs text-[#65676B]">{formatRupiah(v.price)} · Stok: {stockOf(v.id, "—")}</div>
+                </div>
+                {stepper(order.satuanQty[v.id] ?? 0, (d) => order.bumpSatuan(v.id, d))}
+              </div>
+            ))}
           </div>
         </section>
       )}

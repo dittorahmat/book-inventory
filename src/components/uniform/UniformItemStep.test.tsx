@@ -147,4 +147,86 @@ describe("UniformItemStep", () => {
     expect(nextStepCalled).toBe(false);
     expect(screen.getByText("Wajib memilih ukuran seragam olahraga sebelum melanjutkan.")).toBeDefined();
   });
+
+  it("supports segmented toggle between Paket Lengkap and Satuan modes", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    let currentMode = "package";
+    const mockOrder = {
+      visiblePackages: [
+        {
+          id: "pkg-1",
+          code: "PKG-1",
+          name: "Paket Bahan Seragam Harian SD Ikhwan",
+          academicYear: "2026/2027",
+          price: 500000,
+          readyQty: 10,
+          bom: [],
+        },
+      ],
+      visibleVariants: [
+        {
+          id: "v-kain-1",
+          code: "UNI-KAIN-1",
+          name: "CELANA MERAH (SD Ikhwan)",
+          kind: "kain_harian" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 196000,
+          sizeChartUrl: null,
+          sizes: ["—"],
+          sizeDetails: [],
+          stock: [{ size: "—", quantity: 5 }],
+        },
+        {
+          id: "v-ol-1",
+          code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (SD Ikhwan)",
+          kind: "olahraga" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 150000,
+          sizeChartUrl: null,
+          sizes: ["S", "M"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: { "pkg-1": 1 },
+      satuanQty: {},
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      uniformMode: "package" as "package" | "satuan",
+      setUniformMode: (m: "package" | "satuan") => {
+        currentMode = m;
+      },
+      student: { gradeLevel: "1" },
+      total: 500000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    const { rerender } = render(<UniformItemStep order={mockOrder} />);
+
+    // In package mode, paket is shown, kain harian satuan is hidden
+    expect(screen.getByText("Paket Bahan Seragam Harian")).toBeDefined();
+    expect(screen.queryByText("Kain Harian Satuan")).toBeNull();
+
+    // Click Satuan tab
+    const satuanTab = screen.getByRole("button", { name: /Satuan/i });
+    fireEvent.click(satuanTab);
+    expect(currentMode).toBe("satuan");
+
+    // Re-render in satuan mode
+    rerender(<UniformItemStep order={{ ...mockOrder, uniformMode: "satuan" }} />);
+    expect(screen.queryByText("Paket Bahan Seragam Harian")).toBeNull();
+    expect(screen.getByText("Kain Harian Satuan")).toBeDefined();
+    expect(screen.getByText("CELANA MERAH (SD Ikhwan)")).toBeDefined();
+  });
 });

@@ -29,6 +29,7 @@ export function useUniformOrder() {
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProof, setScholarshipProof] = useState("");
   const [satuanOpen, setSatuanOpen] = useState(true);
+  const [uniformMode, setUniformMode] = useState<"package" | "satuan">("package");
   const [step, setStep] = useState<UniformStep>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +162,7 @@ export function useUniformOrder() {
     setNotes("");
     setOrderType("regular");
     setScholarshipProof("");
+    setUniformMode("package");
     setSuccess(null);
     setStep(1);
   };
@@ -241,6 +243,7 @@ export function useUniformOrder() {
     packageQty, satuanQty, sizeFor, setSizeFor, bumpPackage, bumpSatuan,
     address, setAddress, postalCode, setPostalCode, isPostalCodeValid, notes, setNotes, step, setStep,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
+    uniformMode, setUniformMode,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
     pendingUniformOrder,
