@@ -19,6 +19,7 @@ import {
 import { requestStudentWithdrawal } from "../services/student-withdrawal";
 import { confirmUniformPayment, lookupUniformByToken } from "../services/order-invoice";
 import { searchVerifiedStudents, toConfirmOrderView, toUniformSearchView } from "../services/public-order";
+import { getUniformSizeChart } from "../../lib/uniform-size-chart";
 
 export const publicUniformOrdersRouter = new Hono();
 
@@ -78,7 +79,12 @@ publicUniformOrdersRouter.get("/catalog", zValidator("query", catalogQuerySchema
     data: {
       variants: variants
         .filter((v) => v.variant.academicYear === academicYear)
-        .map((v) => ({ ...v.variant, sizes: v.sizes, stock: v.stock })),
+        .map((v) => ({
+          ...v.variant,
+          sizes: v.sizes,
+          sizeDetails: v.variant.kind === "olahraga" ? [...getUniformSizeChart(v.variant.jenjang)] : undefined,
+          stock: v.stock,
+        })),
       packages: packages
         .filter((p) => p.package.academicYear === academicYear)
         .map((p) => ({ ...p.package, bom: p.bom, readyQty: p.readyQty })),

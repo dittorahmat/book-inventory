@@ -1,13 +1,12 @@
 /** Kanonik tipe + pemetaan jenjang seragam (dipakai backend & frontend). */
 import type { StudentSearchResult } from "./portal-types";
+import type { UniformSizeChartEntry } from "./uniform-size-chart";
 
 /** Hasil cari murid portal seragam: sama + gender (untuk filter L/P). */
 export type UniformStudent = StudentSearchResult & { gender: "male" | "female" | null };
 
 export const UNIFORM_JENJANG = ["tk", "sd", "smp", "sma"] as const;
 export type UniformJenjang = (typeof UNIFORM_JENJANG)[number];
-
-
 
 /** gradeLevel murid ("0"/"TK" → tk, "1–6" → sd, "7–9" → smp, "10–12" → sma). */
 export const gradeToJenjang = (gradeLevel: string): UniformJenjang => {
@@ -29,6 +28,7 @@ export interface UniformVariantOption {
   price: number;
   sizeChartUrl: string | null;
   sizes: string[];
+  sizeDetails?: UniformSizeChartEntry[];
   stock: Array<{ size: string; quantity: number }>;
 }
 
