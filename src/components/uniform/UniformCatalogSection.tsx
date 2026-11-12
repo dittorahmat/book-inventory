@@ -13,10 +13,12 @@ import { EditUniformVariantModal } from "./EditUniformVariantModal";
 import { UniformCatalogToolbar } from "./UniformCatalogToolbar";
 import { CreateUniformVariantForm } from "./CreateUniformVariantForm";
 import { UniformVariantList } from "./UniformVariantList";
+import { useDemoMode } from "../../lib/useDemoMode";
 
 import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
 export function UniformCatalogSection() {
+  const { isDemoMode } = useDemoMode();
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [editingVariant, setEditingVariant] = useState<UniformVariantRow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -312,6 +314,8 @@ export function UniformCatalogSection() {
       <UniformVariantList
         variants={variants}
         searchQuery={searchQuery}
+        isDemoMode={isDemoMode}
+        onStockOverridden={reload}
         onEdit={(row) => setEditingVariant(row)}
       />
 

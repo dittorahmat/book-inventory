@@ -226,5 +226,52 @@ describe("Revamped Demo Seeding API", () => {
     const pkgJson = await okPkg.json();
     expect(pkgJson.success).toBe(true);
     expect(pkgJson.data.newQuantity).toBe(15);
+
+    // 5. Set stok seragam varian
+    const stamp = Date.now().toString().slice(-6);
+    const uvId = `uv-test-${stamp}`;
+    const upkgId = `up-test-${stamp}`;
+    const { uniformVariants, uniformPackages } = await import("../../db/schema");
+    await db.insert(uniformVariants).values({
+      id: uvId,
+      code: `UV-TEST-${stamp}`,
+      name: "Seragam Uji",
+      kind: "olahraga",
+      gender: "male",
+      jenjang: "sd",
+      academicYear: "2026/2027",
+      price: 120000,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await db.insert(uniformPackages).values({
+      id: upkgId,
+      code: `UP-TEST-${stamp}`,
+      name: "Paket Seragam Uji",
+      academicYear: "2026/2027",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const okUniform = await demoRouter.request("/stock/uniform-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variantId: uvId, size: "L", targetQuantity: 33 }),
+    });
+    expect(okUniform.status).toBe(200);
+    const uniformJson = await okUniform.json();
+    expect(uniformJson.success).toBe(true);
+    expect(uniformJson.data.newQuantity).toBe(33);
+
+    // 6. Set stok paket seragam
+    const okUniformPkg = await demoRouter.request("/stock/uniform-package-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packageId: upkgId, targetQuantity: 21 }),
+    });
+    expect(okUniformPkg.status).toBe(200);
+    const unifPkgJson = await okUniformPkg.json();
+    expect(unifPkgJson.success).toBe(true);
+    expect(unifPkgJson.data.newQuantity).toBe(21);
   });
 });

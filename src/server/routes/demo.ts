@@ -10,6 +10,10 @@ import {
   overridePackageStock,
   AllocationViolationError,
 } from "../services/stock/book-stock-override";
+import {
+  overrideUniformVariantStock,
+  overrideUniformPackageStock,
+} from "../services/uniform/uniform-stock-override";
 import { DemoStockOverrideDisabledError } from "../services/demo-stock-override";
 
 export const demoRouter = new Hono();
@@ -22,6 +26,17 @@ const bookStockOverrideSchema = z.object({
 
 const packageStockOverrideSchema = z.object({
   schoolId: idSchema,
+  packageId: idSchema,
+  targetQuantity: z.number().int().min(0, "Jumlah stok minimal 0"),
+});
+
+const uniformVariantStockOverrideSchema = z.object({
+  variantId: idSchema,
+  size: z.string().optional(),
+  targetQuantity: z.number().int().min(0, "Jumlah stok minimal 0"),
+});
+
+const uniformPackageStockOverrideSchema = z.object({
   packageId: idSchema,
   targetQuantity: z.number().int().min(0, "Jumlah stok minimal 0"),
 });
@@ -79,6 +94,44 @@ demoRouter.post("/stock/package-override", zValidator("json", packageStockOverri
     }
     if (err instanceof AllocationViolationError) {
       return c.json({ success: false, message: err.message }, 400);
+    }
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST /api/demo/stock/uniform-override (khusus admin logistik / central saat demo mode aktif)
+demoRouter.post("/stock/uniform-override", zValidator("json", uniformVariantStockOverrideSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+    const result = await overrideUniformVariantStock(db, body);
+    return c.json({
+      success: true,
+      message: `Stok seragam berhasil diatur menjadi ${result.newQuantity}.`,
+      data: result,
+    });
+  } catch (err) {
+    if (err instanceof DemoStockOverrideDisabledError) {
+      return c.json({ success: false, message: err.message }, 403);
+    }
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST /api/demo/stock/uniform-package-override (khusus admin logistik / central saat demo mode aktif)
+demoRouter.post("/stock/uniform-package-override", zValidator("json", uniformPackageStockOverrideSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+    const result = await overrideUniformPackageStock(db, body);
+    return c.json({
+      success: true,
+      message: `Stok paket seragam berhasil diatur menjadi ${result.newQuantity}.`,
+      data: result,
+    });
+  } catch (err) {
+    if (err instanceof DemoStockOverrideDisabledError) {
+      return c.json({ success: false, message: err.message }, 403);
     }
     return accessErrorResponse(c, err);
   }
