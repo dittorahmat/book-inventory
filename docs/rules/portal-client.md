@@ -78,3 +78,9 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 2. **Proteksi Scroll Wheel**: Cegah perubahan angka tak disengaja saat pengguna menggulir mouse wheel di atas input numerik (`e.preventDefault()` pada target `input[type="number"]`), dilarang memanggil `document.activeElement.blur()` yang mengaborsi fokus pengetikan kursor pengguna.
 3. **Proporsi Ruang & Anti-Truncate**: Kotak input angka (Qty, Diskon, dsb.) wajib memiliki lebar minimum yang memadai (minimal `min-w-[50px]` hingga `min-w-[70px]`) dan padding proporsional (`px-1.5` atau `px-2`), menjamin angka multi-digit terlihat utuh tanpa terpotong tepi border.
 
+### §0.74. Standar Pemesanan Seragam Portal Publik & Penyajian Bundel Kain Harian
+1. **Bundel Kain Harian Utuh**: Bahan seragam kain harian (kemeja, celana/rok, jilbab/gamis) disajikan sebagai 1 entitas bundel paket utuh per jenjang & gender murid (`uniform_packages`). Dilarang memecah atau mengekspos deretan potongan kain eceran lepasan satu per satu dengan stepper kuantitas bernilai 0 di alur pemesanan utama portal publik.
+2. **Default Matching Qty 1**: Saat siswa dipilih di portal seragam, sistem secara otomatis memasang kuantitas default 1 untuk Paket Bahan Seragam Harian dan 1 untuk Seragam Olahraga yang cocok.
+3. **Pemisahan Olahraga & Alert Penutupan Satuan**: Seragam olahraga adalah pakaian jadi yang berdiri terpisah dari paket bahan kain dan wajib memilih ukuran sebelum checkout. Jika admin menutup periode pembelian satuan (`order.satuanOpen === false`), antarmuka wajib menampilkan banner alert informatif (`bg-amber-50`) bahwa pemesanan seragam olahraga sedang ditutup dan orang tua diarahkan memilih paket bahan kain harian.
+
+

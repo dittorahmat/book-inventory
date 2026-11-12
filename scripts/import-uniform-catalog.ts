@@ -122,7 +122,8 @@ export function buildDefaultPackages(variants: ParsedVariant[], academicYear: st
     const jenjangLabel = jenjang.toUpperCase();
     const genderLabel = gender === "male" ? "Ikhwan" : "Akhwat";
     const genderSlug = gender === "male" ? "IKH" : "AKH";
-    const code = `PKG-UNIF-${jenjangLabel}-${genderSlug}-2026`;
+    const yearSlug = academicYear.replace(/[^0-9]/g, "").slice(0, 4) || "2026";
+    const code = `PKG-UNIF-${jenjangLabel}-${genderSlug}-${yearSlug}`;
     const id = `pkg-${code.toLowerCase().replace(/_/g, "-")}`;
     const name = `Paket Bahan Seragam Harian ${jenjangLabel} ${genderLabel} TA ${academicYear}`;
     const totalPrice = list.reduce((sum, item) => sum + item.price, 0);
