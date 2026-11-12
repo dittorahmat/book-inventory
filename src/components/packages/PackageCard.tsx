@@ -4,6 +4,7 @@ import type { StockPotential } from "../../types/stock-summary";
 import { calcLooseOrderTotal, effectiveSellPrice } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { curriculumLabel } from "../../lib/curriculum";
+import { QuickSetStockButton } from "../inventory/QuickSetStockButton";
 import type { PackageRow } from "./usePackagesData";
 
 interface PackageCardProps {
@@ -12,6 +13,9 @@ interface PackageCardProps {
   catalogBooks: Book[];
   isExpanded: boolean;
   isBranchLocation?: boolean;
+  isDemoMode?: boolean;
+  schoolId?: string;
+  onStockOverridden?: () => void;
   onToggleExpand: () => void;
   onOpenBundling: (mode: "bundle" | "unbundle" | "recall_unbundle") => void;
   onOpenTransfer?: () => void;
@@ -26,6 +30,9 @@ export function PackageCard({
   catalogBooks,
   isExpanded,
   isBranchLocation,
+  isDemoMode,
+  schoolId,
+  onStockOverridden,
   onToggleExpand,
   onOpenBundling,
   onOpenTransfer,
@@ -97,9 +104,20 @@ export function PackageCard({
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[#65676B] block">
               Siap Serah (Box)
             </span>
-            <span className={`text-base font-bold ${readyCount > 0 ? "text-emerald-600" : "text-[#65676B]"}`}>
-              {readyCount} Paket
-            </span>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5">
+              <span className={`text-base font-bold ${readyCount > 0 ? "text-emerald-600" : "text-[#65676B]"}`}>
+                {readyCount} Paket
+              </span>
+              {isDemoMode && schoolId && onStockOverridden && (
+                <QuickSetStockButton
+                  label={pkg.name}
+                  currentQuantity={readyCount}
+                  overrideEndpoint="/api/demo/stock/package-override"
+                  payload={{ schoolId, packageId: pkg.id }}
+                  onSuccess={onStockOverridden}
+                />
+              )}
+            </div>
           </div>
 
           <div className="bg-[#F7F8FA] px-3.5 py-2 rounded-xl text-center min-w-[110px]">

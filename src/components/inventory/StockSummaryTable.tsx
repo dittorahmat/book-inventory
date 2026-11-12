@@ -1,6 +1,7 @@
 import { Boxes, Package } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { isWprBook } from "../../lib/wpr";
+import { QuickSetStockButton } from "./QuickSetStockButton";
 import type { LooseSummaryRow, PackageSummaryRow } from "../../types/stock-summary";
 
 interface StockSummaryTableProps {
@@ -8,6 +9,9 @@ interface StockSummaryTableProps {
   packageRows: PackageSummaryRow[];
   quantities: Record<string, number>;
   onQuantityChange: (key: string, value: number) => void;
+  isDemoMode?: boolean;
+  schoolId?: string;
+  onStockOverridden?: () => void;
 }
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -30,6 +34,9 @@ export function StockSummaryTable({
   packageRows,
   quantities,
   onQuantityChange,
+  isDemoMode,
+  schoolId,
+  onStockOverridden,
 }: StockSummaryTableProps) {
   if (looseRows.length === 0 && packageRows.length === 0) {
     return (
@@ -84,8 +91,19 @@ export function StockSummaryTable({
                         <div className="text-[11px] text-[#65676B] font-mono">{row.isbn}</div>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <span className="font-bold text-[#1877F2] text-sm">{row.availableQty}</span>
-                        <span className="text-[#65676B]"> / {row.totalQty}</span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-bold text-[#1877F2] text-sm">{row.availableQty}</span>
+                          <span className="text-[#65676B]"> / {row.totalQty}</span>
+                          {isDemoMode && schoolId && onStockOverridden && (
+                            <QuickSetStockButton
+                              label={row.title}
+                              currentQuantity={row.availableQty}
+                              overrideEndpoint="/api/demo/stock/book-override"
+                              payload={{ schoolId, bookId: row.bookId }}
+                              onSuccess={onStockOverridden}
+                            />
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right text-[#65676B]">{row.inTransitQty}</td>
                       <td className="py-3 px-4">
@@ -188,8 +206,17 @@ export function StockSummaryTable({
                       <span className="font-mono text-[10px] font-bold text-[#1877F2]">{row.code}</span>
                       <span className="text-xs font-bold text-[#050505]">{row.name}</span>
                     </div>
-                    <div className="text-[11px] text-[#65676B] mt-0.5">
-                      {row.readyQty} siap &bull; {row.totalQty} total &bull; {formatRupiah(row.price)}
+                    <div className="text-[11px] text-[#65676B] mt-0.5 flex items-center gap-1.5">
+                      <span>{row.readyQty} siap &bull; {row.totalQty} total &bull; {formatRupiah(row.price)}</span>
+                      {isDemoMode && schoolId && onStockOverridden && (
+                        <QuickSetStockButton
+                          label={row.name}
+                          currentQuantity={row.readyQty}
+                          overrideEndpoint="/api/demo/stock/package-override"
+                          payload={{ schoolId, packageId: row.packageId }}
+                          onSuccess={onStockOverridden}
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center shrink-0">

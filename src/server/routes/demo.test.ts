@@ -20,10 +20,13 @@ import {
   suppliers,
   purchaseOrders,
   schools,
+  systemSettings,
   users,
 } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { effectiveSellPrice } from "../../lib/book-pricing";
+import { DEMO_STOCK_OVERRIDE_KEY, setDemoStockOverrideEnabled } from "../services/demo-stock-override";
+import { createTestBook, createTestPackage, createTestSchool } from "../lib/test-fixtures";
 
 const SEEDED_PACKAGE_IDS = ["pkg-sd1-int", "pkg-sd1-nas", "pkg-sd2-int", "pkg-sd2-nas"];
 
@@ -183,5 +186,45 @@ describe("Revamped Demo Seeding API", () => {
     expect(receipt.verifiedAt).toBeNull();
     const [promoted] = await db.select().from(students).where(eq(students.id, "std-alw3-03"));
     expect(promoted.status).toBe("promoted");
+  });
+
+  it("POST /stock/book-override & /stock/package-override guards demo mode and sets stock", async () => {
+    await db.delete(systemSettings).where(eq(systemSettings.key, DEMO_STOCK_OVERRIDE_KEY));
+    const s = await createTestSchool(db);
+    const b = await createTestBook(db);
+    const p = await createTestPackage(db);
+
+    // 1. Ditolak jika mode demo nonaktif (403)
+    const denyBook = await demoRouter.request("/stock/book-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, bookId: b.id, targetQuantity: 20 }),
+    });
+    expect(denyBook.status).toBe(403);
+
+    // 2. Aktifkan mode demo
+    await setDemoStockOverrideEnabled(db, true);
+
+    // 3. Set stok buku satuan
+    const okBook = await demoRouter.request("/stock/book-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, bookId: b.id, targetQuantity: 42 }),
+    });
+    expect(okBook.status).toBe(200);
+    const bookJson = await okBook.json();
+    expect(bookJson.success).toBe(true);
+    expect(bookJson.data.newQuantity).toBe(42);
+
+    // 4. Set stok paket
+    const okPkg = await demoRouter.request("/stock/package-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: s.id, packageId: p.id, targetQuantity: 15 }),
+    });
+    expect(okPkg.status).toBe(200);
+    const pkgJson = await okPkg.json();
+    expect(pkgJson.success).toBe(true);
+    expect(pkgJson.data.newQuantity).toBe(15);
   });
 });
