@@ -134,6 +134,15 @@ describe("UniformItemStep", () => {
       bumpPackage: () => {},
       bumpSatuan: () => {},
       satuanOpen: true,
+      hasMissingOlahragaSize: true,
+      missingOlahragaVariants: [
+        {
+          id: "v-ol-1",
+          code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (SD Ikhwan)",
+          kind: "olahraga" as const,
+        },
+      ],
       student: { gradeLevel: "1" },
       total: 150000,
       itemCount: 1,

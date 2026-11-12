@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Shirt } from "lucide-react";
 import { useUniformOrder } from "../components/uniform/useUniformOrder";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
 import { UniformItemStep } from "../components/uniform/UniformItemStep";
 import { FormFieldFeedback, FormSummaryAlert } from "../components/ui/FormFieldFeedback";
 import { formatRupiah } from "../lib/transfer-pricing";
+import { validateHomeAddress } from "../lib/home-address";
 import { PendingOrderConfirmModal } from "../components/portal/PendingOrderConfirmModal";
 
 export function PublicUniformOrderView() {
   const order = useUniformOrder();
   const [addressAttempted, setAddressAttempted] = useState(false);
+  const addressInputRef = useRef<HTMLTextAreaElement>(null);
+  const postalCodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     order.loadSchools();
@@ -138,6 +141,7 @@ export function PublicUniformOrderView() {
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Alamat rumah pengiriman</label>
             <textarea
+              ref={addressInputRef}
               value={order.address}
               onChange={(e) => order.setAddress(e.target.value)}
               rows={3}
@@ -154,6 +158,7 @@ export function PublicUniformOrderView() {
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Kode Pos (Wajib)</label>
             <input
+              ref={postalCodeInputRef}
               type="text"
               maxLength={5}
               value={order.postalCode}
@@ -195,7 +200,9 @@ export function PublicUniformOrderView() {
               errors={{
                 address: !order.address.trim()
                   ? "Alamat rumah pengiriman belum diisi."
-                  : !order.address.match(/(^|\W)rt\.?\s*\d/i) || !order.address.match(/(^|\W)rw\.?\s*\d/i)
+                  : !validateHomeAddress(`${order.address.trim()}, RT 01 RW 01 15310`).ok
+                  ? "Alamat rumah wajib diisi lengkap (min. 20 karakter)."
+                  : !/(^|\W)rt\.?\s*\d/i.test(order.address) || !/(^|\W)rw\.?\s*\d/i.test(order.address)
                   ? "Alamat wajib memuat nomor RT dan RW."
                   : undefined,
                 postalCode: !order.postalCode.trim()
@@ -226,6 +233,12 @@ export function PublicUniformOrderView() {
                 setAddressAttempted(true);
                 if (order.canSubmit) {
                   order.handleSubmit();
+                } else {
+                  if (!order.address.trim() || !validateHomeAddress(`${order.address.trim()}, RT 01 RW 01 15310`).ok) {
+                    addressInputRef.current?.focus();
+                  } else if (!order.isPostalCodeValid) {
+                    postalCodeInputRef.current?.focus();
+                  }
                 }
               }}
               className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"

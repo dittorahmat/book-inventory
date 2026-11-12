@@ -41,31 +41,18 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
 
   const isPackageMode = order.uniformMode !== "satuan";
 
-  // Cek apakah ada seragam olahraga dengan qty > 0 yang belum dipilih ukurannya
-  const missingOlahragaList = olahraga.filter((v) => {
-    const picked = order.sizeFor[v.id] ?? "";
-    const key = picked ? `${v.id}::${picked}` : v.id;
-    const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
-    return currentQty > 0 && !picked;
-  });
-
-  const missingPackageOlahragaList = order.visiblePackages.filter((p) => {
-    const qty = order.packageQty[p.id] ?? 0;
-    if (qty <= 0) return false;
-    const needsSize = p.bom.some((b) => {
-      const v = order.catalog?.variants.find((x) => x.id === b.variantId);
-      return v?.kind === "olahraga" && b.size === "—";
-    });
-    return needsSize && !(order.sizeFor[p.id] ?? "");
-  });
-
-  const hasMissingOlahraga = missingOlahragaList.length > 0 || missingPackageOlahragaList.length > 0;
-
   const handleLanjut = () => {
     setAttempted(true);
-    if (hasMissingOlahraga) {
-      if (missingOlahragaList.length > 0) {
-        setSizeWarningId(missingOlahragaList[0].id);
+    if (order.itemCount === 0) return;
+    if (order.hasMissingOlahragaSize) {
+      if (order.missingOlahragaVariants.length > 0) {
+        const targetId = order.missingOlahragaVariants[0].id;
+        setSizeWarningId(targetId);
+        const el = document.getElementById(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.focus();
+        }
       }
       return;
     }
@@ -218,9 +205,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               return (
                 <div
                   key={v.id}
-                  className={`bg-white rounded-2xl border p-4 space-y-2 transition-colors ${
-                    isMissingSize ? "border-rose-500 bg-rose-50/20 shadow-sm" : "border-[#E4E6EB]"
-                  }`}
+                  className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -231,6 +216,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   </div>
                   <div>
                     <SearchableSingleSelect
+                      id={v.id}
                       label="Pilih Ukuran Olahraga (Wajib)"
                       options={sizeOptions}
                       value={picked}
@@ -257,7 +243,16 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </div>
       )}
 
-      {attempted && hasMissingOlahraga && (
+      {attempted && order.itemCount === 0 && (
+        <FormSummaryAlert
+          title="Pesanan Masih Kosong"
+          errors={{
+            items: "Silakan pilih minimal 1 paket seragam atau seragam satuan sebelum melanjutkan.",
+          }}
+        />
+      )}
+
+      {attempted && order.hasMissingOlahragaSize && (
         <FormSummaryAlert
           title="Pilihan Ukuran Belum Lengkap"
           errors={{
@@ -277,9 +272,8 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         <div className="text-sm font-bold">Total: {formatRupiah(order.total)}</div>
         <button
           type="button"
-          disabled={order.itemCount === 0}
           onClick={handleLanjut}
-          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-[#1664D9] active:scale-[0.98]"
+          className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold hover:bg-[#1664D9] active:scale-[0.98]"
         >
           Lanjut
         </button>

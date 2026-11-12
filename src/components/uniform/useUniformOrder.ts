@@ -169,30 +169,40 @@ export function useUniformOrder() {
 
   const isPostalCodeValid = /^\d{5}$/.test(postalCode.trim());
   const combinedAddress = postalCode.trim()
-    ? (address.includes(postalCode.trim()) ? address.trim() : `${address.trim()}, Kode Pos ${postalCode.trim()}`)
+    ? `${address.trim()}, Kode Pos ${postalCode.trim()}`
     : address.trim();
+
+  // Getter domain untuk seragam olahraga yang belum dipilih ukurannya
+  const missingOlahragaVariants = useMemo(() => {
+    return visibleVariants.filter((v) => {
+      if (v.kind !== "olahraga") return false;
+      const picked = sizeFor[v.id] ?? "";
+      const key = picked ? `${v.id}::${picked}` : v.id;
+      const currentQty = satuanQty[key] ?? satuanQty[v.id] ?? 0;
+      return currentQty > 0 && !picked;
+    });
+  }, [visibleVariants, sizeFor, satuanQty]);
+
+  const missingPackageOlahraga = useMemo(() => {
+    return visiblePackages.filter((p) => {
+      const qty = packageQty[p.id] ?? 0;
+      if (qty <= 0) return false;
+      const needsSize = p.bom.some((b) => {
+        const v = catalog?.variants.find((x) => x.id === b.variantId);
+        return v?.kind === "olahraga" && b.size === "—";
+      });
+      return needsSize && !(sizeFor[p.id] ?? "");
+    });
+  }, [visiblePackages, packageQty, catalog, sizeFor]);
+
+  const hasMissingOlahragaSize = missingOlahragaVariants.length > 0 || missingPackageOlahraga.length > 0;
 
   const canSubmit =
     itemCount > 0 &&
     isPostalCodeValid &&
     validateHomeAddress(combinedAddress).ok &&
     (orderType === "regular" || scholarshipProof !== "") &&
-    Object.entries(satuanQty).every(([key, qty]) => {
-      if (qty <= 0) return true;
-      const [variantId, keySize] = key.split("::");
-      const variant = catalog?.variants.find((v) => v.id === variantId);
-      if (variant?.kind !== "olahraga") return true;
-      const activeSize = keySize || sizeFor[variantId];
-      return Boolean(activeSize && activeSize.trim() !== "");
-    }) &&
-    Object.keys(packageQty).every((pkgId) => {
-      const pkg = catalog?.packages.find((p) => p.id === pkgId);
-      const needsSize = pkg?.bom.some((b) => {
-        const v = catalog?.variants.find((x) => x.id === b.variantId);
-        return v?.kind === "olahraga" && b.size === "—";
-      });
-      return !needsSize || (sizeFor[pkgId] ?? "") !== "";
-    });
+    !hasMissingOlahragaSize;
 
   const handleSubmit = async () => {
     if (!student || !canSubmit) return;
@@ -244,6 +254,7 @@ export function useUniformOrder() {
     address, setAddress, postalCode, setPostalCode, isPostalCodeValid, notes, setNotes, step, setStep,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
     uniformMode, setUniformMode,
+    missingOlahragaVariants, missingPackageOlahraga, hasMissingOlahragaSize,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
     pendingUniformOrder,
