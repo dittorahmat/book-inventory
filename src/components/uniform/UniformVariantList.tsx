@@ -24,6 +24,45 @@ function matchesUniformVariantSearch(row: UniformVariantRow, rawQuery: string): 
   );
 }
 
+function SizeStockChips({
+  variantName,
+  variantId,
+  stock,
+  isDemoMode,
+  onStockOverridden,
+}: {
+  variantName: string;
+  variantId: string;
+  stock: Array<{ size: string; quantity: number }>;
+  isDemoMode?: boolean;
+  onStockOverridden?: () => void;
+}) {
+  if (stock.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1">
+      {stock.map((s) => (
+        <span
+          key={s.size}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F8F9FA] border border-[#E4E6EB] text-[10px] font-mono"
+        >
+          <span>
+            {s.size || "-"}:{s.quantity}
+          </span>
+          {isDemoMode && onStockOverridden && (
+            <QuickSetStockButton
+              label={`${variantName} (Size ${s.size})`}
+              currentQuantity={s.quantity}
+              overrideEndpoint="/api/demo/stock/uniform-override"
+              payload={{ variantId, size: s.size }}
+              onSuccess={onStockOverridden}
+            />
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function UniformVariantList({ variants, searchQuery, isDemoMode, onStockOverridden, onEdit }: UniformVariantListProps) {
   const filtered = variants.filter((row) => matchesUniformVariantSearch(row, searchQuery));
 
@@ -86,22 +125,13 @@ export function UniformVariantList({ variants, searchQuery, isDemoMode, onStockO
 
                 <div className="text-[11px] text-[#65676B]">
                   {sizes.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1 mt-1">
-                      {stock.map((s) => (
-                        <span key={s.size} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F8F9FA] border border-[#E4E6EB] text-[10px] font-mono">
-                          <span>{s.size}:{s.quantity}</span>
-                          {isDemoMode && onStockOverridden && (
-                            <QuickSetStockButton
-                              label={`${v.name} (Size ${s.size})`}
-                              currentQuantity={s.quantity}
-                              overrideEndpoint="/api/demo/stock/uniform-override"
-                              payload={{ variantId: v.id, size: s.size }}
-                              onSuccess={onStockOverridden}
-                            />
-                          )}
-                        </span>
-                      ))}
-                    </div>
+                    <SizeStockChips
+                      variantName={v.name}
+                      variantId={v.id}
+                      stock={stock}
+                      isDemoMode={isDemoMode}
+                      onStockOverridden={onStockOverridden}
+                    />
                   ) : (
                     <span>Ukuran: Meteran</span>
                   )}
@@ -188,24 +218,13 @@ export function UniformVariantList({ variants, searchQuery, isDemoMode, onStockO
                           />
                         )}
                       </div>
-                      {stock.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-center gap-1 mt-1">
-                          {stock.map((s) => (
-                            <span key={s.size} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F8F9FA] border border-[#E4E6EB] text-[10px] font-mono">
-                              <span>{s.size || "-"}:{s.quantity}</span>
-                              {isDemoMode && onStockOverridden && (
-                                <QuickSetStockButton
-                                  label={`${v.name} (Size ${s.size})`}
-                                  currentQuantity={s.quantity}
-                                  overrideEndpoint="/api/demo/stock/uniform-override"
-                                  payload={{ variantId: v.id, size: s.size }}
-                                  onSuccess={onStockOverridden}
-                                />
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <SizeStockChips
+                        variantName={v.name}
+                        variantId={v.id}
+                        stock={stock}
+                        isDemoMode={isDemoMode}
+                        onStockOverridden={onStockOverridden}
+                      />
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
