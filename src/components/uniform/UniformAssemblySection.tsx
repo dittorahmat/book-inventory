@@ -307,12 +307,21 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                           >
                             <div className="min-w-0 pr-2">
                               <p className="font-semibold text-[#050505] truncate">{b.variantName}</p>
-                              <p className="text-[10px] text-[#65676B] mt-0.5">
-                                Tipe: {b.kind === "kain_harian" ? "Kain Harian" : "Olahraga"} &bull; Size: {b.size} &bull; Stok Bahan:{" "}
+                              <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-[#65676B] mt-0.5">
+                                <span>Tipe: {b.kind === "kain_harian" ? "Kain Harian" : "Olahraga"} &bull; Size: {b.size} &bull; Stok Bahan:</span>
                                 <strong className={stockQty > 0 ? "text-emerald-700" : "text-amber-700"}>
                                   {stockQty} unit
                                 </strong>
-                              </p>
+                                {isDemoMode && (
+                                  <QuickSetStockButton
+                                    label={`${b.variantName}${b.size && b.size !== "—" ? ` (${b.size})` : ""}`}
+                                    currentQuantity={stockQty}
+                                    overrideEndpoint="/api/demo/stock/uniform-override"
+                                    payload={{ variantId: b.variantId, size: b.size && b.size !== "—" ? b.size : "—" }}
+                                    onSuccess={reload}
+                                  />
+                                )}
+                              </div>
                             </div>
                             <span className="text-[11px] font-bold text-[#050505] bg-white px-2.5 py-1 border border-[#E4E6EB] rounded-lg shadow-2xs shrink-0">
                               ×{b.quantity}
