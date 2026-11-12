@@ -114,6 +114,9 @@ demoRouter.post("/stock/uniform-override", zValidator("json", uniformVariantStoc
     if (err instanceof DemoStockOverrideDisabledError) {
       return c.json({ success: false, message: err.message }, 403);
     }
+    if (err instanceof AllocationViolationError) {
+      return c.json({ success: false, message: err.message }, 400);
+    }
     return accessErrorResponse(c, err);
   }
 });
@@ -132,6 +135,9 @@ demoRouter.post("/stock/uniform-package-override", zValidator("json", uniformPac
   } catch (err) {
     if (err instanceof DemoStockOverrideDisabledError) {
       return c.json({ success: false, message: err.message }, 403);
+    }
+    if (err instanceof AllocationViolationError) {
+      return c.json({ success: false, message: err.message }, 400);
     }
     return accessErrorResponse(c, err);
   }

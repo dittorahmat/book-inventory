@@ -273,5 +273,52 @@ describe("Revamped Demo Seeding API", () => {
     const unifPkgJson = await okUniformPkg.json();
     expect(unifPkgJson.success).toBe(true);
     expect(unifPkgJson.data.newQuantity).toBe(21);
+
+    // 7. Allocation violation check pada seragam
+    const { uniformOrders, uniformOrderItems, students: studentTable } = await import("../../db/schema");
+    const testStudent = await db
+      .select({ id: studentTable.id })
+      .from(studentTable)
+      .limit(1);
+    const stuId = testStudent[0]?.id;
+    if (stuId) {
+      const activeOrderId = `uord-alloc-${stamp}`;
+      await db.insert(uniformOrders).values({
+        id: activeOrderId,
+        orderNumber: `ORD-ALLOC-${stamp}`,
+        studentId: stuId,
+        schoolId: s.id,
+        academicYear: "2026/2027",
+        homeAddressSnapshot: "Jl. Alloc Test",
+        shipmentStatus: "belum_dikirim",
+        paymentStatus: "paid",
+        totalAmount: 120000,
+        paidAmount: 120000,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await db.insert(uniformOrderItems).values({
+        id: `uitem-alloc-${stamp}`,
+        orderId: activeOrderId,
+        variantId: uvId,
+        size: "L",
+        quantity: 10,
+        createdAt: new Date().toISOString(),
+      });
+
+      const failAlloc = await demoRouter.request("/stock/uniform-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId: uvId, size: "L", targetQuantity: 5 }),
+      });
+      expect(failAlloc.status).toBe(400);
+      const failJson = await failAlloc.json();
+      expect(failJson.success).toBe(false);
+      expect(failJson.message).toContain("tidak boleh lebih kecil dari pesanan aktif");
+
+      await db.delete(uniformOrderItems).where(eq(uniformOrderItems.orderId, activeOrderId));
+      await db.delete(uniformOrders).where(eq(uniformOrders.id, activeOrderId));
+    }
   });
 });

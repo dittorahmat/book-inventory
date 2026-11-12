@@ -84,3 +84,7 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Pembongkaran paket (`disassemblePackageBundles`) murni agregat (tanpa bundel fisik barcode) hanya memulihkan saldo ke `book_stocks` via `moveInventoryStock`. Dilarang menyisipkan baris fisik baru ke `book_items` bila paket yang dibongkar tidak berasal dari barcode fisik.
    - Mutasi retur pembelian vendor (RTV) wajib mengaitkan pemotongan stok agregat ke `schoolId` asal retur yang terverifikasi, bukan menebak entitas gudang global secara sembarang.
    - Penerimaan transfer shipment paket wajib memutasi saldo `package_stocks` cabang penerima dan pengirim via `moveInventoryStock` (`movementType: 'transfer'`).
+7. **Guard Alokasi Pesanan pada Mode Demo Stock Override**:
+   - Seluruh mutasi override saldo stok demo (buku satuan, paket buku, varian seragam, maupun paket seragam) wajib memvalidasi batas alokasi pesanan aktif (`targetQuantity >= reservedQuantity`).
+   - Pada seragam, kuantitas teralokasi dihitung dari pesanan aktif (`uniform_orders.shipmentStatus = 'belum_dikirim'` dan `paymentStatus != 'unpaid'`). Pelanggaran guard alokasi wajib melempar `AllocationViolationError` dan menghasilkan respon HTTP 400.
+   - Modal input stok demo di frontend (`QuickSetStockButton`) wajib mengonsumsi prop alokasi bila tersedia untuk menampilkan feedback visual instan serta mengonsumsi `FormFieldFeedback` & `FormSummaryAlert` tanpa tombol submit terkunci pasif (§0.63).

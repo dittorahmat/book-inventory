@@ -98,6 +98,7 @@ export function StockSummaryTable({
                             <QuickSetStockButton
                               label={row.title}
                               currentQuantity={row.availableQty}
+                              reservedQuantity={Math.max(0, row.totalQty - row.availableQty)}
                               overrideEndpoint="/api/demo/stock/book-override"
                               payload={{ schoolId, bookId: row.bookId }}
                               onSuccess={onStockOverridden}
@@ -212,6 +213,7 @@ export function StockSummaryTable({
                         <QuickSetStockButton
                           label={row.name}
                           currentQuantity={row.readyQty}
+                          reservedQuantity={Math.max(0, row.totalQty - row.readyQty)}
                           overrideEndpoint="/api/demo/stock/package-override"
                           payload={{ schoolId, packageId: row.packageId }}
                           onSuccess={onStockOverridden}
