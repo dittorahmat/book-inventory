@@ -1,7 +1,8 @@
-import { getUniformSizeChart, type UniformEducationLevel } from "../../lib/uniform-size-chart";
+import { getUniformSizeChart } from "../../lib/uniform-size-chart";
+import type { UniformJenjang } from "../../lib/uniform-types";
 
 interface UniformSizeGuideModalProps {
-  jenjang: UniformEducationLevel;
+  jenjang: UniformJenjang;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -17,7 +18,7 @@ export function UniformSizeGuideModal({ jenjang, isOpen, onClose }: UniformSizeG
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-[#050505]">Panduan Ukuran Seragam Olahraga</h3>
-            <p className="text-xs text-[#65676B]">Standar ukuran resmi jenjang {jenjang}</p>
+            <p className="text-xs text-[#65676B]">Standar ukuran resmi jenjang {jenjang.toUpperCase()}</p>
           </div>
           <button
             type="button"

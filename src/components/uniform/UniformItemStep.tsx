@@ -29,6 +29,7 @@ const stepper = (qty: number, onChange: (delta: number) => void, disabled = fals
 
 export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
   const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian");
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
@@ -130,11 +131,32 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
             {olahraga.map((v) => {
               const picked = order.sizeFor[v.id] ?? "";
               const key = picked ? `${v.id}::${picked}` : v.id;
+              const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
               const sizeOptions = v.sizes.map((s) => {
                 const detail = v.sizeDetails?.find((d) => d.size === s);
                 const label = detail ? formatUniformSizeLabel(detail) : s;
                 return { value: s, label: `${label} · Stok: ${stockOf(v.id, s)}` };
               });
+
+              const handleSizeChange = (val: string) => {
+                order.setSizeFor((s) => ({ ...s, [v.id]: val }));
+                setSizeWarningId(null);
+                // Jika sudah ada kuantitas, migrasikan kuantitas ke kunci baru
+                if (currentQty > 0) {
+                  order.bumpSatuan(key, -currentQty);
+                  const newKey = val ? `${v.id}::${val}` : v.id;
+                  order.bumpSatuan(newKey, currentQty);
+                }
+              };
+
+              const handleStepperChange = (delta: number) => {
+                if (!picked && delta > 0) {
+                  setSizeWarningId(v.id);
+                  return;
+                }
+                order.bumpSatuan(key, delta);
+              };
+
               return (
                 <div key={v.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -142,18 +164,20 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                       <div className="text-sm font-bold">{v.name}</div>
                       <div className="text-xs text-[#65676B]">{formatRupiah(v.price)}</div>
                     </div>
-                    {stepper(order.satuanQty[key] ?? 0, (d) => order.bumpSatuan(key, d), !picked)}
+                    {stepper(currentQty, handleStepperChange, false)}
                   </div>
                   <div>
                     <SearchableSingleSelect
                       label="Pilih Ukuran Olahraga (Wajib)"
                       options={sizeOptions}
                       value={picked}
-                      onChange={(val) => order.setSizeFor((s) => ({ ...s, [v.id]: val }))}
+                      onChange={handleSizeChange}
                       placeholder="— Pilih ukuran olahraga —"
                     />
-                    {!picked && (order.satuanQty[key] ?? 0) === 0 && (
-                      <p className="text-[11px] text-amber-600 mt-1">Pilih ukuran terlebih dahulu untuk menambahkan jumlah stel.</p>
+                    {(!picked || sizeWarningId === v.id) && (
+                      <p className="text-[11px] text-amber-600 mt-1">
+                        ⚠️ Wajib memilih ukuran seragam olahraga sebelum menambahkan atau melanjutkan pesanan.
+                      </p>
                     )}
                   </div>
                 </div>

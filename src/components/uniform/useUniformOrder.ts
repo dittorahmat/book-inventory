@@ -11,6 +11,7 @@ import {
 } from "./uniform-portal-api";
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
+import { findMatchingUniformSelection } from "../../lib/uniform-selection";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
@@ -131,18 +132,14 @@ export function useUniformOrder() {
       setSatuanOpen(satuan.open);
       if (!satuan.open) setSatuanQty({});
 
-      // Otomatis centang paket bahan kain harian yang cocok
-      const studentJenjang = gradeToJenjang(s.gradeLevel);
-      const studentGender = s.gender;
-      const variantById = new Map(catalogData.variants.map((v) => [v.id, v]));
-      const matchedPkg = catalogData.packages.find((p) =>
-        p.bom.every((b) => {
-          const v = variantById.get(b.variantId);
-          return v && v.jenjang === studentJenjang && (!studentGender || v.gender === studentGender);
-        })
-      );
-      if (matchedPkg) {
-        setPackageQty({ [matchedPkg.id]: 1 });
+      // Otomatis pilih paket bahan kain harian dan varian olahraga yang cocok
+      const matched = findMatchingUniformSelection(s, catalogData);
+      if (matched.package) {
+        setPackageQty({ [matched.package.id]: 1 });
+      }
+      if (matched.olahraga) {
+        // Otomatis siapkan 1 stel olahraga (namun menunggu ukuran dipilih di UI)
+        setSatuanQty({ [matched.olahraga.id]: 1 });
       }
 
       setStep(2);
@@ -171,10 +168,13 @@ export function useUniformOrder() {
     itemCount > 0 &&
     validateHomeAddress(address).ok &&
     (orderType === "regular" || scholarshipProof !== "") &&
-    Object.entries(satuanQty).every(([key]) => {
-      const variantId = key.split("::")[0];
+    Object.entries(satuanQty).every(([key, qty]) => {
+      if (qty <= 0) return true;
+      const [variantId, keySize] = key.split("::");
       const variant = catalog?.variants.find((v) => v.id === variantId);
-      return variant?.kind !== "olahraga" || key.split("::")[1] !== undefined;
+      if (variant?.kind !== "olahraga") return true;
+      const activeSize = keySize || sizeFor[variantId];
+      return Boolean(activeSize && activeSize.trim() !== "");
     }) &&
     Object.keys(packageQty).every((pkgId) => {
       const pkg = catalog?.packages.find((p) => p.id === pkgId);
