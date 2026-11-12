@@ -1,9 +1,13 @@
 import "../../test-dom";
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { UniformItemStep } from "./UniformItemStep";
 import type { UniformOrder } from "./useUniformOrder";
 
-const { render, screen } = await import("@testing-library/react");
+const { render, screen, cleanup } = await import("@testing-library/react");
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("UniformItemStep", () => {
   it("renders Paket Bahan Seragam Harian with badge and olahraga with size options", () => {
