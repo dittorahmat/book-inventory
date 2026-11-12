@@ -8,6 +8,7 @@ const REQUIRED_MASTER_TABLES: Array<{ table: string; minCount: number; label: st
   { table: "uniform_variants", minCount: 1, label: "Master Varian Seragam" },
   { table: "uniform_packages", minCount: 1, label: "Master Paket Seragam" },
   { table: "uniform_package_bom", minCount: 1, label: "BOM Paket Seragam" },
+  { table: "uniform_stock", minCount: 50, label: "Saldo Stok Seragam" },
 ];
 
 async function checkRemoteD1Catalog() {

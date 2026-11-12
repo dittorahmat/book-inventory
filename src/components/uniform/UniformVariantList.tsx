@@ -70,11 +70,41 @@ export function UniformVariantList({ variants, searchQuery, isDemoMode, onStockO
 
                 <div className="text-xs text-[#65676B] flex items-center justify-between pt-1 border-t border-[#F0F2F5]">
                   <span className="font-bold text-[#1877F2] text-sm">{formatRupiah(v.price)}</span>
-                  <span className="font-semibold text-[#050505]">Stok: {totalStock} unit</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-[#050505]">Stok: {totalStock} unit</span>
+                    {isDemoMode && onStockOverridden && sizes.length === 0 && (
+                      <QuickSetStockButton
+                        label={v.name}
+                        currentQuantity={totalStock}
+                        overrideEndpoint="/api/demo/stock/uniform-override"
+                        payload={{ variantId: v.id, size: "—" }}
+                        onSuccess={onStockOverridden}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-[11px] text-[#65676B]">
-                  <span>Ukuran: {sizes.length > 0 ? sizes.join(", ") : "Meteran"}</span>
+                  {sizes.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      {stock.map((s) => (
+                        <span key={s.size} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F8F9FA] border border-[#E4E6EB] text-[10px] font-mono">
+                          <span>{s.size}:{s.quantity}</span>
+                          {isDemoMode && onStockOverridden && (
+                            <QuickSetStockButton
+                              label={`${v.name} (Size ${s.size})`}
+                              currentQuantity={s.quantity}
+                              overrideEndpoint="/api/demo/stock/uniform-override"
+                              payload={{ variantId: v.id, size: s.size }}
+                              onSuccess={onStockOverridden}
+                            />
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span>Ukuran: Meteran</span>
+                  )}
                 </div>
               </div>
             );

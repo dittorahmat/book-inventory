@@ -123,15 +123,29 @@ export async function listUniformVariants(database: AppDatabase): Promise<Varian
   const stocks: StockRow[] = await database.select().from(uniformStock);
   const sizesByVariant = new Map<string, string[]>();
   for (const s of sizes) sizesByVariant.set(s.variantId, [...(sizesByVariant.get(s.variantId) ?? []), s.size]);
-  const stockByVariant = new Map<string, Array<{ size: string; quantity: number }>>();
+  const stockByVariant = new Map<string, Map<string, number>>();
   for (const s of stocks) {
-    stockByVariant.set(s.variantId, [...(stockByVariant.get(s.variantId) ?? []), { size: s.size, quantity: s.quantity }]);
+    if (!stockByVariant.has(s.variantId)) stockByVariant.set(s.variantId, new Map());
+    stockByVariant.get(s.variantId)!.set(s.size, s.quantity);
   }
-  return variants.map((variant) => ({
-    variant,
-    sizes: sizesByVariant.get(variant.id) ?? [],
-    stock: stockByVariant.get(variant.id) ?? [],
-  }));
+  return variants.map((variant) => {
+    const variantSizes = sizesByVariant.get(variant.id) ?? [];
+    const sizeStockMap = stockByVariant.get(variant.id) ?? new Map();
+    // Resilient fallback: jika ukuran terdaftar di uniform_sizes namun belum ada baris stok di database,
+    // sediakan entri stok dengan kuantitas default 0 agar UI selalu menampilkan rincian ukuran & dapat diset.
+    const resolvedStock: Array<{ size: string; quantity: number }> =
+      variant.kind === "kain_harian"
+        ? [{ size: KAIN_SIZE, quantity: sizeStockMap.get(KAIN_SIZE) ?? 0 }]
+        : variantSizes.length > 0
+          ? variantSizes.map((sz) => ({ size: sz, quantity: sizeStockMap.get(sz) ?? 0 }))
+          : Array.from(sizeStockMap.entries()).map(([size, quantity]) => ({ size, quantity }));
+
+    return {
+      variant,
+      sizes: variantSizes,
+      stock: resolvedStock,
+    };
+  });
 }
 
 export async function createUniformPackage(
