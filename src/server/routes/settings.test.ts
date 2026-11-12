@@ -442,4 +442,44 @@ describe("Settings penomoran seragam (USO/CLM customizable)", () => {
       body: JSON.stringify({ price: 750000 }),
     });
   });
+
+  it("Settings demo-mode (GET & PATCH) > central admin updates toggle and logs/guards access", async () => {
+    mockActor("central_admin");
+    const getRes = await settingsRouter.request("/demo-mode");
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as { success: boolean; data: { enabled: boolean } };
+    expect(getJson.success).toBe(true);
+
+    // Non-pusat (branch) dilarang mengubah mode demo
+    mockActor("branch_admin", "school-alw-1");
+    const patchDeny = await settingsRouter.request("/demo-mode", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect(patchDeny.status).toBe(403);
+
+    // Central admin mengaktifkan mode demo
+    mockActor("central_admin");
+    const patchOk = await settingsRouter.request("/demo-mode", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect(patchOk.status).toBe(200);
+    const patchJson = (await patchOk.json()) as { success: boolean; data: { enabled: boolean } };
+    expect(patchJson.success).toBe(true);
+    expect(patchJson.data.enabled).toBe(true);
+
+    // Status GET terbaca true
+    const getActive = await settingsRouter.request("/demo-mode");
+    expect((await getActive.json()).data.enabled).toBe(true);
+
+    // Kembalikan ke false
+    await settingsRouter.request("/demo-mode", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+  });
 });

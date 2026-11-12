@@ -27,6 +27,10 @@ import {
   warehouseReturnAddressSchema,
 } from "../services/return-address";
 import { assertSettingsAdmin } from "../services/settings-access";
+import {
+  isDemoStockOverrideEnabled,
+  setDemoStockOverrideEnabled,
+} from "../services/demo-stock-override";
 
 export const settingsRouter = new Hono();
 
@@ -311,5 +315,35 @@ settingsRouter.post("/return-address", zValidator("json", warehouseReturnAddress
     return accessErrorResponse(c, err);
   }
 });
+
+// GET status mode override stok demo (khusus admin logistik / central)
+settingsRouter.get("/demo-mode", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const enabled = await isDemoStockOverrideEnabled(db);
+    return c.json({ success: true, data: { enabled } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// PATCH ubah mode override stok demo (khusus central admin)
+settingsRouter.patch("/demo-mode", zValidator("json", z.object({ enabled: z.boolean() })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "notif");
+    const { enabled } = c.req.valid("json");
+    const data = await setDemoStockOverrideEnabled(db, enabled);
+    return c.json({
+      success: true,
+      message: enabled
+        ? "Mode override stok demo diaktifkan. Anda dapat mengatur angka stok langsung pada halaman inventori."
+        : "Mode override stok demo dinonaktifkan.",
+      data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 
 
