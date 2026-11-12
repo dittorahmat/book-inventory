@@ -227,28 +227,30 @@ describe("Portal seragam publik", () => {
     // Matikan satuan via settings seam
     await setUniformSatuanEnabled(db, false);
 
-    // 1. Order eceran murni (tanpa paket) harus ditolak
-    await seedPriorOrder(schoolId, studentId, stamp);
-    const eceranRes = await postPublic("/orders", {
-      studentId, academicYear: "2026/2027", homeAddress: addr,
-      items: [{ variantId: olId, size: "M", quantity: 1 }],
-    });
-    expect(eceranRes.status).toBe(400);
-    expect((await eceranRes.json()).message).toContain("Pembelian satuan seragam sedang ditutup");
+    try {
+      // 1. Order eceran murni (tanpa paket) harus ditolak
+      await seedPriorOrder(schoolId, studentId, stamp);
+      const eceranRes = await postPublic("/orders", {
+        studentId, academicYear: "2026/2027", homeAddress: addr,
+        items: [{ variantId: olId, size: "M", quantity: 1 }],
+      });
+      expect(eceranRes.status).toBe(400);
+      expect((await eceranRes.json()).message).toContain("Pembelian satuan seragam sedang ditutup");
 
-    // 2. Order olahraga bersama paket harus BERHASIL meskipun satuan ditutup
-    const paketPlusOlahraga = await postPublic("/orders", {
-      studentId, academicYear: "2026/2027", homeAddress: addr,
-      items: [
-        { packageId: pkgId, quantity: 1 },
-        { variantId: olId, size: "M", quantity: 1 },
-      ],
-      sizeOverrides: { [olId]: "M" },
-    });
-    expect(paketPlusOlahraga.status).toBe(201);
-
-    // Kembalikan setting
-    await setUniformSatuanEnabled(db, true);
+      // 2. Order olahraga bersama paket harus BERHASIL meskipun satuan ditutup
+      const paketPlusOlahraga = await postPublic("/orders", {
+        studentId, academicYear: "2026/2027", homeAddress: addr,
+        items: [
+          { packageId: pkgId, quantity: 1 },
+          { variantId: olId, size: "M", quantity: 1 },
+        ],
+        sizeOverrides: { [olId]: "M" },
+      });
+      expect(paketPlusOlahraga.status).toBe(201);
+    } finally {
+      // Kembalikan setting agar tidak bocor ke test lain
+      await setUniformSatuanEnabled(db, true);
+    }
   });
 
   it("payload ID format UUID juga lolos", async () => {
