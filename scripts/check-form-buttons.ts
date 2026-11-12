@@ -42,6 +42,7 @@ const FORBIDDEN_PATTERNS = [
   /disabled=\{[^}]*(!searchSchoolId|!schoolId|query\.trim\(\)\.length)[^}]*\}/,
   /disabled=\{[^}]*(!stVariant|!rjVariant|!hasSchoolSelected|!has[A-Z]\w*Selected)[^}]*\}/,
   /disabled=\{[^}]*(!isFormValid|!canSave|!canSubmit|!isComplete)[^}]*\}/,
+  /disabled=\{[^}]*(!picked|!sizeSelected)[^}]*\}/,
 ];
 
 // Komponen lama yang belum direfaktor ke FormFieldFeedback/FormSummaryAlert (grandfathered baseline)
