@@ -11,6 +11,7 @@ import {
 } from "./uniform-portal-api";
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
+import { findMatchingUniformSelection } from "../../lib/uniform-selection";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
@@ -130,6 +131,17 @@ export function useUniformOrder() {
       setCatalog(catalogData);
       setSatuanOpen(satuan.open);
       if (!satuan.open) setSatuanQty({});
+
+      // Otomatis pilih paket bahan kain harian dan varian olahraga yang cocok
+      const matched = findMatchingUniformSelection(s, catalogData);
+      if (matched.package) {
+        setPackageQty({ [matched.package.id]: 1 });
+      }
+      if (matched.olahraga) {
+        // Otomatis siapkan 1 stel olahraga (namun menunggu ukuran dipilih di UI)
+        setSatuanQty({ [matched.olahraga.id]: 1 });
+      }
+
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat katalog seragam.");
@@ -156,10 +168,13 @@ export function useUniformOrder() {
     itemCount > 0 &&
     validateHomeAddress(address).ok &&
     (orderType === "regular" || scholarshipProof !== "") &&
-    Object.entries(satuanQty).every(([key]) => {
-      const variantId = key.split("::")[0];
+    Object.entries(satuanQty).every(([key, qty]) => {
+      if (qty <= 0) return true;
+      const [variantId, keySize] = key.split("::");
       const variant = catalog?.variants.find((v) => v.id === variantId);
-      return variant?.kind !== "olahraga" || key.split("::")[1] !== undefined;
+      if (variant?.kind !== "olahraga") return true;
+      const activeSize = keySize || sizeFor[variantId];
+      return Boolean(activeSize && activeSize.trim() !== "");
     }) &&
     Object.keys(packageQty).every((pkgId) => {
       const pkg = catalog?.packages.find((p) => p.id === pkgId);

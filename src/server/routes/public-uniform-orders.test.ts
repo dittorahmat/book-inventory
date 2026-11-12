@@ -157,6 +157,7 @@ describe("Portal seragam publik", () => {
     );
     expect(ol?.sizes).toEqual(["S", "M"]);
     expect(ol?.sizeChartUrl).toBe("https://contoh.id/size-sd.png");
+    expect((ol as { sizeDetails?: Array<{ size: string; chestWidthCm: number }> })?.sizeDetails?.length).toBeGreaterThan(0);
   });
 
   it("submit satuan + paket; beli 2x = 2 order 1 murid", async () => {
@@ -192,6 +193,13 @@ describe("Portal seragam publik", () => {
     });
     expect(second.status).toBe(201);
     expect((await second.json()).data.order.shipmentStatus).toBe("belum_dikirim");
+
+    // Menolak order varian olahraga jika tanpa ukuran
+    const olNoSize = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: olId, quantity: 1, size: "" }],
+    });
+    expect(olNoSize.status).toBe(400);
 
     const lookup = await publicUniformOrdersRouter.request(
       `/lookup-order?orderNumber=${encodeURIComponent(firstNo.slice(0, 12))}&schoolId=${schoolId}`, { method: "GET" }

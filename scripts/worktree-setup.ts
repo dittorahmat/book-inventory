@@ -45,4 +45,19 @@ if (existsSync(sourceNodeModules) && !existsSync(targetNodeModules)) {
   }
 }
 
+const sourceDataDir = resolve(rootDir, "data");
+const targetDataDir = resolve(targetDir, "data");
+if (existsSync(sourceDataDir) && !existsSync(targetDataDir)) {
+  console.log(`[worktree-setup] Menghubungkan folder data via junction...`);
+  if (process.platform === "win32") {
+    execFileSync("cmd", ["/c", "mklink", "/J", targetDataDir, sourceDataDir], {
+      stdio: "inherit",
+    });
+  } else {
+    execFileSync("ln", ["-s", sourceDataDir, targetDataDir], {
+      stdio: "inherit",
+    });
+  }
+}
+
 console.log(`[worktree-setup] Worktree siap digunakan di: ${targetDir}`);
