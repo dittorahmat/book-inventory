@@ -86,9 +86,6 @@ export async function submitUniformOrder(
   if (priorCount.length === 0 && !payload.items.some((i) => i.packageId)) {
     return invalid("Murid baru/pindahan wajib membeli paket seragam terlebih dahulu.");
   }
-  if (payload.items.some((i) => i.variantId) && !(await isUniformSatuanEnabled(database))) {
-    return invalid("Pembelian satuan seragam sedang ditutup oleh admin.");
-  }
 
   const packageIds = [...new Set(payload.items.filter((i) => i.packageId).map((i) => i.packageId as string))];
   const satuanVariantIds = [...new Set(payload.items.filter((i) => i.variantId).map((i) => i.variantId as string))];
@@ -106,6 +103,20 @@ export async function submitUniformOrder(
     : [];
   if (variants.length !== satuanVariantIds.length) return invalid("Ada varian satuan yang tidak dikenal.");
   const variantById = new Map(variants.map((v) => [v.id, v]));
+
+  // Proteksi toggle pembelian satuan:
+  // Jika pembelian satuan ditutup oleh admin, pembelian satuan hanya diizinkan untuk
+  // seragam olahraga yang dibeli bersamaan dengan paket seragam di awal tahun ajaran.
+  // Pesanan eceran murni (tanpa paket) atau eceran kain harian tetap ditolak saat satuan ditutup.
+  if (satuanVariantIds.length > 0 && !(await isUniformSatuanEnabled(database))) {
+    const hasPackage = packageIds.length > 0;
+    const allAreOlahragaWithPackage = hasPackage && payload.items
+      .filter((i) => i.variantId)
+      .every((i) => variantById.get(i.variantId!)?.kind === "olahraga");
+    if (!allAreOlahragaWithPackage) {
+      return invalid("Pembelian satuan seragam sedang ditutup oleh admin.");
+    }
+  }
 
   // Validasi size satuan: kain "—", olahraga terdaftar.
   const olahragaIds = variants.filter((v) => v.kind === "olahraga").map((v) => v.id);

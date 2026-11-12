@@ -89,13 +89,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </section>
       )}
 
-      {!order.satuanOpen && olahraga.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800">
-          Pemesanan seragam olahraga sedang ditutup admin — silakan pilih paket bahan seragam harian.
-        </div>
-      )}
-
-      {order.satuanOpen && olahraga.length > 0 && (
+      {olahraga.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-[#050505]">Seragam Olahraga</h3>

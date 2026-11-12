@@ -130,7 +130,6 @@ export function useUniformOrder() {
       const [catalogData, satuan] = await Promise.all([fetchUniformCatalog(s.academicYear), fetchUniformSatuanStatus()]);
       setCatalog(catalogData);
       setSatuanOpen(satuan.open);
-      if (!satuan.open) setSatuanQty({});
 
       // Otomatis pilih paket bahan kain harian dan varian olahraga yang cocok
       const matched = findMatchingUniformSelection(s, catalogData);
