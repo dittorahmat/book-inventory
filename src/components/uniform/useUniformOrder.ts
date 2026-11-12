@@ -24,6 +24,7 @@ export function useUniformOrder() {
   const [satuanQty, setSatuanQty] = useState<Record<string, number>>({});
   const [sizeFor, setSizeFor] = useState<Record<string, string>>({});
   const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [notes, setNotes] = useState("");
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProof, setScholarshipProof] = useState("");
@@ -156,6 +157,7 @@ export function useUniformOrder() {
     setSatuanQty({});
     setSizeFor({});
     setAddress("");
+    setPostalCode("");
     setNotes("");
     setOrderType("regular");
     setScholarshipProof("");
@@ -163,9 +165,15 @@ export function useUniformOrder() {
     setStep(1);
   };
 
+  const isPostalCodeValid = /^\d{5}$/.test(postalCode.trim());
+  const combinedAddress = postalCode.trim()
+    ? (address.includes(postalCode.trim()) ? address.trim() : `${address.trim()}, Kode Pos ${postalCode.trim()}`)
+    : address.trim();
+
   const canSubmit =
     itemCount > 0 &&
-    validateHomeAddress(address).ok &&
+    isPostalCodeValid &&
+    validateHomeAddress(combinedAddress).ok &&
     (orderType === "regular" || scholarshipProof !== "") &&
     Object.entries(satuanQty).every(([key, qty]) => {
       if (qty <= 0) return true;
@@ -211,7 +219,7 @@ export function useUniformOrder() {
       const res = await submitUniformOrder({
         studentId: student.id,
         academicYear: student.academicYear,
-        homeAddress: address.trim(),
+        homeAddress: combinedAddress,
         items,
         sizeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
         notes: notes.trim() || undefined,
@@ -231,7 +239,7 @@ export function useUniformOrder() {
     schools, schoolId, setSchoolId, query, setQuery, searching, results, searched,
     student, catalog, loadingCatalog, visibleVariants, visiblePackages,
     packageQty, satuanQty, sizeFor, setSizeFor, bumpPackage, bumpSatuan,
-    address, setAddress, notes, setNotes, step, setStep,
+    address, setAddress, postalCode, setPostalCode, isPostalCodeValid, notes, setNotes, step, setStep,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,
