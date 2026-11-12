@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../../db";
-import { schools, students, studentBookOrders, bookPackages, books } from "../../db/schema";
+import { schools, students, studentBookOrders, bookPackages, books, uniformVariants, uniformPackages } from "../../db/schema";
 
 export interface TestSchoolOverrides {
   id?: string;
@@ -181,3 +181,64 @@ export async function createTestBook(
   await database.insert(books).values(row).onConflictDoNothing();
   return row;
 }
+
+export interface TestUniformVariantOverrides {
+  id?: string;
+  code?: string;
+  name?: string;
+  kind?: "kain_harian" | "olahraga";
+  gender?: "male" | "female";
+  jenjang?: "tk" | "sd" | "smp" | "sma";
+  academicYear?: string;
+  price?: number;
+}
+
+export async function createTestUniformVariant(
+  database: AppDatabase,
+  overrides: TestUniformVariantOverrides = {}
+) {
+  const stamp = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+  const row = {
+    id: overrides.id ?? `uv-test-${stamp}`,
+    code: overrides.code ?? `UV-${stamp.slice(-6).toUpperCase()}`,
+    name: overrides.name ?? `Seragam Uji ${stamp}`,
+    kind: overrides.kind ?? ("olahraga" as const),
+    gender: overrides.gender ?? ("male" as const),
+    jenjang: overrides.jenjang ?? ("sd" as const),
+    academicYear: overrides.academicYear ?? "2026/2027",
+    price: overrides.price ?? 100000,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await database.insert(uniformVariants).values(row).onConflictDoNothing();
+  return row;
+}
+
+export interface TestUniformPackageOverrides {
+  id?: string;
+  code?: string;
+  name?: string;
+  academicYear?: string;
+  price?: number;
+}
+
+export async function createTestUniformPackage(
+  database: AppDatabase,
+  overrides: TestUniformPackageOverrides = {}
+) {
+  const stamp = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+  const row = {
+    id: overrides.id ?? `up-test-${stamp}`,
+    code: overrides.code ?? `UP-${stamp.slice(-6).toUpperCase()}`,
+    name: overrides.name ?? `Paket Seragam Uji ${stamp}`,
+    academicYear: overrides.academicYear ?? "2026/2027",
+    price: overrides.price ?? 250000,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await database.insert(uniformPackages).values(row).onConflictDoNothing();
+  return row;
+}
+

@@ -4,36 +4,19 @@ import { db } from "../../../db";
 import { uniformStock, uniformPackageStock, uniformVariants, uniformPackages, systemSettings } from "../../../db/schema";
 import { DEMO_STOCK_OVERRIDE_KEY, setDemoStockOverrideEnabled } from "../demo-stock-override";
 import { overrideUniformVariantStock, overrideUniformPackageStock } from "./uniform-stock-override";
+import { createTestUniformVariant, createTestUniformPackage } from "../../lib/test-fixtures";
 
 describe("uniform-stock-override service", () => {
-  const stamp = Date.now().toString().slice(-6);
-  const variantId = `uv-${stamp}`;
-  const packageId = `up-${stamp}`;
+  let variantId = "";
+  let packageId = "";
 
   beforeEach(async () => {
     await db.delete(systemSettings).where(eq(systemSettings.key, DEMO_STOCK_OVERRIDE_KEY));
 
-    await db.insert(uniformVariants).values({
-      id: variantId,
-      code: `UV${stamp}`,
-      name: `Uniform Variant ${stamp}`,
-      kind: "olahraga",
-      gender: "male",
-      jenjang: "sd",
-      academicYear: "2026/2027",
-      price: 100000,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db.insert(uniformPackages).values({
-      id: packageId,
-      code: `UP${stamp}`,
-      name: `Uniform Package ${stamp}`,
-      academicYear: "2026/2027",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    const uv = await createTestUniformVariant(db);
+    variantId = uv.id;
+    const upkg = await createTestUniformPackage(db);
+    packageId = upkg.id;
   });
 
   afterEach(async () => {
