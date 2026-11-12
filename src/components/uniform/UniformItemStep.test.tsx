@@ -100,4 +100,51 @@ describe("UniformItemStep", () => {
     expect(screen.getByText("Seragam Olahraga")).toBeDefined();
     expect(screen.queryByText(/Pemesanan seragam olahraga sedang ditutup admin/)).toBeNull();
   });
+
+  it("blocks continuing to step 3 and highlights missing olahraga size with red border and message", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    let nextStepCalled = false;
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "v-ol-1",
+          code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (SD Ikhwan)",
+          kind: "olahraga" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 150000,
+          sizeChartUrl: null,
+          sizes: ["S", "M"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: { "v-ol-1": 1 },
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      student: { gradeLevel: "1" },
+      total: 150000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {
+        nextStepCalled = true;
+      },
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+
+    const lanjutBtn = screen.getByRole("button", { name: "Lanjut" });
+    fireEvent.click(lanjutBtn);
+
+    expect(nextStepCalled).toBe(false);
+    expect(screen.getByText("Wajib memilih ukuran seragam olahraga sebelum melanjutkan.")).toBeDefined();
+  });
 });

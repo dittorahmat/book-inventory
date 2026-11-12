@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { UniformSizeGuideModal } from "./UniformSizeGuideModal";
 import { formatUniformSizeLabel, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
 import type { UniformOrder } from "./useUniformOrder";
@@ -29,11 +30,43 @@ const stepper = (qty: number, onChange: (delta: number) => void, disabled = fals
 
 export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
   const stockOf = (variantId: string, size: string) =>
     order.catalog?.variants.find((v) => v.id === variantId)?.stock.find((s) => s.size === size)?.quantity ?? 0;
+
+  // Cek apakah ada seragam olahraga dengan qty > 0 yang belum dipilih ukurannya
+  const missingOlahragaList = olahraga.filter((v) => {
+    const picked = order.sizeFor[v.id] ?? "";
+    const key = picked ? `${v.id}::${picked}` : v.id;
+    const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
+    return currentQty > 0 && !picked;
+  });
+
+  const missingPackageOlahragaList = order.visiblePackages.filter((p) => {
+    const qty = order.packageQty[p.id] ?? 0;
+    if (qty <= 0) return false;
+    const needsSize = p.bom.some((b) => {
+      const v = order.catalog?.variants.find((x) => x.id === b.variantId);
+      return v?.kind === "olahraga" && b.size === "—";
+    });
+    return needsSize && !(order.sizeFor[p.id] ?? "");
+  });
+
+  const hasMissingOlahraga = missingOlahragaList.length > 0 || missingPackageOlahragaList.length > 0;
+
+  const handleLanjut = () => {
+    setAttempted(true);
+    if (hasMissingOlahraga) {
+      if (missingOlahragaList.length > 0) {
+        setSizeWarningId(missingOlahragaList[0].id);
+      }
+      return;
+    }
+    order.setStep(3);
+  };
 
   return (
     <div className="space-y-6">
@@ -132,8 +165,16 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 order.bumpSatuan(key, delta);
               };
 
+              const isMissingSize = (attempted || sizeWarningId === v.id) && currentQty > 0 && !picked;
+              const errorMessage = isMissingSize ? "Wajib memilih ukuran seragam olahraga sebelum melanjutkan." : undefined;
+
               return (
-                <div key={v.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
+                <div
+                  key={v.id}
+                  className={`bg-white rounded-2xl border p-4 space-y-2 transition-colors ${
+                    isMissingSize ? "border-rose-500 bg-rose-50/20 shadow-sm" : "border-[#E4E6EB]"
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-bold">{v.name}</div>
@@ -148,9 +189,10 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                       value={picked}
                       onChange={handleSizeChange}
                       placeholder="— Pilih ukuran olahraga —"
+                      error={errorMessage}
                     />
-                    {(!picked || sizeWarningId === v.id) && (
-                      <p className="text-[11px] text-amber-600 mt-1">
+                    {!errorMessage && !picked && (
+                      <p className="mt-1 text-[11px] text-[#65676B]">
                         ⚠️ Wajib memilih ukuran seragam olahraga sebelum menambahkan atau melanjutkan pesanan.
                       </p>
                     )}
@@ -168,6 +210,15 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </div>
       )}
 
+      {attempted && hasMissingOlahraga && (
+        <FormSummaryAlert
+          title="Pilihan Ukuran Belum Lengkap"
+          errors={{
+            olahraga: "Ada seragam olahraga yang belum dipilih ukurannya. Silakan tentukan ukuran seragam olahraga sebelum melanjutkan.",
+          }}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -180,7 +231,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         <button
           type="button"
           disabled={order.itemCount === 0}
-          onClick={() => order.setStep(3)}
+          onClick={handleLanjut}
           className="px-5 py-2.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-[#1664D9] active:scale-[0.98]"
         >
           Lanjut
