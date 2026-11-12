@@ -59,5 +59,6 @@ describe("UniformItemStep", () => {
     expect(screen.getByText("Bahan Kain / Tanpa Ukuran")).toBeDefined();
     expect(screen.getByText("Seragam Olahraga")).toBeDefined();
     expect(screen.getByText("📏 Lihat Panduan Ukuran (cm)")).toBeDefined();
+    expect(screen.queryByText("Kain Harian Satuan")).toBeNull();
   });
 });

@@ -30,7 +30,6 @@ const stepper = (qty: number, onChange: (delta: number) => void, disabled = fals
 export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
-  const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian");
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
   const stockOf = (variantId: string, size: string) =>
@@ -86,30 +85,6 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 </div>
               );
             })}
-          </div>
-        </section>
-      )}
-
-      {!order.satuanOpen && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800">
-          Pembelian satuan seragam sedang ditutup admin — silakan pilih paket.
-        </div>
-      )}
-
-      {order.satuanOpen && kain.length > 0 && (
-        <section>
-          <h3 className="text-sm font-bold text-[#050505] mb-1">Kain Harian Satuan</h3>
-          <p className="text-xs text-[#65676B] mb-3">Paket kain tanpa ukuran.</p>
-          <div className="bg-white rounded-2xl border border-[#E4E6EB] divide-y divide-[#E4E6EB]">
-            {kain.map((v) => (
-              <div key={v.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold">{v.name}</div>
-                  <div className="text-xs text-[#65676B]">{formatRupiah(v.price)} · Stok: {stockOf(v.id, "—")}</div>
-                </div>
-                {stepper(order.satuanQty[v.id] ?? 0, (d) => order.bumpSatuan(v.id, d))}
-              </div>
-            ))}
           </div>
         </section>
       )}
@@ -187,7 +162,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
         </section>
       )}
 
-      {order.visiblePackages.length + kain.length + olahraga.length === 0 && (
+      {order.visiblePackages.length + olahraga.length === 0 && (
         <div className="bg-white rounded-2xl border border-[#E4E6EB] p-6 text-center text-xs text-[#65676B]">
           Belum ada katalog seragam untuk jenjang/gender murid ini pada tahun ajaran tersebut.
         </div>
