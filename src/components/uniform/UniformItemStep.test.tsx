@@ -61,4 +61,43 @@ describe("UniformItemStep", () => {
     expect(screen.getByText("📏 Lihat Panduan Ukuran (cm)")).toBeDefined();
     expect(screen.queryByText("Kain Harian Satuan")).toBeNull();
   });
+
+  it("still renders seragam olahraga section even when satuanOpen is false", () => {
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "v-ol-1",
+          code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (SD Ikhwan)",
+          kind: "olahraga" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 150000,
+          sizeChartUrl: null,
+          sizes: ["S", "M"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: {},
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: false,
+      student: { gradeLevel: "1" },
+      total: 0,
+      itemCount: 0,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+    expect(screen.getByText("Seragam Olahraga")).toBeDefined();
+    expect(screen.queryByText(/Pemesanan seragam olahraga sedang ditutup admin/)).toBeNull();
+  });
 });

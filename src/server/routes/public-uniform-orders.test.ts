@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mockActor, restoreActor } from "./test-actor";
 import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { uniformsRouter } from "./uniforms";
+import { setUniformSatuanEnabled } from "../services/uniform";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
 import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds } from "../../db/schema";
@@ -215,6 +216,39 @@ describe("Portal seragam publik", () => {
     );
     expect(lowerLookup.status).toBe(200);
     expect(((await lowerLookup.json()).data.orders as Array<{ studentId: string }>).length).toBe(2);
+  });
+
+  it("mengizinkan seragam olahraga dipesan bersama paket saat satuan ditutup admin, tapi tolak eceran murni", async () => {
+    const stamp = `dec_${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const { olId, pkgId } = await seedCatalog(stamp);
+    const addr = "Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418";
+
+    // Matikan satuan via settings seam
+    await setUniformSatuanEnabled(db, false);
+
+    // 1. Order eceran murni (tanpa paket) harus ditolak
+    await seedPriorOrder(schoolId, studentId, stamp);
+    const eceranRes = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [{ variantId: olId, size: "M", quantity: 1 }],
+    });
+    expect(eceranRes.status).toBe(400);
+    expect((await eceranRes.json()).message).toContain("Pembelian satuan seragam sedang ditutup");
+
+    // 2. Order olahraga bersama paket harus BERHASIL meskipun satuan ditutup
+    const paketPlusOlahraga = await postPublic("/orders", {
+      studentId, academicYear: "2026/2027", homeAddress: addr,
+      items: [
+        { packageId: pkgId, quantity: 1 },
+        { variantId: olId, size: "M", quantity: 1 },
+      ],
+      sizeOverrides: { [olId]: "M" },
+    });
+    expect(paketPlusOlahraga.status).toBe(201);
+
+    // Kembalikan setting
+    await setUniformSatuanEnabled(db, true);
   });
 
   it("payload ID format UUID juga lolos", async () => {
