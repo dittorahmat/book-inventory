@@ -130,6 +130,21 @@ export function useUniformOrder() {
       setCatalog(catalogData);
       setSatuanOpen(satuan.open);
       if (!satuan.open) setSatuanQty({});
+
+      // Otomatis centang paket bahan kain harian yang cocok
+      const studentJenjang = gradeToJenjang(s.gradeLevel);
+      const studentGender = s.gender;
+      const variantById = new Map(catalogData.variants.map((v) => [v.id, v]));
+      const matchedPkg = catalogData.packages.find((p) =>
+        p.bom.every((b) => {
+          const v = variantById.get(b.variantId);
+          return v && v.jenjang === studentJenjang && (!studentGender || v.gender === studentGender);
+        })
+      );
+      if (matchedPkg) {
+        setPackageQty({ [matchedPkg.id]: 1 });
+      }
+
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat katalog seragam.");
