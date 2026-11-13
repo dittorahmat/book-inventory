@@ -11,7 +11,9 @@ import { EditUniformPackageModal } from "./EditUniformPackageModal";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { QuickSetStockButton } from "../inventory/QuickSetStockButton";
 import { useDemoMode } from "../../lib/useDemoMode";
-import { calculateUniformAssemblyPotential } from "../../lib/uniform-assembly-potential";
+import {
+  calculateUniformAssemblyPotentialDetails,
+} from "../../lib/uniform-assembly-potential";
 
 interface UniformAssemblySectionProps {
   defaultAcademicYear?: string;
@@ -149,7 +151,8 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
           filteredPackages.map((p) => {
             const isExpanded = expandedPackageId === p.package.id;
             const currentSize = asmSize[p.package.id] ?? "";
-            const potentialCount = calculateUniformAssemblyPotential(p, variants, currentSize);
+            const potentialInfo = calculateUniformAssemblyPotentialDetails(p, variants, currentSize);
+            const potentialCount = potentialInfo.maxPossible;
             return (
               <div
                 key={p.package.id}
@@ -252,9 +255,19 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                       />
                       <button
                         type="button"
-                        onClick={() => setAsmQty({ ...asmQty, [p.package.id]: String(potentialCount) })}
-                        disabled={potentialCount <= 0}
-                        className="px-2 py-1.5 text-xs font-semibold bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8ECFF] rounded-lg transition-colors shrink-0 disabled:opacity-40 disabled:hover:bg-[#E7F3FF]"
+                        onClick={() => {
+                          if (potentialCount > 0) {
+                            setAsmQty({ ...asmQty, [p.package.id]: String(potentialCount) });
+                          } else {
+                            setError(potentialInfo.reason || `Bahan komponen "${potentialInfo.bottleneckName || p.package.name}" habis di gudang sehingga tidak dapat dirakit.`);
+                          }
+                        }}
+                        className={`px-2 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
+                          potentialCount > 0
+                            ? "bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8ECFF]"
+                            : "bg-[#F0F2F5] text-[#65676B] hover:bg-[#E4E6EB]"
+                        }`}
+                        title={potentialCount > 0 ? `Isi maksimal ${potentialCount} unit` : (potentialInfo.reason || "Stok bahan tidak mencukupi untuk dirakit")}
                       >
                         Maks ({potentialCount})
                       </button>

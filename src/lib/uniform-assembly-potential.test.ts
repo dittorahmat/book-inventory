@@ -1,5 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import { calculateUniformAssemblyPotential } from "./uniform-assembly-potential";
+import {
+  calculateUniformAssemblyPotential,
+  calculateUniformAssemblyPotentialDetails,
+  getVariantStockQuantity,
+} from "./uniform-assembly-potential";
 import type { UniformPackageRow, UniformVariantRow } from "../components/uniform/uniform-admin-api";
 
 describe("calculateUniformAssemblyPotential", () => {
@@ -143,5 +147,44 @@ describe("calculateUniformAssemblyPotential", () => {
     };
 
     expect(calculateUniformAssemblyPotential(pkg, dummyVariants)).toBe(0);
+  });
+
+  it("getVariantStockQuantity mengekstrak kuantitas stok kain dan ukuran fisik dengan tepat", () => {
+    const kain = dummyVariants[0];
+    const olahraga = dummyVariants[2];
+
+    expect(getVariantStockQuantity(kain, "—")).toBe(20);
+    expect(getVariantStockQuantity(olahraga, "m")).toBe(8);
+    expect(getVariantStockQuantity(olahraga, "M")).toBe(8);
+    expect(getVariantStockQuantity(olahraga, "XXL")).toBe(0);
+  });
+
+  it("calculateUniformAssemblyPotentialDetails mengidentifikasi komponen botol leher dan alasan kegagalan", () => {
+    const pkg: UniformPackageRow = {
+      package: {
+        id: "p-details",
+        code: "PKG-D",
+        name: "Paket Lengkap SD",
+        academicYear: "2026/2027",
+        price: 210000,
+        description: null,
+      },
+      bom: [
+        { variantId: "v-kain-1", variantName: "Kain Kemeja", kind: "kain_harian", size: "—", quantity: 2 },
+        { variantId: "v-olahraga", variantName: "Set Olahraga", kind: "olahraga", size: "—", quantity: 1 },
+      ],
+      readyQty: 0,
+    };
+
+    // Dengan size L (stok olahraga = 2): bottleneck adalah Set Olahraga
+    const detailsL = calculateUniformAssemblyPotentialDetails(pkg, dummyVariants, "L");
+    expect(detailsL.maxPossible).toBe(2);
+    expect(detailsL.bottleneckName).toBe("Set Olahraga");
+
+    // Dengan size XL (stok 0): bottleneck adalah Set Olahraga dengan alasan spesifik
+    const detailsXL = calculateUniformAssemblyPotentialDetails(pkg, dummyVariants, "XL");
+    expect(detailsXL.maxPossible).toBe(0);
+    expect(detailsXL.bottleneckName).toBe("Set Olahraga");
+    expect(detailsXL.reason).toContain("tidak mencukupi");
   });
 });

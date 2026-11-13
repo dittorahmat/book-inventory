@@ -219,4 +219,80 @@ describe("UniformAssemblySection Component", () => {
 
     expect(qtyInput.value).toBe("40");
   });
+
+  it("handles Maks button click with 0 potential by displaying informative error feedback (§0.63)", async () => {
+    const emptyPackage = {
+      ...dummyPackage,
+      package: { ...dummyPackage.package, id: "upk-empty", name: "Paket Tanpa Bahan" },
+      bom: [
+        {
+          variantId: "uv-habis",
+          variantName: "KAIN HABIS",
+          kind: "kain_harian" as const,
+          size: "—",
+          quantity: 1,
+        },
+      ],
+      readyStock: 0,
+    };
+
+    const emptyVariants = [
+      {
+        variant: {
+          id: "uv-habis",
+          code: "KH-01",
+          name: "KAIN HABIS",
+          academicYear: "2026/2027",
+          kind: "kain_harian" as const,
+          jenjang: "tk",
+          gender: "male" as const,
+          price: 50000,
+          sizeChartUrl: null,
+        },
+        sizes: [],
+        stock: [{ size: "—", quantity: 0 }],
+      },
+    ];
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/settings/demo-mode")) {
+        return new Response(JSON.stringify({ success: true, data: { enabled: false } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("/api/uniforms/packages")) {
+        return new Response(JSON.stringify({ success: true, data: [emptyPackage] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("/api/uniforms/variants")) {
+        return new Response(JSON.stringify({ success: true, data: emptyVariants }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, data: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      render(<UniformAssemblySection defaultAcademicYear="2026/2027" />);
+    });
+
+    expect(screen.getByText("+0 Paket")).toBeDefined();
+    const maksBtn = screen.getByRole("button", { name: "Maks (0)" });
+    expect(maksBtn).toBeDefined();
+
+    // Sesuai §0.63, tombol tetap dapat diklik untuk menerima umpan balik edukatif
+    await act(async () => {
+      fireEvent.click(maksBtn);
+    });
+
+    expect(screen.getByText(/tidak mencukupi untuk perakitan/i)).toBeDefined();
+  });
 });
