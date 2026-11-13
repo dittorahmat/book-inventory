@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookItems, bookPackageItems, bookPackageSchools, bookPackages, books, bookStocks, packageItems, packageStocks } from "../../db/schema";
 import type { StockPotential } from "../../types/stock-summary";
@@ -37,7 +37,11 @@ export async function listPackagesWithBom(
   database: AppDatabase,
   limit: number = PACKAGE_LIST_LIMIT
 ): Promise<Array<typeof bookPackages.$inferSelect & { items: PackageBomItem[]; schoolIds: string[]; totalItemsCount: number }>> {
-  const pkgs: Array<typeof bookPackages.$inferSelect> = await database.select().from(bookPackages).limit(limit);
+  const pkgs: Array<typeof bookPackages.$inferSelect> = await database
+    .select()
+    .from(bookPackages)
+    .orderBy(desc(bookPackages.createdAt))
+    .limit(limit);
   if (pkgs.length === 0) return [];
 
   const pkgIds = pkgs.map((p: typeof bookPackages.$inferSelect) => p.id);
