@@ -9,9 +9,10 @@ const rootDir = resolve(__dirname, "..");
 const branchName = process.argv[2];
 const targetDirInput = process.argv[3];
 
-if (!branchName) {
-  console.error("Usage: bun scripts/worktree-setup.ts <branch-name> [target-dir]");
-  process.exit(1);
+if (!branchName || branchName === "--help" || branchName === "-h") {
+  console.log("Usage: bun scripts/worktree-setup.ts <branch-name> [target-dir]");
+  console.log("Contoh: bun scripts/worktree-setup.ts feat/my-feature D:/development/book1");
+  process.exit(branchName ? 0 : 1);
 }
 
 const targetDir = targetDirInput
