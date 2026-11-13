@@ -22,6 +22,7 @@ import {
   uniformSalesToCsv,
 } from "../services/uniform";
 import { resolveUniformScholarship } from "../services/uniform";
+import { commitBulkUniformResi, previewBulkUniformResi } from "../services/uniform/bulk-resi-service";
 
 export const uniformBatchRouter = new Hono();
 
@@ -176,6 +177,51 @@ uniformBatchRouter.post("/orders/import-shipping", zValidator("json", importSche
     }
     const { updated, rejected } = await importUniformShipping(db, schoolId, rows, markShipped);
     return c.json({ success: true, message: `${updated.length} baris diperbarui, ${rejected.length} ditolak.`, data: { updated, rejected } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const bulkResiSchema = z.object({
+  schoolId: idSchema.optional(),
+  rows: z.array(z.object({
+    nis: z.string().min(1, "NIS wajib diisi"),
+    name: z.string().default(""),
+    resi: z.string().min(1, "Nomor resi wajib diisi"),
+  })).min(1).max(500),
+});
+
+// Preview bulk upload resi: validasi format NIS | NAMA | Resi
+uniformBatchRouter.post("/orders/bulk-shipping-resi/preview", zValidator("json", bulkResiSchema), async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const { schoolId, rows } = c.req.valid("json");
+    if (schoolId) {
+      assertLocationAllowed(actor, schoolId, locations);
+    }
+    if (actor.role !== "central_admin" && actor.role !== "warehouse_admin") {
+      return c.json({ success: false, message: "Upload resi hanya untuk gudang/pusat." }, 403);
+    }
+    const preview = await previewBulkUniformResi(db, rows, schoolId);
+    return c.json({ success: true, data: preview });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Commit bulk upload resi
+uniformBatchRouter.post("/orders/bulk-shipping-resi/commit", zValidator("json", bulkResiSchema), async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const { schoolId, rows } = c.req.valid("json");
+    if (schoolId) {
+      assertLocationAllowed(actor, schoolId, locations);
+    }
+    if (actor.role !== "central_admin" && actor.role !== "warehouse_admin") {
+      return c.json({ success: false, message: "Upload resi hanya untuk gudang/pusat." }, 403);
+    }
+    const result = await commitBulkUniformResi(db, rows, schoolId);
+    return c.json({ success: true, message: `${result.updatedCount} resi berhasil diperbarui.`, data: result });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
