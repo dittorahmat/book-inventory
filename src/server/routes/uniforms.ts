@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { uniformOrders, uniformOrderItems, uniformPos, uniformExchanges } from "../../db/schema";
+import { base64UploadSchema } from "../lib/validators";
 import {
   assembleSchema,
   exchangeSchema,
@@ -204,10 +206,16 @@ uniformsRouter.get("/orders", async (c) => {
 });
 
 // Tandai terkirim (gudang/pusat saja).
-uniformsRouter.post("/orders/:id/ship", async (c) => {
+const shipOrderSchema = z.object({
+  shippingResi: z.string().optional(),
+  packagePhotoBase64: base64UploadSchema,
+}).optional();
+
+uniformsRouter.post("/orders/:id/ship", zValidator("json", shipOrderSchema), async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await markUniformShipped(db, c.req.param("id"));
+    const body = c.req.valid("json");
+    const result = await markUniformShipped(db, c.req.param("id"), body);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
   } catch (err) {

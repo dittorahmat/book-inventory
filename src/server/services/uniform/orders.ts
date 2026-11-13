@@ -324,11 +324,21 @@ export async function resolveUniformScholarship(
   return { ok: true, data: updated };
 }
 
+export interface MarkUniformShippedPayload {
+  shippingResi?: string;
+  packagePhotoBase64?: string;
+}
+
+export interface MarkUniformShippedDeps extends WriteDeps {
+  storage?: typeof defaultStorage;
+}
+
 /** Tandai kiriman gudang: belum_dikirim → sudah_dikirim (+ shippedAt). Satu arah, tanpa un-ship. */
 export async function markUniformShipped(
   database: AppDatabase,
   orderId: string,
-  deps?: WriteDeps
+  payload?: MarkUniformShippedPayload,
+  deps?: MarkUniformShippedDeps
 ): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
   const now = writeNow(deps);
   const [order]: Array<typeof uniformOrders.$inferSelect> = await database
@@ -337,9 +347,37 @@ export async function markUniformShipped(
     .where(eq(uniformOrders.id, orderId));
   if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
   if (order.shipmentStatus === "sudah_dikirim") return invalid("Order sudah ditandai terkirim.");
+
+  const resi = (payload?.shippingResi ?? order.shippingResi)?.trim();
+  if (!resi) {
+    return invalid("Nomor resi kurir wajib diisi sebelum menandai kiriman.");
+  }
+
+  // Guard kelayakan pengiriman: hanya boleh kirim jika sudah dicicil (partial), lunas (paid), atau beasiswa
+  const isPayEligible = order.paymentStatus === "paid" || order.paymentStatus === "partial" || (order.orderType === "scholarship" && order.paymentStatus !== "unpaid");
+  if (!isPayEligible) {
+    return invalid("Order belum layak kirim: pembayaran masih belum tercatat (unpaid).");
+  }
+
+  let packagePhotoUrl = order.packagePhotoUrl;
+  if (payload?.packagePhotoBase64) {
+    const storage = deps?.storage ?? defaultStorage;
+    packagePhotoUrl = await storage.upload(
+      `uniform-packages/${orderId}_${Date.now()}.jpg`,
+      decodeBase64ToBytes(payload.packagePhotoBase64),
+      "image/jpeg"
+    );
+  }
+
   await database
     .update(uniformOrders)
-    .set({ shipmentStatus: "sudah_dikirim", shippedAt: now, updatedAt: now })
+    .set({
+      shipmentStatus: "sudah_dikirim",
+      shippingResi: resi,
+      packagePhotoUrl,
+      shippedAt: now,
+      updatedAt: now,
+    })
     .where(eq(uniformOrders.id, orderId));
   await database
     .update(students)

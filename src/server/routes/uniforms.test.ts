@@ -254,10 +254,27 @@ describe("Uniform shipment flag", () => {
     expect(((await searchGlobalCentral.json()).data as Array<{ schoolName?: string }>)[0]?.schoolName).toBeDefined();
 
     mockActor("warehouse_admin", null);
-    const ship = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    // Unpaid & tanpa resi ditolak
+    const failShipUnpaid = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(failShipUnpaid.status).toBe(400);
+
+    // Tandai bayar lunas
+    await db.update(uniformOrders).set({ paymentStatus: "paid" }).where(eq(uniformOrders.id, orderId));
+
+    // Tanpa resi tetap ditolak
+    const failNoResi = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
+    expect(failNoResi.status).toBe(400);
+
+    // Sukses kirim dengan nomor resi
+    const ship = await uniformsRouter.request(`/orders/${orderId}/ship`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shippingResi: "RESI-JNE-123" }),
+    });
     expect(ship.status).toBe(200);
-    const shipped = (await ship.json()).data as { shipmentStatus: string; shippedAt: string };
+    const shipped = (await ship.json()).data as { shipmentStatus: string; shippedAt: string; shippingResi: string };
     expect(shipped.shipmentStatus).toBe("sudah_dikirim");
+    expect(shipped.shippingResi).toBe("RESI-JNE-123");
     expect(shipped.shippedAt.length).toBeGreaterThan(0);
 
     const shipAgain = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
@@ -681,6 +698,8 @@ describe("Uniform sales report & claims", () => {
     expect(finalCharge.status).toBe("final");
     expect(finalCharge.shippingAmount).toBe(20000);
     expect(finalCharge.goodsAmount).toBe(charge.goodsAmount);
+    // Tagihan cabang final, update bayar partial/paid agar lolos guard kirim
+    await db.update(uniformOrders).set({ paymentStatus: "partial" }).where(eq(uniformOrders.id, orderId));
     const shipRes = await uniformsRouter.request(`/orders/${orderId}/ship`, { method: "POST" });
     expect(shipRes.status).toBe(200);
     const [flagged] = await db.select().from(students).where(eq(students.id, studentId));
