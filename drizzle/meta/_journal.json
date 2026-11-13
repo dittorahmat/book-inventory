@@ -337,6 +337,13 @@
       "when": 1794536109713,
       "tag": "0047_flat_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1794540831927,
+      "tag": "0048_third_wrecker",
+      "breakpoints": true
     }
   ]
 }

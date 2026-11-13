@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import type { StudentRecord } from "./students-api";
+import { formatClassroomName } from "../../lib/classroom";
 
 interface StudentTableProps {
   students: StudentRecord[];
@@ -42,8 +43,8 @@ export function StudentTable({ students, onEdit, onDelete }: StudentTableProps) 
                 </span>
               </div>
               <div className="text-[11px] text-[#65676B] mt-0.5">
-                NIS {st.nis} &bull; Kelas {st.gradeLevel} (
-                {st.curriculumType === "international" ? "Internasional" : "Nasional"}) &bull; {st.schoolName}
+                NIS {st.nis} &bull; {formatClassroomName(st.gradeLevel, st.rombel)} &bull;{" "}
+                {st.curriculumType === "international" ? "Internasional" : "Nasional"} &bull; {st.schoolName}
               </div>
               {st.packageReceivedAt ? (
                 <div className="text-[10px] text-emerald-700 font-medium mt-0.5">

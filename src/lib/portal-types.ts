@@ -10,6 +10,7 @@ export interface StudentSearchResult {
   nis: string;
   name: string;
   gradeLevel: string;
+  rombel?: string | null;
   curriculumType: string;
   stream?: string | null;
   academicYear: string;

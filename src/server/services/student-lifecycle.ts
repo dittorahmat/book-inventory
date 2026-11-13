@@ -32,6 +32,7 @@ export interface StudentImportRow {
   nis: string;
   name: string;
   gradeLevel: string;
+  rombel?: string | null;
   gender?: "male" | "female";
   curriculumType?: "international" | "national";
   academicYear?: string;
@@ -85,6 +86,7 @@ export async function importStudents(
     const values = {
       name: item.name,
       gradeLevel: item.gradeLevel,
+      rombel: item.rombel || null,
       gender: item.gender ?? "male",
       curriculumType: item.curriculumType ?? "international",
       academicYear: item.academicYear ?? "2026/2027",

@@ -48,6 +48,7 @@ export function StudentImportPreview({
                   <th className="p-2">NIS</th>
                   <th className="p-2">Nama</th>
                   <th className="p-2">Kelas</th>
+                  <th className="p-2">Rombel</th>
                   <th className="p-2">Program</th>
                   <th className="p-2">Gender</th>
                 </tr>
@@ -58,6 +59,7 @@ export function StudentImportPreview({
                     <td className="p-2 font-mono">{s.nis}</td>
                     <td className="p-2 font-medium text-[#050505]">{s.name}</td>
                     <td className="p-2">Kelas {s.gradeLevel}</td>
+                    <td className="p-2 font-semibold text-[#1877F2]">{s.rombel || "-"}</td>
                     <td className="p-2 capitalize">{s.curriculumType}</td>
                     <td className="p-2 capitalize">{s.gender}</td>
                   </tr>

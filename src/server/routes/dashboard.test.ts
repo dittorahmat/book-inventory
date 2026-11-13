@@ -443,8 +443,8 @@ describe("Executive Dashboard Summary API", () => {
     const stu1 = `exec-stu-1-${stamp}`;
     const stu2 = `exec-stu-2-${stamp}`;
     await db.insert(students).values([
-      { id: stu1, schoolId: schId, nis: `NIS-1-${stamp}`.slice(0, 20), name: "Siswa 1", gradeLevel: "1", academicYear: "2026/2027", createdAt: nowIso, updatedAt: nowIso },
-      { id: stu2, schoolId: schId, nis: `NIS-2-${stamp}`.slice(0, 20), name: "Siswa 2", gradeLevel: "1", academicYear: "2025/2026", createdAt: nowIso, updatedAt: nowIso },
+      { id: stu1, schoolId: schId, nis: `NIS-1-${stamp}`.slice(0, 20), name: "Siswa 1", gradeLevel: "1", rombel: "INTER 1", academicYear: "2026/2027", createdAt: nowIso, updatedAt: nowIso },
+      { id: stu2, schoolId: schId, nis: `NIS-2-${stamp}`.slice(0, 20), name: "Siswa 2", gradeLevel: "1", rombel: "MQ 1", academicYear: "2025/2026", createdAt: nowIso, updatedAt: nowIso },
     ]);
     const ord1 = `exec-ord-1-${stamp}`;
     await db.insert(studentBookOrders).values({
@@ -474,6 +474,11 @@ describe("Executive Dashboard Summary API", () => {
       expect(schCash).toBeDefined();
       expect(schCash.realizedRp).toBe(150000);
       expect(body.data.breakdowns.cash.length).toBeGreaterThan(0);
+
+      const schStudent = body.data.breakdowns.students.find((s: { schoolId: string }) => s.schoolId === schId);
+      expect(schStudent).toBeDefined();
+      expect(schStudent.byRombel).toBeDefined();
+      expect(schStudent.byRombel.some((r: { rombel: string }) => r.rombel === "1 INTER 1")).toBe(true);
     } finally {
       await db.delete(studentBookOrders).where(eq(studentBookOrders.id, ord1));
       await db.delete(students).where(eq(students.id, stu1));

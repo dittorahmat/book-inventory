@@ -5,6 +5,7 @@ export interface ParsedStudentRow {
   nis: string;
   name: string;
   gradeLevel: string;
+  rombel?: string;
   gender: "male" | "female";
   curriculumType: "TK" | "INTER" | "AE" | "ME" | "DI" | "MQ" | "international" | "national";
   stream?: "IPA" | "IPS";
@@ -35,6 +36,7 @@ export function normalizeAlWildanClass(classStr: string): {
   gradeLevel: string | null;
   curriculumType: "TK" | "INTER" | "AE" | "ME" | "DI" | "MQ";
   stream?: "IPA" | "IPS";
+  rombel?: string;
 } {
   const trimmed = classStr.trim().toUpperCase();
 
@@ -52,6 +54,13 @@ export function normalizeAlWildanClass(classStr: string): {
   }
   if (/^K-?2/i.test(trimmed)) {
     return { gradeLevel: "K-2", curriculumType: "TK" };
+  }
+
+  // Ekstrak rombel jika formatnya "<jenjang>[.- ]<rombel>", misal "1.INTER 1", "2.MQ 2", "3 INTER 4"
+  let rombel: string | undefined;
+  const classMatch = trimmed.match(/^(?:(?:KELAS|GRADE)\s*)?(\d{1,2})[.\-\s]+(.*)$/);
+  if (classMatch && classMatch[2]?.trim()) {
+    rombel = classMatch[2].trim();
   }
 
   // Cari angka jenjang (1-12)
@@ -81,7 +90,7 @@ export function normalizeAlWildanClass(classStr: string): {
     curriculumType = "INTER";
   }
 
-  return { gradeLevel, curriculumType, stream };
+  return { gradeLevel, curriculumType, stream, rombel };
 }
 
 export { normalizeGoogleSheetsUrl } from "./sheets";
@@ -205,7 +214,7 @@ export function parseStudentData(
       continue;
     }
 
-    const { gradeLevel, curriculumType: autoCurriculum, stream } = normalizeAlWildanClass(rawClass);
+    const { gradeLevel, curriculumType: autoCurriculum, stream, rombel } = normalizeAlWildanClass(rawClass);
 
     if (!gradeLevel) {
       skippedRows.push({
@@ -251,6 +260,7 @@ export function parseStudentData(
       nis: rawNis,
       name: rawName,
       gradeLevel,
+      rombel,
       gender,
       curriculumType,
       stream,

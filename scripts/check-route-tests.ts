@@ -48,7 +48,11 @@ if (isCheckDiff) {
     }
     if (uncompanionRoutes.length > 0) {
       console.error("Route-test gate FAILED — file route berubah tanpa modifikasi test skenario pendamping:");
-      for (const u of uncompanionRoutes) console.error(`  ${u} (WAJIB sertakan skenario regression test di ${u.replace(/\.ts$/, ".test.ts")})`);
+      for (const u of uncompanionRoutes) {
+        const testPath = u.replace(/\.ts$/, ".test.ts");
+        console.error(`  ${u} (WAJIB sertakan skenario regression test di ${testPath})`);
+        console.error(`  Tips verifikasi cepat: bun test ${testPath}`);
+      }
       console.error("Setiap perubahan perilaku atau bug-fix pada file route wajib menambah skenario di *.test.ts (AGENTS.md §1.5).");
       process.exit(1);
     }

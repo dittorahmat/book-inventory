@@ -31,6 +31,7 @@ const upsertStudentSchema = z.object({
   name: z.string().min(1, "Nama murid wajib diisi"),
   gender: z.enum(["male", "female"]).default("male"),
   gradeLevel: z.string().min(1, "Kelas wajib dipilih"),
+  rombel: z.string().trim().optional().nullable(),
   curriculumType: z.enum(["international", "national"]).default("international"),
   academicYear: z.string().min(1, "Tahun ajaran wajib diisi"),
   parentName: z.string().optional(),
@@ -53,11 +54,13 @@ studentsRouter.get("/", async (c) => {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const status = c.req.query("status");
+    const rombel = c.req.query("rombel");
     const search = c.req.query("search");
 
   const conditions = [];
   if (schoolId) conditions.push(eq(students.schoolId, schoolId));
   if (status && status !== "all") conditions.push(eq(students.status, status as any));
+  if (rombel && rombel !== "all") conditions.push(eq(students.rombel, rombel));
   // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
   if (search?.trim()) {
     const matched = matchAnyLower([students.name, students.nis, students.parentName], search);
@@ -71,6 +74,7 @@ studentsRouter.get("/", async (c) => {
       name: students.name,
       gender: students.gender,
       gradeLevel: students.gradeLevel,
+      rombel: students.rombel,
       curriculumType: students.curriculumType,
       academicYear: students.academicYear,
       parentName: students.parentName,
@@ -138,6 +142,7 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
     name: body.name,
     gender: body.gender,
     gradeLevel: body.gradeLevel,
+    rombel: body.rombel || null,
     curriculumType: body.curriculumType,
     academicYear: body.academicYear,
     parentName: body.parentName || null,
@@ -265,6 +270,7 @@ const bulkImportItemSchema = z.object({
   nis: z.string().min(1, "NIS wajib diisi"),
   name: z.string().min(1, "Nama wajib diisi"),
   gradeLevel: z.string().min(1, "Kelas wajib diisi"),
+  rombel: z.string().trim().optional().nullable(),
   gender: z.enum(["male", "female"]).default("male"),
   curriculumType: z.enum(["international", "national"]).default("international"),
   academicYear: z.string().min(1).default("2026/2027"),

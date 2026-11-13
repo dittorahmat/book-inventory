@@ -162,6 +162,7 @@ export interface ExecutiveBranchStudentBreakdown {
   adoptionRate: number; // 0..1
   fulfilledStudents: number;
   byGrade: Array<{ grade: string; total: number; ordered: number }>;
+  byRombel?: Array<{ rombel: string; total: number; ordered: number }>;
 }
 
 export interface ExecutiveBranchStockBreakdown {

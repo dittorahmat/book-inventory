@@ -76,6 +76,7 @@ export function initSchoolMaps(schools: Array<{ id: string; name: string; code: 
       adoptionRate: 0,
       fulfilledStudents: 0,
       byGrade: [],
+      byRombel: [],
     });
     stockMap.set(sch.id, {
       schoolId: sch.id,

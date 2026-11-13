@@ -8,6 +8,10 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 Klasifikasi peminatan, jalur studi, atau kurikulum belajar siswa (misalnya: Reguler, Tahfidz, Cambridge, Bilingual) yang menentukan komposisi Bill of Materials (BOM) paket buku dan buku satuan yang berhak dipesan siswa. Di seluruh antarmuka pengguna, label laporan, dan pesan notifikasi, istilah ini wajib menggunakan kata "Program".
 _Avoid_: Kurikulum, peminatan bebas tanpa program, duplikasi label kurikulum di UI
 
+**Rombel / Ruang Kelas (Student Classroom Section)**:
+Identitas rombongan belajar atau ruang kelas penempatan siswa dalam jenjang tertentu (misalnya: `INTER 1`, `INTER 2`, `MQ 1`, `MQ 2`). Jika digabungkan dengan jenjang kelas (`gradeLevel` "1" + `rombel` "INTER 1"), membentuk nama kelas utuh (`"1 INTER 1"`). Digunakan untuk filter data murid, rekapitulasi, serta agregat summary/laporan pemenuhan dan distribusi buku maupun seragam. Bersifat opsional/nullable bagi siswa baru yang masih dalam tahap registrasi mandiri.
+_Avoid_: Mencampuradukkan rombel ke dalam nama siswa, menyimpan rombel kaku tanpa relasi jenjang, membuang data rombel saat impor Excel
+
 **Surat Jalan Pengiriman Cabang (Branch Transfer Shipment)**:
 Dokumen resmi pengiriman buku/paket dari Gudang Pusat ke Sekolah Cabang. Diterbitkan dengan nomor resmi, dicetak dan dibubuhi tanda tangan & cap basah oleh Gudang Pusat sebelum dikirim. Status pengiriman ini langsung memotong saldo stok Gudang Pusat saat status menjadi `in_transit`.
 _Avoid_: Pengiriman tanpa nomor resmi, pemotongan stok manual, surat jalan non-sistem

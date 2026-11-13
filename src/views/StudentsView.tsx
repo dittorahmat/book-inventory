@@ -43,6 +43,11 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
 
   const branchSchools = filterBranchSchools(schools);
 
+  // Daftar unik rombel dari data siswa yang sedang dimuat
+  const availableRombels = Array.from(
+    new Set(s.students.map((st) => st.rombel).filter((r): r is string => Boolean(r)))
+  ).sort();
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -124,6 +129,17 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
             placeholder="Filter status..."
           />
         </div>
+        <div className="w-full sm:w-44">
+          <SearchableSingleSelect
+            options={[
+              { value: "all", label: "Semua Rombel" },
+              ...availableRombels.map((r) => ({ value: r, label: r })),
+            ]}
+            value={s.rombelFilter}
+            onChange={(v) => s.setRombelFilter(v)}
+            placeholder="Filter rombel..."
+          />
+        </div>
       </div>
 
       {successBanner && (
@@ -164,8 +180,8 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
           <Users className="w-8 h-8 text-[#CED0D4]" />
           <div className="text-xs font-bold text-[#050505]">Belum ada data siswa</div>
           <p className="text-xs text-[#65676B] max-w-xs">
-            {s.search || s.statusFilter !== "all"
-              ? "Tidak ada siswa yang cocok dengan filter. Ubah kata kunci atau filter status."
+            {s.search || s.statusFilter !== "all" || s.rombelFilter !== "all"
+              ? "Tidak ada siswa yang cocok dengan filter. Ubah kata kunci atau filter status/rombel."
               : "Tambahkan siswa manual atau tunggu pendaftar baru dari portal orang tua."}
           </p>
         </div>

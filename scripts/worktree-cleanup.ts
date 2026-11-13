@@ -8,9 +8,10 @@ const rootDir = resolve(__dirname, "..");
 
 const branchOrDir = process.argv[2];
 
-if (!branchOrDir) {
-  console.error("Usage: bun scripts/worktree-cleanup.ts <branch-name-or-worktree-path>");
-  process.exit(1);
+if (!branchOrDir || branchOrDir === "--help" || branchOrDir === "-h") {
+  console.log("Usage: bun scripts/worktree-cleanup.ts <branch-name-or-worktree-path>");
+  console.log("Contoh: bun scripts/worktree-cleanup.ts feat/my-feature");
+  process.exit(branchOrDir ? 0 : 1);
 }
 
 // Cari path worktree yang diasosiasikan dengan branch dari git worktree list

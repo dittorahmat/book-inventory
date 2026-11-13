@@ -38,6 +38,7 @@ export function StudentFormModal({
     initial?.gender === "female" ? "female" : "male"
   );
   const [gradeLevel, setGradeLevel] = useState(initial?.gradeLevel || "1");
+  const [rombel, setRombel] = useState(initial?.rombel || "");
   const [curriculumType, setCurriculumType] = useState<"international" | "national">(
     initial?.curriculumType === "national" ? "national" : "international"
   );
@@ -106,6 +107,7 @@ export function StudentFormModal({
         name: name.trim(),
         gender,
         gradeLevel,
+        rombel: rombel.trim() || undefined,
         curriculumType,
         academicYear: academicYear.trim() || "2026/2027",
         parentName: parentName.trim() || undefined,
@@ -227,6 +229,16 @@ export function StudentFormModal({
                 onChange={setGradeLevel}
                 placeholder="Pilih kelas..."
                 disabled={hasActiveOrders}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Ruang Kelas / Rombel (Opsional)</label>
+              <input
+                type="text"
+                value={rombel}
+                onChange={(e) => setRombel(e.target.value)}
+                placeholder="Contoh: INTER 1, MQ 2"
+                className={inputCls}
               />
             </div>
             <div>
