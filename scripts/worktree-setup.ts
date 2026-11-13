@@ -21,6 +21,18 @@ const targetDir = targetDirInput
 
 console.log(`[worktree-setup] Menyiapkan worktree '${branchName}' di '${targetDir}'...`);
 
+// Jika direktori sudah ada tapi bukan repository git (misal dangling junction/folder kosong), bersihkan agar git worktree add dapat berjalan
+if (existsSync(targetDir) && !existsSync(resolve(targetDir, ".git"))) {
+  console.log(`[worktree-setup] Direktori ${targetDir} ada tetapi bukan worktree git valid, membersihkan...`);
+  try {
+    execFileSync(process.platform === "win32" ? "cmd" : "rm", process.platform === "win32" ? ["/c", "rd", "/s", "/q", targetDir] : ["-rf", targetDir], {
+      stdio: "inherit",
+    });
+  } catch (err) {
+    console.warn(`[worktree-setup] Gagal membersihkan folder kotor ${targetDir}:`, err);
+  }
+}
+
 if (!existsSync(targetDir)) {
   let branchExists = false;
   try {
