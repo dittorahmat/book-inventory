@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { School } from "../types";
-import { Search, Plus, AlertCircle, Users, Loader2 } from "lucide-react";
+import { Search, Plus, AlertCircle, Users, Loader2, ChevronLeft, ChevronRight, Upload, GraduationCap } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useStudents } from "../components/students/useStudents";
 import { fetchSchools } from "../components/students/students-api";
@@ -10,7 +10,6 @@ import { VerificationQueue } from "../components/students/VerificationQueue";
 import { StudentFormModal } from "../components/students/StudentFormModal";
 import { StudentBulkUploadModal } from "../components/students/StudentBulkUploadModal";
 import { BatchPromoteModal } from "../components/students/BatchPromoteModal";
-import { Upload, GraduationCap } from "lucide-react";
 import type { StaffRole } from "../lib/staff-roles";
 import { resolveDefaultStudentSchoolId, resolveFormDefaultSchoolId } from "../lib/student-view-helpers";
 import { filterBranchSchools } from "../lib/location-helpers";
@@ -188,7 +187,41 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
           </p>
         </div>
       ) : (
-        <StudentTable students={s.students} onEdit={s.openEdit} onDelete={s.remove} />
+        <>
+          <StudentTable students={s.students} onEdit={s.openEdit} onDelete={s.remove} />
+          {s.pagination.totalPages > 1 && (
+            <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="text-[#65676B]">
+                Menampilkan baris {(s.pagination.page - 1) * s.pagination.limit + 1} -{" "}
+                {Math.min(s.pagination.page * s.pagination.limit, s.pagination.total)} dari total{" "}
+                <span className="font-bold text-[#050505]">{s.pagination.total}</span> siswa
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={s.pagination.page <= 1}
+                  onClick={() => s.setPage(s.pagination.page - 1)}
+                  className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[#050505] flex items-center gap-1 transition-all"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Sebelumnya</span>
+                </button>
+                <span className="font-semibold px-2 py-1 bg-[#F0F2F5] rounded-lg text-[#050505]">
+                  {s.pagination.page} / {s.pagination.totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={s.pagination.page >= s.pagination.totalPages}
+                  onClick={() => s.setPage(s.pagination.page + 1)}
+                  className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[#050505] flex items-center gap-1 transition-all"
+                >
+                  <span>Selanjutnya</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {s.showForm && (

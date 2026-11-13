@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   fetchStudents,
+  fetchSchoolRombels,
   createStudent,
   updateStudent,
   deleteStudent,
   verifyStudent,
 } from "./students-api";
-import type { StudentRecord, StudentFormPayload } from "./students-api";
+import type { StudentRecord, StudentFormPayload, StudentPaginationMeta } from "./students-api";
 
 export type StudentStatusFilter = "all" | "active" | "promoted" | "new_pending" | "rejected" | "graduated";
 
@@ -18,6 +19,13 @@ export function useStudents(schoolId: string | null) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>("all");
   const [rombelFilter, setRombelFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<StudentPaginationMeta>({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 1,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
@@ -25,33 +33,67 @@ export function useStudents(schoolId: string | null) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<StudentRecord | null>(null);
 
+  // Muat opsi rombel data-driven dari server saat sekolah berubah
+  useEffect(() => {
+    let active = true;
+    fetchSchoolRombels(schoolId || undefined)
+      .then((rombels) => {
+        if (active) {
+          setKnownRombels(rombels);
+        }
+      })
+      .catch(() => {
+        // Abaikan error rombel, fallback ke rombel dari daftar siswa
+      });
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
+
+  // Reset page ke 1 setiap kali filter berubah
+  useEffect(() => {
+    setPage(1);
+  }, [schoolId, statusFilter, rombelFilter, search]);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [list, pending] = await Promise.all([
+      const [listRes, pendingRes] = await Promise.all([
         fetchStudents({
           schoolId: schoolId || undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
           rombel: rombelFilter === "all" ? undefined : rombelFilter,
           search: search.trim() || undefined,
+          page,
+          limit: 50,
         }),
-        fetchStudents({ schoolId: schoolId || undefined, status: "new_pending" }),
+        fetchStudents({ schoolId: schoolId || undefined, status: "new_pending", limit: 100 }),
       ]);
-      setStudents(list);
-      // Simpan daftar rombel unik kumulatif agar dropdown opsi tidak menciut saat salah satu rombel dipilih
-      const currentRombels = list.map((st) => st.rombel).filter((r): r is string => Boolean(r));
+      setStudents(listRes.students);
+      if (listRes.pagination) {
+        setPagination(listRes.pagination);
+      } else {
+        setPagination({
+          page: 1,
+          limit: 50,
+          total: listRes.students.length,
+          totalPages: 1,
+        });
+      }
+      // Kumulatifkan rombel jika server rombel kosong
+      const currentRombels = listRes.students.map((st) => st.rombel).filter((r): r is string => Boolean(r));
       if (currentRombels.length > 0) {
         setKnownRombels((prev) => Array.from(new Set([...prev, ...currentRombels])).sort());
       }
-      setPendingList(pending);
-      setPendingCount(pending.length);
+      setPendingList(pendingRes.students);
+      setPendingCount(pendingRes.students.length);
     } catch (err: any) {
       setError(err.message || "Gagal memuat data siswa.");
     } finally {
       setIsLoading(false);
     }
-  }, [schoolId, statusFilter, rombelFilter, search]);
+  }, [schoolId, statusFilter, rombelFilter, search, page]);
 
   useEffect(() => {
     load();
@@ -113,6 +155,7 @@ export function useStudents(schoolId: string | null) {
   return {
     students, knownRombels, pendingList, pendingCount, search, setSearch, statusFilter, setStatusFilter,
     rombelFilter, setRombelFilter,
+    page, setPage, pagination,
     isLoading, isSaving, verifyingId, error, setError,
     showForm, setShowForm, editing, openCreate, openEdit,
     load, save, remove, verify,
