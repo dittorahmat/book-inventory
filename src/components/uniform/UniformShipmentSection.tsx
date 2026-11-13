@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Search, SlidersHorizontal, RefreshCw } from "lucide-react";
-import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { PaymentReviewModal } from "../orders/PaymentReviewModal";
 import { formatNotification } from "../../lib/payment-review-types";
 import {
@@ -8,6 +6,8 @@ import {
   markUniformShipped,
   saveUniformShipping,
   sendUniformInvoice,
+  sendUniformShippingNotification,
+  confirmUniformReceipt,
   resolveUniformScholarship,
   downloadUniformCsv,
   importUniformShipping,
@@ -20,6 +20,8 @@ import {
 import { UniformShippingBatchModal } from "./UniformShippingBatchModal";
 import { UniformOrderCard } from "./UniformOrderCard";
 import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
+import { UniformShipModal, UniformConfirmReceiptModal } from "./UniformShipModal";
+import { UniformShipmentToolbar } from "./UniformShipmentToolbar";
 
 interface Props {
   schools: Array<{ id: string; name: string }>;
@@ -45,6 +47,8 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
 
   // Modal Contextual Actions
   const [ongkirOrder, setOngkirOrder] = useState<UniformOrderRow | null>(null);
+  const [shipModalOrder, setShipModalOrder] = useState<UniformOrderRow | null>(null);
+  const [receiptModalOrder, setReceiptModalOrder] = useState<UniformOrderRow | null>(null);
   const [payOrder, setPayOrder] = useState<UniformOrderRow | null>(null);
   const [payBusy, setPayBusy] = useState(false);
   const [payResult, setPayResult] = useState<string | null>(null);
@@ -73,16 +77,53 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
     load();
   }, [load]);
 
-  const handleShip = async (id: string) => {
-    setShippingId(id);
+  const handleOpenShipModal = (order: UniformOrderRow) => {
+    // Validasi payment status di frontend sebelum buka modal
+    const isPayEligible = order.paymentStatus === "paid" || order.paymentStatus === "partial" || (order.orderType === "scholarship" && order.paymentStatus !== "unpaid");
+    if (!isPayEligible) {
+      setError(`Order ${order.orderNumber} belum layak kirim karena pembayaran masih unpaid.`);
+      return;
+    }
+    setError(null);
+    setShipModalOrder(order);
+  };
+
+  const handleConfirmShip = async (payload: { shippingResi: string; packagePhotoBase64?: string }) => {
+    if (!shipModalOrder) return;
+    setShippingId(shipModalOrder.id);
     setError(null);
     try {
-      await markUniformShipped(id);
+      await markUniformShipped(shipModalOrder.id, payload);
+      setShipModalOrder(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menandai kiriman.");
+      throw err;
     } finally {
       setShippingId(null);
+    }
+  };
+
+  const handleSendResiNotification = async (id: string) => {
+    setError(null);
+    try {
+      await sendUniformShippingNotification(id);
+      alert("Notifikasi resi berhasil dikirim ke nomor WhatsApp orang tua.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengirim notifikasi resi.");
+    }
+  };
+
+  const handleConfirmReceipt = async (notes?: string) => {
+    if (!receiptModalOrder) return;
+    setError(null);
+    try {
+      await confirmUniformReceipt(receiptModalOrder.id, notes);
+      setReceiptModalOrder(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mencatat konfirmasi penerimaan.");
+      throw err;
     }
   };
 
@@ -181,83 +222,19 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   return (
     <div className="space-y-4">
       {/* Integrated Single Toolbar */}
-      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-[#050505]">Daftar Pengiriman Seragam</h2>
-            <p className="text-xs text-[#65676B]">
-              Pantau status fulfillment, nomor resi ekspedisi, dan invoice seragam siswa.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            <button
-              type="button"
-              onClick={() => setShowBatchModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-[#CED0D4] bg-white text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98] transition-all shadow-2xs"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#1877F2]" />
-              <span>Ekspor & Impor CSV</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="p-2 border border-[#CED0D4] bg-white text-[#65676B] hover:text-[#050505] rounded-xl text-xs hover:bg-[#F0F2F5] active:scale-[0.98] transition-all shadow-2xs"
-              title="Segarkan data"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Inputs Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-[#E4E6EB]">
-          <div>
-            <SearchableSingleSelect
-              label="Sekolah"
-              options={[
-                ...(!lockedSchoolId ? [{ value: "", label: "🏢 Semua Cabang" }] : []),
-                ...schools.map((s) => ({ value: s.id, label: s.name })),
-              ]}
-              value={schoolId}
-              onChange={setSchoolId}
-              placeholder="Pilih sekolah / cabang..."
-              disabled={!!lockedSchoolId}
-            />
-          </div>
-
-          <div>
-            <SearchableSingleSelect
-              label="Status Pengiriman"
-              options={[
-                { value: "belum_dikirim", label: "Belum terkirim" },
-                { value: "sudah_dikirim", label: "Sudah terkirim" },
-                { value: "superseded", label: "Tertimpa (Superseded)" },
-                { value: "", label: "Semua Status" },
-              ]}
-              value={status}
-              onChange={setStatus}
-              placeholder="Pilih status..."
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Cari Order</label>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#65676B]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && load()}
-                placeholder="Cari nama siswa, NIS, atau no. order..."
-                className="pl-9 pr-3 py-2 text-xs font-medium border border-[#CED0D4] rounded-xl bg-white hover:border-[#1877F2] w-full focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2] transition-all"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <UniformShipmentToolbar
+        schools={schools}
+        lockedSchoolId={lockedSchoolId}
+        schoolId={schoolId}
+        setSchoolId={setSchoolId}
+        status={status}
+        setStatus={setStatus}
+        search={search}
+        setSearch={setSearch}
+        loading={loading}
+        onRefresh={load}
+        onOpenBatch={() => setShowBatchModal(true)}
+      />
 
       {error && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
@@ -285,9 +262,11 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
               key={r.id}
               order={r}
               shippingId={shippingId}
-              onShip={handleShip}
+              onShip={handleOpenShipModal}
               onOpenOngkir={(ord) => setOngkirOrder(ord)}
               onInvoice={handleInvoice}
+              onSendResiNotification={handleSendResiNotification}
+              onConfirmReceipt={(ord) => setReceiptModalOrder(ord)}
               onScholarship={handleScholarship}
               onReview={(ord) => setReviewRow(ord)}
               onOpenPay={(ord) => {
@@ -297,6 +276,28 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
             />
           ))}
       </div>
+
+      {/* Modal Pengiriman Seragam Ber-Resi */}
+      {shipModalOrder && (
+        <UniformShipModal
+          isOpen={true}
+          order={shipModalOrder}
+          isSubmitting={shippingId === shipModalOrder.id}
+          onConfirm={handleConfirmShip}
+          onCancel={() => setShipModalOrder(null)}
+        />
+      )}
+
+      {/* Modal Konfirmasi Penerimaan Paket */}
+      {receiptModalOrder && (
+        <UniformConfirmReceiptModal
+          isOpen={true}
+          orderNumber={receiptModalOrder.orderNumber}
+          studentName={receiptModalOrder.studentName}
+          onConfirm={handleConfirmReceipt}
+          onCancel={() => setReceiptModalOrder(null)}
+        />
+      )}
 
       {/* Modal Input Ongkir & Resi */}
       {ongkirOrder && (

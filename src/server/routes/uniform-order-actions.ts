@@ -7,6 +7,8 @@ import { sendUniformInvoice } from "../services/order-invoice";
 import { setUniformShipping } from "../services/order-shipping";
 import { getUniformSalesReport } from "../services/uniform";
 import { sendUniformShippingNotification } from "../services/uniform";
+import { uniformOrders } from "../../db/schema";
+import { eq } from "drizzle-orm";
 import { approveStudentWithdrawal } from "../services/order-withdrawal";
 import { findRefundSlip } from "../services/refund-slip";
 import {
@@ -90,6 +92,36 @@ uniformOrderActionsRouter.post("/orders/:id/send-shipping-notification", async (
       return c.json({ success: false, message: res.error ?? "Gagal mengirim notifikasi resi" }, 400);
     }
     return c.json({ success: true, message: "Notifikasi resi berhasil dikirim via WhatsApp.", data: res });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const confirmReceiptSchema = z.object({
+  notes: z.string().optional(),
+});
+
+// Konfirmasi penerimaan seragam oleh staf logistik (opsional audit).
+uniformOrderActionsRouter.post("/orders/:id/confirm-receipt", zValidator("json", confirmReceiptSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const orderId = c.req.param("id");
+    const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+    if (!order) return c.json({ success: false, message: "Order seragam tidak ditemukan." }, 404);
+    if (order.shipmentStatus !== "sudah_dikirim") {
+      return c.json({ success: false, message: "Hanya pesanan yang sudah dikirim yang dapat dikonfirmasi penerimaannya." }, 400);
+    }
+
+    const now = new Date().toISOString();
+    const { notes } = c.req.valid("json");
+    await db.update(uniformOrders).set({
+      receivedAt: now,
+      receivedNotes: notes?.trim() || null,
+      updatedAt: now,
+    }).where(eq(uniformOrders.id, orderId));
+
+    const [updated] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+    return c.json({ success: true, message: "Konfirmasi penerimaan berhasil dicatat.", data: updated });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

@@ -197,4 +197,18 @@ describe("Uniform sports exchange actions & resolution", () => {
       restoreActor();
     }
   });
+
+  it("handles confirm-receipt endpoint for logistics audit", async () => {
+    mockActor("warehouse_admin", null);
+    try {
+      const res = await uniformsRouter.request("/orders/non-existent-order/confirm-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: "Paket diterima satpam" }),
+      });
+      expect(res.status).toBe(404);
+    } finally {
+      restoreActor();
+    }
+  });
 });

@@ -29,6 +29,9 @@ export interface UniformOrderRow {
   stage?: string;
   shippingCost?: number;
   shippingResi?: string | null;
+  packagePhotoUrl?: string | null;
+  receivedAt?: string | null;
+  receivedNotes?: string | null;
   invoiceSentAt?: string | null;
   homeAddressSnapshot: string;
   /** Jumlah klaim bukti bayar ortu yang masih menunggu verifikasi staf. */
@@ -39,8 +42,17 @@ export interface UniformOrderRow {
 export const fetchUniformOrders = (params: { schoolId?: string; shipmentStatus?: string; search?: string }): Promise<UniformOrderRow[]> =>
   getJson<UniformOrderRow[]>(buildQuery("/api/uniforms/orders", params), "Gagal memuat order seragam.");
 
-export const markUniformShipped = (id: string): Promise<UniformOrderRow> =>
-  postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/ship`, {}, "Gagal menandai kiriman.");
+export const markUniformShipped = (
+  id: string,
+  payload?: { shippingResi?: string; packagePhotoBase64?: string }
+): Promise<UniformOrderRow> =>
+  postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/ship`, payload ?? {}, "Gagal menandai kiriman.");
+
+export const sendUniformShippingNotification = (id: string): Promise<{ sent: boolean; recipientPhone: string | null }> =>
+  postJson<{ sent: boolean; recipientPhone: string | null }>(`/api/uniforms/orders/${id}/send-shipping-notification`, {}, "Gagal mengirim notifikasi resi.");
+
+export const confirmUniformReceipt = (id: string, notes?: string): Promise<UniformOrderRow> =>
+  postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/confirm-receipt`, { notes }, "Gagal mencatat konfirmasi penerimaan.");
 
 export const saveUniformShipping = (id: string, shippingCost: number, shippingResi?: string): Promise<UniformOrderRow> =>
   postJson<UniformOrderRow>(`/api/uniforms/orders/${id}/shipping`, { shippingCost, shippingResi }, "Gagal menyimpan ongkir.");
