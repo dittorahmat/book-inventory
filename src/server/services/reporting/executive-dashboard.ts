@@ -99,20 +99,30 @@ export async function getExecutiveDashboardSummary(
     const { cashMap, orderMap, studentMap, stockMap, poMap } = initSchoolMaps(schoolRows);
 
     const studentGradeCount = new Map<string, Map<string, { total: number; ordered: number }>>();
-    const studentGradeMap = new Map<string, { schoolId: string; grade: string }>();
+    const studentRombelCount = new Map<string, Map<string, { total: number; ordered: number }>>();
+    const studentGradeMap = new Map<string, { schoolId: string; grade: string; rombel: string | null }>();
 
     for (const st of activeStudents) {
       const schStudent = studentMap.get(st.schoolId);
       if (schStudent) schStudent.totalStudents += 1;
 
       const g = st.gradeLevel || "Lainnya";
-      studentGradeMap.set(st.id, { schoolId: st.schoolId, grade: g });
+      studentGradeMap.set(st.id, { schoolId: st.schoolId, grade: g, rombel: st.rombel });
 
       if (!studentGradeCount.has(st.schoolId)) studentGradeCount.set(st.schoolId, new Map());
       const gradeMap = studentGradeCount.get(st.schoolId)!;
       const curr = gradeMap.get(g) ?? { total: 0, ordered: 0 };
       curr.total += 1;
       gradeMap.set(g, curr);
+
+      if (st.rombel) {
+        if (!studentRombelCount.has(st.schoolId)) studentRombelCount.set(st.schoolId, new Map());
+        const rombelMap = studentRombelCount.get(st.schoolId)!;
+        const classLabel = `${g} ${st.rombel}`;
+        const currRombel = rombelMap.get(classLabel) ?? { total: 0, ordered: 0 };
+        currRombel.total += 1;
+        rombelMap.set(classLabel, currRombel);
+      }
     }
 
     const studentOrderSet = new Set<string>();
@@ -121,11 +131,17 @@ export async function getExecutiveDashboardSummary(
     for (const ord of activeOrders) {
       if (!studentOrderSet.has(ord.studentId)) {
         studentOrderSet.add(ord.studentId);
-        // Naikkan ordered counter pada grade breakdown
+        // Naikkan ordered counter pada grade breakdown & rombel breakdown
         const stInfo = studentGradeMap.get(ord.studentId);
         if (stInfo && studentGradeCount.has(stInfo.schoolId)) {
           const gMap = studentGradeCount.get(stInfo.schoolId)!;
           const curr = gMap.get(stInfo.grade);
+          if (curr) curr.ordered += 1;
+        }
+        if (stInfo?.rombel && studentRombelCount.has(stInfo.schoolId)) {
+          const rMap = studentRombelCount.get(stInfo.schoolId)!;
+          const classLabel = `${stInfo.grade} ${stInfo.rombel}`;
+          const curr = rMap.get(classLabel);
           if (curr) curr.ordered += 1;
         }
       }
@@ -161,6 +177,14 @@ export async function getExecutiveDashboardSummary(
           total: stats.total,
           ordered: stats.ordered,
         }));
+        const rbMap = studentRombelCount.get(schId);
+        if (rbMap) {
+          schStudent.byRombel = Array.from(rbMap.entries()).map(([rombel, stats]) => ({
+            rombel,
+            total: stats.total,
+            ordered: stats.ordered,
+          }));
+        }
       }
     }
     for (const st of activeStudents) {

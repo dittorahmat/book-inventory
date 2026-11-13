@@ -92,7 +92,7 @@ export function StudentBreakdownDrawer({
             <th className="pb-3 text-right">Memesan</th>
             <th className="pb-3 text-center">Adopsi (%)</th>
             <th className="pb-3 text-right">Terima Fisik</th>
-            <th className="pb-3">Jenjang Breakdown</th>
+            <th className="pb-3">Jenjang / Rombel</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#F0F2F5]">
@@ -114,11 +114,22 @@ export function StudentBreakdownDrawer({
               <td className="py-3 text-right font-semibold text-emerald-600">{row.fulfilledStudents}</td>
               <td className="py-3">
                 <div className="flex flex-wrap gap-1 max-w-xs">
-                  {row.byGrade.slice(0, 4).map((g) => (
-                    <span key={g.grade} className="text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">
-                      Kls {g.grade}: {g.ordered}/{g.total}
-                    </span>
-                  ))}
+                  {row.byRombel && row.byRombel.length > 0 ? (
+                    row.byRombel.slice(0, 4).map((r) => (
+                      <span key={r.rombel} className="text-[10px] bg-[#E7F3FF] text-[#1877F2] font-medium px-1.5 py-0.5 rounded">
+                        {r.rombel}: {r.ordered}/{r.total}
+                      </span>
+                    ))
+                  ) : (
+                    row.byGrade.slice(0, 4).map((g) => (
+                      <span key={g.grade} className="text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">
+                        Kls {g.grade}: {g.ordered}/{g.total}
+                      </span>
+                    ))
+                  )}
+                  {row.byRombel && row.byRombel.length > 4 && (
+                    <span className="text-[10px] text-[#65676B]">+{row.byRombel.length - 4} rombel</span>
+                  )}
                 </div>
               </td>
             </tr>
