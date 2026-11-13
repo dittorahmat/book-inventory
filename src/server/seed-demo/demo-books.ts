@@ -84,7 +84,13 @@ export async function seedDemoBooks({ db: targetDb, now }: SeedContext) {
     })
     .onConflictDoUpdate({
       target: studentBookOrders.id,
-      set: { totalAmount: sd2Int, paidAmount: sd2Int, paymentStatus: "paid", updatedAt: now },
+      set: {
+        totalAmount: sd2Int,
+        paidAmount: sd2Int,
+        paymentStatus: "paid",
+        fulfillmentStatus: "waiting_preparation",
+        updatedAt: now,
+      },
     });
   await seedReceipt({ db: targetDb, now }, "rcp-kayla-1", {
     studentId: "std-kayla-5",

@@ -126,26 +126,24 @@ const MASTER_TABLES = [
   "uniformPackages",
   "uniformSizes",
 ];
-const UNQUALIFIED_DELETE_RE = new RegExp(
-  `\\.delete\\s*\\(\\s*(${MASTER_TABLES.join("|")})\\s*\\)(?!\\s*\\.where\\b)`
+
+// Deteksi pemanggilan delete(tabelMaster) yang tidak diikuti .where(...) baik dalam satu baris
+// maupun dalam pemanggilan multiline / chained methods.
+const UNQUALIFIED_DELETE_BLOCK_RE = new RegExp(
+  `\\.delete\\s*\\(\\s*(${MASTER_TABLES.join("|")})\\s*\\)(?:(?!\\.where\\b)[^;])*?(?:;|$|\\n\\s*(?:await|const|let|return|expect|it\\(|describe\\())`,
+  "s"
 );
 
-// Pengecualian legal (mis. test khusus reset katalog paket yang dijamin membungkus dalam try...finally runIdempotentSeed)
-const UNQUALIFIED_DELETE_ALLOWLIST = new Set([
-  "src/server/routes/packages.test.ts", // test: tidak memicu seed demo untuk peran non-pusat saat katalog paket kosong (restored in finally)
-]);
-
 for (const file of testFiles) {
-  if (UNQUALIFIED_DELETE_ALLOWLIST.has(file)) continue;
-  const lines = readFileSync(file, "utf8").split("\n");
-  lines.forEach((text, i) => {
-    const match = UNQUALIFIED_DELETE_RE.exec(text);
-    if (match) {
-      hits.push(
-        `${file}:${i + 1}: pemanggilan db.delete(${match[1]}) tanpa klausa .where(...) dilarang karena merusak baseline master test (Issue #456).`
-      );
-    }
-  });
+  const content = readFileSync(file, "utf8");
+  const match = UNQUALIFIED_DELETE_BLOCK_RE.exec(content);
+  if (match) {
+    const offset = match.index;
+    const lineNumber = content.substring(0, offset).split("\n").length;
+    hits.push(
+      `${file}:${lineNumber}: pemanggilan db.delete(${match[1]}) tanpa klausa .where(...) dilarang karena merusak baseline master test (Issue #456).`
+    );
+  }
 }
 
 if (hits.length > 0) {
