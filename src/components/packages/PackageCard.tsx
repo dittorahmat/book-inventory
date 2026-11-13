@@ -132,8 +132,12 @@ export function PackageCard({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onOpenBundling("bundle")}
-              disabled={potentialCount <= 0}
-              className="px-3.5 py-2 bg-[#1877F2] text-white hover:bg-[#166FE5] disabled:bg-gray-200 disabled:text-gray-400 rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 active:scale-[0.98] ${
+                potentialCount > 0
+                  ? "bg-[#1877F2] text-white hover:bg-[#166FE5]"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+              title={potentialCount > 0 ? "Buka formulir perakitan paket" : "Stok buku satuan habis (tetap dapat dibuka untuk melihat rincian botol leher BOM)"}
             >
               <Layers className="w-3.5 h-3.5" />
               Rakit Paket
