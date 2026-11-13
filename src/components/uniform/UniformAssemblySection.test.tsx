@@ -170,4 +170,53 @@ describe("UniformAssemblySection Component", () => {
 
     expect(screen.queryByTitle(/Set Stok Cepat:/i)).toBeNull();
   });
+
+  it("renders potensi rakit badge and handles Maks button click", async () => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/settings/demo-mode")) {
+        return new Response(JSON.stringify({ success: true, data: { enabled: false } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("/api/uniforms/packages")) {
+        return new Response(JSON.stringify({ success: true, data: [dummyPackage] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("/api/uniforms/variants")) {
+        return new Response(JSON.stringify({ success: true, data: dummyVariants }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, data: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      render(<UniformAssemblySection defaultAcademicYear="2026/2027" />);
+    });
+
+    // Celana abu stok 40 (butuh 1). Baju or size M di BOM (stok 80).
+    // Potensi botol leher = min(40/1, 80/1) = 40.
+    expect(screen.getByText("Potensi Rakit")).toBeDefined();
+    expect(screen.getByText("+40 Paket")).toBeDefined();
+
+    const maksBtn = screen.getByRole("button", { name: "Maks (40)" });
+    expect(maksBtn).toBeDefined();
+
+    const qtyInput = screen.getByPlaceholderText("Jml unit") as HTMLInputElement;
+    expect(qtyInput.value).toBe("");
+
+    await act(async () => {
+      fireEvent.click(maksBtn);
+    });
+
+    expect(qtyInput.value).toBe("40");
+  });
 });
