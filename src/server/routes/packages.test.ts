@@ -9,7 +9,6 @@ import { packagesRouter } from "./packages";
 import { db } from "../../db";
 import { and, eq, inArray } from "drizzle-orm";
 import { schools, books, bookItems, bookPackages, bookPackageItems, packageItems, bookStocks, packageStocks } from "../../db/schema";
-import { runIdempotentSeed } from "../seed";
 
 describe("Packages & Bundling/Unbundling API", () => {
   it("creates a package, checks stock potential, bundles and unbundles items", async () => {
@@ -322,21 +321,42 @@ describe("Packages & Bundling/Unbundling API", () => {
   });
 
   it("tidak memicu seed demo untuk peran non-pusat saat katalog paket kosong", async () => {
-    await db.delete(bookPackageItems);
-    await db.delete(packageItems);
-    await db.delete(bookPackages);
+    let emptyPackageSimulation = true;
+    type SessionWithPrepare = {
+      prepareQuery: (
+        query: { sql?: string },
+        fields: unknown,
+        customResultMapper: unknown
+      ) => { all: () => unknown[] };
+    };
+    const session = (db as unknown as { session: SessionWithPrepare }).session;
+    const origPrepareQuery = session.prepareQuery.bind(session);
+    session.prepareQuery = (
+      query: { sql?: string },
+      fields: unknown,
+      customResultMapper: unknown
+    ) => {
+      const prepared = origPrepareQuery(query, fields, customResultMapper);
+      if (emptyPackageSimulation && query.sql && query.sql.includes('"book_packages"')) {
+        prepared.all = () => [];
+      }
+      return prepared;
+    };
+
     try {
       mockActor("school_admin", "school-alw-1");
       const res = await packagesRouter.request("/", { method: "GET" });
       expect(res.status).toBe(200);
       expect((await res.json()).data).toEqual([]);
 
+      // Untuk peran pusat, seed diizinkan dipicu saat kosong
+      emptyPackageSimulation = false;
       mockActor("central_admin", null);
       const seeded = await packagesRouter.request("/", { method: "GET" });
       expect(seeded.status).toBe(200);
       expect((await seeded.json()).data.length).toBeGreaterThan(0);
     } finally {
-      await runIdempotentSeed();
+      session.prepareQuery = origPrepareQuery;
     }
   });
 

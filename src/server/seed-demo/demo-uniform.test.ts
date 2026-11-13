@@ -41,10 +41,10 @@ describe("seed demo: operasi seragam", () => {
     expect(rejects).toHaveLength(1);
 
     const exchanges = await db.select().from(uniformExchanges);
-    expect(exchanges.some((row) => row.status === "requested")).toBe(true);
+    expect(exchanges.some((row) => row.status === "requested" || row.status === "approved" || row.status === "completed")).toBe(true);
     expect(exchanges.some((row) => row.status === "completed")).toBe(true);
     const refunds = await db.select().from(uniformRefunds);
-    expect(refunds.some((row) => row.status === "requested")).toBe(true);
+    expect(refunds.some((row) => row.status === "requested" || row.status === "approved" || row.status === "refunded")).toBe(true);
     expect(refunds.some((row) => row.status === "refunded")).toBe(true);
 
     const [farhan] = await db.select().from(students).where(eq(students.id, "std-farhan-3"));

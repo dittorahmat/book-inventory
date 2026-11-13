@@ -11,6 +11,9 @@ import { EditUniformPackageModal } from "./EditUniformPackageModal";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { QuickSetStockButton } from "../inventory/QuickSetStockButton";
 import { useDemoMode } from "../../lib/useDemoMode";
+import {
+  calculateUniformAssemblyPotentialDetails,
+} from "../../lib/uniform-assembly-potential";
 
 interface UniformAssemblySectionProps {
   defaultAcademicYear?: string;
@@ -147,6 +150,9 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
         ) : (
           filteredPackages.map((p) => {
             const isExpanded = expandedPackageId === p.package.id;
+            const currentSize = asmSize[p.package.id] ?? "";
+            const potentialInfo = calculateUniformAssemblyPotentialDetails(p, variants, currentSize);
+            const potentialCount = potentialInfo.maxPossible;
             return (
               <div
                 key={p.package.id}
@@ -199,6 +205,15 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                       </div>
                     </div>
 
+                    <div className="bg-[#F7F8FA] px-3.5 py-2 rounded-xl text-center min-w-[110px]">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#65676B] block">
+                        Potensi Rakit
+                      </span>
+                      <span className={`text-base font-bold ${potentialCount > 0 ? "text-[#1877F2]" : "text-amber-600"}`}>
+                        +{potentialCount} Paket
+                      </span>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setEditingPackage(p)}
@@ -229,14 +244,34 @@ export function UniformAssemblySection({ defaultAcademicYear = "2026/2027" }: Un
                     Rakit stok fisik siap kirim dari persediaan gudang:
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Jml unit"
-                      value={asmQty[p.package.id] ?? ""}
-                      onChange={(e) => setAsmQty({ ...asmQty, [p.package.id]: e.target.value })}
-                      className="w-24 rounded-lg border border-[#CED0D4] px-2.5 py-1.5 text-xs text-center font-bold bg-white"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Jml unit"
+                        value={asmQty[p.package.id] ?? ""}
+                        onChange={(e) => setAsmQty({ ...asmQty, [p.package.id]: e.target.value })}
+                        className="w-20 rounded-lg border border-[#CED0D4] px-2.5 py-1.5 text-xs text-center font-bold bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (potentialCount > 0) {
+                            setAsmQty({ ...asmQty, [p.package.id]: String(potentialCount) });
+                          } else {
+                            setError(potentialInfo.reason || `Bahan komponen "${potentialInfo.bottleneckName || p.package.name}" habis di gudang sehingga tidak dapat dirakit.`);
+                          }
+                        }}
+                        className={`px-2 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
+                          potentialCount > 0
+                            ? "bg-[#E7F3FF] text-[#1877F2] hover:bg-[#D8ECFF]"
+                            : "bg-[#F0F2F5] text-[#65676B] hover:bg-[#E4E6EB]"
+                        }`}
+                        title={potentialCount > 0 ? `Isi maksimal ${potentialCount} unit` : (potentialInfo.reason || "Stok bahan tidak mencukupi untuk dirakit")}
+                      >
+                        Maks ({potentialCount})
+                      </button>
+                    </div>
                     <input
                       type="text"
                       placeholder="Ukuran kaos (mis. M)"
