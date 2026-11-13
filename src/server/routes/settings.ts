@@ -233,7 +233,10 @@ const updateMetaWhatsAppSchema = z.object({
   phoneNumberId: z.string().min(1, "Phone Number ID wajib diisi"),
   accessToken: z.string().optional().default(""),
   isEnabled: z.boolean().default(true),
+  isPaymentConfirmationWaEnabled: z.boolean().optional(),
+  isUniformOrderWaEnabled: z.boolean().optional(),
   paymentConfirmationTemplate: z.string().optional(),
+  uniformOrderTemplate: z.string().optional(),
 });
 
 // POST simpan konfigurasi WA Meta Official (hanya central admin)

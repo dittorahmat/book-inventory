@@ -4,15 +4,24 @@ import { runWriteBatch } from "../lib/d1-write";
 import { readSettingsMap } from "./settings-map";
 
 export const WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY = "payment_confirmation_wa_template";
+export const WA_PAYMENT_CONFIRMATION_ENABLED_KEY = "payment_confirmation_wa_enabled";
+export const WA_UNIFORM_ORDER_TEMPLATE_KEY = "uniform_order_wa_template";
+export const WA_UNIFORM_ORDER_ENABLED_KEY = "uniform_order_wa_enabled";
 
 export const DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE =
   "Terima kasih Bapak/Ibu wali dari {nama_murid} ({nis}), pembayaran paket buku program {program} jenjang {jenjang} di {nama_sekolah} telah kami terima dan terverifikasi lunas.\nMohon tunggu pengumuman dari sekolah untuk jadwal pembagian buku fisik.\nHarap simpan dan bawa pesan WhatsApp ini beserta kode pengambilan {kode_pengambilan} sebagai bukti sah saat pengambilan buku.";
+
+export const DEFAULT_UNIFORM_ORDER_WA_TEMPLATE =
+  "Halo Bapak/Ibu {parent_name},\n\nTerima kasih sudah memesan seragam untuk ananda {student_name}.\nPesanan Anda telah kami terima dengan No. Pesanan: *{order_number}* dan sedang diproses oleh tim logistik {school_name}.\n\nTerima kasih.";
 
 export interface MetaWhatsAppConfig {
   phoneNumberId: string;
   accessToken: string;
   isEnabled: boolean;
+  isPaymentConfirmationWaEnabled?: boolean;
+  isUniformOrderWaEnabled?: boolean;
   paymentConfirmationTemplate?: string;
+  uniformOrderTemplate?: string;
 }
 
 export async function getMetaWhatsAppConfig(database: AppDatabase): Promise<MetaWhatsAppConfig> {
@@ -21,7 +30,10 @@ export async function getMetaWhatsAppConfig(database: AppDatabase): Promise<Meta
     phoneNumberId: map["wa_meta_phone_id"] ?? "",
     accessToken: map["wa_meta_token"] ?? "",
     isEnabled: map["wa_meta_enabled"] === "true",
+    isPaymentConfirmationWaEnabled: map[WA_PAYMENT_CONFIRMATION_ENABLED_KEY] !== "false",
+    isUniformOrderWaEnabled: map[WA_UNIFORM_ORDER_ENABLED_KEY] !== "false",
     paymentConfirmationTemplate: map[WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY] ?? DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE,
+    uniformOrderTemplate: map[WA_UNIFORM_ORDER_TEMPLATE_KEY] ?? DEFAULT_UNIFORM_ORDER_WA_TEMPLATE,
   };
 }
 
@@ -32,8 +44,17 @@ export async function saveMetaWhatsAppConfig(database: AppDatabase, config: Meta
     ["wa_meta_token", config.accessToken],
     ["wa_meta_enabled", config.isEnabled ? "true" : "false"],
   ];
+  if (config.isPaymentConfirmationWaEnabled !== undefined) {
+    entries.push([WA_PAYMENT_CONFIRMATION_ENABLED_KEY, config.isPaymentConfirmationWaEnabled ? "true" : "false"]);
+  }
+  if (config.isUniformOrderWaEnabled !== undefined) {
+    entries.push([WA_UNIFORM_ORDER_ENABLED_KEY, config.isUniformOrderWaEnabled ? "true" : "false"]);
+  }
   if (config.paymentConfirmationTemplate !== undefined) {
     entries.push([WA_PAYMENT_CONFIRMATION_TEMPLATE_KEY, config.paymentConfirmationTemplate]);
+  }
+  if (config.uniformOrderTemplate !== undefined) {
+    entries.push([WA_UNIFORM_ORDER_TEMPLATE_KEY, config.uniformOrderTemplate]);
   }
   await runWriteBatch(
     database,

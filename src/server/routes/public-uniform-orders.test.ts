@@ -195,6 +195,9 @@ describe("Portal seragam publik", () => {
     expect(second.status).toBe(201);
     expect((await second.json()).data.order.shipmentStatus).toBe("belum_dikirim");
 
+    // Submit pesanan seragam berhasil memicu notifikasi WA blast terima kasih
+    expect((await second.json()).success).toBe(true);
+
     // Menolak order varian olahraga jika tanpa ukuran
     const olNoSize = await postPublic("/orders", {
       studentId, academicYear: "2026/2027", homeAddress: addr,

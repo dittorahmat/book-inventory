@@ -299,7 +299,10 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
         phoneNumberId: "123",
         accessToken: "secret-token-123",
         isEnabled: false,
+        isPaymentConfirmationWaEnabled: true,
+        isUniformOrderWaEnabled: false,
         paymentConfirmationTemplate: "Template kustom: {nama_murid} kode {kode_pengambilan}",
+        uniformOrderTemplate: "Template kustom seragam: {student_name} no {order_number}",
       }),
     });
     expect(waSave.status).toBe(200);
@@ -310,6 +313,9 @@ describe("Kredensial notifikasi terkunci untuk central saja (#42)", () => {
     expect(waJson.success).toBe(true);
     expect(["", "********"]).toContain(waJson.data.accessToken);
     expect(waJson.data.paymentConfirmationTemplate).toBe("Template kustom: {nama_murid} kode {kode_pengambilan}");
+    expect(waJson.data.uniformOrderTemplate).toBe("Template kustom seragam: {student_name} no {order_number}");
+    expect(waJson.data.isPaymentConfirmationWaEnabled).toBe(true);
+    expect(waJson.data.isUniformOrderWaEnabled).toBe(false);
 
     await cleanupEmailKeys();
     await cleanupWhatsAppKeys();
