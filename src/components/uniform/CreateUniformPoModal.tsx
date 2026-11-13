@@ -87,7 +87,7 @@ export function CreateUniformPoModal({
         variantId: vRow.variant.id,
         unitPrice: vRow.variant.price || 0,
         sizeQuantities: initialSizeQty,
-        singleQuantity: validSizes.length === 0 ? 10 : 0,
+        singleQuantity: 0,
       },
     ]);
 

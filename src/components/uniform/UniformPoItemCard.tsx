@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { UNIFORM_LABEL_CLS } from "./uniform-styles";
 import type { UniformVariantRow } from "./uniform-admin-api";
 
 export interface MatrixPoItem {
@@ -49,7 +50,7 @@ export function UniformPoItemCard({
           : "bg-white border-[#E4E6EB] hover:border-[#CED0D4] shadow-2xs"
       }`}
     >
-      {/* Baris Atas: Informasi Model & Harga Satuan */}
+      {/* Baris Atas: Informasi Model & Input Harga Satuan */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#F0F2F5]">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -62,14 +63,14 @@ export function UniformPoItemCard({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <label className="text-[11px] text-[#65676B] whitespace-nowrap">Harga Satuan (Rp):</label>
+          <div className="flex flex-col items-start sm:items-end">
+            <label className={UNIFORM_LABEL_CLS}>Harga Satuan (Rp):</label>
             <input
               type="number"
               min="0"
               value={item.unitPrice || ""}
               onChange={(e) => onUpdatePrice(item.variantId, parseInt(e.target.value) || 0)}
-              className="w-28 px-2 py-1 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-right text-[#050505] focus:outline-none focus:border-[#1877F2]"
+              className="w-28 rounded-xl border border-[#CED0D4] px-2.5 py-1 text-xs font-semibold text-right text-[#050505] bg-white focus:outline-none focus:border-[#1877F2]"
               placeholder="0"
             />
           </div>
@@ -77,7 +78,7 @@ export function UniformPoItemCard({
           <button
             type="button"
             onClick={() => onRemoveItem(item.variantId)}
-            className="p-1.5 text-[#65676B] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+            className="p-1.5 text-[#65676B] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors active:scale-[0.98] mt-4 sm:mt-0"
             title="Hapus seragam ini"
           >
             <Trash2 className="w-4 h-4" />
@@ -125,11 +126,11 @@ export function UniformPoItemCard({
             </span>
             <input
               type="number"
-              min="1"
+              min="0"
               value={item.singleQuantity || ""}
               placeholder="0"
               onChange={(e) => onUpdateSingleQty(item.variantId, parseInt(e.target.value) || 0)}
-              className="w-20 px-2 py-1 bg-white border border-[#CED0D4] rounded-lg text-xs font-semibold text-center text-[#050505] focus:outline-none focus:border-[#1877F2]"
+              className="w-20 rounded-xl border border-[#CED0D4] px-2.5 py-1 text-xs font-semibold text-center text-[#050505] bg-white focus:outline-none focus:border-[#1877F2]"
             />
             <span className="text-xs text-[#65676B]">pcs</span>
           </div>

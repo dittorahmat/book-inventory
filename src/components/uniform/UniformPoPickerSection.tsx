@@ -1,5 +1,6 @@
 import { Search, X, Filter, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
+import { UNIFORM_INPUT_CLS } from "./uniform-styles";
 import type { UniformVariantRow } from "./uniform-admin-api";
 
 const JENJANG_FILTERS = ["ALL", "TK", "SD", "SMP", "SMA"];
@@ -47,7 +48,7 @@ export function UniformPoPickerSection({
               key={j}
               type="button"
               onClick={() => setSelectedJenjang(j)}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all active:scale-[0.98] ${
                 selectedJenjang === j
                   ? "bg-[#1877F2] text-white shadow-2xs"
                   : "bg-white text-[#65676B] border border-[#CED0D4] hover:bg-[#F0F2F5]"
@@ -73,7 +74,7 @@ export function UniformPoPickerSection({
               setSearchTerm(e.target.value);
               setIsPickerOpen(true);
             }}
-            className="w-full pl-9 pr-8 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] placeholder-[#65676B] focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2] shadow-2xs"
+            className={`${UNIFORM_INPUT_CLS} pl-9 pr-8 shadow-2xs`}
           />
           {searchTerm && (
             <button
@@ -82,7 +83,7 @@ export function UniformPoPickerSection({
                 setSearchTerm("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#65676B] hover:text-[#050505]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#65676B] hover:text-[#050505] p-1 rounded-md active:scale-[0.98]"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -102,7 +103,7 @@ export function UniformPoPickerSection({
                 return (
                   <div
                     key={v.id}
-                    className="flex items-center justify-between p-2 hover:bg-[#F8F9FA] rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-2 hover:bg-[#F8F9FA] rounded-lg cursor-pointer transition-colors active:scale-[0.98]"
                     onClick={() => onSelectItem(v.id)}
                   >
                     <div className="min-w-0 pr-2">
@@ -133,7 +134,7 @@ export function UniformPoPickerSection({
                           <CheckCircle2 className="w-3 h-3" /> Dipilih
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md bg-[#1877F2]/10 text-[#1877F2] text-[10px] font-bold hover:bg-[#1877F2] hover:text-white transition-colors">
+                        <span className="px-2 py-0.5 rounded-md bg-[#1877F2]/10 text-[#1877F2] text-[10px] font-bold hover:bg-[#1877F2] hover:text-white transition-colors active:scale-[0.98]">
                           + Tambah
                         </span>
                       )}
