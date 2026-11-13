@@ -60,7 +60,9 @@ export function normalizeAlWildanClass(classStr: string): {
   let rombel: string | undefined;
   const classMatch = trimmed.match(/^(?:(?:KELAS|GRADE)\s*)?(\d{1,2})[.\-\s]+(.*)$/);
   if (classMatch && classMatch[2]?.trim()) {
-    rombel = classMatch[2].trim();
+    const g = classMatch[1];
+    const section = classMatch[2].trim();
+    rombel = `${g} ${section}`;
   }
 
   // Cari angka jenjang (1-12)

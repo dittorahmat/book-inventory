@@ -2,9 +2,11 @@ import { describe, expect, it } from "bun:test";
 import { formatClassroomName } from "./classroom";
 
 describe("classroom helper", () => {
-  it("formats classroom name with grade and rombel", () => {
+  it("formats classroom name with grade and rombel, and avoids duplication when rombel already has grade", () => {
     expect(formatClassroomName("1", "INTER 1")).toBe("1 INTER 1");
+    expect(formatClassroomName("1", "1 INTER 1")).toBe("1 INTER 1");
     expect(formatClassroomName("2", "MQ 2")).toBe("2 MQ 2");
+    expect(formatClassroomName("2", "2 MQ 2")).toBe("2 MQ 2");
   });
 
   it("falls back to Kelas X when rombel is missing or empty", () => {

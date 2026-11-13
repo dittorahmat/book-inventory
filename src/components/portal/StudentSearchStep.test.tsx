@@ -166,10 +166,10 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
 
   it("renders rombel badge when student has classroom section", () => {
     renderStep(
-      [student({ id: "st-rombel-test", name: "Anak Rombel", rombel: "INTER 1" })],
+      [student({ id: "st-rombel-test", name: "Anak Rombel", rombel: "1 INTER 1" })],
       noop
     );
 
-    expect(screen.getByText("INTER 1")).toBeDefined();
+    expect(screen.getByText("1 INTER 1")).toBeDefined();
   });
 });
