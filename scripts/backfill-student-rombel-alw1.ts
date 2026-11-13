@@ -24,18 +24,20 @@ function resolveStudentFilePath(): string {
   return candidate;
 }
 
-function main() {
-  const filePath = resolveStudentFilePath();
-  console.log(`[backfill-rombel] Membaca file data siswa dari: ${filePath}`);
-  const buf = fs.readFileSync(filePath);
-  const result = parseStudentData(buf.buffer);
-  const nowIso = new Date().toISOString();
-
-  const updates = result.validStudents
+export function generateBackfillRombelUpdates(buffer: Buffer, nowIso: string = new Date().toISOString()): string[] {
+  const result = parseStudentData(buffer.buffer);
+  return result.validStudents
     .filter((s) => s.rombel)
     .map((s) => {
       return `UPDATE students SET rombel = ${escapeSql(s.rombel)}, updated_at = ${escapeSql(nowIso)} WHERE school_id = 'school-alw-1' AND lower(nis) = ${escapeSql(s.nis.trim().toLowerCase())};`;
     });
+}
+
+function main() {
+  const filePath = resolveStudentFilePath();
+  console.log(`[backfill-rombel] Membaca file data siswa dari: ${filePath}`);
+  const buf = fs.readFileSync(filePath);
+  const updates = generateBackfillRombelUpdates(buf);
 
   const outDir = path.resolve("./data/sql");
   if (!fs.existsSync(outDir)) {
@@ -47,4 +49,6 @@ function main() {
   console.log(`[backfill-rombel] Menghasilkan ${updates.length} perintah UPDATE di: ${outPath}`);
 }
 
-main();
+if (import.meta.main) {
+  main();
+}
