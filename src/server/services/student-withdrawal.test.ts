@@ -1,22 +1,24 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { students, studentBookOrders, schools } from "../../db/schema";
 import { createTestStudent, createTestBookOrder } from "../lib/test-fixtures";
 import { requestStudentWithdrawal } from "./student-withdrawal";
 
 describe("student-withdrawal unified seam", () => {
-  beforeEach(async () => {
-    await db.delete(studentBookOrders);
-    await db.delete(students);
-    await db.delete(schools);
+  const studentId = "std-wd-test";
+  const orderId = "ord-wd-test";
+  let schoolId: string;
 
+  beforeEach(async () => {
     const student = await createTestStudent(db, {
-      id: "std-wd-test",
+      id: studentId,
       name: "Ahmad Withdrawal",
     });
+    schoolId = student.schoolId;
 
     await createTestBookOrder(db, {
-      id: "ord-wd-test",
+      id: orderId,
       orderNumber: "ORD-WD-001",
       studentId: student.id,
       schoolId: student.schoolId,
@@ -24,6 +26,14 @@ describe("student-withdrawal unified seam", () => {
       totalAmount: 500000,
       paidAmount: 500000,
     });
+  });
+
+  afterEach(async () => {
+    await db.delete(studentBookOrders).where(eq(studentBookOrders.id, orderId));
+    await db.delete(students).where(eq(students.id, studentId));
+    if (schoolId) {
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
   });
 
   it("handles buku withdrawal through the unified interface", async () => {
