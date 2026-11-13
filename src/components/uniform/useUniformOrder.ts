@@ -12,6 +12,7 @@ import {
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
 import { findMatchingUniformSelection } from "../../lib/uniform-selection";
+import { isKhimarSdVariant } from "../../lib/khimar-sd";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
@@ -172,10 +173,11 @@ export function useUniformOrder() {
     ? `${address.trim()}, Kode Pos ${postalCode.trim()}`
     : address.trim();
 
-  // Getter domain untuk seragam olahraga yang belum dipilih ukurannya
+  // Getter domain untuk seragam olahraga atau Khimar SD yang belum dipilih ukurannya
   const missingOlahragaVariants = useMemo(() => {
     return visibleVariants.filter((v) => {
-      if (v.kind !== "olahraga") return false;
+      const isSized = v.kind === "olahraga" || isKhimarSdVariant(v);
+      if (!isSized) return false;
       const picked = sizeFor[v.id] ?? "";
       const key = picked ? `${v.id}::${picked}` : v.id;
       const currentQty = satuanQty[key] ?? satuanQty[v.id] ?? 0;

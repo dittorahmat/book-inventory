@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { uniformPackageStock, uniformSizes, uniformStock, uniformVariants } from "../../../db/schema";
 import { newWriteId, writeNow, type WriteDeps } from "../../lib/d1-write";
+import { isKhimarSdSize, isKhimarSdVariant } from "../../../lib/khimar-sd";
 import { KAIN_SIZE } from "./catalog";
 
 export interface UniformStockLine {
@@ -29,10 +30,22 @@ export interface UniformAvailabilityResult {
  */
 export async function assertSizeAllowed(
   database: AppDatabase,
-  variant: { id: string; kind: string },
+  variant: { id: string; kind: string; code?: string | null; name?: string | null; jenjang?: string | null },
   size: string
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const normalized = size?.trim() || KAIN_SIZE;
+  const isKhimarSd = isKhimarSdVariant(variant);
+
+  if (isKhimarSd) {
+    if (normalized === KAIN_SIZE) {
+      return { ok: false, message: "Ukuran Khimar SD wajib dipilih (Size 1 atau 4)." };
+    }
+    if (!isKhimarSdSize(normalized)) {
+      return { ok: false, message: `Size ${normalized} tidak valid untuk Khimar SD (hanya Size 1 atau 4).` };
+    }
+    return { ok: true };
+  }
+
   if (variant.kind === "kain_harian" && normalized !== KAIN_SIZE) {
     return { ok: false, message: "Kain harian tanpa ukuran." };
   }
@@ -58,7 +71,13 @@ export async function assertSizesAllowed(
   if (items.length === 0) return { ok: true };
   const variantIds = Array.from(new Set(items.map((i) => i.variantId)));
   const variants = await database
-    .select({ id: uniformVariants.id, kind: uniformVariants.kind })
+    .select({
+      id: uniformVariants.id,
+      kind: uniformVariants.kind,
+      code: uniformVariants.code,
+      name: uniformVariants.name,
+      jenjang: uniformVariants.jenjang,
+    })
     .from(uniformVariants)
     .where(inArray(uniformVariants.id, variantIds));
   const variantById = new Map(variants.map((v) => [v.id, v]));
@@ -73,6 +92,18 @@ export async function assertSizesAllowed(
     const v = variantById.get(item.variantId);
     if (!v) continue;
     const size = item.size?.trim() || KAIN_SIZE;
+    const isKhimarSd = isKhimarSdVariant(v);
+
+    if (isKhimarSd) {
+      if (size === KAIN_SIZE) {
+        return { ok: false, message: "Ukuran Khimar SD wajib dipilih (Size 1 atau 4)." };
+      }
+      if (!isKhimarSdSize(size)) {
+        return { ok: false, message: `Size ${size} tidak valid untuk Khimar SD (hanya Size 1 atau 4).` };
+      }
+      continue;
+    }
+
     if (v.kind === "kain_harian" && size !== KAIN_SIZE) {
       return { ok: false, message: "Kain harian tanpa ukuran." };
     }

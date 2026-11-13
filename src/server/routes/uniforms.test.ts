@@ -39,7 +39,7 @@ async function seedPriorUniformOrder(schoolId: string, studentId: string, stamp:
 }
 
 describe("Uniform catalog, PO & assembly API", () => {
-  it("menolak kain ber-size dan olahraga tanpa size", async () => {
+  it("menolak kain ber-size dan olahraga tanpa size, tetapi mengizinkan Khimar SD berukuran (size 1 dan 4)", async () => {
     const stamp = Date.now();
     const kainRes = await postJson("/variants", {
       code: `UK-T3-KAIN-${stamp}`, name: "Kain Harian SD L", kind: "kain_harian",
@@ -51,6 +51,13 @@ describe("Uniform catalog, PO & assembly API", () => {
       gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 95000, sizes: [],
     });
     expect(olRes.status).toBe(400);
+
+    // Khimar SD boleh memiliki ukuran 1 dan 4
+    const khimarRes = await postJson("/variants", {
+      code: `UNI-SD-AKH-KHIMAR_HIJAU-${stamp}`, name: "KHIMAR HIJAU (SD Akhwat)", kind: "kain_harian",
+      gender: "female", jenjang: "sd", academicYear: "2026/2027", price: 225000, sizes: ["1", "4"],
+    });
+    expect(khimarRes.status).toBe(201);
   });
 
   it("alur penuh: varian -> paket -> PO campur -> terima -> rakit", async () => {
