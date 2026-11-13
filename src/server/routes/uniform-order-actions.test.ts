@@ -184,4 +184,17 @@ describe("Uniform sports exchange actions & resolution", () => {
       restoreActor();
     }
   });
+
+  it("handles send-shipping-notification endpoint", async () => {
+    mockActor("warehouse_admin", null);
+    try {
+      const res = await uniformsRouter.request("/orders/non-existent-order/send-shipping-notification", { method: "POST" });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { success: boolean; message: string };
+      expect(json.success).toBe(false);
+      expect(json.message).toMatch(/tidak ditemukan/i);
+    } finally {
+      restoreActor();
+    }
+  });
 });

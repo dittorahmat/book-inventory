@@ -909,4 +909,63 @@ describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () =>
     await db.delete(students).where(eq(students.id, studentId));
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
+
+  it("notifikasi resi otomatis dan template panduan kurir saat order diship", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `test-unotif-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Notif", code: `ALW-NOTIF-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const studentId = `st-notif-${stamp}`;
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-NOTIF-${stamp}`, name: "Siswa Notif",
+      parentName: "Wali Notif", parentPhone: "081299887766",
+      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+      status: "active", createdAt: now, updatedAt: now,
+    });
+    const kainRes = await postJson("/variants", {
+      code: `UK-NOTIF-${stamp}`, name: "Kain Notif", kind: "kain_harian",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 50000,
+    });
+    const kainId = (await kainRes.json()).data.variant.id;
+    await db.update(uniformStock).set({ quantity: 5, updatedAt: now }).where(eq(uniformStock.variantId, kainId));
+    await seedPriorUniformOrder(schoolId, studentId, `notif-${stamp}`);
+
+    const goodOrder = await submitUniformOrder(db, {
+      studentId, academicYear: "2026/2027",
+      homeAddress: "Jl. Mawar RT 01 RW 01, Serpong 15310",
+      items: [{ variantId: kainId, quantity: 1 }],
+    });
+    expect(goodOrder.ok).toBe(true);
+    if (!goodOrder.ok) return;
+    const orderId = goodOrder.data.order.id;
+
+    // Set lunas & kirim dengan resi
+    await db.update(uniformOrders).set({ paymentStatus: "paid" }).where(eq(uniformOrders.id, orderId));
+
+    const shipRes = await uniformsRouter.request(`/orders/${orderId}/ship`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shippingResi: "JNE-NOTIF-99" }),
+    });
+    expect(shipRes.status).toBe(200);
+    const shipJson = (await shipRes.json()) as { success: boolean; data: { shipmentStatus: string; shippingResi: string }; notification: { sent: boolean } };
+    expect(shipJson.success).toBe(true);
+    expect(shipJson.data.shipmentStatus).toBe("sudah_dikirim");
+    expect(shipJson.data.shippingResi).toBe("JNE-NOTIF-99");
+    expect(shipJson.notification.sent).toBe(true);
+
+    // Test endpoint kirim ulang notifikasi resi
+    const resendRes = await uniformsRouter.request(`/orders/${orderId}/send-shipping-notification`, {
+      method: "POST",
+    });
+    expect(resendRes.status).toBe(200);
+    expect((await resendRes.json()).success).toBe(true);
+
+    await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
+    await db.delete(students).where(eq(students.id, studentId));
+    await db.delete(schools).where(eq(schools.id, schoolId));
+  });
 });

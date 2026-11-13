@@ -44,6 +44,7 @@ import {
   resolveUniformRefund,
   updateUniformPackage,
   updateUniformVariant,
+  sendUniformShippingNotification,
 } from "../services/uniform";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import { listPaymentsWithStatus } from "../services/order-payment-review";
@@ -217,7 +218,19 @@ uniformsRouter.post("/orders/:id/ship", zValidator("json", shipOrderSchema), asy
     const body = c.req.valid("json");
     const result = await markUniformShipped(db, c.req.param("id"), body);
     if (!result.ok) return fail(c, result);
-    return c.json({ success: true, data: result.data });
+
+    // Otomatis kirim notifikasi resi kurir ke WA ortu (non-blocking jika nomor belum ada / gagal)
+    const notification = await sendUniformShippingNotification(db, c.req.param("id"));
+
+    return c.json({
+      success: true,
+      data: result.data,
+      notification: {
+        sent: notification.sent,
+        error: notification.error,
+        recipientPhone: notification.recipientPhone,
+      },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

@@ -6,6 +6,7 @@ import { resolveLogisticsActor, accessErrorResponse, requireScopedActor } from "
 import { sendUniformInvoice } from "../services/order-invoice";
 import { setUniformShipping } from "../services/order-shipping";
 import { getUniformSalesReport } from "../services/uniform";
+import { sendUniformShippingNotification } from "../services/uniform";
 import { approveStudentWithdrawal } from "../services/order-withdrawal";
 import { findRefundSlip } from "../services/refund-slip";
 import {
@@ -75,6 +76,20 @@ uniformOrderActionsRouter.post("/orders/:id/send-invoice", async (c) => {
     const result = await sendUniformInvoice(db, c.req.param("id"), { baseUrl: new URL(c.req.url).origin });
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, message: "Invoice berhasil dikirim via WhatsApp.", data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Kirim info resi & panduan kurir ke WA ortu (manual / coba lagi).
+uniformOrderActionsRouter.post("/orders/:id/send-shipping-notification", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const res = await sendUniformShippingNotification(db, c.req.param("id"));
+    if (!res.sent) {
+      return c.json({ success: false, message: res.error ?? "Gagal mengirim notifikasi resi" }, 400);
+    }
+    return c.json({ success: true, message: "Notifikasi resi berhasil dikirim via WhatsApp.", data: res });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
