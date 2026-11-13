@@ -43,10 +43,12 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
 
   const branchSchools = filterBranchSchools(schools);
 
-  // Daftar unik rombel dari data siswa yang sedang dimuat
-  const availableRombels = Array.from(
-    new Set(s.students.map((st) => st.rombel).filter((r): r is string => Boolean(r)))
-  ).sort();
+  // Daftar unik rombel dari master rombel kumulatif
+  const availableRombels = (
+    s.knownRombels.length > 0
+      ? s.knownRombels
+      : Array.from(new Set(s.students.map((st) => st.rombel).filter((r): r is string => Boolean(r)))).sort()
+  );
 
   return (
     <div className="space-y-4">

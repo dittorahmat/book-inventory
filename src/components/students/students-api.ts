@@ -59,6 +59,7 @@ export const fetchStudents = (params: StudentListParams): Promise<StudentRecord[
     buildQuery("/api/students", {
       schoolId: params.schoolId,
       status: params.status && params.status !== "all" ? params.status : undefined,
+      rombel: params.rombel && params.rombel !== "all" ? params.rombel : undefined,
       search: params.search?.trim() || undefined,
     }),
     "Gagal memuat data siswa."

@@ -6,5 +6,10 @@ export function formatClassroomName(gradeLevel: string, rombel?: string | null):
   if (!rombel || !rombel.trim()) {
     return `Kelas ${gradeLevel}`;
   }
-  return `${gradeLevel} ${rombel.trim()}`;
+  const clean = rombel.trim();
+  // Jika rombel sudah diawali oleh angka jenjang (contoh: "1 INTER 1", "2 MQ 2"), jangan gandakan
+  if (clean.startsWith(`${gradeLevel} `) || clean === gradeLevel) {
+    return clean;
+  }
+  return `${gradeLevel} ${clean}`;
 }

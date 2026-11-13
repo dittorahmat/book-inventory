@@ -12,6 +12,7 @@ export type StudentStatusFilter = "all" | "active" | "promoted" | "new_pending" 
 
 export function useStudents(schoolId: string | null) {
   const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [knownRombels, setKnownRombels] = useState<string[]>([]);
   const [pendingList, setPendingList] = useState<StudentRecord[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [search, setSearch] = useState("");
@@ -38,6 +39,11 @@ export function useStudents(schoolId: string | null) {
         fetchStudents({ schoolId: schoolId || undefined, status: "new_pending" }),
       ]);
       setStudents(list);
+      // Simpan daftar rombel unik kumulatif agar dropdown opsi tidak menciut saat salah satu rombel dipilih
+      const currentRombels = list.map((st) => st.rombel).filter((r): r is string => Boolean(r));
+      if (currentRombels.length > 0) {
+        setKnownRombels((prev) => Array.from(new Set([...prev, ...currentRombels])).sort());
+      }
       setPendingList(pending);
       setPendingCount(pending.length);
     } catch (err: any) {
@@ -105,7 +111,7 @@ export function useStudents(schoolId: string | null) {
   };
 
   return {
-    students, pendingList, pendingCount, search, setSearch, statusFilter, setStatusFilter,
+    students, knownRombels, pendingList, pendingCount, search, setSearch, statusFilter, setStatusFilter,
     rombelFilter, setRombelFilter,
     isLoading, isSaving, verifyingId, error, setError,
     showForm, setShowForm, editing, openCreate, openEdit,

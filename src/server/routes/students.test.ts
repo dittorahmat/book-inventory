@@ -199,18 +199,30 @@ describe("Students admin API", () => {
     const listAJson = await listA.json();
     expect(listAJson.data.every((s: any) => s.schoolId === schoolA)).toBe(true);
 
-    // Rombel server filter test (§0.75)
-    const rombelChild = await studentsRouter.request("/", {
+    // Rombel server filter test (§0.76)
+    const rombelChildA = await studentsRouter.request("/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ schoolId: schoolA, nis: `ISORB${stamp}`, name: `Anak Rombel ${stamp}`, gradeLevel: "3", rombel: "INTER 9", academicYear: "2026/2027" }),
+      body: JSON.stringify({ schoolId: schoolA, nis: `ISORB1${stamp}`, name: `Anak Rombel 1 ${stamp}`, gradeLevel: "1", rombel: "1 INTER 1", academicYear: "2026/2027" }),
     });
-    expect(rombelChild.status).toBe(201);
+    expect(rombelChildA.status).toBe(201);
 
-    const listRombel = await studentsRouter.request(`/?schoolId=${schoolA}&rombel=INTER 9`);
-    const listRombelJson = await listRombel.json();
-    expect(listRombelJson.data.length).toBe(1);
-    expect(listRombelJson.data[0].rombel).toBe("INTER 9");
+    const rombelChildB = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: schoolA, nis: `ISORB2${stamp}`, name: `Anak Rombel 2 ${stamp}`, gradeLevel: "2", rombel: "2 INTER 1", academicYear: "2026/2027" }),
+    });
+    expect(rombelChildB.status).toBe(201);
+
+    const listRombel1 = await studentsRouter.request(`/?schoolId=${schoolA}&rombel=1%20INTER%201`);
+    const listRombel1Json = await listRombel1.json();
+    expect(listRombel1Json.data.length).toBe(1);
+    expect(listRombel1Json.data[0].rombel).toBe("1 INTER 1");
+
+    const listRombel2 = await studentsRouter.request(`/?schoolId=${schoolA}&rombel=2%20INTER%201`);
+    const listRombel2Json = await listRombel2.json();
+    expect(listRombel2Json.data.length).toBe(1);
+    expect(listRombel2Json.data[0].rombel).toBe("2 INTER 1");
     expect(listAJson.data.some((s: any) => s.name === `Anak A ${stamp}`)).toBe(true);
 
     const pendingOnly = await studentsRouter.request(`/?schoolId=${schoolA}&status=new_pending`);

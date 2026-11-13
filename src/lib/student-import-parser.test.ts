@@ -4,12 +4,12 @@ import { normalizeAlWildanClass, normalizeGoogleSheetsUrl, parseStudentData } fr
 
 describe("student-import-parser", () => {
   it("normalizes Al-Wildan class notation correctly", () => {
-    expect(normalizeAlWildanClass("1.INTER 1")).toEqual({ gradeLevel: "1", curriculumType: "INTER", stream: undefined, rombel: "INTER 1" });
-    expect(normalizeAlWildanClass("2.MQ 2")).toEqual({ gradeLevel: "2", curriculumType: "MQ", stream: undefined, rombel: "MQ 2" });
-    expect(normalizeAlWildanClass("3.INTER 6")).toEqual({ gradeLevel: "3", curriculumType: "INTER", stream: undefined, rombel: "INTER 6" });
-    expect(normalizeAlWildanClass("6.MQ 1")).toEqual({ gradeLevel: "6", curriculumType: "MQ", stream: undefined, rombel: "MQ 1" });
-    expect(normalizeAlWildanClass("10-AE IPA")).toEqual({ gradeLevel: "10", curriculumType: "AE", stream: "IPA", rombel: "AE IPA" });
-    expect(normalizeAlWildanClass("11-AE IPS")).toEqual({ gradeLevel: "11", curriculumType: "AE", stream: "IPS", rombel: "AE IPS" });
+    expect(normalizeAlWildanClass("1.INTER 1")).toEqual({ gradeLevel: "1", curriculumType: "INTER", stream: undefined, rombel: "1 INTER 1" });
+    expect(normalizeAlWildanClass("2.MQ 2")).toEqual({ gradeLevel: "2", curriculumType: "MQ", stream: undefined, rombel: "2 MQ 2" });
+    expect(normalizeAlWildanClass("3.INTER 6")).toEqual({ gradeLevel: "3", curriculumType: "INTER", stream: undefined, rombel: "3 INTER 6" });
+    expect(normalizeAlWildanClass("6.MQ 1")).toEqual({ gradeLevel: "6", curriculumType: "MQ", stream: undefined, rombel: "6 MQ 1" });
+    expect(normalizeAlWildanClass("10-AE IPA")).toEqual({ gradeLevel: "10", curriculumType: "AE", stream: "IPA", rombel: "10 AE IPA" });
+    expect(normalizeAlWildanClass("11-AE IPS")).toEqual({ gradeLevel: "11", curriculumType: "AE", stream: "IPS", rombel: "11 AE IPS" });
     expect(normalizeAlWildanClass("Cuti")).toEqual({ gradeLevel: null, curriculumType: "INTER" });
     expect(normalizeAlWildanClass("Kelas 4")).toEqual({ gradeLevel: "4", curriculumType: "INTER", stream: undefined, rombel: undefined });
   });
@@ -38,10 +38,10 @@ describe("student-import-parser", () => {
     expect(result.skippedRows.length).toBe(1);
     expect(result.validStudents[0].nis).toBe("1001");
     expect(result.validStudents[0].gradeLevel).toBe("1");
-    expect(result.validStudents[0].rombel).toBe("INTER 1");
+    expect(result.validStudents[0].rombel).toBe("1 INTER 1");
     expect(result.validStudents[0].curriculumType).toBe("INTER");
     expect(result.validStudents[1].gender).toBe("female");
-    expect(result.validStudents[1].rombel).toBe("MQ 1");
+    expect(result.validStudents[1].rombel).toBe("2 MQ 1");
     expect(result.validStudents[1].curriculumType).toBe("MQ");
     expect(result.skippedRows[0].reason).toContain("Cuti");
   });
