@@ -1,8 +1,7 @@
 // Gate drift D1 (§1 AGENTS.md): gagalkan (exit 1) bila skema remote
 // Cloudflare D1 berbeda dari `drizzle/00*.sql` (tabel hilang = endpoint 500
 // di production padahal test lokal hijau — insiden Okt 2026: migrasi 0010
-// tak pernah teraplikasi ke remote). Dijalankan manual pre-merge via
-// `bun run check:d1-drift` karena butuh kredensial D1 (bukan job CI).
+// tak pernah teraplikasi ke remote). Dijalankan via `bun run check:d1-drift`.
 import { Database } from "bun:sqlite";
 import { $ } from "bun";
 import { readdirSync, readFileSync } from "node:fs";
@@ -11,6 +10,15 @@ import { columnNames } from "../src/server/lib/d1-drift-scan";
 
 const D1_DATABASE = process.env.D1_DATABASE || "book-inventory-db";
 const DRIZZLE_DIR = process.env.DRIZZLE_DIR || "./drizzle";
+
+const checkWranglerAuth = async (): Promise<boolean> => {
+  try {
+    const res = await $`./node_modules/.bin/wrangler whoami`.quiet().nothrow();
+    return res.exitCode === 0;
+  } catch {
+    return false;
+  }
+};
 
 // Bangun skema ekspektasi dari file migrasi ke DB memori (pola sama dengan
 // explain-plan.ts) agar deterministik tanpa bergantung pada DB lokal.
@@ -51,6 +59,17 @@ const fetchRemote = async (): Promise<Map<string, string>> => {
     rows.filter((r) => !r.name.startsWith("sqlite_") && !r.name.startsWith("_cf_")).map((r) => [r.name, r.sql])
   );
 };
+
+const isAuthed = await checkWranglerAuth();
+if (!isAuthed) {
+  if (process.env.CI) {
+    console.log("Wrangler auth tidak tersedia di CI; lewati check:d1-drift.");
+    process.exit(0);
+  }
+  console.error("❌ check:d1-drift: Belum login ke Cloudflare Wrangler (wrangler whoami gagal).");
+  console.error("   Jalankan `bun run wrangler login` di terminal interaktif untuk autentikasi.");
+  process.exit(1);
+}
 
 const expected = buildExpected();
 const remote = await fetchRemote();

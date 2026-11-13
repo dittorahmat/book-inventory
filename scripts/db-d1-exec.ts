@@ -3,6 +3,7 @@
  * Otomatis menyisipkan flag `--command=` jika input berupa string SQL polos,
  * atau meneruskan argumen langsung ke wrangler d1 execute.
  */
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const args = process.argv.slice(2);
@@ -15,7 +16,12 @@ if (args.length === 0) {
 const parsedArgs: string[] = ["run", "wrangler", "d1", "execute", "book-inventory-db", "--remote"];
 
 if (args.length === 1 && !args[0].startsWith("-")) {
-  parsedArgs.push(`--command=${args[0]}`);
+  const target = args[0];
+  if (target.endsWith(".sql") || existsSync(target)) {
+    parsedArgs.push(`--file=${target}`);
+  } else {
+    parsedArgs.push(`--command=${target}`);
+  }
 } else {
   parsedArgs.push(...args);
 }
