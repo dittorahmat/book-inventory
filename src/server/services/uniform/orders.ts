@@ -27,6 +27,7 @@ import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligib
 import { adjustPackageStockQuery, adjustVariantStockQuery, checkUniformAvailability, type UniformStockLine } from "./stock";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
+import { canDispatchUniformOrder } from "../../../lib/order-handover-guard";
 
 export interface SubmitUniformOrderDeps extends WriteDeps {
   generateOrderNumber?: (nowIso: string) => string;
@@ -353,9 +354,8 @@ export async function markUniformShipped(
     return invalid("Nomor resi kurir wajib diisi sebelum menandai kiriman.");
   }
 
-  // Guard kelayakan pengiriman: hanya boleh kirim jika sudah dicicil (partial), lunas (paid), atau beasiswa
-  const isPayEligible = order.paymentStatus === "paid" || order.paymentStatus === "partial" || (order.orderType === "scholarship" && order.paymentStatus !== "unpaid");
-  if (!isPayEligible) {
+  // Guard kelayakan pengiriman kanonik (§0.75): paid, partial, atau scholarship_approved
+  if (!canDispatchUniformOrder(order)) {
     return invalid("Order belum layak kirim: pembayaran masih belum tercatat (unpaid).");
   }
 
@@ -386,5 +386,6 @@ export async function markUniformShipped(
   const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   return { ok: true, data: updated };
 }
+
 
 

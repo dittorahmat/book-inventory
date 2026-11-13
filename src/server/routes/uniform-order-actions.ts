@@ -6,10 +6,9 @@ import { resolveLogisticsActor, accessErrorResponse, requireScopedActor } from "
 import { sendUniformInvoice } from "../services/order-invoice";
 import { setUniformShipping } from "../services/order-shipping";
 import { getUniformSalesReport } from "../services/uniform";
-import { sendUniformShippingNotification } from "../services/uniform";
-import { uniformOrders } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { sendUniformShippingNotification, confirmUniformReceipt } from "../services/uniform";
 import { approveStudentWithdrawal } from "../services/order-withdrawal";
+import { idSchema } from "../lib/validators";
 import { findRefundSlip } from "../services/refund-slip";
 import {
   cashierPaymentSchema,
@@ -84,48 +83,47 @@ uniformOrderActionsRouter.post("/orders/:id/send-invoice", async (c) => {
 });
 
 // Kirim info resi & panduan kurir ke WA ortu (manual / coba lagi).
-uniformOrderActionsRouter.post("/orders/:id/send-shipping-notification", async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const res = await sendUniformShippingNotification(db, c.req.param("id"));
-    if (!res.sent) {
-      return c.json({ success: false, message: res.error ?? "Gagal mengirim notifikasi resi" }, 400);
+uniformOrderActionsRouter.post(
+  "/orders/:id/send-shipping-notification",
+  zValidator("param", z.object({ id: idSchema })),
+  async (c) => {
+    try {
+      await resolveLogisticsActor(c);
+      const res = await sendUniformShippingNotification(db, c.req.valid("param").id);
+      if (!res.sent) {
+        return c.json({ success: false, message: res.error ?? "Gagal mengirim notifikasi resi" }, 400);
+      }
+      return c.json({ success: true, message: "Notifikasi resi berhasil dikirim via WhatsApp.", data: res });
+    } catch (err) {
+      return accessErrorResponse(c, err);
     }
-    return c.json({ success: true, message: "Notifikasi resi berhasil dikirim via WhatsApp.", data: res });
-  } catch (err) {
-    return accessErrorResponse(c, err);
   }
-});
+);
 
 const confirmReceiptSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Konfirmasi penerimaan seragam oleh staf logistik (opsional audit).
-uniformOrderActionsRouter.post("/orders/:id/confirm-receipt", zValidator("json", confirmReceiptSchema), async (c) => {
-  try {
-    await resolveLogisticsActor(c);
-    const orderId = c.req.param("id");
-    const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
-    if (!order) return c.json({ success: false, message: "Order seragam tidak ditemukan." }, 404);
-    if (order.shipmentStatus !== "sudah_dikirim") {
-      return c.json({ success: false, message: "Hanya pesanan yang sudah dikirim yang dapat dikonfirmasi penerimaannya." }, 400);
+// Konfirmasi penerimaan seragam oleh staf logistik (opsional audit via service domain).
+uniformOrderActionsRouter.post(
+  "/orders/:id/confirm-receipt",
+  zValidator("param", z.object({ id: idSchema })),
+  zValidator("json", confirmReceiptSchema),
+  async (c) => {
+    try {
+      await resolveLogisticsActor(c);
+      const { id } = c.req.valid("param");
+      const { notes } = c.req.valid("json");
+      const result = await confirmUniformReceipt(db, id, notes);
+      if (!result.ok) {
+        return c.json({ success: false, message: result.message }, result.status);
+      }
+      return c.json({ success: true, message: "Konfirmasi penerimaan berhasil dicatat.", data: result.data });
+    } catch (err) {
+      return accessErrorResponse(c, err);
     }
-
-    const now = new Date().toISOString();
-    const { notes } = c.req.valid("json");
-    await db.update(uniformOrders).set({
-      receivedAt: now,
-      receivedNotes: notes?.trim() || null,
-      updatedAt: now,
-    }).where(eq(uniformOrders.id, orderId));
-
-    const [updated] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
-    return c.json({ success: true, message: "Konfirmasi penerimaan berhasil dicatat.", data: updated });
-  } catch (err) {
-    return accessErrorResponse(c, err);
   }
-});
+);
 
 // Input ongkir manual gudang (syarat tombol kirim invoice).
 uniformOrderActionsRouter.post("/orders/:id/shipping", zValidator("json", z.object({

@@ -85,3 +85,29 @@ export async function sendUniformShippingNotification(
     error: result.success ? undefined : (result.error ?? "Gagal mengirim pesan WhatsApp"),
   };
 }
+
+/** Konfirmasi penerimaan seragam oleh staf logistik (audit). */
+export async function confirmUniformReceipt(
+  database: AppDatabase,
+  orderId: string,
+  notes?: string
+): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | { ok: false; status: 400 | 404; message: string }> {
+  const [order] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+  if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
+  if (order.shipmentStatus !== "sudah_dikirim") {
+    return { ok: false, status: 400, message: "Hanya pesanan yang sudah dikirim yang dapat dikonfirmasi penerimaannya." };
+  }
+
+  const now = new Date().toISOString();
+  await database
+    .update(uniformOrders)
+    .set({
+      receivedAt: now,
+      receivedNotes: notes?.trim() || null,
+      updatedAt: now,
+    })
+    .where(eq(uniformOrders.id, orderId));
+
+  const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+  return { ok: true, data: updated };
+}

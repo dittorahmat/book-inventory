@@ -35,6 +35,7 @@ export {
   DEFAULT_UNIFORM_SHIPPING_INSTRUCTIONS,
   buildUniformShippingText,
   sendUniformShippingNotification,
+  confirmUniformReceipt,
 } from "./dispatch-notification";
 export type {
   BuildShippingNotificationInput,

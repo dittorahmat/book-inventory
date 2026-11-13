@@ -22,6 +22,7 @@ import { UniformOrderCard } from "./UniformOrderCard";
 import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
 import { UniformShipModal, UniformConfirmReceiptModal } from "./UniformShipModal";
 import { UniformShipmentToolbar } from "./UniformShipmentToolbar";
+import { canDispatchUniformOrder } from "../../lib/order-handover-guard";
 
 interface Props {
   schools: Array<{ id: string; name: string }>;
@@ -78,9 +79,8 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   }, [load]);
 
   const handleOpenShipModal = (order: UniformOrderRow) => {
-    // Validasi payment status di frontend sebelum buka modal
-    const isPayEligible = order.paymentStatus === "paid" || order.paymentStatus === "partial" || (order.orderType === "scholarship" && order.paymentStatus !== "unpaid");
-    if (!isPayEligible) {
+    // Validasi payment status di frontend sebelum buka modal via single-writer kanonik (§0.75)
+    if (!canDispatchUniformOrder(order)) {
       setError(`Order ${order.orderNumber} belum layak kirim karena pembayaran masih unpaid.`);
       return;
     }

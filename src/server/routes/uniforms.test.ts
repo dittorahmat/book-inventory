@@ -911,20 +911,18 @@ describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () =>
   });
 
   it("notifikasi resi otomatis dan template panduan kurir saat order diship", async () => {
+    const { createTestSchool, createTestStudent } = await import("../lib/test-fixtures");
     const stamp = Date.now();
     const now = new Date().toISOString();
-    const schoolId = `test-unotif-${stamp}`;
-    await db.insert(schools).values({
-      id: schoolId, name: "Sekolah Notif", code: `ALW-NOTIF-${stamp}`,
-      type: "branch", createdAt: now, updatedAt: now,
-    }).onConflictDoNothing();
-    const studentId = `st-notif-${stamp}`;
-    await db.insert(students).values({
-      id: studentId, schoolId, nis: `NIS-NOTIF-${stamp}`, name: "Siswa Notif",
-      parentName: "Wali Notif", parentPhone: "081299887766",
-      gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
-      status: "active", createdAt: now, updatedAt: now,
+    const school = await createTestSchool(db, { name: `Sekolah Notif ${stamp}`, code: `ALW-NOTIF-${stamp}` });
+    const schoolId = school.id;
+    const student = await createTestStudent(db, {
+      schoolId,
+      name: "Siswa Notif",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
     });
+    const studentId = student.id;
     const kainRes = await postJson("/variants", {
       code: `UK-NOTIF-${stamp}`, name: "Kain Notif", kind: "kain_harian",
       gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 50000,
