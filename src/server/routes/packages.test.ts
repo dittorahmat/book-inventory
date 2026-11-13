@@ -322,26 +322,12 @@ describe("Packages & Bundling/Unbundling API", () => {
 
   it("tidak memicu seed demo untuk peran non-pusat saat katalog paket kosong", async () => {
     let emptyPackageSimulation = true;
-    type SessionWithPrepare = {
-      prepareQuery: (
-        query: { sql?: string },
-        fields: unknown,
-        customResultMapper: unknown
-      ) => { all: () => unknown[] };
-    };
-    const session = (db as unknown as { session: SessionWithPrepare }).session;
-    const origPrepareQuery = session.prepareQuery.bind(session);
-    session.prepareQuery = (
-      query: { sql?: string },
-      fields: unknown,
-      customResultMapper: unknown
-    ) => {
-      const prepared = origPrepareQuery(query, fields, customResultMapper);
-      if (emptyPackageSimulation && query.sql && query.sql.includes('"book_packages"')) {
-        prepared.all = () => [];
-      }
-      return prepared;
-    };
+    const { mockDrizzleQuerySession } = await import("../lib/test-fixtures");
+    const restoreSession = mockDrizzleQuerySession(
+      db,
+      (sql) => emptyPackageSimulation && sql.includes('"book_packages"'),
+      () => []
+    );
 
     try {
       mockActor("school_admin", "school-alw-1");
@@ -356,7 +342,7 @@ describe("Packages & Bundling/Unbundling API", () => {
       expect(seeded.status).toBe(200);
       expect((await seeded.json()).data.length).toBeGreaterThan(0);
     } finally {
-      session.prepareQuery = origPrepareQuery;
+      restoreSession();
     }
   });
 
