@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { uniformOrders, uniformOrderItems, uniformPos, uniformExchanges } from "../../db/schema";
+import { base64UploadSchema } from "../lib/validators";
 import {
   assembleSchema,
   exchangeSchema,
@@ -42,6 +44,7 @@ import {
   resolveUniformRefund,
   updateUniformPackage,
   updateUniformVariant,
+  sendUniformShippingNotification,
 } from "../services/uniform";
 import { listUniformOrders, assertUniformOrderInScope } from "../services/uniform/order-query";
 import { listPaymentsWithStatus } from "../services/order-payment-review";
@@ -204,12 +207,30 @@ uniformsRouter.get("/orders", async (c) => {
 });
 
 // Tandai terkirim (gudang/pusat saja).
-uniformsRouter.post("/orders/:id/ship", async (c) => {
+const shipOrderSchema = z.object({
+  shippingResi: z.string().optional(),
+  packagePhotoBase64: base64UploadSchema,
+}).optional();
+
+uniformsRouter.post("/orders/:id/ship", zValidator("json", shipOrderSchema), async (c) => {
   try {
     await resolveLogisticsActor(c);
-    const result = await markUniformShipped(db, c.req.param("id"));
+    const body = c.req.valid("json");
+    const result = await markUniformShipped(db, c.req.param("id"), body);
     if (!result.ok) return fail(c, result);
-    return c.json({ success: true, data: result.data });
+
+    // Otomatis kirim notifikasi resi kurir ke WA ortu (non-blocking jika nomor belum ada / gagal)
+    const notification = await sendUniformShippingNotification(db, c.req.param("id"));
+
+    return c.json({
+      success: true,
+      data: result.data,
+      notification: {
+        sent: notification.sent,
+        error: notification.error,
+        recipientPhone: notification.recipientPhone,
+      },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
