@@ -1,6 +1,42 @@
 import type { AppDatabase } from "../../db";
 import { schools, students, studentBookOrders, bookPackages, books, uniformVariants, uniformPackages } from "../../db/schema";
 
+/**
+ * Mock query session Drizzle untuk mensimulasikan hasil query tanpa memodifikasi tabel fisik SQLite.
+ * Sangat berguna untuk menguji skenario katalog kosong atau respon terkontrol tanpa blanket delete (§6.1).
+ */
+export function mockDrizzleQuerySession(
+  database: AppDatabase,
+  matcher: (sql: string) => boolean,
+  mockedRows: () => unknown[]
+): () => void {
+  type SessionWithPrepare = {
+    prepareQuery: (
+      query: { sql?: string },
+      fields: unknown,
+      customResultMapper: unknown
+    ) => { all: () => unknown[] };
+  };
+  const session = (database as unknown as { session: SessionWithPrepare }).session;
+  const origPrepareQuery = session.prepareQuery.bind(session);
+
+  session.prepareQuery = (
+    query: { sql?: string },
+    fields: unknown,
+    customResultMapper: unknown
+  ) => {
+    const prepared = origPrepareQuery(query, fields, customResultMapper);
+    if (query.sql && matcher(query.sql)) {
+      prepared.all = mockedRows;
+    }
+    return prepared;
+  };
+
+  return () => {
+    session.prepareQuery = origPrepareQuery;
+  };
+}
+
 export interface TestSchoolOverrides {
   id?: string;
   name?: string;

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterEach } from "bun:test";
+import { describe, expect, it, beforeAll, afterEach, afterAll } from "bun:test";
 import { eq } from "drizzle-orm";
 import { app } from "../../src/server/index";
 import { db } from "../../src/db";
@@ -19,6 +19,17 @@ describe("E2E Skenario Bisnis: Pembatalan Siswa Mengundurkan Diri (ADR-0019 / AG
 
   afterEach(() => {
     restoreActor();
+  });
+
+  afterAll(async () => {
+    // Kembalikan status ord-kayla-paid dan ord-demo-uso-03 agar tidak mencemari suite test lain (§6.1)
+    await db
+      .update(studentBookOrders)
+      .set({
+        fulfillmentStatus: "waiting_preparation",
+        assignedPackageItemId: null,
+      })
+      .where(eq(studentBookOrders.id, "ord-kayla-paid"));
   });
 
   it("Buku: Ortu ajukan pembatalan siswa mundur via portal -> staf setujui -> paket ter-unassign & slip RET-B terbit", async () => {
