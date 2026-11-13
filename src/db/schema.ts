@@ -746,6 +746,7 @@ export const uniformOrders = sqliteTable("uniform_orders", {
   shippedAt: text("shipped_at"),
   shippingCost: integer("shipping_cost").notNull().default(0),
   shippingResi: text("shipping_resi"),
+  packagePhotoUrl: text("package_photo_url"),
   invoiceSentAt: text("invoice_sent_at"),
   paymentToken: text("payment_token"),
   paymentStatus: text("payment_status", {
@@ -753,6 +754,8 @@ export const uniformOrders = sqliteTable("uniform_orders", {
   }).notNull().default("unpaid"),
   orderType: text("order_type", { enum: ["regular", "scholarship"] }).notNull().default("regular"),
   scholarshipProofUrl: text("scholarship_proof_url"),
+  receivedAt: text("received_at"),
+  receivedNotes: text("received_notes"),
   totalAmount: integer("total_amount").notNull().default(0),
   paidAmount: integer("paid_amount").notNull().default(0),
   notes: text("notes"),

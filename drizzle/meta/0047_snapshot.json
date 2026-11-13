@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "df3878da-a45b-4971-b598-c33bf9e72d7d",
+  "id": "17bc2704-5525-4a80-bf52-d6c18773ed62",
   "prevId": "f0b90744-afd7-4e14-9b57-3b79561c6445",
   "tables": {
     "accounts": {
@@ -3986,13 +3986,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "rombel": {
-          "name": "rombel",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "curriculum_type": {
           "name": "curriculum_type",
           "type": "text",
@@ -5344,6 +5337,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "package_photo_url": {
+          "name": "package_photo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "invoice_sent_at": {
           "name": "invoice_sent_at",
           "type": "text",
@@ -5376,6 +5376,20 @@
         },
         "scholarship_proof_url": {
           "name": "scholarship_proof_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "received_notes": {
+          "name": "received_notes",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

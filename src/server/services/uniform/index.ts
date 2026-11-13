@@ -30,3 +30,15 @@ export type { UniformShippingCsvRow } from "./csv-row";
 export { EKSPEDISI_CSV_HEADER, PACKING_CSV_HEADER, normalizeCsvNis } from "./csv-row";
 export type { UniformNumbering } from "./numbering";
 export { getUniformNumbering, saveUniformNumbering, setUniformSatuanEnabled } from "./numbering";
+export {
+  UNIFORM_SHIPPING_INSTRUCTIONS_KEY,
+  DEFAULT_UNIFORM_SHIPPING_INSTRUCTIONS,
+  buildUniformShippingText,
+  sendUniformShippingNotification,
+  confirmUniformReceipt,
+} from "./dispatch-notification";
+export type {
+  BuildShippingNotificationInput,
+  SendShippingNotificationDeps,
+  SendShippingNotificationResult,
+} from "./dispatch-notification";

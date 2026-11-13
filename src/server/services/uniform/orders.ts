@@ -27,6 +27,7 @@ import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligib
 import { adjustPackageStockQuery, adjustVariantStockQuery, checkUniformAvailability, type UniformStockLine } from "./stock";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
+import { canDispatchUniformOrder } from "../../../lib/order-handover-guard";
 
 export interface SubmitUniformOrderDeps extends WriteDeps {
   generateOrderNumber?: (nowIso: string) => string;
@@ -324,11 +325,21 @@ export async function resolveUniformScholarship(
   return { ok: true, data: updated };
 }
 
+export interface MarkUniformShippedPayload {
+  shippingResi?: string;
+  packagePhotoBase64?: string;
+}
+
+export interface MarkUniformShippedDeps extends WriteDeps {
+  storage?: typeof defaultStorage;
+}
+
 /** Tandai kiriman gudang: belum_dikirim → sudah_dikirim (+ shippedAt). Satu arah, tanpa un-ship. */
 export async function markUniformShipped(
   database: AppDatabase,
   orderId: string,
-  deps?: WriteDeps
+  payload?: MarkUniformShippedPayload,
+  deps?: MarkUniformShippedDeps
 ): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
   const now = writeNow(deps);
   const [order]: Array<typeof uniformOrders.$inferSelect> = await database
@@ -337,9 +348,36 @@ export async function markUniformShipped(
     .where(eq(uniformOrders.id, orderId));
   if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
   if (order.shipmentStatus === "sudah_dikirim") return invalid("Order sudah ditandai terkirim.");
+
+  const resi = (payload?.shippingResi ?? order.shippingResi)?.trim();
+  if (!resi) {
+    return invalid("Nomor resi kurir wajib diisi sebelum menandai kiriman.");
+  }
+
+  // Guard kelayakan pengiriman kanonik (§0.75): paid, partial, atau scholarship_approved
+  if (!canDispatchUniformOrder(order)) {
+    return invalid("Order belum layak kirim: pembayaran masih belum tercatat (unpaid).");
+  }
+
+  let packagePhotoUrl = order.packagePhotoUrl;
+  if (payload?.packagePhotoBase64) {
+    const storage = deps?.storage ?? defaultStorage;
+    packagePhotoUrl = await storage.upload(
+      `uniform-packages/${orderId}_${Date.now()}.jpg`,
+      decodeBase64ToBytes(payload.packagePhotoBase64),
+      "image/jpeg"
+    );
+  }
+
   await database
     .update(uniformOrders)
-    .set({ shipmentStatus: "sudah_dikirim", shippedAt: now, updatedAt: now })
+    .set({
+      shipmentStatus: "sudah_dikirim",
+      shippingResi: resi,
+      packagePhotoUrl,
+      shippedAt: now,
+      updatedAt: now,
+    })
     .where(eq(uniformOrders.id, orderId));
   await database
     .update(students)
@@ -348,5 +386,6 @@ export async function markUniformShipped(
   const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   return { ok: true, data: updated };
 }
+
 
 

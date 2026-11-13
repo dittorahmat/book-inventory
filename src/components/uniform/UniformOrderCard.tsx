@@ -6,9 +6,11 @@ import type { UniformOrderRow } from "./uniform-admin-api";
 interface UniformOrderCardProps {
   order: UniformOrderRow;
   shippingId: string | null;
-  onShip: (id: string) => void;
+  onShip: (order: UniformOrderRow) => void;
   onOpenOngkir: (order: UniformOrderRow) => void;
   onInvoice: (id: string, name: string) => void;
+  onSendResiNotification?: (id: string) => void;
+  onConfirmReceipt?: (order: UniformOrderRow) => void;
   onScholarship: (id: string, action: "approve" | "reject") => void;
   onReview: (order: UniformOrderRow) => void;
   onOpenPay: (order: UniformOrderRow) => void;
@@ -20,6 +22,8 @@ export function UniformOrderCard({
   onShip,
   onOpenOngkir,
   onInvoice,
+  onSendResiNotification,
+  onConfirmReceipt,
   onScholarship,
   onReview,
   onOpenPay,
@@ -105,12 +109,29 @@ export function UniformOrderCard({
           <button
             type="button"
             disabled={shippingId === order.id}
-            onClick={() => onShip(order.id)}
+            onClick={() => onShip(order)}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1877F2] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#1664D9] active:scale-[0.98] transition-all shadow-xs"
           >
             <Truck className="w-3.5 h-3.5" />
-            <span>{shippingId === order.id ? "Memproses…" : "Tandai Kirim"}</span>
+            <span>{shippingId === order.id ? "Memproses…" : "Kirim Seragam"}</span>
           </button>
+        )}
+
+        {order.shipmentStatus === "sudah_dikirim" && !order.receivedAt && onConfirmReceipt && (
+          <button
+            type="button"
+            onClick={() => onConfirmReceipt(order)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold hover:bg-emerald-100 active:scale-[0.98] transition-all"
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Paket Diterima</span>
+          </button>
+        )}
+
+        {order.receivedAt && (
+          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">
+            Diterima
+          </span>
         )}
 
         {(order.pendingCount ?? 0) > 0 && (
@@ -159,6 +180,20 @@ export function UniformOrderCard({
                 <FileText className="w-3.5 h-3.5 text-[#65676B]" />
                 <span>{order.invoiceSentAt ? "Kirim Ulang Invoice WA" : "Kirim Invoice WA"}</span>
               </button>
+
+              {order.shipmentStatus === "sudah_dikirim" && order.shippingResi && onSendResiNotification && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSendResiNotification(order.id);
+                  }}
+                  className="w-full text-left px-3 py-2 text-[#050505] hover:bg-[#F0F2F5] flex items-center gap-2"
+                >
+                  <Truck className="w-3.5 h-3.5 text-[#65676B]" />
+                  <span>Kirim Ulang Info Resi WA</span>
+                </button>
+              )}
 
               <button
                 type="button"

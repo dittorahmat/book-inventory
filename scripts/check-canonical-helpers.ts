@@ -38,6 +38,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "paymentRowStatus", owner: "src/server/services/payment-ledger.ts", module: "services/payment-ledger" },
   { name: "allocationViolation", owner: "src/lib/order-allocation.ts", module: "lib/order-allocation" },
   { name: "canHandoverBookOrder", owner: "src/lib/order-handover-guard.ts", module: "lib/order-handover-guard" },
+  { name: "canDispatchUniformOrder", owner: "src/lib/order-handover-guard.ts", module: "lib/order-handover-guard" },
   { name: "evaluateStudentEligibility", owner: "src/server/services/student-eligibility.ts", module: "services/student-eligibility" },
   { name: "adjustVariantStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
   { name: "adjustPackageStockQuery", owner: "src/server/services/uniform/stock.ts", module: "services/uniform/stock" },
