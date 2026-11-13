@@ -136,10 +136,8 @@ const UNQUALIFIED_DELETE_BLOCK_RE = new RegExp(
 
 for (const file of testFiles) {
   const content = readFileSync(file, "utf8");
-  // Periksa seluruh isi file menggunakan regex block-aware
   const match = UNQUALIFIED_DELETE_BLOCK_RE.exec(content);
   if (match) {
-    // Cari nomor baris kejadian pertama
     const offset = match.index;
     const lineNumber = content.substring(0, offset).split("\n").length;
     hits.push(

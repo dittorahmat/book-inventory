@@ -30,10 +30,10 @@ export function BatchPromoteModal({
     if (!schoolId) return;
     let active = true;
     setIsLoadingStudents(true);
-    fetchStudents({ schoolId })
-      .then((data: StudentRecord[]) => {
+    fetchStudents({ schoolId, limit: 100 })
+      .then((res) => {
         if (active) {
-          setStudents(data.filter((s: StudentRecord) => s.status === "active" || s.status === "promoted"));
+          setStudents(res.students.filter((s: StudentRecord) => s.status === "active" || s.status === "promoted"));
           setExcludedIds([]);
         }
       })
