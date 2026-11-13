@@ -193,10 +193,11 @@ describe("Portal seragam publik", () => {
       sizeOverrides: { [olId]: "M" },
     });
     expect(second.status).toBe(201);
-    expect((await second.json()).data.order.shipmentStatus).toBe("belum_dikirim");
+    const secondJson = (await second.json()) as { success: boolean; data: { order: { shipmentStatus: string } } };
+    expect(secondJson.data.order.shipmentStatus).toBe("belum_dikirim");
 
     // Submit pesanan seragam berhasil memicu notifikasi WA blast terima kasih
-    expect((await second.json()).success).toBe(true);
+    expect(secondJson.success).toBe(true);
 
     // Menolak order varian olahraga jika tanpa ukuran
     const olNoSize = await postPublic("/orders", {
