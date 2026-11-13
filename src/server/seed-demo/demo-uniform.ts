@@ -153,6 +153,13 @@ export async function seedDemoUniform({ db: targetDb, now }: SeedContext) {
     .onConflictDoNothing();
 
   // Satu tukar ukuran selesai + satu refund selesai, agar antrean tidak kosong.
+  // Pastikan juga ex-demo-01 direset ke "requested" agar antrean aktif tetap terisi
+  // jika tes sebelumnya (mis. demo-part4) telah meng-approve atau me-resolve ex-demo-01.
+  await targetDb
+    .update(uniformExchanges)
+    .set({ status: "requested", resolvedAt: null, updatedAt: now })
+    .where(eq(uniformExchanges.id, "ex-demo-01"));
+
   await targetDb
     .insert(uniformExchanges)
     .values({
