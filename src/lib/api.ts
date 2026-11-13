@@ -53,6 +53,9 @@ export const readJson = async (res: Response, fallback: string): Promise<any> =>
     throw new ApiError(fallback, res.status, null);
   }
   if (!res.ok || !data || data.success === false) {
+    if (res.status >= 500 && typeof console !== "undefined" && console.error) {
+      console.error(`[API 500] ${res.url || "request"} failed:`, data?.message || data?.error || fallback, data);
+    }
     throw new ApiError(formatApiErrorMessage(data, fallback), res.status, data);
   }
   return data;
