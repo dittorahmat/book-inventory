@@ -31,6 +31,7 @@ export interface StudentRecord {
 export interface StudentListParams {
   schoolId?: string;
   status?: string;
+  rombel?: string;
   search?: string;
 }
 

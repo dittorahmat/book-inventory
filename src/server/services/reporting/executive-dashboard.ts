@@ -25,6 +25,7 @@ import { isOpenOrder, outstandingOf } from "../stock/buckets";
 import { selectInChunks } from "../../lib/d1-write";
 import { AccessHttpError, type AccessActor } from "../access-scope";
 import { computeMetric, initSchoolMaps, type PeriodMetrics } from "./executive-dashboard-types";
+import { formatClassroomName } from "../../../lib/classroom";
 
 export class ExecutiveDashboardHttpError extends AccessHttpError {}
 
@@ -118,7 +119,7 @@ export async function getExecutiveDashboardSummary(
       if (st.rombel) {
         if (!studentRombelCount.has(st.schoolId)) studentRombelCount.set(st.schoolId, new Map());
         const rombelMap = studentRombelCount.get(st.schoolId)!;
-        const classLabel = `${g} ${st.rombel}`;
+        const classLabel = formatClassroomName(g, st.rombel);
         const currRombel = rombelMap.get(classLabel) ?? { total: 0, ordered: 0 };
         currRombel.total += 1;
         rombelMap.set(classLabel, currRombel);
@@ -140,7 +141,7 @@ export async function getExecutiveDashboardSummary(
         }
         if (stInfo?.rombel && studentRombelCount.has(stInfo.schoolId)) {
           const rMap = studentRombelCount.get(stInfo.schoolId)!;
-          const classLabel = `${stInfo.grade} ${stInfo.rombel}`;
+          const classLabel = formatClassroomName(stInfo.grade, stInfo.rombel);
           const curr = rMap.get(classLabel);
           if (curr) curr.ordered += 1;
         }

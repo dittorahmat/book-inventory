@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { exportCsvFile } from "../../lib/csv-export";
 import type { ExecutiveBranchStudentBreakdown } from "../../lib/dashboard-types";
 import { ExecutiveBreakdownDrawerShell } from "./ExecutiveBreakdownDrawerShell";
@@ -15,6 +16,7 @@ export function StudentBreakdownDrawer({
   data,
   academicYear,
 }: StudentBreakdownDrawerProps) {
+  const [expandedSchoolId, setExpandedSchoolId] = useState<string | null>(null);
   const totalStudents = data.reduce((s, r) => s + r.totalStudents, 0);
   const totalOrdered = data.reduce((s, r) => s + r.orderedStudents, 0);
   const totalFulfilled = data.reduce((s, r) => s + r.fulfilledStudents, 0);
@@ -30,6 +32,7 @@ export function StudentBreakdownDrawer({
       "Tingkat Adopsi (%)",
       "Siswa Terima Barang",
       "Rasio Selesai (%)",
+      "Breakdown Rombel",
     ];
     const rows = data.map((r) => [
       r.schoolCode,
@@ -39,6 +42,7 @@ export function StudentBreakdownDrawer({
       String(r.adoptionRate),
       String(r.fulfilledStudents),
       String(r.orderedStudents > 0 ? Math.round((r.fulfilledStudents / r.orderedStudents) * 1000) / 10 : 0),
+      `"${(r.byRombel || []).map((rb) => `${rb.rombel}: ${rb.ordered}/${rb.total}`).join("; ")}"`,
     ]);
     const totalRow = [
       "TOTAL",
@@ -48,6 +52,7 @@ export function StudentBreakdownDrawer({
       String(overallAdoptionRate),
       String(totalFulfilled),
       String(overallFulfillmentRate),
+      '""',
     ];
     const csvContent = [headers.join(","), ...rows.map((row) => row.join(",")), totalRow.join(",")].join("\n");
     exportCsvFile(`breakdown_siswa_${academicYear.replace(/[/\\:]/g, "-")}`, csvContent);
@@ -113,22 +118,30 @@ export function StudentBreakdownDrawer({
               </td>
               <td className="py-3 text-right font-semibold text-emerald-600">{row.fulfilledStudents}</td>
               <td className="py-3">
-                <div className="flex flex-wrap gap-1 max-w-xs">
-                  {row.byRombel && row.byRombel.length > 0 ? (
-                    row.byRombel.slice(0, 4).map((r) => (
-                      <span key={r.rombel} className="text-[10px] bg-[#E7F3FF] text-[#1877F2] font-medium px-1.5 py-0.5 rounded">
-                        {r.rombel}: {r.ordered}/{r.total}
-                      </span>
-                    ))
-                  ) : (
-                    row.byGrade.slice(0, 4).map((g) => (
-                      <span key={g.grade} className="text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">
-                        Kls {g.grade}: {g.ordered}/{g.total}
-                      </span>
-                    ))
-                  )}
+                <div className="flex flex-col gap-1 max-w-xs">
+                  <div className="flex flex-wrap gap-1">
+                    {row.byRombel && row.byRombel.length > 0 ? (
+                      (expandedSchoolId === row.schoolId ? row.byRombel : row.byRombel.slice(0, 4)).map((r) => (
+                        <span key={r.rombel} className="text-[10px] bg-[#E7F3FF] text-[#1877F2] font-medium px-1.5 py-0.5 rounded">
+                          {r.rombel}: {r.ordered}/{r.total}
+                        </span>
+                      ))
+                    ) : (
+                      row.byGrade.slice(0, 4).map((g) => (
+                        <span key={g.grade} className="text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">
+                          Kls {g.grade}: {g.ordered}/{g.total}
+                        </span>
+                      ))
+                    )}
+                  </div>
                   {row.byRombel && row.byRombel.length > 4 && (
-                    <span className="text-[10px] text-[#65676B]">+{row.byRombel.length - 4} rombel</span>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSchoolId(expandedSchoolId === row.schoolId ? null : row.schoolId)}
+                      className="text-[10px] text-[#1877F2] hover:underline font-semibold self-start"
+                    >
+                      {expandedSchoolId === row.schoolId ? "Tampilkan lebih sedikit" : `+${row.byRombel.length - 4} rombel lainnya`}
+                    </button>
                   )}
                 </div>
               </td>

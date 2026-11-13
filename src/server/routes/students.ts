@@ -54,11 +54,13 @@ studentsRouter.get("/", async (c) => {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const status = c.req.query("status");
+    const rombel = c.req.query("rombel");
     const search = c.req.query("search");
 
   const conditions = [];
   if (schoolId) conditions.push(eq(students.schoolId, schoolId));
   if (status && status !== "all") conditions.push(eq(students.status, status as any));
+  if (rombel && rombel !== "all") conditions.push(eq(students.rombel, rombel));
   // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
   if (search?.trim()) {
     const matched = matchAnyLower([students.name, students.nis, students.parentName], search);

@@ -28,15 +28,6 @@ _Avoid_: Akses mutasi stok oleh finance, akses lintas cabang tanpa isolasi, fina
 Format pesan WhatsApp resmi yang dikonfigurasi melalui pengaturan sistem (`system_settings`) dan dikirimkan secara otomatis kepada wali murid segera setelah konfirmasi pembayaran berhasil dicatat. Memuat ucapan terima kasih, instruksi penantian jadwal pembagian buku dari sekolah, dan instruksi wajib membawa pesan tersebut sebagai bukti pengambilan fisik.
 _Avoid_: Pesan hardcoded di kode sumber, blast tanpa placeholder dinamis, pesan tanpa instruksi pengambilan
 
-**Pengiriman Seragam Ber-Resi (Tracked Uniform Dispatch)**:
-Proses pengiriman fisik paket seragam dari Gudang Pusat ke alamat rumah orang tua. Wajib memiliki nomor resi ekspedisi kurir (`shippingResi`), status pembayaran minimal telah dicicil sebagian (`partial`), lunas (`paid`), atau beasiswa (`scholarship_approved`), serta opsional mengunggah foto paket fisik (`packagePhotoUrl`). Eksekusi pengiriman memicu pembaruan status `sudah_dikirim`, menandai siswa `hasTakenUniform = true`, serta secara otomatis mengirim pesan notifikasi WhatsApp berisi nomor resi kurir dan teks template petunjuk pelacakan.
-_Avoid_: Pengiriman seragam dengan nomor resi kosong, pengiriman seragam yang masih berstatus unpaid murni, pengiriman tanpa notifikasi resi otomatis
-
-**Penerimaan Seragam Logistik (Logistics Uniform Receipt Confirmation)**:
-Pencatatan konfirmasi sampainya paket seragam di alamat orang tua oleh staf logistik (opsional). Dicatat melalui field audit `receivedAt` dan `receivedNotes` pada pesanan seragam tanpa memutasi enum status pengiriman utama (`shipmentStatus = 'sudah_dikirim'`).
-_Avoid_: Pengubahan enum shipmentStatus menjadi destruktif di D1, konfirmasi tanpa jejak audit staf
-
-
 **Pergantian Program Terkunci (Locked Program Change)**:
 Mekanisme perubahan program belajar siswa yang dibatasi secara ketat hanya dapat dieksekusi oleh Logistik Pusat atau PIC Cabang dengan mengunggah bukti dokumen resmi persetujuan mutasi program dari pihak sekolah.
 _Avoid_: Murid ganti program mandiri di portal, ganti program tanpa bukti dokumen resmi

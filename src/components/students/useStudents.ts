@@ -16,6 +16,7 @@ export function useStudents(schoolId: string | null) {
   const [pendingCount, setPendingCount] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>("all");
+  const [rombelFilter, setRombelFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function useStudents(schoolId: string | null) {
         fetchStudents({
           schoolId: schoolId || undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
+          rombel: rombelFilter === "all" ? undefined : rombelFilter,
           search: search.trim() || undefined,
         }),
         fetchStudents({ schoolId: schoolId || undefined, status: "new_pending" }),
@@ -43,7 +45,7 @@ export function useStudents(schoolId: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [schoolId, statusFilter, search]);
+  }, [schoolId, statusFilter, rombelFilter, search]);
 
   useEffect(() => {
     load();
@@ -104,6 +106,7 @@ export function useStudents(schoolId: string | null) {
 
   return {
     students, pendingList, pendingCount, search, setSearch, statusFilter, setStatusFilter,
+    rombelFilter, setRombelFilter,
     isLoading, isSaving, verifyingId, error, setError,
     showForm, setShowForm, editing, openCreate, openEdit,
     load, save, remove, verify,

@@ -198,6 +198,19 @@ describe("Students admin API", () => {
     const listA = await studentsRouter.request(`/?schoolId=${schoolA}`);
     const listAJson = await listA.json();
     expect(listAJson.data.every((s: any) => s.schoolId === schoolA)).toBe(true);
+
+    // Rombel server filter test (§0.75)
+    const rombelChild = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId: schoolA, nis: `ISORB${stamp}`, name: `Anak Rombel ${stamp}`, gradeLevel: "3", rombel: "INTER 9", academicYear: "2026/2027" }),
+    });
+    expect(rombelChild.status).toBe(201);
+
+    const listRombel = await studentsRouter.request(`/?schoolId=${schoolA}&rombel=INTER 9`);
+    const listRombelJson = await listRombel.json();
+    expect(listRombelJson.data.length).toBe(1);
+    expect(listRombelJson.data[0].rombel).toBe("INTER 9");
     expect(listAJson.data.some((s: any) => s.name === `Anak A ${stamp}`)).toBe(true);
 
     const pendingOnly = await studentsRouter.request(`/?schoolId=${schoolA}&status=new_pending`);

@@ -84,5 +84,11 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. **Pemisahan Olahraga & Dekopling dari Satuan**: Seragam olahraga adalah pakaian jadi yang berdiri terpisah dari paket bahan kain dan wajib memilih ukuran sebelum checkout. Di awal tahun ajaran, seragam olahraga merupakan bagian integral seragam sekolah yang selalu ditampilkan dan diizinkan dipesan bersama paket bahan kain harian terlepas dari toggle pembelian satuan (`satuanOpen`); guard penutupan satuan admin hanya memblokir pesanan eceran murni tanpa paket.
 4. **Segmented Toggle Mode & Validasi Interaktif (§0.63)**: Portal seragam mengadopsi segmented tab `[Paket Lengkap]` dan `[Satuan]` saat `satuanOpen` aktif. Pilihan ukuran seragam olahraga wajib tervalidasi interaktif (border merah dan alert bantuan) saat tombol "Lanjut" diklik. Form pengiriman wajib menyediakan field terpisah untuk Kode Pos 5 digit yang divalidasi ketat dan digabungkan secara aman ke snapshot alamat rumah tanpa regex parser duplikat inline di antarmuka.
 
+### §0.75. Standar Ruang Kelas Murid (Rombel) & Agregasi Distribusi Fisik
+1. **Representasi Format Kanonik**: Informasi ruang kelas murid menggabungkan jenjang (`gradeLevel`) dan rombel (`rombel`) via helper kanonik `formatClassroomName` (`src/lib/classroom.ts`), dilarang merakit string template ad-hoc (`${grade} ${rombel}`) di view atau service pelaporan.
+2. **Server-Side Partitioned Filtering**: Filter murid berdasarkan rombel pada antarmuka master murid wajib dikirim ke server (`/api/students?rombel=...`) agar mencakup seluruh populasi murid sekolah tanpa terpotong batas paginasi lokal klien (`LIMIT 50`).
+3. **Kelengkapan Ekspor CSV Distribusi**: Ekspor laporan breakdown populasi dan pemenuhan siswa (`StudentBreakdownDrawer`) wajib menyertakan rincian pemenuhan per ruang kelas / rombel untuk memandu pembagian fisik buku dan seragam di sekolah cabang.
+
+
 
 
