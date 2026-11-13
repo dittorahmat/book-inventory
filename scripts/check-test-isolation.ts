@@ -114,6 +114,40 @@ for (const file of testFiles) {
   }
 }
 
+// B7 — larangan penghapusan tabel master tanpa klausa WHERE (AGENTS.md §6.1 / Issue #454 / #456):
+// Pemanggilan `db.delete(<table>)` tanpa `.where(...)` menghapus seluruh isi tabel master
+// (seperti bookPackages, books, schools, students, uniformVariants) yang merusak baseline data test runner.
+const MASTER_TABLES = [
+  "bookPackages",
+  "books",
+  "schools",
+  "students",
+  "uniformVariants",
+  "uniformPackages",
+  "uniformSizes",
+];
+const UNQUALIFIED_DELETE_RE = new RegExp(
+  `\\.delete\\s*\\(\\s*(${MASTER_TABLES.join("|")})\\s*\\)(?!\\s*\\.where\\b)`
+);
+
+// Pengecualian legal (mis. test khusus reset katalog paket yang dijamin membungkus dalam try...finally runIdempotentSeed)
+const UNQUALIFIED_DELETE_ALLOWLIST = new Set([
+  "src/server/routes/packages.test.ts", // test: tidak memicu seed demo untuk peran non-pusat saat katalog paket kosong (restored in finally)
+]);
+
+for (const file of testFiles) {
+  if (UNQUALIFIED_DELETE_ALLOWLIST.has(file)) continue;
+  const lines = readFileSync(file, "utf8").split("\n");
+  lines.forEach((text, i) => {
+    const match = UNQUALIFIED_DELETE_RE.exec(text);
+    if (match) {
+      hits.push(
+        `${file}:${i + 1}: pemanggilan db.delete(${match[1]}) tanpa klausa .where(...) dilarang karena merusak baseline master test (Issue #456).`
+      );
+    }
+  });
+}
+
 if (hits.length > 0) {
   console.error("Test-isolation gate FAILED:");
   for (const hit of hits) console.error(`  ${hit}`);
