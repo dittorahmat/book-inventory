@@ -222,6 +222,7 @@ export const students = sqliteTable("students", {
   name: text("name").notNull(),
   gender: text("gender", { enum: ["male", "female"] }),
   gradeLevel: text("grade_level").notNull(), // e.g., "1", "2", "7", "10"
+  rombel: text("rombel"), // e.g., "INTER 1", "MQ 2", null untuk murid baru belum dibagi kelas
   curriculumType: text("curriculum_type", { enum: CURRICULUM_TYPES }).notNull().default("INTER"),
   stream: text("stream", { enum: STREAMS }), // e.g. "IPA", "IPS", or null for TK/SD/SMP
   intakeType: text("intake_type", { enum: INTAKE_TYPES }).notNull().default("baru"),

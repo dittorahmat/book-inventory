@@ -8,6 +8,10 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 Klasifikasi peminatan, jalur studi, atau kurikulum belajar siswa (misalnya: Reguler, Tahfidz, Cambridge, Bilingual) yang menentukan komposisi Bill of Materials (BOM) paket buku dan buku satuan yang berhak dipesan siswa. Di seluruh antarmuka pengguna, label laporan, dan pesan notifikasi, istilah ini wajib menggunakan kata "Program".
 _Avoid_: Kurikulum, peminatan bebas tanpa program, duplikasi label kurikulum di UI
 
+**Rombel / Ruang Kelas (Student Classroom Section)**:
+Identitas rombongan belajar atau ruang kelas penempatan siswa dalam jenjang tertentu (misalnya: `INTER 1`, `INTER 2`, `MQ 1`, `MQ 2`). Jika digabungkan dengan jenjang kelas (`gradeLevel` "1" + `rombel` "INTER 1"), membentuk nama kelas utuh (`"1 INTER 1"`). Digunakan untuk filter data murid, rekapitulasi, serta agregat summary/laporan pemenuhan dan distribusi buku maupun seragam. Bersifat opsional/nullable bagi siswa baru yang masih dalam tahap registrasi mandiri.
+_Avoid_: Mencampuradukkan rombel ke dalam nama siswa, menyimpan rombel kaku tanpa relasi jenjang, membuang data rombel saat impor Excel
+
 **Surat Jalan Pengiriman Cabang (Branch Transfer Shipment)**:
 Dokumen resmi pengiriman buku/paket dari Gudang Pusat ke Sekolah Cabang. Diterbitkan dengan nomor resmi, dicetak dan dibubuhi tanda tangan & cap basah oleh Gudang Pusat sebelum dikirim. Status pengiriman ini langsung memotong saldo stok Gudang Pusat saat status menjadi `in_transit`.
 _Avoid_: Pengiriman tanpa nomor resmi, pemotongan stok manual, surat jalan non-sistem
@@ -23,6 +27,15 @@ _Avoid_: Akses mutasi stok oleh finance, akses lintas cabang tanpa isolasi, fina
 **Template WhatsApp Konfirmasi Pembayaran (Configurable WhatsApp Blast Template)**:
 Format pesan WhatsApp resmi yang dikonfigurasi melalui pengaturan sistem (`system_settings`) dan dikirimkan secara otomatis kepada wali murid segera setelah konfirmasi pembayaran berhasil dicatat. Memuat ucapan terima kasih, instruksi penantian jadwal pembagian buku dari sekolah, dan instruksi wajib membawa pesan tersebut sebagai bukti pengambilan fisik.
 _Avoid_: Pesan hardcoded di kode sumber, blast tanpa placeholder dinamis, pesan tanpa instruksi pengambilan
+
+**Pengiriman Seragam Ber-Resi (Tracked Uniform Dispatch)**:
+Proses pengiriman fisik paket seragam dari Gudang Pusat ke alamat rumah orang tua. Wajib memiliki nomor resi ekspedisi kurir (`shippingResi`), status pembayaran minimal telah dicicil sebagian (`partial`), lunas (`paid`), atau beasiswa (`scholarship_approved`), serta opsional mengunggah foto paket fisik (`packagePhotoUrl`). Eksekusi pengiriman memicu pembaruan status `sudah_dikirim`, menandai siswa `hasTakenUniform = true`, serta secara otomatis mengirim pesan notifikasi WhatsApp berisi nomor resi kurir dan teks template petunjuk pelacakan.
+_Avoid_: Pengiriman seragam dengan nomor resi kosong, pengiriman seragam yang masih berstatus unpaid murni, pengiriman tanpa notifikasi resi otomatis
+
+**Penerimaan Seragam Logistik (Logistics Uniform Receipt Confirmation)**:
+Pencatatan konfirmasi sampainya paket seragam di alamat orang tua oleh staf logistik (opsional). Dicatat melalui field audit `receivedAt` dan `receivedNotes` pada pesanan seragam tanpa memutasi enum status pengiriman utama (`shipmentStatus = 'sudah_dikirim'`).
+_Avoid_: Pengubahan enum shipmentStatus menjadi destruktif di D1, konfirmasi tanpa jejak audit staf
+
 
 **Pergantian Program Terkunci (Locked Program Change)**:
 Mekanisme perubahan program belajar siswa yang dibatasi secara ketat hanya dapat dieksekusi oleh Logistik Pusat atau PIC Cabang dengan mengunggah bukti dokumen resmi persetujuan mutasi program dari pihak sekolah.
