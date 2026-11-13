@@ -225,6 +225,27 @@ describe("Students admin API", () => {
     expect(listRombel2Json.data[0].rombel).toBe("2 INTER 1");
     expect(listAJson.data.some((s: any) => s.name === `Anak A ${stamp}`)).toBe(true);
 
+    // Endpoint /rombels mengembalikan master rombel unik terurut (§0.76)
+    const rombelsRes = await studentsRouter.request(`/rombels?schoolId=${schoolA}`);
+    expect(rombelsRes.status).toBe(200);
+    const rombelsJson = await rombelsRes.json();
+    expect(rombelsJson.success).toBe(true);
+    expect(rombelsJson.data).toContain("1 INTER 1");
+    expect(rombelsJson.data).toContain("2 INTER 1");
+    expect(rombelsJson.data.indexOf("1 INTER 1")).toBeLessThan(rombelsJson.data.indexOf("2 INTER 1"));
+
+    // Pagination query test
+    const pageRes = await studentsRouter.request(`/?schoolId=${schoolA}&page=1&limit=1`);
+    expect(pageRes.status).toBe(200);
+    const pageJson = await pageRes.json();
+    expect(pageJson.success).toBe(true);
+    expect(pageJson.data.length).toBe(1);
+    expect(pageJson.pagination).toBeDefined();
+    expect(pageJson.pagination.page).toBe(1);
+    expect(pageJson.pagination.limit).toBe(1);
+    expect(pageJson.pagination.total).toBeGreaterThanOrEqual(3);
+    expect(pageJson.pagination.totalPages).toBeGreaterThanOrEqual(3);
+
     const pendingOnly = await studentsRouter.request(`/?schoolId=${schoolA}&status=new_pending`);
     const pendingJson = await pendingOnly.json();
     expect(pendingJson.data.every((s: any) => s.status === "new_pending")).toBe(true);

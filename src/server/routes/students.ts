@@ -1,20 +1,19 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { students, schools } from "../../db/schema";
 import { matchAnyLower } from "../lib/partitioned-search";
+import { sortRombels } from "../../lib/classroom";
 import {
   accessErrorResponse,
   assertLocationAllowed,
   requireScopedActor,
 } from "../services/access-scope";
 import {
-  batchPromoteStudents,
   checkNisTaken,
   getStudentActiveOrders,
-  importStudents,
   removeStudent,
   verifyStudentRegistration,
 } from "../services/student-lifecycle";
@@ -48,7 +47,7 @@ const verifyStudentSchema = z.object({
   nis: z.string().min(1, "NIS resmi wajib diisi saat menyetujui").optional(),
 });
 
-// 1. GET list with school/status/search filters
+// 1. GET list with school/status/search filters & pagination
 studentsRouter.get("/", async (c) => {
   try {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
@@ -56,44 +55,98 @@ studentsRouter.get("/", async (c) => {
     const status = c.req.query("status");
     const rombel = c.req.query("rombel");
     const search = c.req.query("search");
+    const page = Math.max(1, parseInt(c.req.query("page") || "1", 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(c.req.query("limit") || "50", 10) || 50));
+    const offset = (page - 1) * limit;
 
-  const conditions = [];
-  if (schoolId) conditions.push(eq(students.schoolId, schoolId));
-  if (status && status !== "all") conditions.push(eq(students.status, status as any));
-  if (rombel && rombel !== "all") conditions.push(eq(students.rombel, rombel));
-  // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
-  if (search?.trim()) {
-    const matched = matchAnyLower([students.name, students.nis, students.parentName], search);
-    if (matched) conditions.push(matched);
+    const conditions = [];
+    if (schoolId) conditions.push(eq(students.schoolId, schoolId));
+    if (status && status !== "all") {
+      conditions.push(eq(students.status, status as (typeof students.$inferSelect)["status"]));
+    }
+    if (rombel && rombel !== "all") conditions.push(eq(students.rombel, rombel));
+    // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
+    if (search?.trim()) {
+      const matched = matchAnyLower([students.name, students.nis, students.parentName], search);
+      if (matched) conditions.push(matched);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [totalRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(students)
+      .where(whereClause)
+      .limit(1);
+    const total = Number(totalRow?.count ?? 0);
+
+    const data = await db
+      .select({
+        id: students.id,
+        nis: students.nis,
+        name: students.name,
+        gender: students.gender,
+        gradeLevel: students.gradeLevel,
+        rombel: students.rombel,
+        curriculumType: students.curriculumType,
+        academicYear: students.academicYear,
+        parentName: students.parentName,
+        parentEmail: students.parentEmail,
+        parentPhone: students.parentPhone,
+        status: students.status,
+        isScholarship: students.isScholarship,
+        schoolId: students.schoolId,
+        schoolName: schools.name,
+        createdAt: students.createdAt,
+        updatedAt: students.updatedAt,
+      })
+      .from(students)
+      .innerJoin(schools, eq(students.schoolId, schools.id))
+      .where(whereClause)
+      .orderBy(desc(students.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
   }
+});
 
-  const data = await db
-    .select({
-      id: students.id,
-      nis: students.nis,
-      name: students.name,
-      gender: students.gender,
-      gradeLevel: students.gradeLevel,
-      rombel: students.rombel,
-      curriculumType: students.curriculumType,
-      academicYear: students.academicYear,
-      parentName: students.parentName,
-      parentEmail: students.parentEmail,
-      parentPhone: students.parentPhone,
-      status: students.status,
-      isScholarship: students.isScholarship,
-      schoolId: students.schoolId,
-      schoolName: schools.name,
-      createdAt: students.createdAt,
-      updatedAt: students.updatedAt,
-    })
-    .from(students)
-    .innerJoin(schools, eq(students.schoolId, schools.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(students.createdAt))
-    .limit(50);
+// 1a. GET rombels list for school (Master rombel data-driven)
+studentsRouter.get("/rombels", async (c) => {
+  try {
+    const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
+    const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
 
-  return c.json({ success: true, data });
+    const conditions = [isNotNull(students.rombel)];
+    if (schoolId && schoolId !== "all") {
+      conditions.push(eq(students.schoolId, schoolId));
+    }
+
+    const rows = await db
+      .selectDistinct({ rombel: students.rombel })
+      .from(students)
+      .where(and(...conditions))
+      .limit(100);
+
+    const cleanRombels = rows
+      .map((r) => r.rombel?.trim())
+      .filter((r): r is string => Boolean(r));
+
+    return c.json({
+      success: true,
+      data: sortRombels(Array.from(new Set(cleanRombels))),
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
@@ -260,82 +313,6 @@ studentsRouter.post("/:id/verify", zValidator("json", verifyStudentSchema), asyn
       return c.json({ success: false, message: result.message }, result.status);
     }
     return c.json({ success: true, message: result.message, data: result.data });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// 6. POST bulk-import (upsert based on schoolId + nis)
-const bulkImportItemSchema = z.object({
-  nis: z.string().min(1, "NIS wajib diisi"),
-  name: z.string().min(1, "Nama wajib diisi"),
-  gradeLevel: z.string().min(1, "Kelas wajib diisi"),
-  rombel: z.string().trim().optional().nullable(),
-  gender: z.enum(["male", "female"]).default("male"),
-  curriculumType: z.enum(["international", "national"]).default("international"),
-  academicYear: z.string().min(1).default("2026/2027"),
-  parentName: z.string().optional(),
-  parentEmail: z.string().email().optional().or(z.literal("")),
-  parentPhone: z.string().optional(),
-  status: z.enum(["active", "promoted", "new_pending", "rejected", "graduated"]).default("active"),
-  isScholarship: z.boolean().default(false),
-});
-
-const bulkImportPayloadSchema = z.object({
-  schoolId: z.string().min(1, "Sekolah wajib dipilih"),
-  students: z.array(bulkImportItemSchema).min(1, "Minimal 1 data siswa untuk diimpor"),
-});
-
-studentsRouter.post("/bulk-import", zValidator("json", bulkImportPayloadSchema), async (c) => {
-  try {
-    const { actor, locations } = await requireScopedActor(db, c);
-    const body = c.req.valid("json");
-    assertLocationAllowed(actor, body.schoolId, locations);
-
-    const [school] = await db.select().from(schools).where(eq(schools.id, body.schoolId));
-    if (!school) {
-      return c.json({ success: false, message: "Sekolah tidak ditemukan" }, 404);
-    }
-
-    const imported = await importStudents(db, body.schoolId, body.students);
-    if (!imported.ok) {
-      return c.json({ success: false, message: imported.message }, imported.status);
-    }
-
-    return c.json({
-      success: true,
-      message: `Impor berhasil: ${imported.data.insertedCount} siswa baru ditambahkan, ${imported.data.updatedCount} siswa diperbarui.`,
-      data: imported.data,
-    });
-  } catch (err) {
-    return accessErrorResponse(c, err);
-  }
-});
-
-// 7. POST batch-promote (promosi kenaikan kelas masal per sekolah)
-const batchPromoteSchema = z.object({
-  schoolId: idSchema,
-  targetAcademicYear: z.string().min(1, "Tahun ajaran baru wajib diisi"),
-  excludeStudentIds: z.array(idSchema).default([]),
-  maxGradeLevel: z.number().int().min(1).default(6),
-});
-
-studentsRouter.post("/batch-promote", zValidator("json", batchPromoteSchema), async (c) => {
-  try {
-    const { actor, locations } = await requireScopedActor(db, c);
-    const body = c.req.valid("json");
-    assertLocationAllowed(actor, body.schoolId, locations);
-
-    const result = await batchPromoteStudents(db, body);
-    if (!result.ok) {
-      return c.json({ success: false, message: result.message }, result.status);
-    }
-
-    return c.json({
-      success: true,
-      message: `Promosi kelas berhasil: ${result.data.promotedCount} naik kelas, ${result.data.graduatedCount} lulus/alumni, ${result.data.skippedCount} dilewati/tinggal kelas.`,
-      data: result.data,
-    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

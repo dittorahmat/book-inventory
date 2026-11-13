@@ -1,4 +1,4 @@
-import { buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
+import { apiEnvelope, buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
 
 /** Opsi sekolah kanonik (id + nama + kode) dipakai ulang dari tipe portal. */
 import type { SchoolOption } from "../../lib/portal-types";
@@ -33,6 +33,15 @@ export interface StudentListParams {
   status?: string;
   rombel?: string;
   search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface StudentPaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface StudentFormPayload {
@@ -54,16 +63,35 @@ export interface StudentFormPayload {
 export const fetchSchools = (): Promise<SchoolOption[]> =>
   getJson<SchoolOption[]>("/api/schools", "Gagal memuat daftar sekolah.");
 
-export const fetchStudents = (params: StudentListParams): Promise<StudentRecord[]> =>
-  getJson<StudentRecord[]>(
+export const fetchSchoolRombels = (schoolId?: string): Promise<string[]> =>
+  getJson<string[]>(
+    buildQuery("/api/students/rombels", {
+      schoolId: schoolId && schoolId !== "all" ? schoolId : undefined,
+    }),
+    "Gagal memuat daftar rombel."
+  );
+
+export const fetchStudents = async (
+  params: StudentListParams
+): Promise<{ students: StudentRecord[]; pagination?: StudentPaginationMeta }> => {
+  const envelope = await apiEnvelope<{ data: StudentRecord[]; pagination?: StudentPaginationMeta }>(
     buildQuery("/api/students", {
       schoolId: params.schoolId,
       status: params.status && params.status !== "all" ? params.status : undefined,
       rombel: params.rombel && params.rombel !== "all" ? params.rombel : undefined,
       search: params.search?.trim() || undefined,
+      page: params.page ? String(params.page) : undefined,
+      limit: params.limit ? String(params.limit) : undefined,
     }),
+    undefined,
     "Gagal memuat data siswa."
   );
+
+  return {
+    students: envelope.data ?? [],
+    pagination: envelope.pagination,
+  };
+};
 
 export const fetchStudentActiveOrders = (
   id: string
