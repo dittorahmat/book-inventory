@@ -18,6 +18,7 @@ import {
   type UniformOrderRow,
 } from "./uniform-admin-api";
 import { UniformShippingBatchModal } from "./UniformShippingBatchModal";
+import { BulkResiModal } from "./BulkResiModal";
 import { UniformOrderCard } from "./UniformOrderCard";
 import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
 import { UniformShipModal, UniformConfirmReceiptModal } from "./UniformShipModal";
@@ -40,6 +41,7 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   // Modals & sub-form states
   const [shippingId, setShippingId] = useState<string | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showBulkResiModal, setShowBulkResiModal] = useState(false);
   const [paidOnly, setPaidOnly] = useState(true);
   const [importText, setImportText] = useState("");
   const [importShipped, setImportShipped] = useState(false);
@@ -234,6 +236,7 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         loading={loading}
         onRefresh={load}
         onOpenBatch={() => setShowBatchModal(true)}
+        onOpenBulkResi={() => setShowBulkResiModal(true)}
       />
 
       {error && (
@@ -352,6 +355,15 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         importResult={importResult}
         onImport={handleImport}
         hasSchoolSelected={!!schoolId}
+      />
+
+      {/* Modal Bulk Upload Resi */}
+      <BulkResiModal
+        isOpen={showBulkResiModal}
+        onClose={() => setShowBulkResiModal(false)}
+        onSuccess={load}
+        selectedSchoolId={schoolId || undefined}
+        schoolName={schools.find((s) => s.id === schoolId)?.name}
       />
     </div>
   );
