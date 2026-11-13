@@ -10,6 +10,7 @@ export interface StudentRecord {
   name: string;
   gender?: string | null;
   gradeLevel: string;
+  rombel?: string | null;
   curriculumType: string;
   academicYear: string;
   parentName?: string | null;
@@ -39,6 +40,7 @@ export interface StudentFormPayload {
   name: string;
   gender: "male" | "female";
   gradeLevel: string;
+  rombel?: string;
   curriculumType: "international" | "national";
   academicYear: string;
   parentName?: string;

@@ -179,6 +179,11 @@ export function StudentSearchStep({
                         <span className="text-[10px] font-bold text-[#050505] bg-[#F0F2F5] px-2 py-0.5 rounded-full uppercase tracking-wider">
                           {curriculumLabel(st.curriculumType)}
                         </span>
+                        {st.rombel && (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            {st.rombel}
+                          </span>
+                        )}
                         {st.stream && (
                           <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
                             {st.stream}

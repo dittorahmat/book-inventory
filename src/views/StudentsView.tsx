@@ -27,6 +27,7 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
   );
   const currentSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
   const s = useStudents(currentSchoolId);
+  const [selectedRombel, setSelectedRombel] = useState<string>("all");
   const [schools, setSchools] = useState<SchoolOption[]>(initialSchools || []);
   const [showBulkUpload, setShowBulkUpload] = useState<boolean>(false);
   const [showBatchPromote, setShowBatchPromote] = useState<boolean>(false);
@@ -42,6 +43,15 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
   }, [schools.length, setError]);
 
   const branchSchools = filterBranchSchools(schools);
+
+  // Daftar unik rombel dari data siswa yang sedang dimuat
+  const availableRombels = Array.from(
+    new Set(s.students.map((st) => st.rombel).filter((r): r is string => Boolean(r)))
+  ).sort();
+
+  const filteredStudents = selectedRombel === "all"
+    ? s.students
+    : s.students.filter((st) => st.rombel === selectedRombel);
 
   return (
     <div className="space-y-4">
@@ -124,6 +134,19 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
             placeholder="Filter status..."
           />
         </div>
+        {availableRombels.length > 0 && (
+          <div className="w-full sm:w-44">
+            <SearchableSingleSelect
+              options={[
+                { value: "all", label: "Semua Rombel" },
+                ...availableRombels.map((r) => ({ value: r, label: r })),
+              ]}
+              value={selectedRombel}
+              onChange={(v) => setSelectedRombel(v)}
+              placeholder="Filter rombel..."
+            />
+          </div>
+        )}
       </div>
 
       {successBanner && (
@@ -159,18 +182,18 @@ export function StudentsView({ activeSchool, schools: initialSchools, userRole }
           <Loader2 className="w-6 h-6 animate-spin text-[#1877F2]" />
           <span>Memuat data siswa...</span>
         </div>
-      ) : s.students.length === 0 ? (
+      ) : filteredStudents.length === 0 ? (
         <div className="bg-white rounded-2xl border border-[#E4E6EB] p-10 flex flex-col items-center gap-2 text-center">
           <Users className="w-8 h-8 text-[#CED0D4]" />
           <div className="text-xs font-bold text-[#050505]">Belum ada data siswa</div>
           <p className="text-xs text-[#65676B] max-w-xs">
-            {s.search || s.statusFilter !== "all"
-              ? "Tidak ada siswa yang cocok dengan filter. Ubah kata kunci atau filter status."
+            {s.search || s.statusFilter !== "all" || selectedRombel !== "all"
+              ? "Tidak ada siswa yang cocok dengan filter. Ubah kata kunci atau filter status/rombel."
               : "Tambahkan siswa manual atau tunggu pendaftar baru dari portal orang tua."}
           </p>
         </div>
       ) : (
-        <StudentTable students={s.students} onEdit={s.openEdit} onDelete={s.remove} />
+        <StudentTable students={filteredStudents} onEdit={s.openEdit} onDelete={s.remove} />
       )}
 
       {s.showForm && (
