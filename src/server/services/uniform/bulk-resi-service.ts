@@ -1,9 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { students, uniformOrders } from "../../../db/schema";
-import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { normalizeCsvNis } from "./csv-row";
-import { sendUniformShippingNotification } from "./dispatch-notification";
 
 export interface BulkResiPreviewItem {
   nis: string;
@@ -146,6 +145,8 @@ export interface CommitBulkResiResult {
 
 /**
  * Mengeksekusi commit perubahan resi pengiriman massal ke database.
+ * Seluruh pembaruan resi di-chunk per 10 baris query batch D1 (§10).
+ * Pelacakan posisi paket/resi dilakukan manual via staf logistik tanpa auto-WA blast.
  */
 export async function commitBulkUniformResi(
   database: AppDatabase,
@@ -155,16 +156,25 @@ export async function commitBulkUniformResi(
   const preview = await previewBulkUniformResi(database, rows, schoolId);
   const now = new Date().toISOString();
   let updatedCount = 0;
-  const results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> = [];
 
-  for (const item of preview.items) {
+  // Petakan hasil per index baris preview agar urutan results sama persis dengan input
+  const results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> = new Array(preview.items.length);
+
+  const validEntries: Array<{ index: number; item: (typeof preview.items)[number] & { orderId: string; orderNumber: string } }> = [];
+
+  preview.items.forEach((item, index) => {
     if (item.status === "error" || !item.orderId || !item.orderNumber) {
-      results.push({ nis: item.nis, orderNumber: item.orderNumber || "-", resi: item.resi, success: false });
-      continue;
+      results[index] = { nis: item.nis, orderNumber: item.orderNumber || "-", resi: item.resi, success: false };
+    } else {
+      validEntries.push({ index, item: item as typeof item & { orderId: string; orderNumber: string } });
     }
+  });
 
+  // Chunk pembaruan database per 10 baris agar aman dari limit bound-parameter D1
+  const chunks = chunkRows(validEntries, 10);
+  for (const chunk of chunks) {
     try {
-      await runWriteBatch(database, [
+      const queries = chunk.map(({ item }) =>
         database
           .update(uniformOrders)
           .set({
@@ -173,22 +183,23 @@ export async function commitBulkUniformResi(
             shippedAt: now,
             updatedAt: now,
           })
-          .where(eq(uniformOrders.id, item.orderId)),
-      ]);
-
-      // Kirim notifikasi pengiriman jika ada
-      await sendUniformShippingNotification(database, item.orderId).catch(() => null);
-
-      updatedCount++;
-      results.push({ nis: item.nis, orderNumber: item.orderNumber, resi: item.resi, success: true });
+          .where(eq(uniformOrders.id, item.orderId))
+      );
+      await runWriteBatch(database, queries);
+      for (const { index, item } of chunk) {
+        updatedCount++;
+        results[index] = { nis: item.nis, orderNumber: item.orderNumber, resi: item.resi, success: true };
+      }
     } catch (err) {
       const mapped = d1WriteErrorStatus(err, "bulk update resi");
-      results.push({
-        nis: item.nis,
-        orderNumber: item.orderNumber,
-        resi: item.resi,
-        success: false,
-      });
+      for (const { index, item } of chunk) {
+        results[index] = {
+          nis: item.nis,
+          orderNumber: item.orderNumber,
+          resi: item.resi,
+          success: false,
+        };
+      }
       void mapped;
     }
   }

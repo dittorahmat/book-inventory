@@ -283,7 +283,7 @@ export function BulkResiModal({
             ) : (
               <button
                 type="button"
-                disabled={busy || validCount === 0}
+                disabled={busy}
                 onClick={handleCommit}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-emerald-700 transition-colors"
               >

@@ -22,6 +22,14 @@ describe("Khimar SD sizing and predicates", () => {
         jenjang: "sd",
       })
     ).toBe(true);
+
+    expect(
+      isKhimarSdVariant({
+        code: "KHIMAR-01",
+        name: "Khimar Merah Polos",
+        jenjang: "sd",
+      })
+    ).toBe(true);
   });
 
   it("does not treat TK, SMP, or SMA khimar as Khimar SD", () => {
