@@ -11,7 +11,7 @@ import { PendingOrderConfirmModal } from "../components/portal/PendingOrderConfi
 export function PublicUniformOrderView() {
   const order = useUniformOrder();
   const [addressAttempted, setAddressAttempted] = useState(false);
-  const addressInputRef = useRef<HTMLTextAreaElement>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
   const postalCodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -138,46 +138,152 @@ export function PublicUniformOrderView() {
               />
             </div>
           )}
-          <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Alamat rumah pengiriman</label>
-            <textarea
-              ref={addressInputRef}
-              value={order.address}
-              onChange={(e) => order.setAddress(e.target.value)}
-              rows={3}
-              placeholder="Jalan, RT/RW, kelurahan, kecamatan, kota (wajib memuat RT dan RW)"
-              className={`w-full rounded-xl border px-3 py-2.5 text-sm transition-colors ${
-                addressAttempted && !order.address.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
-              }`}
-            />
-            <FormFieldFeedback
-              error={addressAttempted && !order.address.trim() ? "Alamat rumah pengiriman wajib diisi lengkap." : undefined}
-              hint="Wajib memuat RT dan RW. Satu order dikirim ke satu alamat."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Kode Pos (Wajib)</label>
-            <input
-              ref={postalCodeInputRef}
-              type="text"
-              maxLength={5}
-              value={order.postalCode}
-              onChange={(e) => order.setPostalCode(e.target.value.replace(/\D/g, ""))}
-              placeholder="Contoh: 15310 (5 digit angka)"
-              className={`w-full max-w-xs rounded-xl border px-3 py-2.5 text-sm transition-colors ${
-                addressAttempted && !order.isPostalCodeValid ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
-              }`}
-            />
-            <FormFieldFeedback
-              error={
-                addressAttempted && !order.postalCode.trim()
-                  ? "Kode pos wajib diisi."
-                  : addressAttempted && !order.isPostalCodeValid
-                  ? "Kode pos wajib 5 digit angka."
-                  : undefined
-              }
-              hint="Masukkan 5 digit kode pos tujuan pengiriman."
-            />
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-[#050505] uppercase tracking-wider">Informasi Penerima & Alamat Kirim</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Nama Penerima (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.recipientName}
+                  onChange={(e) => order.setRecipientName(e.target.value)}
+                  placeholder="Nama lengkap penerima paket"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.recipientName.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+                <FormFieldFeedback
+                  error={addressAttempted && !order.recipientName.trim() ? "Nama penerima wajib diisi." : undefined}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">No. HP / WhatsApp (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.recipientPhone}
+                  onChange={(e) => order.setRecipientPhone(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.recipientPhone.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+                <FormFieldFeedback
+                  error={addressAttempted && !order.recipientPhone.trim() ? "Nomor telepon/WA penerima wajib diisi." : undefined}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Nama Jalan / Komplek (Wajib)</label>
+                <input
+                  ref={addressInputRef}
+                  type="text"
+                  value={order.street}
+                  onChange={(e) => order.setStreet(e.target.value)}
+                  placeholder="Contoh: Jl. Melati Indah Blok C"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.street.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+                <FormFieldFeedback
+                  error={addressAttempted && !order.street.trim() ? "Nama jalan wajib diisi." : undefined}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">No. Rumah (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.houseNumber}
+                  onChange={(e) => order.setHouseNumber(e.target.value)}
+                  placeholder="No. 12"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.houseNumber.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+                <FormFieldFeedback
+                  error={addressAttempted && !order.houseNumber.trim() ? "Nomor rumah wajib diisi." : undefined}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">RT (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.rt}
+                  onChange={(e) => order.setRt(e.target.value)}
+                  placeholder="01"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.rt.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">RW (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.rw}
+                  onChange={(e) => order.setRw(e.target.value)}
+                  placeholder="02"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.rw.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Kelurahan (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.kelurahan}
+                  onChange={(e) => order.setKelurahan(e.target.value)}
+                  placeholder="Kelurahan"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.kelurahan.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Kecamatan (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.kecamatan}
+                  onChange={(e) => order.setKecamatan(e.target.value)}
+                  placeholder="Kecamatan"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.kecamatan.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Kota / Kabupaten (Wajib)</label>
+                <input
+                  type="text"
+                  value={order.city}
+                  onChange={(e) => order.setCity(e.target.value)}
+                  placeholder="Kota / Kabupaten"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    addressAttempted && !order.city.trim() ? "border-rose-500 bg-rose-50/20" : "border-[#CED0D4]"
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#050505] mb-1">Kode Pos (Opsional / 5 digit)</label>
+                <input
+                  ref={postalCodeInputRef}
+                  type="text"
+                  maxLength={5}
+                  value={order.postalCode}
+                  onChange={(e) => order.setPostalCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Contoh: 15310"
+                  className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-[#050505] mb-1">Catatan (opsional)</label>

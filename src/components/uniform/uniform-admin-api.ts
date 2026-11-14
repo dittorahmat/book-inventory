@@ -269,3 +269,32 @@ export const downloadUniformCsv = async (params: { schoolId: string; format: "pa
 
 export const importUniformShipping = (payload: { schoolId: string; markShipped?: boolean; rows: Array<{ nis: string; resi?: string; ongkir?: number }> }): Promise<{ updated: string[]; rejected: Array<{ nis: string; reason: string }> }> =>
   postJson("/api/uniforms/orders/import-shipping", payload, "Gagal mengimpor data ekspedisi.");
+
+export interface BulkResiPreviewItem {
+  nis: string;
+  name: string;
+  resi: string;
+  status: "valid" | "warning" | "error";
+  orderId?: string;
+  orderNumber?: string;
+  studentName?: string;
+  message?: string;
+}
+
+export interface BulkResiPreviewResult {
+  items: BulkResiPreviewItem[];
+  validCount: number;
+  errorCount: number;
+}
+
+export const previewBulkUniformResi = (payload: {
+  schoolId?: string;
+  rows: Array<{ nis: string; name: string; resi: string }>;
+}): Promise<BulkResiPreviewResult> =>
+  postJson<BulkResiPreviewResult>("/api/uniforms/orders/bulk-shipping-resi/preview", payload, "Gagal memverifikasi data resi.");
+
+export const commitBulkUniformResi = (payload: {
+  schoolId?: string;
+  rows: Array<{ nis: string; name: string; resi: string }>;
+}): Promise<{ updatedCount: number; results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> }> =>
+  postJson("/api/uniforms/orders/bulk-shipping-resi/commit", payload, "Gagal mengunggah resi massal.");

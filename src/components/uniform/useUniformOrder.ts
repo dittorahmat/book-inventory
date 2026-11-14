@@ -12,6 +12,12 @@ import {
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
 import { findMatchingUniformSelection } from "../../lib/uniform-selection";
+import { isKhimarSdVariant } from "../../lib/khimar-sd";
+import {
+  formatStructuredHomeAddress,
+  validateStructuredAddress,
+  type StructuredAddressInput,
+} from "../../lib/structured-address";
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
@@ -25,6 +31,15 @@ export function useUniformOrder() {
   const [sizeFor, setSizeFor] = useState<Record<string, string>>({});
   const [address, setAddress] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [street, setStreet] = useState("");
+  const [rt, setRt] = useState("");
+  const [rw, setRw] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
+  const [kelurahan, setKelurahan] = useState("");
+  const [kecamatan, setKecamatan] = useState("");
+  const [city, setCity] = useState("");
   const [notes, setNotes] = useState("");
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProof, setScholarshipProof] = useState("");
@@ -159,6 +174,15 @@ export function useUniformOrder() {
     setSizeFor({});
     setAddress("");
     setPostalCode("");
+    setRecipientName("");
+    setRecipientPhone("");
+    setStreet("");
+    setRt("");
+    setRw("");
+    setHouseNumber("");
+    setKelurahan("");
+    setKecamatan("");
+    setCity("");
     setNotes("");
     setOrderType("regular");
     setScholarshipProof("");
@@ -167,15 +191,37 @@ export function useUniformOrder() {
     setStep(1);
   };
 
-  const isPostalCodeValid = /^\d{5}$/.test(postalCode.trim());
-  const combinedAddress = postalCode.trim()
-    ? `${address.trim()}, Kode Pos ${postalCode.trim()}`
-    : address.trim();
+  const structuredInput: StructuredAddressInput = useMemo(
+    () => ({
+      recipientName: recipientName.trim() || student?.parentName || student?.name || "",
+      recipientPhone: recipientPhone.trim() || student?.parentPhone || "",
+      street,
+      rt,
+      rw,
+      houseNumber,
+      kelurahan,
+      kecamatan,
+      city,
+      postalCode,
+    }),
+    [recipientName, recipientPhone, student, street, rt, rw, houseNumber, kelurahan, kecamatan, city, postalCode]
+  );
 
-  // Getter domain untuk seragam olahraga yang belum dipilih ukurannya
+  const structuredValidation = useMemo(() => validateStructuredAddress(structuredInput), [structuredInput]);
+
+  const isPostalCodeValid = postalCode.trim() === "" || /^\d{5}$/.test(postalCode.trim());
+  const combinedAddress = useMemo(() => {
+    if (street.trim() && rt.trim() && rw.trim() && kelurahan.trim()) {
+      return formatStructuredHomeAddress(structuredInput);
+    }
+    return postalCode.trim() ? `${address.trim()}, Kode Pos ${postalCode.trim()}` : address.trim();
+  }, [street, rt, rw, kelurahan, structuredInput, postalCode, address]);
+
+  // Getter domain untuk seragam olahraga atau Khimar SD yang belum dipilih ukurannya
   const missingOlahragaVariants = useMemo(() => {
     return visibleVariants.filter((v) => {
-      if (v.kind !== "olahraga") return false;
+      const isSized = v.kind === "olahraga" || isKhimarSdVariant(v);
+      if (!isSized) return false;
       const picked = sizeFor[v.id] ?? "";
       const key = picked ? `${v.id}::${picked}` : v.id;
       const currentQty = satuanQty[key] ?? satuanQty[v.id] ?? 0;
@@ -200,7 +246,7 @@ export function useUniformOrder() {
   const canSubmit =
     itemCount > 0 &&
     isPostalCodeValid &&
-    validateHomeAddress(combinedAddress).ok &&
+    (structuredValidation.isValid || validateHomeAddress(combinedAddress).ok) &&
     (orderType === "regular" || scholarshipProof !== "") &&
     !hasMissingOlahragaSize;
 
@@ -252,6 +298,10 @@ export function useUniformOrder() {
     student, catalog, loadingCatalog, visibleVariants, visiblePackages,
     packageQty, satuanQty, sizeFor, setSizeFor, bumpPackage, bumpSatuan,
     address, setAddress, postalCode, setPostalCode, isPostalCodeValid, notes, setNotes, step, setStep,
+    recipientName, setRecipientName, recipientPhone, setRecipientPhone,
+    street, setStreet, rt, setRt, rw, setRw, houseNumber, setHouseNumber,
+    kelurahan, setKelurahan, kecamatan, setKecamatan, city, setCity,
+    structuredValidation,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
     uniformMode, setUniformMode,
     missingOlahragaVariants, missingPackageOlahraga, hasMissingOlahragaSize,

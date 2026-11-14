@@ -39,7 +39,7 @@ async function seedPriorUniformOrder(schoolId: string, studentId: string, stamp:
 }
 
 describe("Uniform catalog, PO & assembly API", () => {
-  it("menolak kain ber-size dan olahraga tanpa size", async () => {
+  it("menolak kain ber-size dan olahraga tanpa size, tetapi mengizinkan Khimar SD berukuran (size 1 dan 4)", async () => {
     const stamp = Date.now();
     const kainRes = await postJson("/variants", {
       code: `UK-T3-KAIN-${stamp}`, name: "Kain Harian SD L", kind: "kain_harian",
@@ -51,6 +51,13 @@ describe("Uniform catalog, PO & assembly API", () => {
       gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 95000, sizes: [],
     });
     expect(olRes.status).toBe(400);
+
+    // Khimar SD boleh memiliki ukuran 1 dan 4
+    const khimarRes = await postJson("/variants", {
+      code: `UNI-SD-AKH-KHIMAR_HIJAU-${stamp}`, name: "KHIMAR HIJAU (SD Akhwat)", kind: "kain_harian",
+      gender: "female", jenjang: "sd", academicYear: "2026/2027", price: 225000, sizes: ["1", "4"],
+    });
+    expect(khimarRes.status).toBe(201);
   });
 
   it("alur penuh: varian -> paket -> PO campur -> terima -> rakit", async () => {
@@ -710,7 +717,7 @@ describe("Uniform sales report & claims", () => {
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
 
-  it("invoice seragam wajib ongkir; konfirmasi bertahap lalu lunas via link", async () => {
+  it("invoice seragam bebas ongkir (free ongkir); konfirmasi bertahap lalu lunas via link", async () => {
     const stamp = Date.now();
     const now = new Date().toISOString();
     const schoolId = `test-uinv-${stamp}`;
@@ -744,18 +751,14 @@ describe("Uniform sales report & claims", () => {
     const { publicUniformOrdersRouter } = await import("./public-uniform-orders");
     const lookupPublic = (path: string, init?: RequestInit) => publicUniformOrdersRouter.request(path, init);
     try {
-      const blocked = await uniformsRouter.request(`/orders/${orderId}/send-invoice`, { method: "POST" });
-      expect(blocked.status).toBe(400);
-
-      const ship = await postJson(`/orders/${orderId}/shipping`, { shippingCost: 15000 });
-      expect(ship.status).toBe(200);
+      // Seragam kini free ongkir: invoice bisa dikirim langsung tanpa wajib input ongkir
       const sent = await uniformsRouter.request(`/orders/${orderId}/send-invoice`, { method: "POST" });
       expect(sent.status).toBe(200);
       const token = ((await sent.json()).data.confirmUrl as string).split("/").pop() as string;
 
       const lookup = await lookupPublic(`/confirm/${token}`, { method: "GET" });
       expect(lookup.status).toBe(200);
-      expect((await lookup.json()).data.due).toBe(65000);
+      expect((await lookup.json()).data.due).toBe(50000);
 
       const first = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -766,28 +769,26 @@ describe("Uniform sales report & claims", () => {
 
       const second = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 35000, allocationAmount: 35000 }),
+        body: JSON.stringify({ transferAmount: 20000, allocationAmount: 20000 }),
       });
       expect(second.status).toBe(201);
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
 
-      // Uang baru sah setelah gudang memverifikasi tiap klaim.
+      // Verifikasi kedua bukti oleh staf kasir / logistik
       const claims = await selectReceiptsForOrder(orderId);
-      const claimOne = claims.find((row) => row.allocation.amount === 30000)?.receipt;
-      const claimTwo = claims.find((row) => row.allocation.amount === 35000)?.receipt;
-      if (!claimOne || !claimTwo) throw new Error("klaim pembayaran tidak terbentuk");
-      const verifyOne = await uniformsRouter.request(`/orders/${orderId}/payments/${claimOne.id}/verify`, { method: "POST" });
-      expect(verifyOne.status).toBe(200);
-      const verifyOneJson = await verifyOne.json();
-      expect(verifyOneJson.data.paymentStatus).toBe("partial");
-      expect(verifyOneJson.data.notification).toBeNull();
-      const verifyTwo = await uniformsRouter.request(`/orders/${orderId}/payments/${claimTwo.id}/verify`, { method: "POST" });
-      expect(verifyTwo.status).toBe(200);
-      const verifyTwoJson = await verifyTwo.json();
-      expect(verifyTwoJson.data.paymentStatus).toBe("paid");
-      expect(verifyTwoJson.data.notification.wa.success).toBe(true);
+      expect(claims).toHaveLength(2);
+
+      const ver1 = await uniformsRouter.request(`/orders/${orderId}/payments/${claims[0].receipt.id}/verify`, { method: "POST" });
+      expect(ver1.status).toBe(200);
+      const ver2 = await uniformsRouter.request(`/orders/${orderId}/payments/${claims[1].receipt.id}/verify`, { method: "POST" });
+      expect(ver2.status).toBe(200);
+
+      const [paidOrder] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+      expect(paidOrder.paidAmount).toBe(50000);
+      expect(paidOrder.paymentStatus).toBe("paid");
     } finally {
       await deleteReceiptsForOrders([orderId]);
+      await db.delete(branchCharges).where(eq(branchCharges.sourceId, orderId));
       await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
       await db.delete(students).where(eq(students.id, studentId));
       await db.delete(schools).where(eq(schools.id, schoolId));

@@ -5,6 +5,7 @@ import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { UniformSizeGuideModal } from "./UniformSizeGuideModal";
 import { formatUniformSizeLabel, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
+import { formatKhimarSdSizeLabel, isKhimarSdVariant } from "../../lib/khimar-sd";
 import type { UniformOrder } from "./useUniformOrder";
 
 const stepper = (qty: number, onChange: (delta: number) => void, disabled = false) => (
@@ -33,8 +34,9 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [sizeWarningId, setSizeWarningId] = useState<string | null>(null);
-  const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian");
+  const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian" && !isKhimarSdVariant(v));
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
+  const khimarSd = order.visibleVariants.filter((v) => isKhimarSdVariant(v));
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
   const stockOf = (variantId: string, size: string) =>
     order.catalog?.variants.find((v) => v.id === variantId)?.stock.find((s) => s.size === size)?.quantity ?? 0;
@@ -152,6 +154,78 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 {stepper(order.satuanQty[v.id] ?? 0, (d) => order.bumpSatuan(v.id, d))}
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {khimarSd.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-bold text-[#050505]">Khimar SD (Berukuran)</h3>
+          </div>
+          <p className="text-xs text-[#65676B] mb-3">Pilihan size resmi: Size 1 (untuk kelas 1-2) dan Size 4 (untuk kelas 3-6).</p>
+          <div className="space-y-3">
+            {khimarSd.map((v) => {
+              const picked = order.sizeFor[v.id] ?? "";
+              const key = picked ? `${v.id}::${picked}` : v.id;
+              const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
+              const sizeOptions = (v.sizes.length > 0 ? v.sizes : ["1", "4"]).map((s) => ({
+                value: s,
+                label: `${formatKhimarSdSizeLabel(s)} · Stok: ${stockOf(v.id, s)}`,
+              }));
+
+              const handleSizeChange = (val: string) => {
+                order.setSizeFor((s) => ({ ...s, [v.id]: val }));
+                setSizeWarningId(null);
+                if (currentQty > 0) {
+                  order.bumpSatuan(key, -currentQty);
+                  const newKey = val ? `${v.id}::${val}` : v.id;
+                  order.bumpSatuan(newKey, currentQty);
+                }
+              };
+
+              const handleStepperChange = (delta: number) => {
+                if (!picked && delta > 0) {
+                  setSizeWarningId(v.id);
+                  return;
+                }
+                order.bumpSatuan(key, delta);
+              };
+
+              const isMissingSize = (attempted || sizeWarningId === v.id) && currentQty > 0 && !picked;
+              const errorMessage = isMissingSize ? "Wajib memilih ukuran Khimar SD sebelum melanjutkan." : undefined;
+
+              return (
+                <div
+                  key={v.id}
+                  className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold">{v.name}</div>
+                      <div className="text-xs text-[#65676B]">{formatRupiah(v.price)}</div>
+                    </div>
+                    {stepper(currentQty, handleStepperChange, false)}
+                  </div>
+                  <div>
+                    <SearchableSingleSelect
+                      id={v.id}
+                      label="Pilih Ukuran Khimar SD (Wajib)"
+                      options={sizeOptions}
+                      value={picked}
+                      onChange={handleSizeChange}
+                      placeholder="— Pilih ukuran Khimar SD —"
+                      error={errorMessage}
+                    />
+                    {!errorMessage && !picked && (
+                      <p className="mt-1 text-[11px] text-[#65676B]">
+                        ⚠️ Wajib memilih ukuran Khimar SD (Size 1 atau Size 4) sebelum menambahkan atau melanjutkan pesanan.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

@@ -176,4 +176,93 @@ describe("Uniform batch: stok manual, export CSV, import ekspedisi", () => {
       await db.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
     }
   });
+
+  it("preview & commit bulk upload resi (NIS | NAMA | Resi)", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `sch-resi-${stamp}`;
+    await db.insert(schools).values({
+      id: schoolId, name: "Sekolah Resi", code: `ALW-RESI-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+
+    const studentId1 = `st-resi-1-${stamp}`;
+    const studentId2 = `st-resi-2-${stamp}`;
+    const nis1 = `NIS-R1-${stamp}`;
+    const nis2 = `NIS-R2-${stamp}`;
+
+    await db.insert(students).values([
+      {
+        id: studentId1, schoolId, nis: nis1, name: "Ahmad Siswa",
+        gradeLevel: "1", curriculumType: "international", academicYear: "2026/2027",
+        status: "active", createdAt: now, updatedAt: now,
+      },
+      {
+        id: studentId2, schoolId, nis: nis2, name: "Budi Siswa",
+        gradeLevel: "2", curriculumType: "international", academicYear: "2026/2027",
+        status: "active", createdAt: now, updatedAt: now,
+      },
+    ]);
+
+    await db.insert(uniformOrders).values([
+      {
+        id: `uord-resi-1-${stamp}`, orderNumber: `USO-R1-${stamp}`,
+        studentId: studentId1, schoolId, academicYear: "2026/2027",
+        homeAddressSnapshot: "Jl. Resi No. 1",
+        shipmentStatus: "belum_dikirim", totalAmount: 50000, paidAmount: 50000,
+        paymentStatus: "paid", createdAt: now, updatedAt: now,
+      },
+      {
+        id: `uord-resi-2-${stamp}`, orderNumber: `USO-R2-${stamp}`,
+        studentId: studentId2, schoolId, academicYear: "2026/2027",
+        homeAddressSnapshot: "Jl. Resi No. 2",
+        shipmentStatus: "belum_dikirim", totalAmount: 50000, paidAmount: 50000,
+        paymentStatus: "paid", createdAt: now, updatedAt: now,
+      },
+    ]);
+
+    try {
+      // Preview
+      const previewRes = await postBatch("/orders/bulk-shipping-resi/preview", {
+        schoolId,
+        rows: [
+          { nis: nis1, name: "Ahmad", resi: "RESI-JNE-001" },
+          { nis: nis2, name: "Budi", resi: "RESI-JNE-002" },
+          { nis: "NIS-TIDAK-ADA", name: "Unknown", resi: "RESI-003" },
+        ],
+      });
+      expect(previewRes.status).toBe(200);
+      const previewJson = await previewRes.json();
+      expect(previewJson.data.validCount).toBe(2);
+      expect(previewJson.data.errorCount).toBe(1);
+      expect(previewJson.data.items[0].status).toBe("valid");
+      expect(previewJson.data.items[0].orderNumber).toBe(`USO-R1-${stamp}`);
+      expect(previewJson.data.items[2].status).toBe("error");
+
+      // Commit
+      const commitRes = await postBatch("/orders/bulk-shipping-resi/commit", {
+        schoolId,
+        rows: [
+          { nis: nis1, name: "Ahmad", resi: "RESI-JNE-001" },
+          { nis: nis2, name: "Budi", resi: "RESI-JNE-002" },
+          { nis: "NIS-TIDAK-ADA", name: "Unknown", resi: "RESI-003" },
+        ],
+      });
+      expect(commitRes.status).toBe(200);
+      const commitJson = await commitRes.json();
+      expect(commitJson.data.updatedCount).toBe(2);
+      expect(commitJson.data.results).toHaveLength(3);
+      expect(commitJson.data.results[0].success).toBe(true);
+      expect(commitJson.data.results[2].success).toBe(false);
+
+      // Verify DB
+      const [order1] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, `uord-resi-1-${stamp}`));
+      expect(order1.shippingResi).toBe("RESI-JNE-001");
+      expect(order1.shipmentStatus).toBe("sudah_dikirim");
+    } finally {
+      await db.delete(uniformOrders).where(eq(uniformOrders.schoolId, schoolId));
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });
