@@ -4,6 +4,10 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**PO Konveksi Multi-Ukuran (Matrix Uniform PO Line)**:
+Struktur baris pesanan produksi seragam ke mitra konveksi di mana satu model seragam (`UniformVariant`) dipesan sekaligus untuk beberapa ukuran via matriks kuantitas per ukuran (`sizeQuantities: Record<string, number>`), dengan harga satuan konveksi flat per model, yang saat dikirim ke sistem dipecah menjadi baris rincian PO per ukuran (`variantId`, `size`, `quantityOrdered`, `unitPrice`).
+_Avoid_: Menggelar ratusan tombol chip seragam tanpa pencarian, input ukuran manual teks bebas yang rentan typo, baris duplikat untuk model seragam yang sama dalam satu PO
+
 **Program (sebelumnya Kurikulum)**:
 Klasifikasi peminatan, jalur studi, atau kurikulum belajar siswa (misalnya: Reguler, Tahfidz, Cambridge, Bilingual) yang menentukan komposisi Bill of Materials (BOM) paket buku dan buku satuan yang berhak dipesan siswa. Di seluruh antarmuka pengguna, label laporan, dan pesan notifikasi, istilah ini wajib menggunakan kata "Program".
 _Avoid_: Kurikulum, peminatan bebas tanpa program, duplikasi label kurikulum di UI
@@ -96,6 +100,22 @@ _Avoid_: Tombol submit lumpuh tanpa keterangan, form hening tanpa reaksi, penola
 **Alamat Retur Gudang Pusat**:
 Alamat resmi gudang logistik pusat yang dikonfigurasi pada pengaturan sistem (`system_settings`) dan disajikan secara publik kepada orang tua murid sebagai alamat tujuan pengiriman barang retur/penukaran.
 _Avoid_: Alamat cabang penukaran, alamat kirim manual
+
+**Khimar SD Berukuran (Sized Primary School Khimar)**:
+Varian seragam penutup kepala khusus jenjang SD (akhwat) yang memiliki klasifikasi ukuran bertingkat: Size 1 (untuk kelas 1–2) dan Size 4 (untuk kelas 3–6). Dikelola secara terpisah dari kain harian tanpa ukuran (`"—"`), dengan alokasi dan pengurangan stok fisik mandiri per ukuran. Varian khimar jenjang lain (TK, SMP, SMA) tetap diklasifikasikan sebagai kain harian tanpa pilihan ukuran.
+_Avoid_: Menjadikan khimar SD kain tanpa ukuran, menerapkan ukuran 1 dan 4 ke jenjang selain SD
+
+**Alamat Pengiriman Terstruktur (Structured Shipping Address)**:
+Komposisi alamat pengiriman paket seragam yang dikumpulkan melalui formulir modular wajib isi: Nama Penerima, Nomor Telepon/WhatsApp, Nama Jalan, RT, RW, Nomor Rumah, Kelurahan, Kecamatan, dan Kota. Disimpan dalam bentuk snapshot teks terformat deterministik pada `homeAddressSnapshot` untuk keperluan cetak label dan verifikasi logistik.
+_Avoid_: Alamat teks bebas satu baris di portal publik seragam, isian alamat tidak lengkap
+
+**Unggah Massal Resi Pengiriman (Bulk Courier Resi Ingestion)**:
+Fasilitas input massal nomor resi kurir oleh staf logistik melalui data tabular/CSV dengan format `NIS | NAMA | Resi`. Dilengkapi tahap verifikasi awal (preview & review) yang mencocokkan NIS dan nama siswa dengan pesanan seragam berstatus `belum_dikirim` sebelum melakukan pembaruan status pengiriman menjadi `sudah_dikirim`.
+_Avoid_: Input nomor resi satu per satu tanpa alternatif massal, update resi tanpa validasi kesesuaian nama siswa
+
+**Template WhatsApp Pesanan Seragam (Configurable Uniform Order WhatsApp Template)**:
+Pola pesan teks notifikasi WhatsApp yang dikonfigurasikan melalui pengaturan sistem (`system_settings`) dengan kunci kanonik `uniform_order_wa_template`. Dikirimkan secara otomatis kepada wali murid setelah pengisian formulir pemesanan seragam selesai, memuat ucapan terima kasih dan ringkasan pesanan tanpa tautan pelacakan kurir publik.
+_Avoid_: Teks notifikasi seragam hardcoded, notifikasi memuat tautan pelacakan otomatis jika pelacakan resi ditangani manual logistik
 
 **Bukti Pengambilan**:
 Dokumen / tanda terima resmi dengan kode konfirmasi unik (digenerate instan saat submit form publik konfirmasi pembayaran dan dikirim ke nomor WhatsApp manual inputan wali murid) yang wajib ditunjukkan ke admin cabang untuk serah-terima buku/paket fisik. Berfungsi sebagai instrumen rekonsiliasi mandiri yang mengizinkan penyerahan buku baik untuk status lunas (`paid`), cicilan (`partial`), maupun beasiswa (`scholarship_approved`).
