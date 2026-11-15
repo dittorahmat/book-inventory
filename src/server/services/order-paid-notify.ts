@@ -152,9 +152,13 @@ export const notifyOrderPaidOff = async (
   deps?: NotifyDeps
 ): Promise<NotifyResult> => {
   let template: string | undefined;
+  let waDisabled = false;
   if (input.kind === "buku") {
     try {
       const config = await getMetaWhatsAppConfig(database);
+      if (config.isPaymentConfirmationWaEnabled === false) {
+        waDisabled = true;
+      }
       template = config.paymentConfirmationTemplate || DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE;
     } catch {
       template = DEFAULT_PAYMENT_CONFIRMATION_WA_TEMPLATE;
@@ -172,6 +176,17 @@ export const notifyOrderPaidOff = async (
     pickupCode: input.order.handoverDeliveryNumber || input.order.orderNumber,
     template,
   });
+  if (waDisabled) {
+    const email = input.student.parentEmail;
+    const mailer = deps?.mail ?? ((options: EmailSendOptions) => sendEmailNotification(database, options));
+    const subject = `Pembayaran ${KIND_LABEL[input.kind]} ${input.order.orderNumber} terverifikasi`;
+    const mail = email
+      ? await attempt(() =>
+          mailer({ to: email, subject, text: noticeText, html: `<p>${escapeHtml(noticeText).replace(/\n/g, "<br/>")}</p>` })
+        )
+      : { success: false, error: "Email orang tua tidak tersedia." };
+    return { wa: { success: true, simulated: true }, email: mail };
+  }
   return dispatch(
     database,
     deps,

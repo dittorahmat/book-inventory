@@ -81,7 +81,7 @@ const UNIFORM_INVOICE: InvoiceKind = {
   notFound: "Order seragam tidak ditemukan.",
   confirmKind: "seragam",
   errorContext: "kirim invoice seragam",
-  gateOnlyWhenLoose: false,
+  gateOnlyWhenLoose: true, // Seragam gratis ongkir secara default (bebas kirim invoice tanpa blokir ongkir)
 };
 
 /**

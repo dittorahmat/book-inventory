@@ -18,6 +18,8 @@ import {
 } from "../../lib/d1-write";
 import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 
+import { isKhimarSdVariant, KHIMAR_SD_SIZES } from "../../../lib/khimar-sd";
+
 export type UniformError = { ok: false; status: 400 | 403 | 404; message: string };
 
 export const UNIFORM_KINDS = ["kain_harian", "olahraga"] as const;
@@ -64,7 +66,12 @@ export async function createUniformVariant(
   if (!UNIFORM_GENDERS.includes(input.gender)) return invalid("Gender varian wajib male atau female.");
   if (!UNIFORM_JENJANG.includes(input.jenjang)) return invalid("Jenjang wajib tk, sd, smp, atau sma.");
   const sizes = [...new Set((input.sizes ?? []).map((s) => s.trim()).filter(Boolean))];
-  if (input.kind === "kain_harian" && sizes.length > 0) return invalid("Kain harian tanpa ukuran — kosongkan daftar size.");
+  const isKhimarSd = isKhimarSdVariant({ code: input.code, name: input.name, jenjang: input.jenjang });
+  if (input.kind === "kain_harian" && !isKhimarSd && sizes.length > 0) return invalid("Kain harian tanpa ukuran — kosongkan daftar size.");
+  if (isKhimarSd && sizes.length === 0) {
+    // Otomatis assign KHIMAR_SD_SIZES jika tidak disediakan
+    sizes.push(...KHIMAR_SD_SIZES);
+  }
   if (input.kind === "olahraga" && sizes.length === 0) return invalid("Seragam olahraga wajib punya minimal satu size.");
 
   const [dup] = await database
@@ -100,7 +107,7 @@ export async function createUniformVariant(
   )) {
     await runWriteBatch(database, [database.insert(uniformSizes).values(rows)]);
   }
-  const stockQueries = (input.kind === "kain_harian" ? [KAIN_SIZE] : sizes).map((size) =>
+  const stockQueries = (input.kind === "kain_harian" && !isKhimarSd ? [KAIN_SIZE] : sizes).map((size) =>
     adjustVariantStockQuery(database, { variantId, size, delta: 0 }, "create", deps)
   );
   for (const rows of chunkRows(stockQueries, 10)) {
@@ -134,9 +141,10 @@ export async function listUniformVariants(database: AppDatabase): Promise<Varian
     // Gabungkan ukuran dari uniform_sizes dan uniform_stock agar tidak ada ukuran yang hilang
     const allSizes = Array.from(new Set([...variantSizes, ...Array.from(sizeStockMap.keys()).filter((sz) => sz !== KAIN_SIZE)]));
 
+    const isKhimarSd = isKhimarSdVariant(variant);
     // Resilient fallback: sediakan entri stok dengan kuantitas default 0 jika belum ada di database
     const resolvedStock: Array<{ size: string; quantity: number }> =
-      variant.kind === "kain_harian"
+      variant.kind === "kain_harian" && !isKhimarSd
         ? [{ size: KAIN_SIZE, quantity: sizeStockMap.get(KAIN_SIZE) ?? 0 }]
         : allSizes.length > 0
           ? allSizes.map((sz) => ({ size: sz, quantity: sizeStockMap.get(sz) ?? 0 }))

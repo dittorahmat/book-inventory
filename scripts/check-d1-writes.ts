@@ -237,7 +237,7 @@ const findConcurrencyViolations = (code: string): Violation[] => {
 };
 
 /**
- * Aturan R3 (§0.27 / §0.52): mendeteksi perulangan loop `for (...)` di dalam router
+ * Aturan R3 (§0.27 / §0.52): mendeteksi perulangan loop `for (...)` di dalam router atau service
  * yang mengeksekusi mutasi langsung Drizzle (.insert / .update).
  */
 const findRouteLoopMutations = (file: string, code: string): Array<{ rule: "R3"; index: number; detail: string }> => {

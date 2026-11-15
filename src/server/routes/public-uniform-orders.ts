@@ -3,10 +3,11 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
-import { students, uniformOrders, uniformOrderItems } from "../../db/schema";
+import { students, uniformOrders, uniformOrderItems, schools } from "../../db/schema";
 import { matchLower } from "../lib/partitioned-search";
 import { idSchema, academicYearSchema, base64UploadSchema } from "../lib/validators";
 import { handleOrderReplacement } from "../services/order-reallocation";
+import { sendUniformOrderWhatsApp } from "../services/uniform/order-notify";
 import {
   findUniformExchange,
   listUniformPackages,
@@ -111,6 +112,19 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
     if (!rep.ok) {
       return c.json({ success: false, message: rep.message ?? "Gagal mengganti pesanan lama" }, rep.status ?? 400);
     }
+  }
+
+  // Notifikasi WA blast pesanan seragam selesai (fail-safe)
+  const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
+  const [sc] = st ? await db.select().from(schools).where(eq(schools.id, st.schoolId)) : [];
+  if (st?.parentPhone) {
+    await sendUniformOrderWhatsApp(db, {
+      recipientPhone: st.parentPhone,
+      parentName: st.parentName || "Wali Murid",
+      studentName: st.name,
+      orderNumber: result.data.order.orderNumber,
+      schoolName: sc?.name || "Al Wildan",
+    }).catch(() => null);
   }
 
   return c.json({ success: true, data: result.data }, 201);

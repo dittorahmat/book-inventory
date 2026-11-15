@@ -25,6 +25,7 @@ import { decodeBase64ToBytes } from "../../base64";
 import { emitChargeQuery } from "../branch-charges";
 import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligibility";
 import { adjustPackageStockQuery, adjustVariantStockQuery, checkUniformAvailability, type UniformStockLine } from "./stock";
+import { isKhimarSdSize, isKhimarSdVariant } from "../../../lib/khimar-sd";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
 import { canDispatchUniformOrder } from "../../../lib/order-handover-guard";
@@ -129,11 +130,18 @@ export async function submitUniformOrder(
     if (!item.variantId) continue;
     const v = variantById.get(item.variantId);
     if (!v) continue;
+    const isKhimarSd = isKhimarSdVariant(v);
     if (v.kind === "olahraga" && (!item.size || item.size.trim() === "" || item.size.trim() === KAIN_SIZE)) {
       return invalid(`Ukuran seragam olahraga wajib dipilih untuk ${v.name}.`);
     }
+    if (isKhimarSd && (!item.size || item.size.trim() === "" || item.size.trim() === KAIN_SIZE)) {
+      return invalid(`Ukuran Khimar SD wajib dipilih untuk ${v.name} (Size 1 atau 4).`);
+    }
     const size = item.size?.trim() || KAIN_SIZE;
-    if (v.kind === "kain_harian" && size !== KAIN_SIZE) return invalid("Kain harian tanpa ukuran.");
+    if (isKhimarSd && !isKhimarSdSize(size)) {
+      return invalid(`Size ${size} tidak valid untuk ${v.name} (hanya Size 1 atau 4).`);
+    }
+    if (!isKhimarSd && v.kind === "kain_harian" && size !== KAIN_SIZE) return invalid("Kain harian tanpa ukuran.");
     if (v.kind === "olahraga" && !allowedSet.has(`${v.id}::${size}`)) return invalid(`Size ${size} tidak tersedia untuk ${v.name}.`);
     if (v.academicYear !== payload.academicYear) return invalid(`Varian ${v.name} bukan tahun ajaran ${payload.academicYear}.`);
   }

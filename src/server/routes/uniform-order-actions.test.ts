@@ -214,4 +214,69 @@ describe("Uniform sports exchange actions & resolution", () => {
       restoreActor();
     }
   });
+
+  it("sends uniform invoice directly with free shipping (no ongkir input blocking)", async () => {
+    mockActor("warehouse_admin", null);
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const schoolId = `sch-inv-${stamp}`;
+    const studentId = `std-inv-${stamp}`;
+    const orderId = `uo-inv-${stamp}`;
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Sekolah Invoice Test",
+      code: `SCH-INV-${stamp}`,
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(students).values({
+      id: studentId,
+      name: "Murid Invoice",
+      schoolId,
+      nis: `NIS-INV-${stamp}`,
+      gender: "female",
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      parentPhone: "081299998888",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(uniformOrders).values({
+      id: orderId,
+      orderNumber: `UO-INV-${stamp}`,
+      studentId,
+      schoolId,
+      academicYear: "2026/2027",
+      homeAddressSnapshot: "Jl. Bebas Ongkir No. 1",
+      shipmentStatus: "belum_dikirim",
+      shippingCost: 0,
+      totalAmount: 150000,
+      paidAmount: 0,
+      paymentStatus: "unpaid",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      const res = await uniformsRouter.request(`/orders/${orderId}/send-invoice`, { method: "POST" });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { success: boolean; data: { confirmUrl: string } };
+      expect(json.success).toBe(true);
+      expect(json.data.confirmUrl).toContain("/bayar/seragam/");
+
+      const [updated] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
+      expect(updated.invoiceSentAt).not.toBeNull();
+      expect(updated.paymentToken).not.toBeNull();
+    } finally {
+      await db.delete(uniformOrders).where(eq(uniformOrders.id, orderId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+      restoreActor();
+    }
+  });
 });

@@ -8,6 +8,9 @@ export function MetaWhatsAppSettingsSection() {
   const [accessToken, setAccessToken] = useState("");
   const [isEnabled, setIsEnabled] = useState(false);
   const [paymentConfirmationTemplate, setPaymentConfirmationTemplate] = useState("");
+  const [uniformOrderTemplate, setUniformOrderTemplate] = useState("");
+  const [isPaymentConfirmationWaEnabled, setIsPaymentConfirmationWaEnabled] = useState(true);
+  const [isUniformOrderWaEnabled, setIsUniformOrderWaEnabled] = useState(true);
   const [testPhone, setTestPhone] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -24,6 +27,9 @@ export function MetaWhatsAppSettingsSection() {
         setAccessToken(res.data.accessToken || "");
         setIsEnabled(res.data.isEnabled ?? false);
         setPaymentConfirmationTemplate(res.data.paymentConfirmationTemplate || "");
+        setUniformOrderTemplate(res.data.uniformOrderTemplate || "");
+        setIsPaymentConfirmationWaEnabled(res.data.isPaymentConfirmationWaEnabled !== false);
+        setIsUniformOrderWaEnabled(res.data.isUniformOrderWaEnabled !== false);
       } catch {
         if (!cancelled) setFeedback({ success: false, text: "Gagal memuat pengaturan Meta" });
       } finally {
@@ -42,7 +48,15 @@ export function MetaWhatsAppSettingsSection() {
     try {
       await postJson(
         "/api/settings/whatsapp-meta",
-        { phoneNumberId, accessToken, isEnabled, paymentConfirmationTemplate },
+        {
+          phoneNumberId,
+          accessToken,
+          isEnabled,
+          paymentConfirmationTemplate,
+          uniformOrderTemplate,
+          isPaymentConfirmationWaEnabled,
+          isUniformOrderWaEnabled,
+        },
         "Gagal menyimpan Meta"
       );
       setFeedback({ success: true, text: "Pengaturan WhatsApp Meta berhasil disimpan!" });
@@ -101,8 +115,21 @@ export function MetaWhatsAppSettingsSection() {
           <label className="block font-semibold text-[#050505] mb-1">Access Token</label>
           <input type="password" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="Token akses Cloud API" className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs" />
         </div>
-        <div>
-          <label className="block font-semibold text-[#050505] mb-1">Template WhatsApp Konfirmasi Pembayaran</label>
+        <div className="border-t border-[#E4E6EB] pt-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="font-semibold text-[#050505]">WA Blast Konfirmasi Pembayaran Buku</label>
+            <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={isPaymentConfirmationWaEnabled}
+                onChange={(e) => setIsPaymentConfirmationWaEnabled(e.target.checked)}
+                className="rounded border-[#CED0D4] text-emerald-600"
+              />
+              <span className={isPaymentConfirmationWaEnabled ? "text-emerald-700 font-semibold" : "text-[#65676B]"}>
+                {isPaymentConfirmationWaEnabled ? "Aktif" : "Nonaktif"}
+              </span>
+            </label>
+          </div>
           <textarea
             rows={4}
             value={paymentConfirmationTemplate}
@@ -112,6 +139,32 @@ export function MetaWhatsAppSettingsSection() {
           />
           <p className="mt-1 text-[11px] text-[#65676B]">
             Placeholder dinamis: <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nama_murid}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nis}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{program}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{jenjang}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{nama_sekolah}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{kode_pengambilan}"}</code>.
+          </p>
+        </div>
+        <div className="border-t border-[#E4E6EB] pt-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="font-semibold text-[#050505]">WA Blast Pesanan Seragam Selesai</label>
+            <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={isUniformOrderWaEnabled}
+                onChange={(e) => setIsUniformOrderWaEnabled(e.target.checked)}
+                className="rounded border-[#CED0D4] text-emerald-600"
+              />
+              <span className={isUniformOrderWaEnabled ? "text-emerald-700 font-semibold" : "text-[#65676B]"}>
+                {isUniformOrderWaEnabled ? "Aktif" : "Nonaktif"}
+              </span>
+            </label>
+          </div>
+          <textarea
+            rows={4}
+            value={uniformOrderTemplate}
+            onChange={(e) => setUniformOrderTemplate(e.target.value)}
+            placeholder="Template pesan ucapan terima kasih pesan seragam..."
+            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-lg text-xs leading-relaxed"
+          />
+          <p className="mt-1 text-[11px] text-[#65676B]">
+            Placeholder dinamis: <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{parent_name}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{student_name}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{order_number}"}</code>, <code className="bg-[#F0F2F5] px-1 py-0.5 rounded font-mono">{"{school_name}"}</code>.
           </p>
         </div>
         <div className="flex gap-2">

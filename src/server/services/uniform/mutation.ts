@@ -24,6 +24,7 @@ import {
 import { adjustVariantStockQuery } from "./stock";
 import { KAIN_SIZE, UNIFORM_GENDERS, UNIFORM_JENJANG, UNIFORM_KINDS, type UniformError } from "./catalog";
 import { validateUniformSizeRemoval } from "./mutation-guard";
+import { isKhimarSdVariant } from "../../../lib/khimar-sd";
 
 const invalid = (message: string): UniformError => ({ ok: false, status: 400, message });
 
@@ -84,12 +85,17 @@ export async function updateUniformVariant(
 
   // Jika ukuran disediakan, verifikasi pengurangan ukuran terlindungi guard stok & order
   if (input.sizes !== undefined) {
+    const isKhimarSd = isKhimarSdVariant({
+      code: input.code ?? existing.code,
+      name: input.name ?? existing.name,
+      jenjang: nextJenjang,
+    });
     const newSizes = [...new Set(input.sizes.map((s) => s.trim()).filter(Boolean))];
-    if (nextKind === "kain_harian" && newSizes.length > 0) {
+    if (nextKind === "kain_harian" && !isKhimarSd && newSizes.length > 0) {
       return invalid("Kain harian tanpa ukuran — kosongkan daftar size.");
     }
-    if (nextKind === "olahraga" && newSizes.length === 0) {
-      return invalid("Seragam olahraga wajib punya minimal satu size.");
+    if ((nextKind === "olahraga" || isKhimarSd) && newSizes.length === 0) {
+      return invalid("Seragam berukuran wajib punya minimal satu size.");
     }
 
     const currentSizesRows = await database

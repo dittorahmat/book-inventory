@@ -27,7 +27,10 @@ export interface MetaSaveInput {
   phoneNumberId: string;
   accessToken?: string;
   isEnabled: boolean;
+  isPaymentConfirmationWaEnabled?: boolean;
+  isUniformOrderWaEnabled?: boolean;
   paymentConfirmationTemplate?: string;
+  uniformOrderTemplate?: string;
 }
 
 /**
@@ -91,7 +94,10 @@ export const saveMeta = async (database: AppDatabase, input: MetaSaveInput) => {
   await saveMetaWhatsAppConfig(database, {
     ...input,
     accessToken: input.accessToken === MASKED_SECRET ? existing.accessToken : (input.accessToken ?? ""),
+    isPaymentConfirmationWaEnabled: input.isPaymentConfirmationWaEnabled ?? existing.isPaymentConfirmationWaEnabled,
+    isUniformOrderWaEnabled: input.isUniformOrderWaEnabled ?? existing.isUniformOrderWaEnabled,
     paymentConfirmationTemplate: input.paymentConfirmationTemplate ?? existing.paymentConfirmationTemplate,
+    uniformOrderTemplate: input.uniformOrderTemplate ?? existing.uniformOrderTemplate,
   });
 };
 

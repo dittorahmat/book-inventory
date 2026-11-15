@@ -91,9 +91,12 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - **Paritas Antarmuka Quick-Set Seragam Multi-Size**: Pada tabel dan kartu katalog varian seragam (`UniformVariantList.tsx`), varian multi-size (seragam olahraga) wajib menampilkan rincian stok per-ukuran lengkap dengan tombol quick-set pensil (`QuickSetStockButton`) baik di desktop table maupun mobile card; logika per-size chip wajib diabstraksikan (`SizeStockChips`) agar konsisten dan bebas duplikasi kode.
    - **Resilient Fallback Ukuran Katalog**: Resolusi katalog varian seragam (`listUniformVariants`) wajib menggabungkan set ukuran dari relasi `uniform_sizes` dan `uniform_stock` dengan kuantitas default 0 jika belum tercatat di database, mencegah tombol edit pensil hilang saat baris stok fisik belum sempat diinisialisasi.
    - **Verifikasi Otomatis Kelengkapan Stok Remote D1**: Gate `check:d1-catalog` wajib memvalidasi ketersediaan saldo stok varian seragam aktif di Cloudflare D1 remote (`COUNT(*) >= 50`). Sinkronisasi stok remote wajib menyertakan skrip pembersihan relasi (`scripts/generate-clean-d1-uniform-stock.ts`) untuk mencegah kegagalan Foreign Key pada entitas sementara/orphan.
-
 8. **Standar Desain Antarmuka PO Konveksi Seragam (Matrix PO Line)**:
    - Pemilihan item seragam pada modal PO konveksi (`CreateUniformPoModal`) wajib menggunakan combobox picker searchable yang modular (`UniformPoPickerSection`) dan menyajikan tab filter jenjang, bukan menggelar deretan chip seragam statis.
    - Seragam yang memiliki ukuran valid (`v.sizes`) wajib dirender sebagai matriks kuantitas ukuran (`UniformPoItemCard`) dengan kotak input Qty per ukuran dan default 0 (bukan hardcoded default quantity).
    - Seluruh input dan label pada modal PO konveksi wajib memakai token kanonik (`UNIFORM_INPUT_CLS`, `UNIFORM_LABEL_CLS`) dan mematuhi aturan label vertikal (di atas input).
    - Pengujian komponen PO seragam wajib memverifikasi validasi interaktif supplier, validasi minimal kuantitas > 0, dan flattening payload matriks secara struktural.
+9. **Disiplin Impor Resi Massal Seragam (Bulk Resi)**:
+   - Eksekusi pembaruan status dan nomor resi massal (`commitBulkUniformResi`) wajib di-chunk maksimal 10 baris query per batch statement D1 (`chunkRows`) dan dieksekusi via `runWriteBatch` (§10).
+   - Pelacakan posisi paket/resi seragam dilakukan secara manual melalui staf logistik (tanpa auto-WA blast notifikasi resi).
+   - Antarmuka impor resi massal (`BulkResiModal`) mematuhi §0.63: tombol submit tetap aktif dan interaktif memvalidasi input saat ditekan (hanya `disabled={busy}`).

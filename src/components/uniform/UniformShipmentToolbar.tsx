@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal, RefreshCw } from "lucide-react";
+import { Search, SlidersHorizontal, RefreshCw, FileSpreadsheet } from "lucide-react";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 
 interface UniformShipmentToolbarProps {
@@ -13,6 +13,7 @@ interface UniformShipmentToolbarProps {
   loading: boolean;
   onRefresh: () => void;
   onOpenBatch: () => void;
+  onOpenBulkResi?: () => void;
 }
 
 export function UniformShipmentToolbar({
@@ -27,6 +28,7 @@ export function UniformShipmentToolbar({
   loading,
   onRefresh,
   onOpenBatch,
+  onOpenBulkResi,
 }: UniformShipmentToolbarProps) {
   return (
     <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-3">
@@ -39,6 +41,17 @@ export function UniformShipmentToolbar({
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
+          {onOpenBulkResi && (
+            <button
+              type="button"
+              onClick={onOpenBulkResi}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-300 bg-emerald-50/50 text-emerald-800 rounded-xl text-xs font-semibold hover:bg-emerald-100/70 active:scale-[0.98] transition-all shadow-2xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Bulk Upload Resi</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenBatch}
