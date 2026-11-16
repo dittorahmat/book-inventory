@@ -17,6 +17,7 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "book-inventory-db"
 database_id = "32900db3-750f-46c5-9eb8-f368d298481d"
+migrations_dir = "drizzle"
 
 # Cloudflare R2 Storage binding for book covers
 [[r2_buckets]]
@@ -39,6 +40,7 @@ BETTER_AUTH_URL = "https://inv-aw.tech1solusi.workers.dev"
 binding = "DB"
 database_name = "inv-aw-db"
 database_id = "dd33f93e-e917-44b9-9813-32a9fe821ed1"
+migrations_dir = "drizzle"
 
 [[env.inv-aw.r2_buckets]]
 binding = "BUCKET"
