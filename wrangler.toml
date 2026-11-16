@@ -33,6 +33,9 @@ crons = ["0 17 * * *"]
 [env.inv-aw]
 name = "inv-aw"
 
+[env.inv-aw.triggers]
+crons = []
+
 [env.inv-aw.vars]
 BETTER_AUTH_URL = "https://inv-aw.tech1solusi.workers.dev"
 
