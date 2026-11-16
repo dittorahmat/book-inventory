@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { InMemoryWhatsAppSender, normalizeIndonesianPhone } from "./whatsapp";
+import {
+  InMemoryWhatsAppSender,
+  globalWhatsAppOutbox,
+  clearGlobalWhatsAppOutbox,
+  normalizeIndonesianPhone,
+} from "./whatsapp";
 
 describe("WhatsApp sender seam", () => {
   it("normalizes Indonesian phone numbers", () => {
@@ -9,11 +14,14 @@ describe("WhatsApp sender seam", () => {
   });
 
   it("in-memory adapter records sends and injects one failure", async () => {
+    clearGlobalWhatsAppOutbox();
     const sender = new InMemoryWhatsAppSender();
     const ok = await sender.send({ to: "0812", text: "halo" });
     expect(ok.success).toBe(true);
     expect(ok.messageId).toMatch(/^wa-mem-/);
     expect(sender.sent.length).toBe(1);
+    expect(globalWhatsAppOutbox.length).toBe(1);
+    expect(globalWhatsAppOutbox[0].text).toBe("halo");
 
     sender.failOnce("gateway padam");
     const failed = await sender.send({ to: "0812", text: "halo lagi" });
@@ -23,5 +31,7 @@ describe("WhatsApp sender seam", () => {
     const recovered = await sender.send({ to: "0812", text: "pulih" });
     expect(recovered.success).toBe(true);
     expect(sender.sent.length).toBe(2);
+    expect(globalWhatsAppOutbox.length).toBe(2);
   });
 });
+
