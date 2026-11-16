@@ -84,3 +84,11 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 4. **Proactive File-Size Scaffolding & DOM Shim Hygiene**: Pada saat membuat atau merefaktor komponen modal UI interaktif, agen wajib memecah section picker dan item card sejak awal bila diperkirakan mendekati 300 baris. Seluruh unit test React DOM di lingkungan Bun Windows wajib mengimpor `../../test-dom` di baris pertama dan menggunakan dynamic import `@testing-library/react` guna mencegah ReferenceError document is not defined.
 5. **Definisi Ruang Lingkup Tiket & Eksklusi Notifikasi Eksternal**: saat merancang tiket baru (`/to-tickets`), setiap tiket yang bersinggungan dengan kanal notifikasi eksternal (WhatsApp, Email) wajib memiliki seksi eksplisit batas lingkup (*Out of Scope*) guna mencegah implementasi auto-trigger yang tidak diinginkan pengguna.
 6. **Ekonomi Waktu Eksekusi Test Komponen DOM & Background Task**: suite pengujian komponen DOM (`*.test.tsx`) dan `check:all` yang memicu bundle Vite membutuhkan waktu ~15-25s di Windows pwsh; saat TDD filter skenario secara spesifik per file dan per nama test (`-t "..."`) agar tetap selesai <2s, dan biarkan notifikasi sistem menangani background task tanpa polling status berulang-ulang (§0.32).
+
+---
+
+### §0.77. Disiplin Harness Playwright & Anti-State Leakage Observabilitas Test
+1. **Anti-Tautologi Asersi Playwright**: Seluruh penegasan Playwright (`*.spec.ts`) dilarang membungkus interaksi form dan pencarian elemen dalam blok kondisional pasif (`if (await locator.count() > 0)` dengan fallback tautologis `expect(body).toBeVisible()`). Setiap skenario wajib mendefinisikan pre-kondisi deterministik dan mengeksekusi mutasi form nyata (pencarian, pemilihan, pengisian input, submit, dan verifikasi status berhasil/error).
+2. **Portabilitas Server Web Playwright**: Konfigurasi `playwright.config.ts` wajib mendukung port dinamis (`process.env.PORT` / default `5173`) dan mengisolasi database test sementara via environment variable alih-alih mengikat kaku ke port development `3000`.
+3. **Isolasi State Outbox/Audit Seam**: Seam observabilitas in-memory (seperti outbox WhatsApp atau email simulator) wajib terisolasi per instance atau menyediakan mekanisme reset deterministik di hook `beforeEach`/`afterEach`, dilarang membiarkan state global bocor antar file test di `bun test`.
+
