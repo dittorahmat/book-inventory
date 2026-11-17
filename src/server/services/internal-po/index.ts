@@ -1,6 +1,7 @@
 export type {
   CreateInternalPoInput,
   CreateInternalPoResult,
+  DeleteInternalPoResult,
   FulfillInternalPoInput,
   FulfillInternalPoResult,
   InternalPoDeps,
@@ -8,15 +9,16 @@ export type {
   InternalPoListItem,
   InternalPoListRow,
   InternalShipmentItemInput,
+} from "./po";
+export type {
   InternalShipmentListItem,
   InternalShipmentListRow,
-  ListInternalShipmentsResult,
-} from "./po";
+} from "./types";
 export {
   createInternalPo,
+  deleteInternalPurchaseOrder,
   fulfillInternalPo,
   listInternalPOs,
-  listInternalShipments,
   createInternalPo as submitInternalPo,
   fulfillInternalPo as dispatchInternalPo,
 } from "./po";
@@ -34,4 +36,5 @@ export type {
   OutstandingPoLine,
   OutstandingPoRow,
 } from "./shipment";
-export { createManualShipment, listIncomingInternalShipments, listOutstandingPOs } from "./shipment";
+export type { ListInternalShipmentsResult } from "./types";
+export { createManualShipment, listIncomingInternalShipments, listInternalShipments, listOutstandingPOs } from "./shipment";

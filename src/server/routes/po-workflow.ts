@@ -11,6 +11,8 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { markPrinted, PRINTED_STATUS, uploadSignedDoc } from "../services/purchase-order";
+import { deleteSupplier } from "../services/supplier-mutation";
+import { idSchema } from "../lib/validators";
 
 /** Endpoint alur PO cetak → tanda tangan → upload, plus ubah master supplier. */
 export const poWorkflowRouter = new Hono();
@@ -116,6 +118,27 @@ poWorkflowRouter.patch("/suppliers/:id", zValidator("json", updateSupplierSchema
 
     const [updated] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
     return c.json({ success: true, message: "Data supplier diperbarui", data: updated });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 4. Hapus master supplier (dengan guard integritas relasional)
+poWorkflowRouter.delete("/suppliers/:id", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const supplierId = idSchema.parse(c.req.param("id"));
+
+    const result = await deleteSupplier(db, supplierId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `Supplier "${result.data.name}" (${result.data.code}) berhasil dihapus.`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

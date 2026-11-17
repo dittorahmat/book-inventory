@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Building2, Plus, Pencil, X, AlertCircle, CheckCircle2 } from "lucide-react";
-import { patchJson, postJson } from "../../lib/api";
+import { Building2, Plus, Pencil, Trash2, X, AlertCircle, CheckCircle2, FileSpreadsheet } from "lucide-react";
+import { delJson, patchJson, postJson } from "../../lib/api";
+import { SupplierMappingModal } from "./SupplierMappingModal";
 
 export interface SupplierRecord {
   id: string;
@@ -43,6 +44,7 @@ const inputClass =
 /** Sub-bagian master supplier di tab PO: daftar, tambah, dan ubah. */
 export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSectionProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
@@ -65,6 +67,23 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
     });
     setFeedback(null);
     setIsFormOpen(true);
+  };
+
+  const handleDelete = async (supplier: SupplierRecord) => {
+    if (!window.confirm(`Hapus master supplier "${supplier.name}" (${supplier.code})? Aksi ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+    setFeedback(null);
+    try {
+      await delJson(`/api/procurement/suppliers/${supplier.id}`, "Gagal menghapus supplier.");
+      setFeedback({ kind: "ok", message: `Supplier "${supplier.name}" berhasil dihapus.` });
+      onChanged();
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Gagal menghapus supplier.",
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,14 +133,24 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
             <p className="text-[11px] text-[#65676B]">Penerbit resmi pemasok buku untuk Purchase Order.</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
-        >
-          <Plus className="w-3.5 h-3.5 text-[#65676B]" />
-          <span>Tambah Supplier</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsMappingModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#1877F2]" />
+            <span>Import Supplier</span>
+          </button>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+          >
+            <Plus className="w-3.5 h-3.5 text-[#65676B]" />
+            <span>Tambah Supplier</span>
+          </button>
+        </div>
       </header>
 
       {feedback && !isFormOpen && (
@@ -243,17 +272,36 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
                   {[s.contactPerson, s.email, s.phone].filter(Boolean).join(" · ") || "Kontak belum dilengkapi"}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => openEdit(s)}
-                title="Ubah supplier"
-                className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0 active:scale-[0.98]"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => openEdit(s)}
+                  title="Ubah supplier"
+                  className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0 active:scale-[0.98]"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(s)}
+                  title="Hapus supplier"
+                  className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 transition-colors shrink-0 active:scale-[0.98]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {isMappingModalOpen && (
+        <SupplierMappingModal
+          onClose={() => setIsMappingModalOpen(false)}
+          onSuccess={() => {
+            onChanged();
+          }}
+        />
       )}
     </section>
   );

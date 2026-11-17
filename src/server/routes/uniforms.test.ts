@@ -10,7 +10,7 @@ import { publicUniformOrdersRouter } from "./public-uniform-orders";
 import { branchClaimsRouter } from "./branch-claims";
 import { db } from "../../db";
 import { and, eq } from "drizzle-orm";
-import { branchCharges, schools, students, suppliers, systemSettings, branchClaims, uniformOrders, uniformVariants, uniformSizes, uniformStock } from "../../db/schema";
+import { branchCharges, schools, students, suppliers, systemSettings, branchClaims, uniformOrders, uniformVariants, uniformSizes, uniformStock, uniformPos, uniformPoItems } from "../../db/schema";
 import { runWriteBatch } from "../lib/d1-write";
 import { emitChargeQuery, finalizeChargeQuery } from "../services/branch-charges";
 import { deleteReceiptsForOrders, selectReceiptsForOrder } from "./test-payments";
@@ -206,6 +206,76 @@ describe("Uniform catalog, PO & assembly API", () => {
     });
     expect(recvRes.status).toBe(200);
     expect((await recvRes.json()).data.status).toBe("received");
+  });
+
+  it("berhasil menghapus PO seragam yang belum menerima barang dan menolak jika sudah diterima", async () => {
+    const stamp = Date.now();
+    const now = new Date().toISOString();
+    const supplierId = `sup-del-u-${stamp}`;
+    await db.insert(suppliers).values({
+      id: supplierId,
+      name: "Konveksi Hapus Test",
+      code: `KONV-DEL-${stamp}`.slice(0, 32),
+      createdAt: now,
+      updatedAt: now,
+    });
+    const variantId = `uv-del-${stamp}`;
+    await db.insert(uniformVariants).values({
+      id: variantId,
+      code: `UV-DEL-${stamp}`.slice(0, 32),
+      name: "Kaos Olahraga Del",
+      kind: "olahraga",
+      gender: "male",
+      jenjang: "sd",
+      academicYear: "2026/2027",
+      price: 90000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(uniformSizes).values({
+      id: `usz-del-${stamp}`,
+      variantId,
+      size: "M",
+      createdAt: now,
+    });
+
+    // 1. Buat PO seragam
+    const poRes = await postJson("/pos", {
+      supplierId,
+      lines: [{ variantId, size: "M", quantityOrdered: 5, unitPrice: 85000 }],
+    });
+    expect(poRes.status).toBe(201);
+    const poId = (await poRes.json()).data.id;
+
+    // 2. Hapus saat masih draft -> 200
+    const delRes = await uniformsRouter.request(`/pos/${poId}`, { method: "DELETE" });
+    expect(delRes.status).toBe(200);
+    const delJson = await delRes.json();
+    expect(delJson.success).toBe(true);
+
+    // 3. Buat PO lagi lalu terima barang
+    const poRes2 = await postJson("/pos", {
+      supplierId,
+      lines: [{ variantId, size: "M", quantityOrdered: 5, unitPrice: 85000 }],
+    });
+    const poId2 = (await poRes2.json()).data.id;
+    await postJson(`/pos/${poId2}/receive`, {
+      lines: [{ variantId, size: "M", quantity: 5 }],
+    });
+
+    // 4. Hapus saat sudah diterima -> tolak 400
+    const delRes2 = await uniformsRouter.request(`/pos/${poId2}`, { method: "DELETE" });
+    expect(delRes2.status).toBe(400);
+    const delJson2 = await delRes2.json();
+    expect(delJson2.success).toBe(false);
+    expect(delJson2.message).toContain("tidak dapat dihapus");
+
+    await db.delete(uniformPoItems).where(eq(uniformPoItems.poId, poId2));
+    await db.delete(uniformPos).where(eq(uniformPos.id, poId2));
+    await db.delete(uniformStock).where(eq(uniformStock.variantId, variantId));
+    await db.delete(uniformSizes).where(eq(uniformSizes.variantId, variantId));
+    await db.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
+    await db.delete(suppliers).where(eq(suppliers.id, supplierId));
   });
 });
 

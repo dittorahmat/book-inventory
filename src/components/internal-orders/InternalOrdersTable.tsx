@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Printer, Truck } from "lucide-react";
+import { ChevronDown, Printer, Trash2, Truck } from "lucide-react";
 import type { InternalOrder, InternalShipment } from "../../lib/internal-orders-types";
 import { internalPoProgress, internalPoStatusLabel, internalPoStatusTone, internalShipmentStatusLabel, internalShipmentStatusTone } from "../../lib/internal-orders-types";
 
@@ -12,6 +12,7 @@ interface InternalOrdersTableProps {
   onToggleShipments: (orderId: string, expanded: boolean) => void;
   onReceiveShipment?: (orderId: string, shipment: InternalShipment) => void;
   onPrintShipment?: (order: InternalOrder, shipment: InternalShipment) => void;
+  onDeleteOrder?: (order: InternalOrder) => void;
 }
 
 function ShipmentHistory({
@@ -116,6 +117,7 @@ export function InternalOrdersTable({
   onToggleShipments,
   onReceiveShipment,
   onPrintShipment,
+  onDeleteOrder,
 }: InternalOrdersTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -155,9 +157,21 @@ export function InternalOrdersTable({
                   {internalPoStatusLabel(order.status)}
                 </span>
                 <span className="text-xs text-[#65676B]">{order.schoolName}</span>
-                <span className="ml-auto text-xs font-semibold text-[#050505]">
-                  {progress.fulfilled}/{progress.ordered} paket ({progress.percent}%)
-                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#050505]">
+                    {progress.fulfilled}/{progress.ordered} paket ({progress.percent}%)
+                  </span>
+                  {onDeleteOrder && (order.status === "draft" || order.status === "submitted") && progress.fulfilled === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteOrder(order)}
+                      title={`Hapus PO Internal ${order.poNumber}`}
+                      className="p-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors active:scale-[0.98]"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#F0F2F5]" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress.percent}%` }} />

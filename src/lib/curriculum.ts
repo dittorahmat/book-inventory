@@ -2,7 +2,7 @@ import { CURRICULUM_TYPES, type CurriculumType } from "../db/schema";
 
 export { CURRICULUM_TYPES, type CurriculumType };
 
-export const CANONICAL_GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+export const CANONICAL_GRADES = ["TK", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 export const SEMESTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "all", label: "Tahunan (Sem 1 & 2)" },

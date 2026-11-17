@@ -36,6 +36,7 @@ export function InternalProcurementView({
     loadError,
     loadData,
     submitOrder,
+    deleteOrder,
     submitPoShipment,
     submitManualShipment,
     incomingShipments,
@@ -202,6 +203,17 @@ export function InternalProcurementView({
         }}
         onReceiveShipment={(orderId, shipment) => setReceiveTarget({ orderId, shipment })}
         onPrintShipment={(order, shipment) => setPrintTarget({ order, shipment })}
+        onDeleteOrder={async (order) => {
+          if (!window.confirm(`Hapus pesanan internal "${order.poNumber}"? Aksi ini tidak dapat dibatalkan.`)) {
+            return;
+          }
+          try {
+            await deleteOrder(order.id);
+            setNotice(`PO Internal "${order.poNumber}" berhasil dihapus.`);
+          } catch (err) {
+            setNotice(err instanceof Error ? err.message : "Gagal menghapus PO Internal.");
+          }
+        }}
       />
 
       {receiveTarget && (

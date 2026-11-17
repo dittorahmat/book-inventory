@@ -19,7 +19,7 @@ export {
 } from "./exchange";
 export { listUniformRefunds, requestUniformRefund, resolveUniformRefund } from "./returns";
 export type { CreateUniformPoInput, ReceiveLineInput, UniformPoLineInput, UniformSupplyDeps } from "./supply";
-export { assembleUniformPackages, adjustManualStock, createUniformPo, receiveUniformPo } from "./supply";
+export { assembleUniformPackages, adjustManualStock, createUniformPo, deleteUniformPo, receiveUniformPo } from "./supply";
 
 export type { UniformSalesInput, UniformSalesReport, UniformSalesRow, UniformOrderStage } from "./report";
 export { buildEkspedisiCsv, buildPackingCsv, fetchUniformExportRows, getUniformSalesReport, uniformOrderStage, uniformSalesToCsv, uniformStageFilter } from "./report";
