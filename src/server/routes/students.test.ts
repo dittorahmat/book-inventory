@@ -54,6 +54,32 @@ describe("Students admin API", () => {
     expect(customJson.data.id).toBe(customId);
     expect(customJson.data.status).toBe("active");
     expect(customJson.data.rombel).toBe("INTER 1");
+    expect(customJson.data.curriculumType).toBe("INTER");
+    expect(customJson.data.intakeType).toBe("baru");
+
+    // Create SMA student with stream (IPA) and intakeType (kenaikan)
+    const smaId = `siswa-sma-${stamp}`;
+    const createSma = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: smaId,
+        schoolId,
+        nis: `NIS${String(stamp).slice(-6)}C`,
+        name: "Farhan SMA",
+        gender: "male",
+        gradeLevel: "11",
+        curriculumType: "AE",
+        stream: "IPA",
+        intakeType: "kenaikan",
+        academicYear: "2026/2027",
+      }),
+    });
+    expect(createSma.status).toBe(201);
+    const smaJson = await createSma.json();
+    expect(smaJson.data.curriculumType).toBe("AE");
+    expect(smaJson.data.stream).toBe("IPA");
+    expect(smaJson.data.intakeType).toBe("kenaikan");
 
     // Server-generated UUID
     const createUuid = await studentsRouter.request("/", {

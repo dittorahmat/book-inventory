@@ -9,6 +9,8 @@ import {
   validateRequiredSelect,
   validateRequiredText,
 } from "../../lib/form-validation";
+import { getAvailableCurriculaForGrade, normalizeCanonicalCurriculum } from "../../lib/curriculum";
+import type { CurriculumType, IntakeType, StreamType } from "../../db/schema";
 import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
 
@@ -39,9 +41,11 @@ export function StudentFormModal({
   );
   const [gradeLevel, setGradeLevel] = useState(initial?.gradeLevel || "1");
   const [rombel, setRombel] = useState(initial?.rombel || "");
-  const [curriculumType, setCurriculumType] = useState<"international" | "national">(
-    initial?.curriculumType === "national" ? "national" : "international"
+  const [curriculumType, setCurriculumType] = useState<CurriculumType>(
+    initial?.curriculumType ? normalizeCanonicalCurriculum(initial.curriculumType) : "INTER"
   );
+  const [stream, setStream] = useState<StreamType | null>(initial?.stream ?? null);
+  const [intakeType, setIntakeType] = useState<IntakeType>(initial?.intakeType || "baru");
   const [academicYear, setAcademicYear] = useState(initial?.academicYear || "2026/2027");
   const [status, setStatus] = useState(initial?.status || "active");
   const [parentName, setParentName] = useState(initial?.parentName || "");
@@ -109,6 +113,8 @@ export function StudentFormModal({
         gradeLevel,
         rombel: rombel.trim() || undefined,
         curriculumType,
+        stream: ["10", "11", "12"].includes(gradeLevel) ? stream : null,
+        intakeType,
         academicYear: academicYear.trim() || "2026/2027",
         parentName: parentName.trim() || undefined,
         parentEmail: parentEmail.trim() || undefined,
@@ -226,7 +232,16 @@ export function StudentFormModal({
                 label="Kelas"
                 options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
                 value={gradeLevel}
-                onChange={setGradeLevel}
+                onChange={(val) => {
+                  setGradeLevel(val);
+                  const validCurricula = getAvailableCurriculaForGrade(val);
+                  if (!validCurricula.some((c) => c.value === curriculumType)) {
+                    setCurriculumType(validCurricula[0]?.value || "INTER");
+                  }
+                  if (!["10", "11", "12"].includes(val)) {
+                    setStream(null);
+                  }
+                }}
                 placeholder="Pilih kelas..."
                 disabled={hasActiveOrders}
               />
@@ -244,13 +259,36 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Program"
-                options={[
-                  { value: "international", label: "Internasional" },
-                  { value: "national", label: "Nasional" },
-                ]}
+                options={getAvailableCurriculaForGrade(gradeLevel)}
                 value={curriculumType}
-                onChange={(v) => setCurriculumType(v as "international" | "national")}
+                onChange={(v) => setCurriculumType(v as CurriculumType)}
                 placeholder="Pilih..."
+              />
+            </div>
+            {["10", "11", "12"].includes(gradeLevel) && (
+              <div>
+                <SearchableSingleSelect
+                  label="Peminatan / Jurusan (SMA)"
+                  options={[
+                    { value: "IPA", label: "IPA" },
+                    { value: "IPS", label: "IPS" },
+                  ]}
+                  value={stream || ""}
+                  onChange={(v) => setStream((v as StreamType) || null)}
+                  placeholder="Pilih peminatan..."
+                />
+              </div>
+            )}
+            <div>
+              <SearchableSingleSelect
+                label="Jalur Masuk"
+                options={[
+                  { value: "baru", label: "Siswa Baru" },
+                  { value: "kenaikan", label: "Kenaikan / Pindahan" },
+                ]}
+                value={intakeType}
+                onChange={(v) => setIntakeType((v as IntakeType) || "baru")}
+                placeholder="Pilih jalur masuk..."
               />
             </div>
             <div>

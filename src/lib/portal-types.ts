@@ -87,6 +87,8 @@ export interface PortalOrderLookup {
   handoverRecipient: string | null;
 }
 
+import type { CurriculumType } from "../db/schema";
+
 /** Judul buku versi publik (alias samaran, tanpa ISBN) untuk form refund. */
 export interface PortalBookChoice {
   bookId: string;
@@ -99,7 +101,7 @@ export interface NewStudentForm {
   gender: "male" | "female";
   gradeLevel: string;
   stream?: string | null;
-  curriculumType: "international" | "national";
+  curriculumType: CurriculumType;
   academicYear: string;
   parentName: string;
   parentEmail: string;

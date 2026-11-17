@@ -8,6 +8,7 @@ import {
   validateRequiredSelect,
   validateRequiredText,
 } from "../../lib/form-validation";
+import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 import type { NewStudentForm, SchoolOption } from "../../lib/portal-types";
 
 interface NewStudentRegistrationFormProps {
@@ -190,9 +191,18 @@ export function NewStudentRegistrationForm({
             ]}
             value={newStudent.gradeLevel}
             onChange={(v) => {
-              setNewStudent({ ...newStudent, gradeLevel: v });
+              const validCurricula = getAvailableCurriculaForGrade(v);
+              const nextCurriculum = validCurricula.some((c) => c.value === newStudent.curriculumType)
+                ? newStudent.curriculumType
+                : validCurricula[0]?.value || "INTER";
+              setNewStudent({
+                ...newStudent,
+                gradeLevel: v,
+                curriculumType: nextCurriculum,
+                stream: ["10", "11", "12"].includes(v) ? newStudent.stream : null,
+              });
               if (registerAttempted) {
-                setRegisterErrors((prev) => ({ ...prev, gradeLevel: undefined }));
+                setRegisterErrors((prev) => ({ ...prev, gradeLevel: undefined, curriculumType: undefined }));
               }
             }}
             placeholder="Pilih kelas..."
@@ -204,10 +214,7 @@ export function NewStudentRegistrationForm({
         <div>
           <SearchableSingleSelect
             label="Pilihan Program"
-            options={[
-              { value: "international", label: "Internasional (Cambridge)" },
-              { value: "national", label: "Nasional" },
-            ]}
+            options={getAvailableCurriculaForGrade(newStudent.gradeLevel)}
             value={newStudent.curriculumType}
             onChange={(v) => {
               setNewStudent({ ...newStudent, curriculumType: v as NewStudentForm["curriculumType"] });

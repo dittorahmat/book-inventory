@@ -1,4 +1,5 @@
 import { apiEnvelope, buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
+import type { CurriculumType, IntakeType, StreamType } from "../../db/schema";
 
 /** Opsi sekolah kanonik (id + nama + kode) dipakai ulang dari tipe portal. */
 import type { SchoolOption } from "../../lib/portal-types";
@@ -12,6 +13,8 @@ export interface StudentRecord {
   gradeLevel: string;
   rombel?: string | null;
   curriculumType: string;
+  stream?: StreamType | null;
+  intakeType?: IntakeType | null;
   academicYear: string;
   parentName?: string | null;
   parentEmail?: string | null;
@@ -51,7 +54,9 @@ export interface StudentFormPayload {
   gender: "male" | "female";
   gradeLevel: string;
   rombel?: string;
-  curriculumType: "international" | "national";
+  curriculumType: CurriculumType;
+  stream?: StreamType | null;
+  intakeType?: IntakeType;
   academicYear: string;
   parentName?: string;
   parentEmail?: string;

@@ -34,6 +34,22 @@ export function getAvailableCurriculaForGrade(gradeLevel: string): Array<{ value
   return CANONICAL_CURRICULUM_OPTIONS;
 }
 
+/**
+ * Memetakan nilai legacy 'international' / 'national' ke nilai kanonik baru:
+ * - 'international' -> 'INTER'
+ * - 'national' -> 'MQ'
+ * Jika sudah berupa nilai kanonik (TK, INTER, AE, ME, DI, MQ), tetap dikembalikan apa adanya.
+ */
+export function normalizeCanonicalCurriculum(curriculumType: string): CurriculumType {
+  const norm = curriculumType.trim().toUpperCase();
+  if (norm === "INTERNATIONAL") return "INTER";
+  if (norm === "NATIONAL") return "MQ";
+  if (CURRICULUM_TYPES.includes(norm as CurriculumType)) {
+    return norm as CurriculumType;
+  }
+  return "INTER";
+}
+
 export const curriculumLabel = (curriculumType: string): string => {
   const norm = curriculumType.toUpperCase();
   switch (norm) {
