@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Building2, Search, PackageCheck } from "lucide-react";
+import { Plus, Building2, Search, PackageCheck, Trash2 } from "lucide-react";
 import { CreateSupplierModal } from "../procurement/CreateSupplierModal";
 import { CreateUniformPoModal } from "./CreateUniformPoModal";
 import { getJson } from "../../lib/api";
@@ -8,6 +8,7 @@ import {
   fetchUniformVariants,
   fetchUniformPos,
   createUniformPo,
+  deleteUniformPo,
   receiveUniformPo,
   type UniformVariantRow,
 } from "./uniform-admin-api";
@@ -183,6 +184,25 @@ export function UniformProcurementSection() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {p.status === "draft" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            if (!window.confirm(`Hapus PO seragam "${p.poNumber}"? Aksi ini tidak dapat dibatalkan.`)) {
+                              return;
+                            }
+                            run(
+                              () => deleteUniformPo(p.id).then(() => reload()),
+                              `PO seragam "${p.poNumber}" berhasil dihapus.`
+                            );
+                          }}
+                          title={`Hapus PO seragam ${p.poNumber}`}
+                          className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors active:scale-[0.98] disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {(p.status === "draft" || p.status === "partially_received") && (
                         <button
                           type="button"

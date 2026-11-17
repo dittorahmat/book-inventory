@@ -24,12 +24,14 @@ import {
   resolveLogisticsActor,
   LOGISTICS_ROLES,
 } from "../services/access-scope";
+import { idSchema } from "../lib/validators";
 import {
   assembleUniformPackages,
   createUniformPackage,
   createUniformPo,
   createUniformVariant,
   deleteUniformPackage,
+  deleteUniformPo,
   deleteUniformVariant,
   listUniformExchanges,
   listUniformPackages,
@@ -178,6 +180,22 @@ uniformsRouter.post("/pos/:id/receive", zValidator("json", receiveSchema), async
     const result = await receiveUniformPo(db, c.req.param("id"), c.req.valid("json").lines);
     if (!result.ok) return fail(c, result);
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+uniformsRouter.delete("/pos/:id", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const poId = idSchema.parse(c.req.param("id"));
+    const result = await deleteUniformPo(db, poId);
+    if (!result.ok) return fail(c, result);
+    return c.json({
+      success: true,
+      message: `PO seragam "${result.data.poNumber}" berhasil dihapus.`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

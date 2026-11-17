@@ -111,6 +111,9 @@ export const createUniformPo = (payload: unknown): Promise<{ id: string }> =>
 export const receiveUniformPo = (id: string, lines: Array<{ variantId: string; size?: string; quantity: number }>): Promise<unknown> =>
   postJson(`/api/uniforms/pos/${id}/receive`, { lines }, "Gagal mencatat penerimaan PO.");
 
+export const deleteUniformPo = (id: string): Promise<{ id: string; poNumber: string }> =>
+  delJson<{ id: string; poNumber: string }>(`/api/uniforms/pos/${id}`, "Gagal menghapus PO seragam.");
+
 export interface UniformOrderDetail {
   order: UniformOrderRow & { academicYear: string; notes: string | null; payments?: RawPaymentRow[] };
   items: Array<{ id: string; packageId: string | null; variantId: string | null; size: string; quantity: number; unitPriceSnapshot: number }>;
