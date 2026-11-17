@@ -43,6 +43,7 @@ describe("CreateBookForm", () => {
     const result = capturedPayload as unknown as NewBookPayload;
     expect(result.isbn).toBe("");
     expect(result.title).toBe("Buku Panduan Guru SD");
+    expect(result.semester).toBe("all");
     expect(capturedCover).toBeNull();
   });
 });
