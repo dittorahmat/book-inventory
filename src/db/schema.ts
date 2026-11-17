@@ -1,5 +1,16 @@
 import { sqliteTable, text, integer, index, unique } from "drizzle-orm/sqlite-core";
 
+export const LEGACY_CURRICULUM_TYPES = ["international", "national"] as const;
+export const NEW_CURRICULUM_TYPES = ["TK", "INTER", "AE", "ME", "DI", "MQ"] as const;
+export const CURRICULUM_TYPES = [...NEW_CURRICULUM_TYPES, ...LEGACY_CURRICULUM_TYPES] as const;
+export type CurriculumType = (typeof CURRICULUM_TYPES)[number];
+
+export const INTAKE_TYPES = ["baru", "kenaikan"] as const;
+export type IntakeType = (typeof INTAKE_TYPES)[number];
+
+export const STREAMS = ["IPA", "IPS"] as const;
+export type StreamType = (typeof STREAMS)[number];
+
 export const schools = sqliteTable("schools", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -74,6 +85,9 @@ export const books = sqliteTable("books", {
   isbn: text("isbn").notNull().unique(),
   title: text("title").notNull(),
   publicTitle: text("public_title"),
+  gradeLevel: text("grade_level"), // e.g. "1", "2", "7", "10"
+  curriculumType: text("curriculum_type", { enum: CURRICULUM_TYPES }), // e.g. "INTER", "MQ", "AE", dll.
+  semester: text("semester"), // e.g. "1", "2", "all"
   author: text("author").notNull(),
   publisher: text("publisher").notNull(),
   publishYear: integer("publish_year"),
@@ -204,16 +218,6 @@ export const stockAdjustments = sqliteTable("stock_adjustments", {
 // ==========================================
 // 1. STUDENTS & ACADEMIC DATA
 // ==========================================
-export const LEGACY_CURRICULUM_TYPES = ["international", "national"] as const;
-export const NEW_CURRICULUM_TYPES = ["TK", "INTER", "AE", "ME", "DI", "MQ"] as const;
-export const CURRICULUM_TYPES = [...NEW_CURRICULUM_TYPES, ...LEGACY_CURRICULUM_TYPES] as const;
-export type CurriculumType = (typeof CURRICULUM_TYPES)[number];
-
-export const INTAKE_TYPES = ["baru", "kenaikan"] as const;
-export type IntakeType = (typeof INTAKE_TYPES)[number];
-
-export const STREAMS = ["IPA", "IPS"] as const;
-export type StreamType = (typeof STREAMS)[number];
 
 export const students = sqliteTable("students", {
   id: text("id").primaryKey(),

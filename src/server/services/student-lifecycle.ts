@@ -137,12 +137,15 @@ export type RemoveStudentResult =
   | { ok: true; data: { studentId: string } }
   | LifecycleError;
 
+import { normalizeCanonicalCurriculum } from "../../lib/curriculum";
+
 export interface RegisterPublicStudentInput {
   schoolId: string;
   name: string;
   gender: "male" | "female";
   gradeLevel: string;
-  curriculumType: "international" | "national";
+  stream?: StreamType | null;
+  curriculumType: CurriculumType;
   academicYear: string;
   parentName: string;
   parentEmail: string;
@@ -166,6 +169,7 @@ export async function registerPublicStudent(
   const now = writeNow(deps);
   const id = newWriteId(deps);
   const tempNis = documentNumber("REG", epochTimeFragment(Date.now(), 8));
+  const canonicalCurriculum = normalizeCanonicalCurriculum(input.curriculumType);
   try {
     await database.insert(students).values({
       id,
@@ -174,7 +178,8 @@ export async function registerPublicStudent(
       name: input.name,
       gender: input.gender,
       gradeLevel: input.gradeLevel,
-      curriculumType: input.curriculumType,
+      stream: input.stream ?? null,
+      curriculumType: canonicalCurriculum,
       academicYear: input.academicYear,
       parentName: input.parentName,
       parentEmail: input.parentEmail,

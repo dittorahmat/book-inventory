@@ -100,3 +100,11 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Eksekusi pembaruan status dan nomor resi massal (`commitBulkUniformResi`) wajib di-chunk maksimal 10 baris query per batch statement D1 (`chunkRows`) dan dieksekusi via `runWriteBatch` (§10).
    - Pelacakan posisi paket/resi seragam dilakukan secara manual melalui staf logistik (tanpa auto-WA blast notifikasi resi).
    - Antarmuka impor resi massal (`BulkResiModal`) mematuhi §0.63: tombol submit tetap aktif dan interaktif memvalidasi input saat ditekan (hanya `disabled={busy}`).
+
+### §0.82. Standar Metadata Entri Master Buku Baru & Pengaitan Paket
+1. **Metadata Lengkap Buku**:
+   - Form input dan pembaruan katalog buku (`CreateBookForm`, `EditBookModal`) wajib menyertakan tagging metadata jenjang dan kurikulum: `gradeLevel`, `curriculumType`, `semester`, `publicTitle`, dan `description`.
+   - Opsi `gradeLevel` dan `semester` wajib bersumber dari konstanta kanonik `CANONICAL_GRADES` dan `SEMESTER_OPTIONS` (`src/lib/curriculum.ts`), dilarang menduplikasi array string secara lokal di tiap form komponen.
+2. **Pengaitan Paket Atomik & Rollback Guard**:
+   - Pembuatan buku baru yang sekaligus mengaitkan buku ke paket (`packageIds`) wajib dieksekusi secara terproteksi. Bila pengaitan supplier atau paket gagal, pembuatan buku wajib di-rollback (menghapus baris buku baru yang terbuat) agar tidak meninggalkan buku yatim (*orphan books*) di katalog.
+   - Pemuatan daftar paket di modal katalog wajib mengelola state loading dan error secara eksplisit tanpa silent-catch.

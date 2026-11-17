@@ -8,6 +8,7 @@ import {
   validateRequiredSelect,
   validateRequiredText,
 } from "../../lib/form-validation";
+import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 import type { NewStudentForm, SchoolOption } from "../../lib/portal-types";
 
 interface NewStudentRegistrationFormProps {
@@ -131,6 +132,47 @@ export function NewStudentRegistrationForm({
         </div>
 
         <div>
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Jenis Kelamin <span className="text-rose-600">*</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#050505] cursor-pointer bg-white px-3 py-2 border rounded-xl border-[#CED0D4] hover:bg-[#F0F2F5] transition-colors flex-1">
+              <input
+                type="radio"
+                name="portalGender"
+                value="male"
+                checked={newStudent.gender === "male"}
+                onChange={() => {
+                  setNewStudent({ ...newStudent, gender: "male" });
+                  if (registerAttempted) {
+                    setRegisterErrors((prev) => ({ ...prev, gender: undefined }));
+                  }
+                }}
+                className="w-4 h-4 text-[#1877F2]"
+              />
+              <span>Laki-laki (Ikhwan)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-[#050505] cursor-pointer bg-white px-3 py-2 border rounded-xl border-[#CED0D4] hover:bg-[#F0F2F5] transition-colors flex-1">
+              <input
+                type="radio"
+                name="portalGender"
+                value="female"
+                checked={newStudent.gender === "female"}
+                onChange={() => {
+                  setNewStudent({ ...newStudent, gender: "female" });
+                  if (registerAttempted) {
+                    setRegisterErrors((prev) => ({ ...prev, gender: undefined }));
+                  }
+                }}
+                className="w-4 h-4 text-[#1877F2]"
+              />
+              <span>Perempuan (Akhwat)</span>
+            </label>
+          </div>
+          <FormFieldFeedback error={registerAttempted ? registerErrors.gender : undefined} />
+        </div>
+
+        <div>
           <SearchableSingleSelect
             label="Tingkat Kelas Masuk"
             options={[
@@ -149,9 +191,18 @@ export function NewStudentRegistrationForm({
             ]}
             value={newStudent.gradeLevel}
             onChange={(v) => {
-              setNewStudent({ ...newStudent, gradeLevel: v });
+              const validCurricula = getAvailableCurriculaForGrade(v);
+              const nextCurriculum = validCurricula.some((c) => c.value === newStudent.curriculumType)
+                ? newStudent.curriculumType
+                : validCurricula[0]?.value || "INTER";
+              setNewStudent({
+                ...newStudent,
+                gradeLevel: v,
+                curriculumType: nextCurriculum,
+                stream: ["10", "11", "12"].includes(v) ? newStudent.stream : null,
+              });
               if (registerAttempted) {
-                setRegisterErrors((prev) => ({ ...prev, gradeLevel: undefined }));
+                setRegisterErrors((prev) => ({ ...prev, gradeLevel: undefined, curriculumType: undefined }));
               }
             }}
             placeholder="Pilih kelas..."
@@ -163,10 +214,7 @@ export function NewStudentRegistrationForm({
         <div>
           <SearchableSingleSelect
             label="Pilihan Program"
-            options={[
-              { value: "international", label: "Internasional (Cambridge)" },
-              { value: "national", label: "Nasional" },
-            ]}
+            options={getAvailableCurriculaForGrade(newStudent.gradeLevel)}
             value={newStudent.curriculumType}
             onChange={(v) => {
               setNewStudent({ ...newStudent, curriculumType: v as NewStudentForm["curriculumType"] });
@@ -179,6 +227,27 @@ export function NewStudentRegistrationForm({
             error={registerAttempted ? registerErrors.curriculumType : undefined}
           />
         </div>
+
+        {["10", "11", "12"].includes(newStudent.gradeLevel) && (
+          <div>
+            <SearchableSingleSelect
+              label="Peminatan / Jurusan (SMA)"
+              options={[
+                { value: "IPA", label: "IPA" },
+                { value: "IPS", label: "IPS" },
+              ]}
+              value={newStudent.stream || ""}
+              onChange={(v) => {
+                setNewStudent({ ...newStudent, stream: v || null });
+                if (registerAttempted) {
+                  setRegisterErrors((prev) => ({ ...prev, stream: undefined }));
+                }
+              }}
+              placeholder="Pilih peminatan..."
+              error={registerAttempted ? registerErrors.stream : undefined}
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-semibold text-[#050505] mb-1">

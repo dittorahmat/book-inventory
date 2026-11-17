@@ -3,7 +3,8 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, and, desc, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { students, schools, CURRICULUM_TYPES } from "../../db/schema";
+import { students, schools, CURRICULUM_TYPES, STREAMS, INTAKE_TYPES } from "../../db/schema";
+import { normalizeCanonicalCurriculum } from "../../lib/curriculum";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { sortRombels } from "../../lib/classroom";
 import {
@@ -32,6 +33,8 @@ const upsertStudentSchema = z.object({
   gradeLevel: z.string().min(1, "Kelas wajib dipilih"),
   rombel: z.string().trim().optional().nullable(),
   curriculumType: z.enum(CURRICULUM_TYPES).default("INTER"),
+  stream: z.enum(STREAMS).optional().nullable(),
+  intakeType: z.enum(INTAKE_TYPES).default("baru"),
   academicYear: z.string().min(1, "Tahun ajaran wajib diisi"),
   parentName: z.string().optional(),
   parentEmail: z.string().email("Format email orang tua tidak valid").optional().or(z.literal("")),
@@ -188,6 +191,7 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
 
   const id = body.id ?? crypto.randomUUID();
   const cleanNis = body.nis.trim();
+  const canonicalCurriculum = normalizeCanonicalCurriculum(body.curriculumType);
   await db.insert(students).values({
     id,
     schoolId: body.schoolId,
@@ -196,7 +200,9 @@ studentsRouter.post("/", zValidator("json", upsertStudentSchema), async (c) => {
     gender: body.gender,
     gradeLevel: body.gradeLevel,
     rombel: body.rombel || null,
-    curriculumType: body.curriculumType,
+    curriculumType: canonicalCurriculum,
+    stream: body.stream || null,
+    intakeType: body.intakeType,
     academicYear: body.academicYear,
     parentName: body.parentName || null,
     parentEmail: body.parentEmail || null,
@@ -260,6 +266,9 @@ studentsRouter.put("/:id", zValidator("json", updateStudentSchema), async (c) =>
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue;
     if (key === "parentEmail" && value === "") patch[key] = null;
+    else if (key === "curriculumType" && typeof value === "string") {
+      patch[key] = normalizeCanonicalCurriculum(value);
+    }
     else if (key === "isScholarship") patch[key] = value;
     else patch[key] = value;
   }

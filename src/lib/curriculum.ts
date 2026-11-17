@@ -2,6 +2,14 @@ import { CURRICULUM_TYPES, type CurriculumType } from "../db/schema";
 
 export { CURRICULUM_TYPES, type CurriculumType };
 
+export const CANONICAL_GRADES = ["TK", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+
+export const SEMESTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "all", label: "Tahunan (Sem 1 & 2)" },
+  { value: "1", label: "Semester 1 (Ganjil)" },
+  { value: "2", label: "Semester 2 (Genap)" },
+];
+
 export const CANONICAL_CURRICULUM_OPTIONS: Array<{ value: CurriculumType; label: string }> = [
   { value: "TK", label: "TK / Preschool" },
   { value: "INTER", label: "SD Internasional" },
@@ -32,6 +40,22 @@ export function getAvailableCurriculaForGrade(gradeLevel: string): Array<{ value
     }
   }
   return CANONICAL_CURRICULUM_OPTIONS;
+}
+
+/**
+ * Memetakan nilai legacy 'international' / 'national' ke nilai kanonik baru:
+ * - 'international' -> 'INTER'
+ * - 'national' -> 'MQ'
+ * Jika sudah berupa nilai kanonik (TK, INTER, AE, ME, DI, MQ), tetap dikembalikan apa adanya.
+ */
+export function normalizeCanonicalCurriculum(curriculumType: string): CurriculumType {
+  const norm = curriculumType.trim().toUpperCase();
+  if (norm === "INTERNATIONAL") return "INTER";
+  if (norm === "NATIONAL") return "MQ";
+  if (CURRICULUM_TYPES.includes(norm as CurriculumType)) {
+    return norm as CurriculumType;
+  }
+  return "INTER";
 }
 
 export const curriculumLabel = (curriculumType: string): string => {

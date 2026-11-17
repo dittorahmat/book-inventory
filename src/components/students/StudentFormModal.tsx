@@ -9,9 +9,10 @@ import {
   validateRequiredSelect,
   validateRequiredText,
 } from "../../lib/form-validation";
+import { CANONICAL_GRADES, getAvailableCurriculaForGrade, normalizeCanonicalCurriculum } from "../../lib/curriculum";
+import type { CurriculumType, IntakeType, StreamType } from "../../db/schema";
 import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
-import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 
 interface StudentFormModalProps {
   schools: SchoolOption[];
@@ -21,8 +22,6 @@ interface StudentFormModalProps {
   onClose: () => void;
   onSave: (payload: StudentFormPayload) => Promise<void>;
 }
-
-const GRADES = ["TK", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 export function StudentFormModal({
   schools,
@@ -40,23 +39,11 @@ export function StudentFormModal({
   );
   const [gradeLevel, setGradeLevel] = useState(initial?.gradeLevel || "1");
   const [rombel, setRombel] = useState(initial?.rombel || "");
-  const availablePrograms = getAvailableCurriculaForGrade(gradeLevel);
-  const [curriculumType, setCurriculumType] = useState<string>(() => {
-    if (initial?.curriculumType) {
-      if (initial.curriculumType === "international") return "INTER";
-      if (initial.curriculumType === "national") return "MQ";
-      return initial.curriculumType;
-    }
-    return availablePrograms[0]?.value || "INTER";
-  });
-
-  const handleGradeChange = (newGrade: string) => {
-    setGradeLevel(newGrade);
-    const newPrograms = getAvailableCurriculaForGrade(newGrade);
-    if (!newPrograms.some((p) => p.value === curriculumType)) {
-      setCurriculumType(newPrograms[0]?.value || "INTER");
-    }
-  };
+  const [curriculumType, setCurriculumType] = useState<CurriculumType>(
+    initial?.curriculumType ? normalizeCanonicalCurriculum(initial.curriculumType) : "INTER"
+  );
+  const [stream, setStream] = useState<StreamType | null>(initial?.stream ?? null);
+  const [intakeType, setIntakeType] = useState<IntakeType>(initial?.intakeType || "baru");
   const [academicYear, setAcademicYear] = useState(initial?.academicYear || "2026/2027");
   const [status, setStatus] = useState(initial?.status || "active");
   const [parentName, setParentName] = useState(initial?.parentName || "");
@@ -124,6 +111,8 @@ export function StudentFormModal({
         gradeLevel,
         rombel: rombel.trim() || undefined,
         curriculumType,
+        stream: ["10", "11", "12"].includes(gradeLevel) ? stream : null,
+        intakeType,
         academicYear: academicYear.trim() || "2026/2027",
         parentName: parentName.trim() || undefined,
         parentEmail: parentEmail.trim() || undefined,
@@ -239,9 +228,18 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Kelas"
-                options={GRADES.map((g) => ({ value: g, label: g === "TK" ? "TK / Preschool" : `Kelas ${g}` }))}
+                options={CANONICAL_GRADES.map((g) => ({ value: g, label: g === "TK" ? "TK / Preschool" : `Kelas ${g}` }))}
                 value={gradeLevel}
-                onChange={handleGradeChange}
+                onChange={(val) => {
+                  setGradeLevel(val);
+                  const validCurricula = getAvailableCurriculaForGrade(val);
+                  if (!validCurricula.some((c) => c.value === curriculumType)) {
+                    setCurriculumType(validCurricula[0]?.value || "INTER");
+                  }
+                  if (!["10", "11", "12"].includes(val)) {
+                    setStream(null);
+                  }
+                }}
                 placeholder="Pilih kelas..."
                 disabled={hasActiveOrders}
               />
@@ -259,10 +257,36 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Program"
-                options={availablePrograms}
+                options={getAvailableCurriculaForGrade(gradeLevel)}
                 value={curriculumType}
-                onChange={(v) => setCurriculumType(v)}
+                onChange={(v) => setCurriculumType(v as CurriculumType)}
                 placeholder="Pilih program..."
+              />
+            </div>
+            {["10", "11", "12"].includes(gradeLevel) && (
+              <div>
+                <SearchableSingleSelect
+                  label="Peminatan / Jurusan (SMA)"
+                  options={[
+                    { value: "IPA", label: "IPA" },
+                    { value: "IPS", label: "IPS" },
+                  ]}
+                  value={stream || ""}
+                  onChange={(v) => setStream((v as StreamType) || null)}
+                  placeholder="Pilih peminatan..."
+                />
+              </div>
+            )}
+            <div>
+              <SearchableSingleSelect
+                label="Jalur Masuk"
+                options={[
+                  { value: "baru", label: "Siswa Baru" },
+                  { value: "kenaikan", label: "Kenaikan / Pindahan" },
+                ]}
+                value={intakeType}
+                onChange={(v) => setIntakeType((v as IntakeType) || "baru")}
+                placeholder="Pilih jalur masuk..."
               />
             </div>
             <div>
