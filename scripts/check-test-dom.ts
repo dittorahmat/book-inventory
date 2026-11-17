@@ -44,6 +44,12 @@ for (const file of testFiles) {
       console.error(`Missing 'cleanup' from @testing-library/react in ${file}. Always import cleanup and call in afterEach to prevent DOM pollution across tests.`);
       violations++;
     }
+
+    // Periksa monkeypatching browser/DOM global tanpa try-finally atau afterEach
+    if (content.includes("document.createElement =") && !content.includes("finally") && !content.includes("afterEach")) {
+      console.error(`Unsafe 'document.createElement' mutation in ${file}. Always wrap DOM mutations in try...finally or restore in afterEach to prevent state leakage.`);
+      violations++;
+    }
   }
 }
 

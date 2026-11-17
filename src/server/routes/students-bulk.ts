@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { schools } from "../../db/schema";
+import { schools, CURRICULUM_TYPES, INTAKE_TYPES, STREAMS } from "../../db/schema";
 import {
   requireScopedActor,
   assertLocationAllowed,
@@ -70,10 +70,12 @@ const bulkImportItemSchema = z.object({
   gradeLevel: z.string().min(1, "Kelas wajib diisi"),
   rombel: z.string().trim().optional().nullable(),
   gender: z.enum(["male", "female"]).default("male"),
-  curriculumType: z.enum(["international", "national"]).default("international"),
+  curriculumType: z.enum(CURRICULUM_TYPES).default("INTER"),
+  stream: z.enum(STREAMS).optional().nullable(),
+  intakeType: z.enum(INTAKE_TYPES).default("baru"),
   academicYear: z.string().min(1).default("2026/2027"),
   parentName: z.string().optional(),
-  parentEmail: z.string().email().optional().or(z.literal("")),
+  parentEmail: z.string().email().optional().or(z.literal("")).nullable(),
   parentPhone: z.string().optional(),
   status: z.enum(["active", "promoted", "new_pending", "rejected", "graduated"]).default("active"),
   isScholarship: z.boolean().default(false),

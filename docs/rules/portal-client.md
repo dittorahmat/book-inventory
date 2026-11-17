@@ -92,6 +92,11 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 2. **Server-Side Partitioned Filtering & Anti-Collapsing Dropdown**: Filter murid berdasarkan rombel pada antarmuka master murid wajib dikirim ke server (`/api/students?rombel=...`) agar mencakup seluruh populasi murid sekolah tanpa terpotong batas paginasi lokal klien (`LIMIT 50`). Daftar pilihan opsi pada dropdown filter rombel antarmuka dilarang menciut (*anti-collapsing*) saat filter aktif, melainkan wajib mempertahankan himpunan rombel kumulatif yang diketahui dari data sekolah.
 3. **Kelengkapan Ekspor CSV Distribusi**: Ekspor laporan breakdown populasi dan pemenuhan siswa (`StudentBreakdownDrawer`) wajib menyertakan rincian pemenuhan per ruang kelas / rombel untuk memandu pembagian fisik buku dan seragam di sekolah cabang.
 
+### §0.79. Disiplin Parser Import & Anti-Heuristik Substring Longgar
+1. **Anti-Pencocokan Substring Longgar**: Deteksi header kolom file spreadsheet/CSV (seperti no HP, telepon, nama, email) dilarang menggunakan `includes()` substring pendek (seperti `includes("wa")`, `includes("hp")`, atau `includes("id")`) yang rawan bertabrakan dengan kata lain (misal substring `"wa"` tidak sengaja mencocokkan kolom `"nama siswa"` atau alias `"wali"`). Gunakan pencocokan kata utuh yang eksplisit (`=== "no wa"`, `=== "no hp"`, `=== "telepon"`).
+2. **Kanonikalisasi Validasi Email**: Sanitasi format email pada parser import data wajib memanfaatkan helper kanonik `validateEmail` (`src/lib/form-validation.ts`), dilarang menduplikasi instansiasi regex email ad-hoc di dalam loop baris data.
+3. **Isolasi State Test DOM**: Uji coba komponen klien yang memanipulasi atau me-monkeypatch metode browser global (seperti `document.createElement`, `fetch`, `localStorage`, atau `window.location`) wajib dibungkus blok `try ... finally` atau dipulihkan di hook `afterEach` guna mencegah kebocoran state antar test.
+
 
 
 
