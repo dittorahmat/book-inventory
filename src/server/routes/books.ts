@@ -157,38 +157,41 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     return c.json({ success: false, message: "Book with this ISBN already exists" }, 400);
   }
 
-  const [newBook] = await db
-    .insert(books)
-    .values({
-      id,
-      isbn,
-      title: body.title,
-      publicTitle: body.publicTitle?.trim() || null,
-      gradeLevel: body.gradeLevel?.trim() || null,
-      curriculumType: body.curriculumType || null,
-      semester: body.semester?.trim() || null,
-      author: body.author,
-      publisher: body.publisher,
-      publishYear: body.publishYear,
-      category: body.category,
-      description: body.description,
-      coverUrl: body.coverUrl,
-      price: body.price ?? 0,
-      buyPrice: body.buyPrice ?? body.price ?? 0,
-      sellPrice: body.sellPrice ?? body.price ?? 0,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
+  let newBook: typeof books.$inferSelect;
   try {
+    const [inserted] = await db
+      .insert(books)
+      .values({
+        id,
+        isbn,
+        title: body.title,
+        publicTitle: body.publicTitle?.trim() || null,
+        gradeLevel: body.gradeLevel?.trim() || null,
+        curriculumType: body.curriculumType || null,
+        semester: body.semester?.trim() || null,
+        author: body.author,
+        publisher: body.publisher,
+        publishYear: body.publishYear,
+        category: body.category,
+        description: body.description,
+        coverUrl: body.coverUrl,
+        price: body.price ?? 0,
+        buyPrice: body.buyPrice ?? body.price ?? 0,
+        sellPrice: body.sellPrice ?? body.price ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    newBook = inserted;
+
     await replaceBookSuppliers(db, id, body.supplierIds ?? [], now);
     if (body.packageIds && body.packageIds.length > 0) {
       await replaceBookPackages(db, id, body.packageIds, now);
       await recalcPackagesUsingBook(db, id);
     }
   } catch (err) {
-    return c.json({ success: false, message: err instanceof Error ? err.message : "Supplier atau paket tidak valid" }, 400);
+    await db.delete(books).where(eq(books.id, id)).catch(() => {});
+    return c.json({ success: false, message: err instanceof Error ? err.message : "Gagal mendaftarkan buku atau relasinya" }, 400);
   }
 
   return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, newBook)) }, 201);

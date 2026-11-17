@@ -9,7 +9,7 @@ import {
   validateRequiredSelect,
   validateRequiredText,
 } from "../../lib/form-validation";
-import { getAvailableCurriculaForGrade, normalizeCanonicalCurriculum } from "../../lib/curriculum";
+import { CANONICAL_GRADES, getAvailableCurriculaForGrade, normalizeCanonicalCurriculum } from "../../lib/curriculum";
 import type { CurriculumType, IntakeType, StreamType } from "../../db/schema";
 import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
@@ -22,8 +22,6 @@ interface StudentFormModalProps {
   onClose: () => void;
   onSave: (payload: StudentFormPayload) => Promise<void>;
 }
-
-const GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 export function StudentFormModal({
   schools,
@@ -230,7 +228,7 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Kelas"
-                options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+                options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
                 value={gradeLevel}
                 onChange={(val) => {
                   setGradeLevel(val);

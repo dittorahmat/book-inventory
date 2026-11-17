@@ -5,12 +5,10 @@ import { effectiveSellPrice } from "../../lib/book-pricing";
 import { getJson } from "../../lib/api";
 import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import { CANONICAL_CURRICULUM_OPTIONS } from "../../lib/curriculum";
+import { CANONICAL_CURRICULUM_OPTIONS, CANONICAL_GRADES, SEMESTER_OPTIONS } from "../../lib/curriculum";
 import type { CurriculumType } from "../../db/schema";
 import type { Book } from "../../types";
 import type { NewBookPayload } from "./catalog-intent";
-
-const GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 interface EditBookModalProps {
   book: Book;
@@ -51,8 +49,8 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
           "Gagal memuat daftar supplier."
         );
         if (!cancelled) setSupplierOptions(list.map((s) => ({ value: s.id, label: s.name, hint: s.code })));
-      } catch {
-        // supplier fallback
+      } catch (err) {
+        if (!cancelled) setFormError(err instanceof Error ? err.message : "Gagal memuat daftar supplier.");
       }
       try {
         const pkgList = await getJson<Array<{ id: string; name: string; code: string; gradeLevel?: string }>>(
@@ -68,8 +66,8 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
             }))
           );
         }
-      } catch {
-        // package fallback
+      } catch (err) {
+        if (!cancelled) setFormError(err instanceof Error ? err.message : "Gagal memuat daftar paket.");
       }
     })();
     return () => {
@@ -166,7 +164,7 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
             <div>
               <SearchableSingleSelect
                 label="Tingkat Kelas"
-                options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+                options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
                 value={formData.gradeLevel}
                 onChange={(v) => setFormData({ ...formData, gradeLevel: v })}
                 placeholder="Pilih kelas..."
@@ -186,11 +184,7 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
             <div>
               <SearchableSingleSelect
                 label="Semester"
-                options={[
-                  { value: "all", label: "Tahunan (Sem 1 & 2)" },
-                  { value: "1", label: "Semester 1 (Ganjil)" },
-                  { value: "2", label: "Semester 2 (Genap)" },
-                ]}
+                options={SEMESTER_OPTIONS}
                 value={formData.semester}
                 onChange={(v) => setFormData({ ...formData, semester: v })}
                 placeholder="Pilih semester..."

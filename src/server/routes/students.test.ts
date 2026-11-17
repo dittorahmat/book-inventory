@@ -98,16 +98,26 @@ describe("Students admin API", () => {
     expect(uuidJson.data.id).toBeString();
     expect(uuidJson.data.id.length).toBeGreaterThan(10);
 
-    // Update with custom ID
+    // Update with custom ID (termasuk update intakeType dan stream)
     const updateRes = await studentsRouter.request(`/${customId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gradeLevel: "2", rombel: "INTER 2", parentPhone: "+628100000099" }),
+      body: JSON.stringify({
+        gradeLevel: "11",
+        rombel: "11 AE IPA 1",
+        curriculumType: "AE",
+        stream: "IPA",
+        intakeType: "kenaikan",
+        parentPhone: "+628100000099",
+      }),
     });
     expect(updateRes.status).toBe(200);
     const updateJson = await updateRes.json();
-    expect(updateJson.data.gradeLevel).toBe("2");
-    expect(updateJson.data.rombel).toBe("INTER 2");
+    expect(updateJson.data.gradeLevel).toBe("11");
+    expect(updateJson.data.rombel).toBe("11 AE IPA 1");
+    expect(updateJson.data.curriculumType).toBe("AE");
+    expect(updateJson.data.stream).toBe("IPA");
+    expect(updateJson.data.intakeType).toBe("kenaikan");
   });
 
   it("rejects duplicate NIS on create and approve", async () => {

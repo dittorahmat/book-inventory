@@ -89,11 +89,19 @@ describe("Books Catalog API", () => {
     const patchRes = await booksRouter.request(`/${createJson.data.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ price: 120000 }),
+      body: JSON.stringify({
+        price: 120000,
+        gradeLevel: "11",
+        curriculumType: "ME",
+        semester: "2",
+      }),
     });
     const patchJson = await patchRes.json();
     expect(patchRes.status).toBe(200);
     expect(patchJson.data.price).toBe(120000);
+    expect(patchJson.data.gradeLevel).toBe("11");
+    expect(patchJson.data.curriculumType).toBe("ME");
+    expect(patchJson.data.semester).toBe("2");
 
     const badRes = await booksRouter.request("/", {
       method: "POST",

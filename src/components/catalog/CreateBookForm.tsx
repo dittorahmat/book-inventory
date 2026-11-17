@@ -5,7 +5,7 @@ import { effectiveSellPrice } from "../../lib/book-pricing";
 import { getJson } from "../../lib/api";
 import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
-import { CANONICAL_CURRICULUM_OPTIONS } from "../../lib/curriculum";
+import { CANONICAL_CURRICULUM_OPTIONS, CANONICAL_GRADES, SEMESTER_OPTIONS } from "../../lib/curriculum";
 import type { NewBookPayload } from "./catalog-intent";
 import type { CurriculumType } from "../../db/schema";
 
@@ -13,8 +13,6 @@ interface CreateBookFormProps {
   onClose: () => void;
   onCreate: (payload: NewBookPayload, coverFile: File | null) => Promise<unknown>;
 }
-
-const GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 const emptyForm = {
   isbn: "",
@@ -44,6 +42,7 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
   const [supplierOptions, setSupplierOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
   const [packageOptions, setPackageOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
   const [supplierError, setSupplierError] = useState<string | null>(null);
+  const [packageError, setPackageError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,8 +70,8 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
             }))
           );
         }
-      } catch {
-        // package fallback
+      } catch (err) {
+        if (!cancelled) setPackageError(err instanceof Error ? err.message : "Gagal memuat daftar paket.");
       }
     })();
     return () => {
@@ -192,7 +191,7 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
           <div className="col-span-2 sm:col-span-1">
             <SearchableSingleSelect
               label="Tingkat Kelas"
-              options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+              options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
               value={formData.gradeLevel}
               onChange={(v) => setFormData({ ...formData, gradeLevel: v })}
               placeholder="Pilih kelas..."
@@ -212,11 +211,7 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
           <div className="col-span-2 sm:col-span-1">
             <SearchableSingleSelect
               label="Semester"
-              options={[
-                { value: "all", label: "Tahunan (Sem 1 & 2)" },
-                { value: "1", label: "Semester 1 (Ganjil)" },
-                { value: "2", label: "Semester 2 (Genap)" },
-              ]}
+              options={SEMESTER_OPTIONS}
               value={formData.semester}
               onChange={(v) => setFormData({ ...formData, semester: v })}
               placeholder="Pilih semester..."
@@ -241,6 +236,7 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
               onChange={(values) => setFormData({ ...formData, packageIds: values })}
               placeholder="Pilih paket buku (opsional)..."
             />
+            {packageError ? <p className="mt-1 text-[11px] text-red-600">{packageError}</p> : null}
           </div>
 
           <div className="col-span-2">
