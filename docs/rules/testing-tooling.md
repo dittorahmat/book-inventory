@@ -92,3 +92,10 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 2. **Isolasi File Runner Bun Test dari Framework Eksternal**: `bun test` secara default mengeksekusi pola file `*.test.ts` dan `*.spec.ts`. File test framework eksternal (seperti Playwright browser spec) dilarang menggunakan ekstensi yang memicu pemindaian `bun test` tanpa dependensi runtime terpasang, atau wajib dipisahkan runner-nya secara eksplisit (`scripts/demo-scenarios/*`).
 3. **Branch Protection & Require Checks Pass**: Branch `main` wajib dilindungi oleh konfigurasi Branch Protection di GitHub Settings dengan opsi *Require status checks to pass before merging* (memilih context check `gates`), memastikan repositori menolak mutasi langsung jika gate CI gagal.
 
+---
+
+### §0.78. Disiplin Deep Modules & Anti-Shallow Forwarding Wrappers
+1. **Larangan Middle Man / Shallow Wrapper**: Dilarang membuat modul wrapper tipis yang hanya meneruskan argumen tanpa abstraksi nilai tambah nyata (seperti fungsi facade yang hanya memanggil fungsi lain satu baris). Setiap modul atau fungsi baru wajib menerapkan prinsip *Deep Module* (antarmuka sederhana menyembunyikan kompleksitas besar), bukan sekadar perantara (middle man) yang memicu duplikasi atau YAGNI.
+2. **Koneksi Wajib ke Pemanggil Nyata (Wired Up)**: Setiap pembuatan modul domain atau seam baru wajib langsung dihubungkan (*wired up*) ke route handler atau pemanggil nyata dalam PR yang sama. Dilarang menyisakan modul baru berstatus mengambang (unintegrated/dead-code) yang hanya diuji oleh unit test-nya sendiri tanpa integrasi ke alur transaksi sistem riil.
+
+

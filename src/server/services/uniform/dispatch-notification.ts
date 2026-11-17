@@ -1,7 +1,5 @@
 import type { AppDatabase } from "../../../db";
-import { readSettingsMap } from "../settings-map";
 import type { WhatsAppSender } from "../whatsapp";
-import { MetaWhatsAppSender } from "../whatsapp";
 import { uniformOrders, students } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 
@@ -48,6 +46,8 @@ export interface SendShippingNotificationResult {
   error?: string;
 }
 
+import { dispatchOrderNotification } from "../order-notification-hub";
+
 export async function sendUniformShippingNotification(
   database: AppDatabase,
   orderId: string,
@@ -62,27 +62,25 @@ export async function sendUniformShippingNotification(
     return { sent: false, recipientPhone: null, error: "Nomor WA orang tua tidak tersedia." };
   }
 
-  const settings = await readSettingsMap(database);
-  const template = settings[UNIFORM_SHIPPING_INSTRUCTIONS_KEY] || DEFAULT_UNIFORM_SHIPPING_INSTRUCTIONS;
-
-  const text = buildUniformShippingText({
-    studentName: student.name,
-    orderNumber: order.orderNumber,
-    shippingResi: order.shippingResi,
-    instructionsTemplate: template,
-    isPaid: order.paymentStatus === "paid",
-  });
-
-  const sender = deps?.sender ?? new MetaWhatsAppSender(database);
-  const result = await sender.send({
-    to: student.parentPhone,
-    text,
-  });
+  const dispatchResult = await dispatchOrderNotification(
+    database,
+    {
+      type: "uniform_shipped",
+      recipientPhone: student.parentPhone,
+      input: {
+        studentName: student.name,
+        orderNumber: order.orderNumber,
+        shippingResi: order.shippingResi,
+        isPaid: order.paymentStatus === "paid",
+      },
+    },
+    deps?.sender
+  );
 
   return {
-    sent: result.success,
+    sent: dispatchResult.success,
     recipientPhone: student.parentPhone,
-    error: result.success ? undefined : (result.error ?? "Gagal mengirim pesan WhatsApp"),
+    error: dispatchResult.success ? undefined : (dispatchResult.error ?? "Gagal mengirim pesan WhatsApp"),
   };
 }
 

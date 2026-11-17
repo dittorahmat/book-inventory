@@ -7,9 +7,10 @@ import { students, uniformOrders, uniformOrderItems, schools } from "../../db/sc
 import { matchLower } from "../lib/partitioned-search";
 import { idSchema, academicYearSchema, base64UploadSchema } from "../lib/validators";
 import { handleOrderReplacement } from "../services/order-reallocation";
-import { sendUniformOrderWhatsApp } from "../services/uniform/order-notify";
+import { dispatchOrderNotification } from "../services/order-notification-hub";
 import {
   findUniformExchange,
+
   listUniformPackages,
   listUniformVariants,
   requestUniformExchange,
@@ -114,18 +115,22 @@ publicUniformOrdersRouter.post("/orders", zValidator("json", submitUniformOrderS
     }
   }
 
-  // Notifikasi WA blast pesanan seragam selesai (fail-safe)
+  // Notifikasi WA blast pesanan seragam selesai via OrderNotificationHub (fail-safe)
   const [st] = await db.select().from(students).where(eq(students.id, body.studentId));
   const [sc] = st ? await db.select().from(schools).where(eq(schools.id, st.schoolId)) : [];
   if (st?.parentPhone) {
-    await sendUniformOrderWhatsApp(db, {
+    await dispatchOrderNotification(db, {
+      type: "uniform_order_created",
+      input: {
+        parentName: st.parentName || "Wali Murid",
+        studentName: st.name,
+        orderNumber: result.data.order.orderNumber,
+        schoolName: sc?.name || "Al Wildan",
+      },
       recipientPhone: st.parentPhone,
-      parentName: st.parentName || "Wali Murid",
-      studentName: st.name,
-      orderNumber: result.data.order.orderNumber,
-      schoolName: sc?.name || "Al Wildan",
     }).catch(() => null);
   }
+
 
   return c.json({ success: true, data: result.data }, 201);
 });

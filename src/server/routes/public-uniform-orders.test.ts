@@ -419,4 +419,23 @@ describe("Portal retur seragam mandiri", () => {
     expect(oldOrder.shipmentStatus).toBe("superseded");
     expect(oldOrder.supersededByOrderId).toBe(secondId);
   });
+
+  it("submits uniform order and dispatches notification via OrderNotificationHub seam", async () => {
+    const stamp = `u_hub_${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const { kainId } = await seedCatalog(stamp);
+    await seedPriorOrder(schoolId, studentId, stamp);
+
+    const res = await postPublic("/orders", {
+      studentId,
+      academicYear: "2026/2027",
+      homeAddress: "Jl. Boulevard No. 1, BSD City",
+      items: [{ variantId: kainId, quantity: 1 }],
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.order.id).toBeDefined();
+    expect(body.data.order.orderNumber).toBeDefined();
+  });
 });
