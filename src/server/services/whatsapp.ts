@@ -158,15 +158,6 @@ export class InMemoryWhatsAppSender implements WhatsAppSender {
       return { success: false, error };
     }
     this.sent.push(request);
-    globalWhatsAppOutbox.push(request);
     return { success: true, messageId: `wa-mem-${this.sent.length}` };
   }
 }
-
-/** Global outbox ringkas untuk observabilitas / audit pengujian pengiriman WhatsApp di test suite */
-export const globalWhatsAppOutbox: WhatsAppRequest[] = [];
-
-export function clearGlobalWhatsAppOutbox(): void {
-  globalWhatsAppOutbox.length = 0;
-}
-
