@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { studentBookOrders, students, uniformOrders } from "../../db/schema";
+import { studentBookOrders, students, uniformOrders, type CurriculumType, type IntakeType, type StreamType } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, D1_WIDE_INSERT_CHUNK_SIZE, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../lib/document-number";
 
@@ -34,10 +34,12 @@ export interface StudentImportRow {
   gradeLevel: string;
   rombel?: string | null;
   gender?: "male" | "female";
-  curriculumType?: "international" | "national";
+  curriculumType?: CurriculumType;
+  stream?: StreamType | null;
+  intakeType?: IntakeType;
   academicYear?: string;
   parentName?: string;
-  parentEmail?: string;
+  parentEmail?: string | null;
   parentPhone?: string;
   status?: "active" | "promoted" | "new_pending" | "rejected" | "graduated";
   isScholarship?: boolean;
@@ -88,7 +90,9 @@ export async function importStudents(
       gradeLevel: item.gradeLevel,
       rombel: item.rombel || null,
       gender: item.gender ?? "male",
-      curriculumType: item.curriculumType ?? "international",
+      curriculumType: item.curriculumType ?? "INTER",
+      stream: item.stream || null,
+      intakeType: item.intakeType ?? "baru",
       academicYear: item.academicYear ?? "2026/2027",
       parentName: item.parentName || null,
       parentEmail: item.parentEmail || null,

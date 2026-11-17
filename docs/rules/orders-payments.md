@@ -81,7 +81,7 @@ Seluruh intake pembatalan pesanan akibat murid mengundurkan diri (buku maupun se
 2. **Kewajiban Resi Ekspedisi**: eksekusi pengiriman fisik seragam wajib membawa nomor resi kurir non-kosong (`shippingResi`).
 3. **Single-Writer Mutasi Penerimaan Seragam**: mutasi audit konfirmasi penerimaan seragam (`receivedAt`, `receivedNotes`) wajib memusat ke fungsi layanan domain `confirmUniformReceipt` (`src/server/services/uniform`), dilarang mengeksekusi raw `db.update(uniformOrders)` langsung dari router handler. Parameter identifier rute pengiriman wajib divalidasi via `zValidator("param", z.object({ id: idSchema }))`.
 
-### §0.79. Integritas Guard Penghapusan Master Supplier & Purchase Order (PO)
+### §0.80. Integritas Guard Penghapusan Master Supplier & Purchase Order (PO)
 1. **Guard Integritas Relasional Hapus Supplier**: Penghapusan master supplier (`deleteSupplier` di `src/server/services/supplier-mutation.ts`) wajib menolak (400) jika supplier sudah memiliki riwayat transaksi apa pun di database: Purchase Order Buku (`purchase_orders`), PO Seragam Konveksi (`uniform_pos`), Retur Vendor (`vendor_returns`), maupun relasi pemetaan katalog buku (`book_suppliers`).
 2. **Guard Kelayakan Hapus PO Eksternal (Buku & Seragam)**:
    - PO Buku (`deletePurchaseOrder`) dan PO Seragam (`deleteUniformPo`) hanya boleh dihapus jika **belum pernah menerima barang fisik** (`totalReceived === 0` dan status bukan `received` atau `partially_received`).

@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { determineIntakeType } from "./curriculum";
+import { validateEmail } from "./form-validation";
 
 export interface ParsedStudentRow {
   nis: string;
@@ -165,9 +166,15 @@ export function parseStudentData(
   const genderIdx = headers.findIndex((h) => h === "jk" || h === "gender" || h === "jenis kelamin" || h === "m/f");
   const currIdx = headers.findIndex((h) => h === "curriculumtype" || h === "kurikulum");
   const yearIdx = headers.findIndex((h) => h === "academicyear" || h === "tahun ajaran" || h === "tp");
-  const pNameIdx = headers.findIndex((h) => h === "parentname" || h === "nama orang tua" || h === "wali");
-  const pPhoneIdx = headers.findIndex((h) => h === "parentphone" || h === "telepon" || h === "no telp" || h === "whatsapp" || h === "no wa");
-  const pEmailIdx = headers.findIndex((h) => h === "parentemail" || h === "email");
+  const pNameIdx = headers.findIndex(
+    (h) => h === "parentname" || h === "nama orang tua" || h === "wali" || h === "wali murid" || h === "nama wali" || h === "orang tua"
+  );
+  const pPhoneIdx = headers.findIndex(
+    (h) => h === "parentphone" || h === "telepon" || h === "no telp" || h === "no. telp" || h === "whatsapp" || h === "no wa" || h === "no. wa" || h === "no hp" || h === "no. hp" || h === "no_hp" || h === "hp" || h === "no_hp_ortu" || h === "nomor telepon"
+  );
+  const pEmailIdx = headers.findIndex(
+    (h) => h === "parentemail" || h === "email" || h === "email ortu" || h === "email_ortu" || h === "email orang tua" || h === "surel"
+  );
 
   const validStudents: ParsedStudentRow[] = [];
   const skippedRows: SkippedStudentRow[] = [];
@@ -255,7 +262,8 @@ export function parseStudentData(
 
     const parentName = pNameIdx !== -1 && row[pNameIdx] ? String(row[pNameIdx]).trim() : undefined;
     const parentPhone = pPhoneIdx !== -1 && row[pPhoneIdx] ? String(row[pPhoneIdx]).trim() : undefined;
-    const parentEmail = pEmailIdx !== -1 && row[pEmailIdx] ? String(row[pEmailIdx]).trim() : undefined;
+    const rawEmail = pEmailIdx !== -1 && row[pEmailIdx] ? String(row[pEmailIdx]).trim() : "";
+    const parentEmail = rawEmail && validateEmail(rawEmail, false).valid ? rawEmail : undefined;
 
     seenNis.add(rawNis);
     validStudents.push({
