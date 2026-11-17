@@ -11,6 +11,7 @@ import {
 } from "../../lib/form-validation";
 import { fetchStudentActiveOrders } from "./students-api";
 import type { SchoolOption, StudentFormPayload, StudentRecord } from "./students-api";
+import { getAvailableCurriculaForGrade } from "../../lib/curriculum";
 
 interface StudentFormModalProps {
   schools: SchoolOption[];
@@ -39,9 +40,23 @@ export function StudentFormModal({
   );
   const [gradeLevel, setGradeLevel] = useState(initial?.gradeLevel || "1");
   const [rombel, setRombel] = useState(initial?.rombel || "");
-  const [curriculumType, setCurriculumType] = useState<"international" | "national">(
-    initial?.curriculumType === "national" ? "national" : "international"
-  );
+  const availablePrograms = getAvailableCurriculaForGrade(gradeLevel);
+  const [curriculumType, setCurriculumType] = useState<string>(() => {
+    if (initial?.curriculumType) {
+      if (initial.curriculumType === "international") return "INTER";
+      if (initial.curriculumType === "national") return "MQ";
+      return initial.curriculumType;
+    }
+    return availablePrograms[0]?.value || "INTER";
+  });
+
+  const handleGradeChange = (newGrade: string) => {
+    setGradeLevel(newGrade);
+    const newPrograms = getAvailableCurriculaForGrade(newGrade);
+    if (!newPrograms.some((p) => p.value === curriculumType)) {
+      setCurriculumType(newPrograms[0]?.value || "INTER");
+    }
+  };
   const [academicYear, setAcademicYear] = useState(initial?.academicYear || "2026/2027");
   const [status, setStatus] = useState(initial?.status || "active");
   const [parentName, setParentName] = useState(initial?.parentName || "");
@@ -226,7 +241,7 @@ export function StudentFormModal({
                 label="Kelas"
                 options={GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
                 value={gradeLevel}
-                onChange={setGradeLevel}
+                onChange={handleGradeChange}
                 placeholder="Pilih kelas..."
                 disabled={hasActiveOrders}
               />
@@ -244,13 +259,10 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Program"
-                options={[
-                  { value: "international", label: "Internasional" },
-                  { value: "national", label: "Nasional" },
-                ]}
+                options={availablePrograms}
                 value={curriculumType}
-                onChange={(v) => setCurriculumType(v as "international" | "national")}
-                placeholder="Pilih..."
+                onChange={(v) => setCurriculumType(v)}
+                placeholder="Pilih program..."
               />
             </div>
             <div>
