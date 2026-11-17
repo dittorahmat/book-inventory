@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { X, Upload, CheckCircle2, Loader2, FileSpreadsheet, Link2 } from "lucide-react";
 import { postJson } from "../../lib/api";
-import { FormSummaryAlert } from "../ui/FormFieldFeedback";
+import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 
 interface SupplierMappingModalProps {
   onClose: () => void;
@@ -50,13 +50,17 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
         return;
       }
       try {
-        const arrayBuf = await file.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuf);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        payload = { fileBase64: btoa(binary) };
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const resultStr = String(reader.result || "");
+            const commaIndex = resultStr.indexOf(",");
+            resolve(commaIndex >= 0 ? resultStr.slice(commaIndex + 1) : resultStr);
+          };
+          reader.onerror = () => reject(new Error("Gagal membaca berkas spreadsheet."));
+          reader.readAsDataURL(file);
+        });
+        payload = { fileBase64: base64 };
       } catch {
         setError("Gagal membaca berkas spreadsheet.");
         return;
@@ -138,10 +142,16 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
               <input
                 type="url"
                 value={sheetsUrl}
-                onChange={(e) => setSheetsUrl(e.target.value)}
+                onChange={(e) => {
+                  setSheetsUrl(e.target.value);
+                  setError(null);
+                }}
                 placeholder="https://docs.google.com/spreadsheets/d/141ecGw58.../edit"
-                className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505] focus:outline-hidden focus:border-[#1877F2]"
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] focus:outline-hidden ${
+                  error && !sheetsUrl.trim() ? "border-rose-500 ring-1 ring-rose-200" : "border-[#CED0D4] focus:border-[#1877F2]"
+                }`}
               />
+              <FormFieldFeedback error={error && !sheetsUrl.trim() ? error : undefined} />
               <p className="mt-1 text-[11px] text-[#65676B]">
                 Masukkan URL file spreadsheet Estimasi PO Distributor yang memuat sheet CNL, Mentari, Pelangi, Erlangga, dll.
               </p>
@@ -190,14 +200,14 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-3.5 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] rounded-xl transition-colors"
+              className="px-3.5 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] rounded-xl transition-all active:scale-[0.98]"
             >
               Tutup
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#1877F2] text-white text-xs font-semibold rounded-xl hover:bg-[#166FE5] disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#1877F2] text-white text-xs font-semibold rounded-xl hover:bg-[#166FE5] disabled:opacity-50 transition-all active:scale-[0.98]"
             >
               {isSubmitting ? (
                 <>

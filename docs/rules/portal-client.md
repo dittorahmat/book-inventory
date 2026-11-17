@@ -97,6 +97,12 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 2. **Kanonikalisasi Validasi Email**: Sanitasi format email pada parser import data wajib memanfaatkan helper kanonik `validateEmail` (`src/lib/form-validation.ts`), dilarang menduplikasi instansiasi regex email ad-hoc di dalam loop baris data.
 3. **Isolasi State Test DOM**: Uji coba komponen klien yang memanipulasi atau me-monkeypatch metode browser global (seperti `document.createElement`, `fetch`, `localStorage`, atau `window.location`) wajib dibungkus blok `try ... finally` atau dipulihkan di hook `afterEach` guna mencegah kebocoran state antar test.
 
+### §0.81. Sinkronisasi Program Murid & Pemetaan Multi-Sheet Supplier Buku
+1. **Penyelarasan Program Murid**: Formulir data induk murid (`StudentFormModal.tsx`) wajib menggunakan opsi program kanonik `CURRICULUM_TYPES` (`getAvailableCurriculaForGrade`) yang reaktif terhadap tingkat kelas (TK: `TK`, SD: `INTER`/`MQ`, SMP-SMA: `AE`/`ME`/`DI`/`MQ`). Endpoint backend (`src/server/routes/students.ts`) wajib menerima nilai kurikulum kanonik yang sama agar form submit tidak gagal dengan 400 Bad Request.
+2. **Pemetaan Supplier Berbasis Sheet Vendor**: Impor relasi buku-supplier dari spreadsheet PO vendor wajib hanya meng-upsert supplier yang sheet-nya benar-benar ada di dalam berkas workbook. Pencocokan berbasis jenjang (`gradeCol`) dilarang fallback membabi-buta ke kandidat buku pertama jika jenjang tidak cocok, guna mencegah tertukarnya buku ber-judul identik antar jenjang SD/SMP/SMA.
+3. **Kanonikalisasi Token Judul**: Pembentukan token pembanding judul buku wajib menggunakan helper terpusat `tokenizeBookTitle` di `src/lib/isbn.ts`, dilarang merakit fungsi tokenisasi judul ad-hoc di tingkat service lokal.
+
+
 
 
 

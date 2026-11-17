@@ -12,7 +12,7 @@ describe("SupplierMasterSection & SupplierMappingModal (#499)", () => {
     { id: "sup-1", code: "SUP-CNL", name: "Chandra Naya Laksana" },
   ];
 
-  it("menampilkan tombol Import & Mapping Supplier dan membuka modal saat diklik", () => {
+  it("menampilkan tombol Import Supplier dan membuka modal saat diklik", () => {
     render(
       <SupplierMasterSection
         suppliers={mockSuppliers}
@@ -20,7 +20,7 @@ describe("SupplierMasterSection & SupplierMappingModal (#499)", () => {
       />
     );
 
-    const btn = screen.getByText("Import & Mapping Supplier");
+    const btn = screen.getByText("Import Supplier");
     expect(btn).toBeDefined();
 
     fireEvent.click(btn);

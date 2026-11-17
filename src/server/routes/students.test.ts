@@ -728,4 +728,37 @@ describe("spec-57 T3 student NIS-guard consistency", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("menerima pendaftaran murid dengan enum program/kurikulum kanonik Al-Wildan (#498)", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-cur-${stamp}`;
+    await seedSchool(schoolId, `ALW-CUR-${stamp}`);
+    const studentId = `siswa-cur-${stamp}`;
+
+    try {
+      const res = await studentsRouter.request("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: studentId,
+          schoolId,
+          nis: `NIS${String(stamp).slice(-6)}C`,
+          name: "Siswa Program Kanonik",
+          gender: "female",
+          gradeLevel: "7",
+          rombel: "7 AE 1",
+          curriculumType: "AE",
+          academicYear: "2026/2027",
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.curriculumType).toBe("AE");
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, schoolId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

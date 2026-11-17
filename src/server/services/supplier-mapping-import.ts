@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { books, bookSuppliers, suppliers } from "../../db/schema";
-import { normalizeBookTitle } from "../../lib/isbn";
+import { normalizeBookTitle, tokenizeBookTitle } from "../../lib/isbn";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
 
 export interface SupplierMappingResult {
@@ -33,21 +33,6 @@ export const DEFAULT_VENDOR_CONFIGS: SheetVendorConfig[] = [
   { sheet: "NAHWU DAN KHAT ABDURRAHMAN", supCode: "SUP-DAKWAH", supName: "Yayasan Dakwah & Taklim", startRow: 7, titleCol: 1, isbnCol: null },
 ];
 
-function tokenSetKey(t: string): string {
-  if (!t) return "";
-  const cleaned = String(t)
-    .toUpperCase()
-    .replace(/PR1ME/g, "PRIME")
-    .replace(/\bMATHS\b/g, "MATH")
-    .replace(/\bBK\b/g, "BOOK")
-    .replace(/\bCOURSE BOOK\b/g, "COURSEBOOK")
-    .replace(/\(INDONESIA EDITION\)|\( INDONESIA EDITION\)/g, "")
-    .replace(/[^A-Z0-9]/g, " ")
-    .trim();
-  const tokens = cleaned.split(/\s+/).filter(Boolean).sort();
-  return tokens.join(" ");
-}
-
 export async function importSupplierMappingFromWorkbook(
   database: AppDatabase,
   workbook: XLSX.WorkBook,
@@ -55,11 +40,14 @@ export async function importSupplierMappingFromWorkbook(
 ): Promise<SupplierMappingResult> {
   const now = new Date().toISOString();
 
-  // 1. Pastikan master supplier ter-upsert
+  // 1. Pastikan master supplier ter-upsert HANYA jika sheet-nya ada di workbook
   const supplierCodeToId = new Map<string, string>();
   let suppliersUpserted = 0;
 
-  for (const cfg of customConfigs) {
+  // Saring hanya config yang sheet-nya benar-benar ada di workbook
+  const activeConfigs = customConfigs.filter((cfg) => Boolean(workbook.Sheets[cfg.sheet]));
+
+  for (const cfg of activeConfigs) {
     if (supplierCodeToId.has(cfg.supCode)) continue;
     const existing = await database
       .select({ id: suppliers.id, code: suppliers.code })
@@ -109,7 +97,7 @@ export async function importSupplierMappingFromWorkbook(
     nList.push(b);
     byNorm.set(n, nList);
 
-    const t = tokenSetKey(b.title);
+    const t = tokenizeBookTitle(b.title);
     const tList = byToken.get(t) ?? [];
     tList.push(b);
     byToken.set(t, tList);
@@ -125,7 +113,7 @@ export async function importSupplierMappingFromWorkbook(
   const matchedBookIds = new Set<string>();
   let sheetsProcessed = 0;
 
-  for (const cfg of customConfigs) {
+  for (const cfg of activeConfigs) {
     const ws = workbook.Sheets[cfg.sheet];
     if (!ws) continue;
     sheetsProcessed++;
@@ -160,23 +148,34 @@ export async function importSupplierMappingFromWorkbook(
         } else if (candidates.length > 1 && cfg.gradeCol !== undefined && cfg.gradeCol !== null && row[cfg.gradeCol]) {
           const rawGrade = String(row[cfg.gradeCol]).trim().toUpperCase();
           // Filter candidate dengan kesesuaian jenjang pada ISBN/category
-          matchedBook = candidates.find(
+          const matchedByGrade = candidates.find(
             (c) =>
               (c.isbn && c.isbn.toUpperCase().includes(rawGrade)) ||
               (c.category && c.category.toUpperCase().includes(rawGrade))
-          ) || candidates[0];
-        } else if (candidates.length > 0) {
-          matchedBook = candidates[0];
+          );
+          if (matchedByGrade) {
+            matchedBook = matchedByGrade;
+          }
         }
       }
 
       // Prioritas 3: Token-Set Match
       if (!matchedBook && cfg.titleCol !== null && row[cfg.titleCol]) {
         const rawTitle = String(row[cfg.titleCol]).trim();
-        const tok = tokenSetKey(rawTitle);
+        const tok = tokenizeBookTitle(rawTitle);
         const candidates = byToken.get(tok) ?? [];
-        if (candidates.length > 0) {
+        if (candidates.length === 1) {
           matchedBook = candidates[0];
+        } else if (candidates.length > 1 && cfg.gradeCol !== undefined && cfg.gradeCol !== null && row[cfg.gradeCol]) {
+          const rawGrade = String(row[cfg.gradeCol]).trim().toUpperCase();
+          const matchedByGrade = candidates.find(
+            (c) =>
+              (c.isbn && c.isbn.toUpperCase().includes(rawGrade)) ||
+              (c.category && c.category.toUpperCase().includes(rawGrade))
+          );
+          if (matchedByGrade) {
+            matchedBook = matchedByGrade;
+          }
         }
       }
 

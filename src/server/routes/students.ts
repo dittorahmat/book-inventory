@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { eq, and, desc, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db";
-import { students, schools } from "../../db/schema";
+import { students, schools, CURRICULUM_TYPES } from "../../db/schema";
 import { matchAnyLower } from "../lib/partitioned-search";
 import { sortRombels } from "../../lib/classroom";
 import {
@@ -31,7 +31,7 @@ const upsertStudentSchema = z.object({
   gender: z.enum(["male", "female"]).default("male"),
   gradeLevel: z.string().min(1, "Kelas wajib dipilih"),
   rombel: z.string().trim().optional().nullable(),
-  curriculumType: z.enum(["international", "national"]).default("international"),
+  curriculumType: z.enum(CURRICULUM_TYPES).default("INTER"),
   academicYear: z.string().min(1, "Tahun ajaran wajib diisi"),
   parentName: z.string().optional(),
   parentEmail: z.string().email("Format email orang tua tidak valid").optional().or(z.literal("")),

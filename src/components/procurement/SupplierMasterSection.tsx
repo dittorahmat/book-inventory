@@ -140,7 +140,7 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
             className="px-3 py-1.5 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-[#1877F2]" />
-            <span>Import & Mapping Supplier</span>
+            <span>Import Supplier</span>
           </button>
           <button
             type="button"

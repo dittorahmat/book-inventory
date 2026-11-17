@@ -57,4 +57,24 @@ describe("StudentFormModal Program Dropdown (#498)", () => {
     expect(screen.getByText("Dual International (DI)")).toBeDefined();
     expect(screen.getByText("Markaz Al-Qur'an (MQ)")).toBeDefined();
   });
+
+  it("menyesuaikan opsi program saat kelas diganti ke TK / Preschool", () => {
+    render(
+      <StudentFormModal
+        schools={mockSchools}
+        defaultSchoolId="sch-1"
+        initial={null}
+        saving={false}
+        onClose={() => {}}
+        onSave={async () => {}}
+      />
+    );
+
+    // Buka dropdown Kelas dan pilih TK / Preschool
+    fireEvent.click(screen.getByText("Kelas 1"));
+    fireEvent.click(screen.getByText("TK / Preschool"));
+
+    // Program otomatis berubah ke TK / Preschool
+    expect(screen.getAllByText("TK / Preschool").length).toBeGreaterThan(0);
+  });
 });

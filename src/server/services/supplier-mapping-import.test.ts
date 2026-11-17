@@ -1,22 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import * as XLSX from "xlsx";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { books, bookSuppliers } from "../../db/schema";
+import { books, bookSuppliers, suppliers } from "../../db/schema";
 import { importSupplierMappingFromWorkbook } from "./supplier-mapping-import";
 
 describe("supplier-mapping-import service (#499)", () => {
   const now = new Date().toISOString();
   const testBookIds: string[] = [];
-
-  beforeEach(async () => {
-    await db.delete(bookSuppliers);
-  });
+  const testSupplierCodes = ["SUP-CNL", "SUP-ERLANGGA"];
 
   afterEach(async () => {
     for (const bId of testBookIds) {
       await db.delete(bookSuppliers).where(eq(bookSuppliers.bookId, bId));
       await db.delete(books).where(eq(books.id, bId));
+    }
+    for (const code of testSupplierCodes) {
+      await db.delete(suppliers).where(eq(suppliers.code, code));
     }
     testBookIds.length = 0;
   });
@@ -51,6 +51,7 @@ describe("supplier-mapping-import service (#499)", () => {
 
     expect(result.totalSheetsProcessed).toBe(1);
     expect(result.booksMatched).toBe(1);
+    expect(result.suppliersUpserted).toBe(1);
 
     const links = await db
       .select()
@@ -115,5 +116,56 @@ describe("supplier-mapping-import service (#499)", () => {
     // Buku SD yang harus terpetakan, bukan SMP
     expect(sdLinks.length).toBe(1);
     expect(smpLinks.length).toBe(0);
+  });
+
+  it("memproses multi-sheet vendor dalam satu berkas spreadsheet secara utuh", async () => {
+    const cnlBookId = `book-cnl-${Date.now()}`;
+    const erlanggaBookId = `book-erl-${Date.now()}`;
+    testBookIds.push(cnlBookId, erlanggaBookId);
+
+    await db.insert(books).values([
+      {
+        id: cnlBookId,
+        isbn: "9789814999999",
+        title: "Science Coursebook 1",
+        author: "Scholastic",
+        publisher: "Scholastic",
+        price: 90000,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: erlanggaBookId,
+        isbn: "BK-ERL-IND-1",
+        title: "Bahasa Indonesia 1",
+        category: "SD",
+        author: "Erlangga",
+        publisher: "Erlangga",
+        price: 45000,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: CNL
+    const cnlRows: unknown[][] = [];
+    for (let i = 0; i < 10; i++) cnlRows.push([`header-${i}`]);
+    cnlRows.push([1, "9789814999999", "Science Coursebook 1"]);
+    const wsCnl = XLSX.utils.aoa_to_sheet(cnlRows);
+    XLSX.utils.book_append_sheet(wb, wsCnl, "CNL");
+
+    // Sheet 2: ERLANGGA
+    const erlanggaRows: unknown[][] = [];
+    for (let i = 0; i < 8; i++) erlanggaRows.push([`header-${i}`]);
+    erlanggaRows.push([1, "SD", "old title", 50, "Bahasa Indonesia 1"]);
+    const wsErl = XLSX.utils.aoa_to_sheet(erlanggaRows);
+    XLSX.utils.book_append_sheet(wb, wsErl, "ERLANGGA");
+
+    const result = await importSupplierMappingFromWorkbook(db, wb);
+
+    expect(result.totalSheetsProcessed).toBe(2);
+    expect(result.booksMatched).toBe(2);
   });
 });
