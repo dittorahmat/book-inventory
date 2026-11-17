@@ -25,6 +25,9 @@ import {
   resolveLogisticsActor,
 } from "../services/access-scope";
 import { idSchema } from "../lib/validators";
+import { fetchGoogleDriveResource } from "../services/drive-service";
+import { importSupplierMappingFromWorkbook } from "../services/supplier-mapping-import";
+import * as XLSX from "xlsx";
 export const procurementRouter = new Hono();
 
 const createSupplierSchema = z.object({
@@ -109,6 +112,46 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 
   const [created] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   return c.json({ success: true, data: created }, 201);
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const importSupplierMappingSchema = z.object({
+  url: z.string().url("URL Google Sheets tidak valid").optional(),
+  fileBase64: z.string().max(20_000_000, "Ukuran berkas melebihi 20MB").optional(),
+});
+
+procurementRouter.post("/suppliers/import-mapping", zValidator("json", importSupplierMappingSchema), async (c) => {
+  try {
+    await requireScopedLogisticsActor(db, c);
+    const { url, fileBase64 } = c.req.valid("json");
+
+    let buffer: ArrayBuffer | Buffer;
+
+    if (url) {
+      const res = await fetchGoogleDriveResource(url);
+      if (!res.success) {
+        return c.json({ success: false, message: res.message }, res.status as 400 | 404 | 502);
+      }
+      if (res.type !== "sheet" || !res.data.buffer) {
+        return c.json({ success: false, message: "URL yang dimasukkan bukan berkas spreadsheet yang valid." }, 400);
+      }
+      buffer = res.data.buffer;
+    } else if (fileBase64) {
+      buffer = Buffer.from(fileBase64, "base64");
+    } else {
+      return c.json({ success: false, message: "Harap sertakan url atau fileBase64 spreadsheet." }, 400);
+    }
+
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const result = await importSupplierMappingFromWorkbook(db, workbook);
+
+    return c.json({
+      success: true,
+      message: `Berhasil memetakan ${result.booksMatched} buku dari ${result.totalSheetsProcessed} sheet vendor.`,
+      data: result,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
