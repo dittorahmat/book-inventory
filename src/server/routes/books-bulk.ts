@@ -8,6 +8,7 @@ import { importBookCatalog } from "../services/book-catalog-import";
 import { parseBookCatalogData } from "../../lib/book-import-parser";
 import { fetchGoogleDriveResource } from "../services/drive-service";
 import { d1WriteErrorStatus } from "../lib/d1-write";
+import { CURRICULUM_TYPES } from "../../db/schema";
 
 export const bookBulkRouter = new Hono();
 
@@ -28,7 +29,7 @@ const bookImportItemSchema = z
     sellPrice: z.number().nonnegative().optional(),
     isbn: z.string().optional(),
     gradeLevel: z.string().optional(),
-    curriculumType: z.enum(["international", "national"]).optional(),
+    curriculumType: z.enum(CURRICULUM_TYPES).optional(),
     semester: z.string().optional(),
     academicYear: z.string().optional(),
   })

@@ -1,6 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { bookPackageItems, bookPackages, books } from "../../db/schema";
+import { bookPackageItems, bookPackages, books, type CurriculumType } from "../../db/schema";
 import { normalizeBookTitle, resolveBookIsbn } from "../../lib/isbn";
+import { normalizeCanonicalCurriculum } from "../../lib/curriculum";
 import { chunkRows } from "../lib/d1-write";
 import { recalcPackagePrice } from "./pricing";
 import { ensurePackageHasWpr } from "./wpr";
@@ -20,7 +21,8 @@ export interface BookImportRow {
   sellPrice?: number;
   isbn?: string;
   gradeLevel?: string;
-  curriculumType?: "international" | "national";
+  curriculumType?: string;
+  semester?: string;
   academicYear?: string;
 }
 
@@ -54,6 +56,9 @@ export async function importBookCatalog(
   // 1. Ekstrak ISBN dan cari buku yang sudah ada berdasarkan ISBN dan Judul Buku (case-insensitive)
   const normalizedItems = items.map((item) => {
     const normTitle = normalizeBookTitle(item.title);
+    const resolvedCurriculum = item.curriculumType
+      ? normalizeCanonicalCurriculum(item.curriculumType)
+      : "INTER";
     return {
       ...item,
       normalizedTitle: normTitle,
@@ -61,7 +66,8 @@ export async function importBookCatalog(
       effectivePrice: Math.round(item.sellPrice ?? item.price ?? 0),
       effectiveBuyPrice: Math.round(item.buyPrice ?? item.price ?? 0),
       gradeLevel: item.gradeLevel || "1",
-      curriculumType: item.curriculumType || "international",
+      curriculumType: resolvedCurriculum,
+      semester: item.semester?.trim() || null,
     };
   });
 
@@ -115,6 +121,9 @@ export async function importBookCatalog(
         id: existingId,
         values: {
           title: item.title,
+          gradeLevel: item.gradeLevel,
+          curriculumType: item.curriculumType,
+          semester: item.semester,
           author: item.author || "Tim Al-Wildan",
           publisher: item.publisher || "Al-Wildan Press",
           publishYear: item.publishYear,
@@ -149,6 +158,9 @@ export async function importBookCatalog(
         id: newId,
         isbn: item.resolvedIsbn,
         title: item.title,
+        gradeLevel: item.gradeLevel,
+        curriculumType: item.curriculumType,
+        semester: item.semester,
         author: item.author || "Tim Al-Wildan",
         publisher: item.publisher || "Al-Wildan Press",
         publishYear: item.publishYear,
@@ -195,10 +207,11 @@ export async function importBookCatalog(
     }
 
     for (const [groupKey, bookComponents] of packageGroups.entries()) {
-      const [gradeLevel, curriculumType] = groupKey.split("__") as [string, "international" | "national"];
-      const codeSuffix = curriculumType === "international" ? "INT" : "NAT";
+      const [gradeLevel, curriculumType] = groupKey.split("__") as [string, CurriculumType];
+      const isInt = curriculumType === "INTER" || curriculumType === "international";
+      const codeSuffix = isInt ? "INT" : curriculumType === "MQ" || curriculumType === "national" ? "NAT" : curriculumType;
       const packageCode = `PKG-SD${gradeLevel}-${codeSuffix}-${academicYear.replace("/", "-")}`;
-      const packageName = `Paket Buku Kelas ${gradeLevel} ${curriculumType === "international" ? "Internasional" : "Nasional Plus"} TA ${academicYear}`;
+      const packageName = `Paket Buku Kelas ${gradeLevel} ${isInt ? "Internasional" : "Nasional Plus"} TA ${academicYear}`;
       const totalPrice = bookComponents.reduce((sum, b) => sum + b.price, 0);
 
       // Cek apakah paket sudah ada

@@ -25,11 +25,17 @@ describe("Books Catalog API", () => {
         publisher: "Prentice Hall",
         publishYear: 2008,
         category: "Software Engineering",
+        gradeLevel: "10",
+        curriculumType: "AE",
+        semester: "1",
       }),
     });
     const createJson = await createRes.json();
     expect(createRes.status).toBe(201);
     expect(createJson.data.title).toBe("Clean Code");
+    expect(createJson.data.gradeLevel).toBe("10");
+    expect(createJson.data.curriculumType).toBe("AE");
+    expect(createJson.data.semester).toBe("1");
     const bookId = createJson.data.id;
 
     // Upload cover image

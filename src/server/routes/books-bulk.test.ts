@@ -23,6 +23,8 @@ describe("POST /api/books/bulk-import", () => {
           {
             title: `Buku Bulk A ${stamp}`,
             gradeLevel: "1",
+            curriculumType: "INTER",
+            semester: "1",
             price: 50000,
             buyPrice: 35000,
             isbn: isbn1,
