@@ -3,10 +3,10 @@ import * as XLSX from "xlsx";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { books, bookSuppliers, suppliers } from "../../db/schema";
+import { createTestBook } from "../lib/test-fixtures";
 import { importSupplierMappingFromWorkbook } from "./supplier-mapping-import";
 
 describe("supplier-mapping-import service (#499)", () => {
-  const now = new Date().toISOString();
   const testBookIds: string[] = [];
   const testSupplierCodes = ["SUP-CNL", "SUP-ERLANGGA"];
 
@@ -22,20 +22,16 @@ describe("supplier-mapping-import service (#499)", () => {
   });
 
   it("memetakan buku ke supplier berdasarkan ISBN dan nama sheet vendor", async () => {
-    // Siapkan mock buku
-    const testBookId = `book-test-${Date.now()}`;
-    testBookIds.push(testBookId);
+    // Siapkan mock buku via factory kanonik
     const testIsbn = "9789814969529";
-    await db.insert(books).values({
-      id: testBookId,
+    const testBook = await createTestBook(db, {
       isbn: testIsbn,
       title: "PRIME MATHS 1A",
       author: "Scholastic",
       publisher: "Scholastic",
       price: 100000,
-      createdAt: now,
-      updatedAt: now,
     });
+    testBookIds.push(testBook.id);
 
     const wb = XLSX.utils.book_new();
     const cnlRows: unknown[][] = [];
@@ -56,39 +52,28 @@ describe("supplier-mapping-import service (#499)", () => {
     const links = await db
       .select()
       .from(bookSuppliers)
-      .where(eq(bookSuppliers.bookId, testBookId));
+      .where(eq(bookSuppliers.bookId, testBook.id));
     expect(links.length).toBe(1);
   });
 
   it("mencegah bentrok judul antar jenjang saat kolom jenjang tersedia di sheet vendor", async () => {
-    const sdBookId = `book-sd-${Date.now()}`;
-    const smpBookId = `book-smp-${Date.now()}`;
-    testBookIds.push(sdBookId, smpBookId);
-
-    await db.insert(books).values([
-      {
-        id: sdBookId,
-        isbn: "BK-SD-MAT-1",
-        title: "Matematika 1",
-        category: "SD",
-        author: "Tim",
-        publisher: "Erlangga",
-        price: 50000,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: smpBookId,
-        isbn: "BK-SMP-MAT-1",
-        title: "Matematika 1",
-        category: "SMP",
-        author: "Tim",
-        publisher: "Erlangga",
-        price: 60000,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
+    const sdBook = await createTestBook(db, {
+      isbn: "BK-SD-MAT-1",
+      title: "Matematika 1",
+      category: "SD",
+      author: "Tim",
+      publisher: "Erlangga",
+      price: 50000,
+    });
+    const smpBook = await createTestBook(db, {
+      isbn: "BK-SMP-MAT-1",
+      title: "Matematika 1",
+      category: "SMP",
+      author: "Tim",
+      publisher: "Erlangga",
+      price: 60000,
+    });
+    testBookIds.push(sdBook.id, smpBook.id);
 
     const wb = XLSX.utils.book_new();
     const erlanggaRows: unknown[][] = [];
@@ -107,11 +92,11 @@ describe("supplier-mapping-import service (#499)", () => {
     const sdLinks = await db
       .select()
       .from(bookSuppliers)
-      .where(eq(bookSuppliers.bookId, sdBookId));
+      .where(eq(bookSuppliers.bookId, sdBook.id));
     const smpLinks = await db
       .select()
       .from(bookSuppliers)
-      .where(eq(bookSuppliers.bookId, smpBookId));
+      .where(eq(bookSuppliers.bookId, smpBook.id));
 
     // Buku SD yang harus terpetakan, bukan SMP
     expect(sdLinks.length).toBe(1);
@@ -119,33 +104,22 @@ describe("supplier-mapping-import service (#499)", () => {
   });
 
   it("memproses multi-sheet vendor dalam satu berkas spreadsheet secara utuh", async () => {
-    const cnlBookId = `book-cnl-${Date.now()}`;
-    const erlanggaBookId = `book-erl-${Date.now()}`;
-    testBookIds.push(cnlBookId, erlanggaBookId);
-
-    await db.insert(books).values([
-      {
-        id: cnlBookId,
-        isbn: "9789814999999",
-        title: "Science Coursebook 1",
-        author: "Scholastic",
-        publisher: "Scholastic",
-        price: 90000,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: erlanggaBookId,
-        isbn: "BK-ERL-IND-1",
-        title: "Bahasa Indonesia 1",
-        category: "SD",
-        author: "Erlangga",
-        publisher: "Erlangga",
-        price: 45000,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
+    const cnlBook = await createTestBook(db, {
+      isbn: "9789814999999",
+      title: "Science Coursebook 1",
+      author: "Scholastic",
+      publisher: "Scholastic",
+      price: 90000,
+    });
+    const erlanggaBook = await createTestBook(db, {
+      isbn: "BK-ERL-IND-1",
+      title: "Bahasa Indonesia 1",
+      category: "SD",
+      author: "Erlangga",
+      publisher: "Erlangga",
+      price: 45000,
+    });
+    testBookIds.push(cnlBook.id, erlanggaBook.id);
 
     const wb = XLSX.utils.book_new();
 
