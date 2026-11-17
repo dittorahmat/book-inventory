@@ -13,6 +13,7 @@ import {
   bookSuppliers,
   purchaseOrderItems,
   purchaseOrders,
+  CURRICULUM_TYPES,
 } from "../../db/schema";
 import { idSchema } from "../lib/validators";
 import { defaultStorage } from "../../services/storage";
@@ -44,7 +45,11 @@ const createBookSchema = z.object({
   isbn: z.string().trim().optional(),
   title: z.string().min(1, "Title is required"),
   publicTitle: z.string().optional(),
+  gradeLevel: z.string().optional().nullable(),
+  curriculumType: z.enum(CURRICULUM_TYPES).optional().nullable(),
+  semester: z.string().optional().nullable(),
   supplierIds: z.array(idSchema).default([]),
+  packageIds: z.array(idSchema).default([]),
   author: z.string().min(1, "Author is required"),
   publisher: z.string().min(1, "Publisher is required"),
   publishYear: z.number().int().optional(),
@@ -59,6 +64,9 @@ const createBookSchema = z.object({
 const updateBookSchema = z.object({
   title: z.string().min(1).optional(),
   publicTitle: z.string().nullable().optional(),
+  gradeLevel: z.string().nullable().optional(),
+  curriculumType: z.enum(CURRICULUM_TYPES).nullable().optional(),
+  semester: z.string().nullable().optional(),
   supplierIds: z.array(idSchema).optional(),
   packageIds: z.array(idSchema).optional(),
   author: z.string().min(1).optional(),
@@ -149,31 +157,41 @@ booksRouter.post("/", zValidator("json", createBookSchema), async (c) => {
     return c.json({ success: false, message: "Book with this ISBN already exists" }, 400);
   }
 
-  const [newBook] = await db
-    .insert(books)
-    .values({
-      id,
-      isbn,
-      title: body.title,
-      publicTitle: body.publicTitle?.trim() || null,
-      author: body.author,
-      publisher: body.publisher,
-      publishYear: body.publishYear,
-      category: body.category,
-      description: body.description,
-      coverUrl: body.coverUrl,
-      price: body.price ?? 0,
-      buyPrice: body.buyPrice ?? body.price ?? 0,
-      sellPrice: body.sellPrice ?? body.price ?? 0,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
+  let newBook: typeof books.$inferSelect;
   try {
+    const [inserted] = await db
+      .insert(books)
+      .values({
+        id,
+        isbn,
+        title: body.title,
+        publicTitle: body.publicTitle?.trim() || null,
+        gradeLevel: body.gradeLevel?.trim() || null,
+        curriculumType: body.curriculumType || null,
+        semester: body.semester?.trim() || null,
+        author: body.author,
+        publisher: body.publisher,
+        publishYear: body.publishYear,
+        category: body.category,
+        description: body.description,
+        coverUrl: body.coverUrl,
+        price: body.price ?? 0,
+        buyPrice: body.buyPrice ?? body.price ?? 0,
+        sellPrice: body.sellPrice ?? body.price ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    newBook = inserted;
+
     await replaceBookSuppliers(db, id, body.supplierIds ?? [], now);
+    if (body.packageIds && body.packageIds.length > 0) {
+      await replaceBookPackages(db, id, body.packageIds, now);
+      await recalcPackagesUsingBook(db, id);
+    }
   } catch (err) {
-    return c.json({ success: false, message: err instanceof Error ? err.message : "Supplier tidak valid" }, 400);
+    await db.delete(books).where(eq(books.id, id)).catch(() => {});
+    return c.json({ success: false, message: err instanceof Error ? err.message : "Gagal mendaftarkan buku atau relasinya" }, 400);
   }
 
   return c.json({ success: true, data: withEffectivePrices(await withSuppliers(db, newBook)) }, 201);

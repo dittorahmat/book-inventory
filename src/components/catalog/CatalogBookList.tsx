@@ -50,8 +50,23 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm text-[#050505] leading-snug line-clamp-2">{book.title}</div>
                 <div className="text-xs text-[#65676B] mt-0.5">{book.author}</div>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   <span className="font-mono text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">{book.isbn}</span>
+                  {book.gradeLevel && (
+                    <span className="text-[10px] font-bold bg-[#E7F3FF] text-[#1877F2] px-1.5 py-0.5 rounded">
+                      Kelas {book.gradeLevel}
+                    </span>
+                  )}
+                  {book.curriculumType && (
+                    <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">
+                      {book.curriculumType}
+                    </span>
+                  )}
+                  {book.semester && book.semester !== "all" && (
+                    <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">
+                      Sem {book.semester}
+                    </span>
+                  )}
                   <span className="text-xs font-bold text-[#1877F2]">{formatRupiah(effectiveBookPrice(book).sell)}</span>
                 </div>
                 {book.packages && book.packages.length > 0 && (

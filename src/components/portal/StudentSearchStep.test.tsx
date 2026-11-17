@@ -172,4 +172,64 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
 
     expect(screen.getByText("1 INTER 1")).toBeDefined();
   });
+
+  it("renders gender radio buttons and conditionally displays stream for high school grades", () => {
+    let currentStudent: NewStudentForm = { ...EMPTY_NEW_STUDENT, gradeLevel: "1" };
+    const { rerender } = render(
+      <StudentSearchStep
+        schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
+        searchSchoolId=""
+        setSearchSchoolId={noop}
+        searchQuery=""
+        setSearchQuery={noop}
+        isSearching={false}
+        searchResults={[]}
+        isNewStudentMode={true}
+        setIsNewStudentMode={noop}
+        newStudent={currentStudent}
+        setNewStudent={(action) => {
+          if (typeof action === "function") {
+            currentStudent = action(currentStudent);
+          } else {
+            currentStudent = action;
+          }
+        }}
+        isSubmitting={false}
+        onSearch={noopSubmit}
+        onSelectStudent={noop}
+        onRegister={noopSubmit}
+      />
+    );
+
+    // Gender radio selection
+    expect(screen.getByText("Laki-laki (Ikhwan)")).toBeDefined();
+    expect(screen.getByText("Perempuan (Akhwat)")).toBeDefined();
+    // For Grade 1, stream options should NOT appear
+    expect(screen.queryByText(/Jurusan \/ Peminatan/i)).toBeNull();
+
+    // Rerender with Grade 10 (High school)
+    currentStudent = { ...currentStudent, gradeLevel: "10" };
+    rerender(
+      <StudentSearchStep
+        schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
+        searchSchoolId=""
+        setSearchSchoolId={noop}
+        searchQuery=""
+        setSearchQuery={noop}
+        isSearching={false}
+        searchResults={[]}
+        isNewStudentMode={true}
+        setIsNewStudentMode={noop}
+        newStudent={currentStudent}
+        setNewStudent={noopDispatch}
+        isSubmitting={false}
+        onSearch={noopSubmit}
+        onSelectStudent={noop}
+        onRegister={noopSubmit}
+      />
+    );
+
+    // For Grade 10, stream selection should now be visible
+    expect(screen.getByText(/Peminatan \/ Jurusan \(SMA\)/i)).toBeDefined();
+  });
 });

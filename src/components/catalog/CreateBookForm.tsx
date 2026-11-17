@@ -4,14 +4,34 @@ import { BookPriceFields } from "./BookPriceFields";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { getJson } from "../../lib/api";
 import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { CANONICAL_CURRICULUM_OPTIONS, CANONICAL_GRADES, SEMESTER_OPTIONS } from "../../lib/curriculum";
 import type { NewBookPayload } from "./catalog-intent";
+import type { CurriculumType } from "../../db/schema";
 
 interface CreateBookFormProps {
   onClose: () => void;
   onCreate: (payload: NewBookPayload, coverFile: File | null) => Promise<unknown>;
 }
 
-const emptyForm = { isbn: "", title: "", publicTitle: "", supplierIds: [] as string[], author: "", publisher: "", publishYear: 2024, category: "General", price: 0, buyPrice: 0, sellPrice: 0 };
+const emptyForm = {
+  isbn: "",
+  title: "",
+  publicTitle: "",
+  gradeLevel: "",
+  curriculumType: "" as CurriculumType | "",
+  semester: "all",
+  supplierIds: [] as string[],
+  packageIds: [] as string[],
+  author: "",
+  publisher: "",
+  publishYear: 2024,
+  category: "General",
+  description: "",
+  price: 0,
+  buyPrice: 0,
+  sellPrice: 0,
+};
 
 /** Formulir pendaftaran judul katalog + cover; harga dasar fallback kanonik. */
 export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
@@ -20,7 +40,9 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [supplierOptions, setSupplierOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
+  const [packageOptions, setPackageOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
   const [supplierError, setSupplierError] = useState<string | null>(null);
+  const [packageError, setPackageError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +55,23 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
         if (!cancelled) setSupplierOptions(list.map((s) => ({ value: s.id, label: s.name, hint: s.code })));
       } catch (err) {
         if (!cancelled) setSupplierError(err instanceof Error ? err.message : "Gagal memuat daftar supplier.");
+      }
+      try {
+        const pkgList = await getJson<Array<{ id: string; name: string; code: string; gradeLevel?: string }>>(
+          "/api/packages",
+          "Gagal memuat daftar paket."
+        );
+        if (!cancelled) {
+          setPackageOptions(
+            pkgList.map((p) => ({
+              value: p.id,
+              label: p.name,
+              hint: p.gradeLevel ? `Kelas ${p.gradeLevel} (${p.code})` : p.code,
+            }))
+          );
+        }
+      } catch (err) {
+        if (!cancelled) setPackageError(err instanceof Error ? err.message : "Gagal memuat daftar paket.");
       }
     })();
     return () => {
@@ -52,7 +91,18 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
       const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
       const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
       const legacyPrice = effectiveSellPrice({ price: formData.price, buyPrice, sellPrice });
-      await onCreate({ ...formData, price: legacyPrice, buyPrice, sellPrice }, coverFile);
+      await onCreate(
+        {
+          ...formData,
+          curriculumType: formData.curriculumType || null,
+          gradeLevel: formData.gradeLevel || null,
+          semester: formData.semester || null,
+          price: legacyPrice,
+          buyPrice,
+          sellPrice,
+        },
+        coverFile
+      );
       setFormData({ ...emptyForm });
       setCoverFile(null);
       setCoverPreviewUrl(null);
@@ -137,6 +187,58 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
               onChange={(e) => setFormData({ ...formData, publicTitle: e.target.value })}
             />
           </div>
+
+          <div className="col-span-2 sm:col-span-1">
+            <SearchableSingleSelect
+              label="Tingkat Kelas"
+              options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+              value={formData.gradeLevel}
+              onChange={(v) => setFormData({ ...formData, gradeLevel: v })}
+              placeholder="Pilih kelas..."
+            />
+          </div>
+
+          <div className="col-span-2 sm:col-span-1">
+            <SearchableSingleSelect
+              label="Program"
+              options={CANONICAL_CURRICULUM_OPTIONS}
+              value={formData.curriculumType}
+              onChange={(v) => setFormData({ ...formData, curriculumType: v as CurriculumType })}
+              placeholder="Pilih program..."
+            />
+          </div>
+
+          <div className="col-span-2 sm:col-span-1">
+            <SearchableSingleSelect
+              label="Semester"
+              options={SEMESTER_OPTIONS}
+              value={formData.semester}
+              onChange={(v) => setFormData({ ...formData, semester: v })}
+              placeholder="Pilih semester..."
+            />
+          </div>
+
+          <div className="col-span-2 sm:col-span-1">
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Kategori / Mapel</label>
+            <input
+              className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
+              placeholder="Contoh: Matematika / Bahasa Arab"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            />
+          </div>
+
+          <div className="col-span-2">
+            <SearchableMultiSelect
+              label="Masukkan ke Paket Buku Langsung"
+              options={packageOptions}
+              values={formData.packageIds}
+              onChange={(values) => setFormData({ ...formData, packageIds: values })}
+              placeholder="Pilih paket buku (opsional)..."
+            />
+            {packageError ? <p className="mt-1 text-[11px] text-red-600">{packageError}</p> : null}
+          </div>
+
           <div className="col-span-2">
             <SearchableMultiSelect
               label="Supplier (kosong = semua supplier)"
@@ -146,6 +248,17 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
               placeholder="Pilih supplier..."
             />
             {supplierError ? <p className="mt-1 text-[11px] text-red-600">{supplierError}</p> : null}
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Catatan / Deskripsi Buku</label>
+            <textarea
+              rows={2}
+              className="w-full border border-[#CED0D4] p-2.5 rounded-lg text-xs focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]"
+              placeholder="Deskripsi singkat atau catatan pengadaan buku..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
           </div>
           <div className="col-span-2 sm:col-span-1">
             <label className="block text-xs font-semibold text-[#050505] mb-1">Penulis / Author</label>

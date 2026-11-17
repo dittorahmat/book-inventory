@@ -4,6 +4,9 @@ import { BookPriceFields } from "./BookPriceFields";
 import { effectiveSellPrice } from "../../lib/book-pricing";
 import { getJson } from "../../lib/api";
 import { SearchableMultiSelect } from "../ui/SearchableMultiSelect";
+import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
+import { CANONICAL_CURRICULUM_OPTIONS, CANONICAL_GRADES, SEMESTER_OPTIONS } from "../../lib/curriculum";
+import type { CurriculumType } from "../../db/schema";
 import type { Book } from "../../types";
 import type { NewBookPayload } from "./catalog-intent";
 
@@ -18,12 +21,16 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
     isbn: book.isbn || "",
     title: book.title || "",
     publicTitle: book.publicTitle || "",
+    gradeLevel: book.gradeLevel || "",
+    curriculumType: (book.curriculumType || "") as CurriculumType | "",
+    semester: book.semester || "all",
     supplierIds: book.supplierIds || [],
     packageIds: book.packages ? book.packages.map((p) => p.packageId) : [],
     author: book.author || "",
     publisher: book.publisher || "",
     publishYear: book.publishYear || 2024,
     category: book.category || "General",
+    description: book.description || "",
     price: book.price || 0,
     buyPrice: book.buyPrice || 0,
     sellPrice: book.sellPrice || 0,
@@ -42,8 +49,8 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
           "Gagal memuat daftar supplier."
         );
         if (!cancelled) setSupplierOptions(list.map((s) => ({ value: s.id, label: s.name, hint: s.code })));
-      } catch {
-        // supplier fallback
+      } catch (err) {
+        if (!cancelled) setFormError(err instanceof Error ? err.message : "Gagal memuat daftar supplier.");
       }
       try {
         const pkgList = await getJson<Array<{ id: string; name: string; code: string; gradeLevel?: string }>>(
@@ -59,8 +66,8 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
             }))
           );
         }
-      } catch {
-        // package fallback
+      } catch (err) {
+        if (!cancelled) setFormError(err instanceof Error ? err.message : "Gagal memuat daftar paket.");
       }
     })();
     return () => {
@@ -85,12 +92,16 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
         isbn: formData.isbn.trim(),
         title: formData.title.trim(),
         publicTitle: formData.publicTitle.trim() || undefined,
+        gradeLevel: formData.gradeLevel.trim() || null,
+        curriculumType: (formData.curriculumType as CurriculumType) || null,
+        semester: formData.semester.trim() || null,
         supplierIds: formData.supplierIds,
         packageIds: formData.packageIds,
         author: formData.author.trim(),
         publisher: formData.publisher.trim(),
         publishYear: Number(formData.publishYear) || 2024,
         category: formData.category.trim(),
+        description: formData.description.trim() || undefined,
         price: legacyPrice,
         buyPrice,
         sellPrice,
@@ -151,21 +162,51 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
             </div>
 
             <div>
+              <SearchableSingleSelect
+                label="Tingkat Kelas"
+                options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+                value={formData.gradeLevel}
+                onChange={(v) => setFormData({ ...formData, gradeLevel: v })}
+                placeholder="Pilih kelas..."
+              />
+            </div>
+
+            <div>
+              <SearchableSingleSelect
+                label="Program"
+                options={CANONICAL_CURRICULUM_OPTIONS}
+                value={formData.curriculumType}
+                onChange={(v) => setFormData({ ...formData, curriculumType: v as CurriculumType })}
+                placeholder="Pilih program..."
+              />
+            </div>
+
+            <div>
+              <SearchableSingleSelect
+                label="Semester"
+                options={SEMESTER_OPTIONS}
+                value={formData.semester}
+                onChange={(v) => setFormData({ ...formData, semester: v })}
+                placeholder="Pilih semester..."
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Kategori / Mapel</label>
+              <input
+                type="text"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className={inputCls}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
               <label className={labelCls}>ISBN / Kode Unik</label>
               <input
                 type="text"
                 value={formData.isbn}
                 onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Kategori / Jenjang</label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className={inputCls}
               />
             </div>
@@ -186,6 +227,17 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
                 type="text"
                 value={formData.publisher}
                 onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
+                className={inputCls}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Catatan / Deskripsi Buku</label>
+              <textarea
+                rows={2}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Deskripsi singkat atau catatan buku..."
                 className={inputCls}
               />
             </div>

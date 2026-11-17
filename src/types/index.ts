@@ -33,6 +33,9 @@ export interface Book {
   isbn: string;
   title: string;
   publicTitle?: string | null;
+  gradeLevel?: string | null;
+  curriculumType?: string | null;
+  semester?: string | null;
   supplierIds?: string[];
   packages?: BookPackageRef[];
   author: string;

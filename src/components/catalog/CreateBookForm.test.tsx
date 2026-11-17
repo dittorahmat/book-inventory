@@ -19,15 +19,21 @@ describe("CreateBookForm", () => {
 
     render(<CreateBookForm onClose={() => {}} onCreate={mockCreate} />);
 
-    // Isi field wajib: Judul, Penulis, Penerbit
+    // Isi field wajib: Judul, Penulis, Penerbit, dan field baru
     fireEvent.change(screen.getByPlaceholderText("Judul lengkap buku"), {
       target: { value: "Buku Panduan Guru SD" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Contoh: Matematika Seru Kelas 1 (kosong = pakai judul real)"), {
+      target: { value: "Panduan Guru SD Publik" },
     });
     fireEvent.change(screen.getByPlaceholderText("Nama penulis"), {
       target: { value: "Tim Penulis" },
     });
     fireEvent.change(screen.getByPlaceholderText("Penerbit"), {
       target: { value: "Penerbit Edukasi" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Deskripsi singkat atau catatan pengadaan buku..."), {
+      target: { value: "Catatan pengadaan cetakan baru" },
     });
 
     // Pastikan input ISBN tidak memiliki atribut required
@@ -43,6 +49,9 @@ describe("CreateBookForm", () => {
     const result = capturedPayload as unknown as NewBookPayload;
     expect(result.isbn).toBe("");
     expect(result.title).toBe("Buku Panduan Guru SD");
+    expect(result.publicTitle).toBe("Panduan Guru SD Publik");
+    expect(result.description).toBe("Catatan pengadaan cetakan baru");
+    expect(result.semester).toBe("all");
     expect(capturedCover).toBeNull();
   });
 });

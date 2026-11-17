@@ -5,16 +5,22 @@
  * pemanggil. Murni dan diuji lewat adapter fetch injeksian — bukan JSX.
  */
 
+import type { CurriculumType } from "../../db/schema";
+
 export interface NewBookPayload {
   isbn: string;
   title: string;
   publicTitle?: string;
+  gradeLevel?: string | null;
+  curriculumType?: CurriculumType | null;
+  semester?: string | null;
   supplierIds?: string[];
   packageIds?: string[];
   author: string;
   publisher: string;
   publishYear: number;
   category: string;
+  description?: string;
   price: number;
   buyPrice: number;
   sellPrice: number;

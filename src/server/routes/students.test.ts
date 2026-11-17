@@ -54,6 +54,32 @@ describe("Students admin API", () => {
     expect(customJson.data.id).toBe(customId);
     expect(customJson.data.status).toBe("active");
     expect(customJson.data.rombel).toBe("INTER 1");
+    expect(customJson.data.curriculumType).toBe("INTER");
+    expect(customJson.data.intakeType).toBe("baru");
+
+    // Create SMA student with stream (IPA) and intakeType (kenaikan)
+    const smaId = `siswa-sma-${stamp}`;
+    const createSma = await studentsRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: smaId,
+        schoolId,
+        nis: `NIS${String(stamp).slice(-6)}C`,
+        name: "Farhan SMA",
+        gender: "male",
+        gradeLevel: "11",
+        curriculumType: "AE",
+        stream: "IPA",
+        intakeType: "kenaikan",
+        academicYear: "2026/2027",
+      }),
+    });
+    expect(createSma.status).toBe(201);
+    const smaJson = await createSma.json();
+    expect(smaJson.data.curriculumType).toBe("AE");
+    expect(smaJson.data.stream).toBe("IPA");
+    expect(smaJson.data.intakeType).toBe("kenaikan");
 
     // Server-generated UUID
     const createUuid = await studentsRouter.request("/", {
@@ -72,16 +98,26 @@ describe("Students admin API", () => {
     expect(uuidJson.data.id).toBeString();
     expect(uuidJson.data.id.length).toBeGreaterThan(10);
 
-    // Update with custom ID
+    // Update with custom ID (termasuk update intakeType dan stream)
     const updateRes = await studentsRouter.request(`/${customId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gradeLevel: "2", rombel: "INTER 2", parentPhone: "+628100000099" }),
+      body: JSON.stringify({
+        gradeLevel: "11",
+        rombel: "11 AE IPA 1",
+        curriculumType: "AE",
+        stream: "IPA",
+        intakeType: "kenaikan",
+        parentPhone: "+628100000099",
+      }),
     });
     expect(updateRes.status).toBe(200);
     const updateJson = await updateRes.json();
-    expect(updateJson.data.gradeLevel).toBe("2");
-    expect(updateJson.data.rombel).toBe("INTER 2");
+    expect(updateJson.data.gradeLevel).toBe("11");
+    expect(updateJson.data.rombel).toBe("11 AE IPA 1");
+    expect(updateJson.data.curriculumType).toBe("AE");
+    expect(updateJson.data.stream).toBe("IPA");
+    expect(updateJson.data.intakeType).toBe("kenaikan");
   });
 
   it("rejects duplicate NIS on create and approve", async () => {

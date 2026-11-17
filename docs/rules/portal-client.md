@@ -67,6 +67,18 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 4. Test suite baru untuk fitur pembaruan portal wajib membersihkan seluruh fixtures data dummy/seeder (`schools`, `students`, `bookPackages`, `studentBookOrders`) pada blok penyelesaian tes (`cleanup`/`finally`) guna menjamin isolasi database pengujian (§6.1).
 5. State mutation array murid di view portal wajib dibungkus dalam action hook (`updateSearchResult`), dilarang mengekspos raw array setter (`setSearchResults`) langsung ke komponen antarmuka.
 
+### §0.81. Standar Kelengkapan Form Pendaftaran Murid & Pilihan Program Kanonik
+1. **Kelengkapan Identitas Murid**:
+   - Seluruh formulir pendaftaran data murid baru, baik pada portal publik (`NewStudentRegistrationForm`) maupun modal manajemen staf (`StudentFormModal`), wajib menyertakan field identitas lengkap:
+     - `gender`: Jenis kelamin ("male" / "female", berlabel "Laki-laki (Ikhwan)" / "Perempuan (Akhwat)").
+     - `stream`: Pilihan peminatan/jurusan SMA ("IPA" / "IPS") yang dirender secara kondisional hanya untuk jenjang SMA (Kelas 10–12).
+     - `intakeType`: Jalur masuk murid pada form staf ("baru" / "kenaikan").
+2. **Kanonikalisasi Opsi Program (Anti-Hardcoding)**:
+   - Dilarang keras men-hardcode pilihan program hanya ke teks legasi `"Internasional"` dan `"Nasional"`.
+   - Opsi program wajib disaring secara data-driven melalui fungsi kanonik `getAvailableCurriculaForGrade(gradeLevel)` (`src/lib/curriculum.ts`), dengan memetakan nilai kanonik Al-Wildan (`INTER`, `MQ`, `AE`, `ME`, `DI`, `TK`). Nilai legasi ("international" / "national") otomatis dinormalisasi via `normalizeCanonicalCurriculum()`.
+3. **Penanganan Error Fetching UI**:
+   - Seluruh pemanggilan fetching opsi master (seperti pemuatan daftar paket buku pada form pembuatan katalog) wajib menangani error secara visual (misal menampilkan alert error atau retry banner), dilarang menggunakan `catch {}` kosong tanpa penanganan (*no silent catch*, §0.46).
+
 ### §0.69. Single-Writer Ekspor CSV & Dekomposisi Shell Drawer Dashboard
 1. Seluruh pengunduhan file CSV di antarmuka web klien wajib menggunakan fungsi kanonik tunggal `exportCsvFile` (`src/lib/csv-export.ts`), dilarang merakit inline Blob dan manipulasi elemen `<a>` manual di setiap komponen view/drawer.
 2. Drawer drill-down dashboard eksekutif dan view multi-cabang wajib menggunakan shell layout bersama `ExecutiveBreakdownDrawerShell` (`src/components/dashboard/ExecutiveBreakdownDrawerShell.tsx`) guna menjamin konsistensi header, padding, escape modal, dan tombol aksi tanpa duplikasi kode.

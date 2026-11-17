@@ -25,11 +25,17 @@ describe("Books Catalog API", () => {
         publisher: "Prentice Hall",
         publishYear: 2008,
         category: "Software Engineering",
+        gradeLevel: "10",
+        curriculumType: "AE",
+        semester: "1",
       }),
     });
     const createJson = await createRes.json();
     expect(createRes.status).toBe(201);
     expect(createJson.data.title).toBe("Clean Code");
+    expect(createJson.data.gradeLevel).toBe("10");
+    expect(createJson.data.curriculumType).toBe("AE");
+    expect(createJson.data.semester).toBe("1");
     const bookId = createJson.data.id;
 
     // Upload cover image
@@ -83,11 +89,19 @@ describe("Books Catalog API", () => {
     const patchRes = await booksRouter.request(`/${createJson.data.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ price: 120000 }),
+      body: JSON.stringify({
+        price: 120000,
+        gradeLevel: "11",
+        curriculumType: "ME",
+        semester: "2",
+      }),
     });
     const patchJson = await patchRes.json();
     expect(patchRes.status).toBe(200);
     expect(patchJson.data.price).toBe(120000);
+    expect(patchJson.data.gradeLevel).toBe("11");
+    expect(patchJson.data.curriculumType).toBe("ME");
+    expect(patchJson.data.semester).toBe("2");
 
     const badRes = await booksRouter.request("/", {
       method: "POST",
