@@ -294,15 +294,16 @@ export async function fulfillInternalPo(
  */
 export async function deleteInternalPurchaseOrder(
   database: AppDatabase,
-  poId: string
+  poOrId: string | typeof internalPurchaseOrders.$inferSelect
 ): Promise<DeleteInternalPoResult> {
-  const [po] = await database
-    .select()
-    .from(internalPurchaseOrders)
-    .where(eq(internalPurchaseOrders.id, poId));
+  const po =
+    typeof poOrId === "string"
+      ? (await database.select().from(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poOrId)))[0]
+      : poOrId;
   if (!po) {
     return { ok: false, status: 404, message: "PO Internal tidak ditemukan" };
   }
+  const poId = po.id;
 
   // 1. Cek status PO
   if (po.status !== "draft" && po.status !== "submitted") {

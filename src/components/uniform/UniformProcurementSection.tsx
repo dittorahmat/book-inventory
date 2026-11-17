@@ -184,11 +184,11 @@ export function UniformProcurementSection() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {p.status === "draft" && (
+                      {p.status !== "received" && p.status !== "partially_received" && p.status !== "completed" && (
                         <button
                           type="button"
-                          disabled={busy}
                           onClick={() => {
+                            if (busy) return;
                             if (!window.confirm(`Hapus PO seragam "${p.poNumber}"? Aksi ini tidak dapat dibatalkan.`)) {
                               return;
                             }
@@ -198,7 +198,9 @@ export function UniformProcurementSection() {
                             );
                           }}
                           title={`Hapus PO seragam ${p.poNumber}`}
-                          className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors active:scale-[0.98] disabled:opacity-50"
+                          className={`p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors active:scale-[0.98] ${
+                            busy ? "opacity-50 cursor-not-allowed" : ""
+                          }`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

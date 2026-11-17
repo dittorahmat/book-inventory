@@ -278,7 +278,7 @@ internalOrdersRouter.delete("/:id", async (c) => {
     }
     assertLocationAllowed(actor, po.schoolId, locations);
 
-    const result = await deleteInternalPurchaseOrder(db, poId);
+    const result = await deleteInternalPurchaseOrder(db, po);
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }

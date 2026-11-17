@@ -567,5 +567,11 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     // 4. Verifikasi setelah dihapus -> 404
     const getRes = await internalOrdersRouter.request(`/${poId}/shipments`);
     expect(getRes.status).toBe(404);
+
+    // 5. Mencoba menghapus PO yang sudah tidak ada -> 404
+    const ghostRes = await internalOrdersRouter.request(`/${poId}`, {
+      method: "DELETE",
+    });
+    expect(ghostRes.status).toBe(404);
   });
 });
