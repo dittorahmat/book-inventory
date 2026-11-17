@@ -166,8 +166,8 @@ export function parseStudentData(
   const currIdx = headers.findIndex((h) => h === "curriculumtype" || h === "kurikulum");
   const yearIdx = headers.findIndex((h) => h === "academicyear" || h === "tahun ajaran" || h === "tp");
   const pNameIdx = headers.findIndex((h) => h === "parentname" || h === "nama orang tua" || h === "wali");
-  const pPhoneIdx = headers.findIndex((h) => h === "parentphone" || h === "telepon" || h === "no telp" || h === "whatsapp" || h === "no wa");
-  const pEmailIdx = headers.findIndex((h) => h === "parentemail" || h === "email");
+  const pPhoneIdx = headers.findIndex((h) => h === "parentphone" || h.includes("telepon") || h.includes("telp") || h.includes("whatsapp") || h.includes("wa") || h.includes("hp"));
+  const pEmailIdx = headers.findIndex((h) => h === "parentemail" || h === "email" || h.includes("email") || h.includes("surel"));
 
   const validStudents: ParsedStudentRow[] = [];
   const skippedRows: SkippedStudentRow[] = [];
@@ -255,7 +255,9 @@ export function parseStudentData(
 
     const parentName = pNameIdx !== -1 && row[pNameIdx] ? String(row[pNameIdx]).trim() : undefined;
     const parentPhone = pPhoneIdx !== -1 && row[pPhoneIdx] ? String(row[pPhoneIdx]).trim() : undefined;
-    const parentEmail = pEmailIdx !== -1 && row[pEmailIdx] ? String(row[pEmailIdx]).trim() : undefined;
+    const rawEmail = pEmailIdx !== -1 && row[pEmailIdx] ? String(row[pEmailIdx]).trim() : "";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const parentEmail = rawEmail && emailRegex.test(rawEmail) ? rawEmail : undefined;
 
     seenNis.add(rawNis);
     validStudents.push({

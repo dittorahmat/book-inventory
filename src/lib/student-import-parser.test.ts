@@ -46,6 +46,21 @@ describe("student-import-parser", () => {
     expect(result.skippedRows[0].reason).toContain("Cuti");
   });
 
+  it("sanitizes invalid or non-email parent email values into undefined", () => {
+    const csv = [
+      "nis,nama,kelas,jk,email_ortu,no_hp_ortu",
+      "1001,Ahmad Yani,1.INTER 1,Male,valid.email@example.com,0812345678",
+      "1002,Fatimah Azzahra,2.MQ 1,Female,-,0812345679",
+      "1003,Farhan K,1.INTER 2,Male,bukan-email,0812345680",
+    ].join("\n");
+
+    const result = parseStudentData(csv);
+    expect(result.validStudents.length).toBe(3);
+    expect(result.validStudents[0].parentEmail).toBe("valid.email@example.com");
+    expect(result.validStudents[1].parentEmail).toBeUndefined();
+    expect(result.validStudents[2].parentEmail).toBeUndefined();
+  });
+
   it("successfully parses real .xlsm file with 714 students if file exists locally", () => {
     const filePath = process.env.STUDENT_FILE_PATH || "./data/DATA_SISWA_SD_ALW1.xlsm";
     if (!existsSync(filePath)) {
