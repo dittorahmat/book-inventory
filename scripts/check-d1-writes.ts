@@ -12,7 +12,7 @@ import { join } from "node:path";
 interface Exception {
   /** Path relatif ber-garis-miring, mis. `src/server/services/foo.ts`. */
   file: string;
-  rule: "R1" | "R2" | "R3";
+  rule: "R1" | "R2" | "R3" | "R4";
   /** Alasan pembenaran — tanpa ini, jangan tambahkan pengecualian. */
   reason: string;
 }
@@ -21,7 +21,18 @@ interface Exception {
  * Pengecualian yang sengaja dibisukan (pola mirip `REGISTERED_SEARCH_SOURCES`).
  * Sengaja KOSONG: sampai ada kasus sah, setiap temuan adalah pelanggaran §10.
  */
-export const REGISTERED_EXCEPTIONS: Exception[] = [];
+export const REGISTERED_EXCEPTIONS: Exception[] = [
+  {
+    file: "scripts/db-d1-exec.ts",
+    rule: "R4",
+    reason: "Runner CLI kanonik pembungkus wrangler d1 execute untuk eksekusi query remote D1.",
+  },
+  {
+    file: "scripts/d1-remote-batch.ts",
+    rule: "R4",
+    reason: "Runner CLI kanonik pembungkus wrangler d1 execute untuk eksekusi batch remote D1.",
+  },
+];
 
 /** Batas baris per statement INSERT (§10.1 — budget bound-parameter D1). */
 const MAX_ROWS_PER_INSERT = 10;
@@ -276,6 +287,26 @@ const findRouteLoopMutations = (file: string, code: string): Array<{ rule: "R3";
   return out;
 };
 
+/**
+ * Aturan R4 (§0.30 / §10.6): skrip di bawah scripts/ dilarang memanggil `wrangler d1 execute`
+ * secara langsung via child_process tanpa melalui runner kanonik `scripts/db-d1-exec.ts`
+ * atau `scripts/d1-remote-batch.ts`.
+ */
+const findRawWranglerD1Execute = (file: string, code: string): Array<{ rule: "R4"; index: number; detail: string }> => {
+  if (!file.startsWith("scripts/")) return [];
+  const out: Array<{ rule: "R4"; index: number; detail: string }> = [];
+
+  const rawWranglerCall = /["']wrangler["'],\s*["']d1["'],\s*["']execute["']/g;
+  for (const m of code.matchAll(rawWranglerCall)) {
+    out.push({
+      rule: "R4",
+      index: m.index,
+      detail: `Skrip memanggil mentah \`wrangler d1 execute\` langsung. Wajib menggunakan runner kanonik \`scripts/db-d1-exec.ts\` atau \`scripts/d1-remote-batch.ts\` (§0.30, §10.6).`,
+    });
+  }
+  return out;
+};
+
 const walk = (dir: string, out: string[] = []): string[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -306,7 +337,12 @@ for (const file of files) {
   const mask = buildMask(src);
   const code = visibleText(src, mask, CODE);
   const content = visibleText(src, mask, STRING);
-  for (const v of [...findChunkViolations(code, content), ...findConcurrencyViolations(code), ...findRouteLoopMutations(file, code)]) {
+  for (const v of [
+    ...findChunkViolations(code, content),
+    ...findConcurrencyViolations(code),
+    ...findRouteLoopMutations(file, code),
+    ...findRawWranglerD1Execute(file, code),
+  ]) {
     if (REGISTERED_EXCEPTIONS.some((e) => e.file === file && e.rule === v.rule)) continue;
     findings.push({ file, line: lineOf(src, v.index), rule: v.rule, detail: v.detail });
   }
