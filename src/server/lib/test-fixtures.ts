@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../../db";
-import { schools, students, studentBookOrders, bookPackages, books, uniformVariants, uniformPackages } from "../../db/schema";
+import { schools, students, studentBookOrders, bookPackages, books, uniformVariants, uniformPackages, suppliers } from "../../db/schema";
 
 /**
  * Mock query session Drizzle untuk mensimulasikan hasil query tanpa memodifikasi tabel fisik SQLite.
@@ -187,11 +187,15 @@ export interface TestBookOverrides {
   id?: string;
   isbn?: string;
   title?: string;
+  publicTitle?: string;
   author?: string;
   publisher?: string;
-  gradeLevel?: string;
-  curriculumType?: "international" | "national";
-  academicYear?: string;
+  publishYear?: number;
+  category?: string;
+  description?: string;
+  coverUrl?: string;
+  price?: number;
+  buyPrice?: number;
   sellPrice?: number;
 }
 
@@ -205,12 +209,16 @@ export async function createTestBook(
     id: overrides.id ?? `book-test-${stamp}`,
     isbn: overrides.isbn ?? `ISBN-${stamp.slice(-6).toUpperCase()}`,
     title: overrides.title ?? `Buku Uji ${stamp}`,
+    publicTitle: overrides.publicTitle ?? null,
     author: overrides.author ?? "Penulis Uji",
     publisher: overrides.publisher ?? "Penerbit Uji",
-    gradeLevel: overrides.gradeLevel ?? "1",
-    curriculumType: overrides.curriculumType ?? ("international" as const),
-    academicYear: overrides.academicYear ?? "2026/2027",
-    sellPrice: overrides.sellPrice ?? 100000,
+    publishYear: overrides.publishYear ?? 2026,
+    category: overrides.category ?? null,
+    description: overrides.description ?? null,
+    coverUrl: overrides.coverUrl ?? null,
+    price: overrides.price ?? 100000,
+    buyPrice: overrides.buyPrice ?? 70000,
+    sellPrice: overrides.sellPrice ?? overrides.price ?? 100000,
     createdAt: now,
     updatedAt: now,
   };
@@ -277,4 +285,38 @@ export async function createTestUniformPackage(
   await database.insert(uniformPackages).values(row).onConflictDoNothing();
   return row;
 }
+
+export interface TestSupplierOverrides {
+  id?: string;
+  code?: string;
+  name?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  isActive?: boolean;
+}
+
+export async function createTestSupplier(
+  database: AppDatabase,
+  overrides: TestSupplierOverrides = {}
+) {
+  const stamp = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+  const row = {
+    id: overrides.id ?? `sup-test-${stamp}`,
+    code: overrides.code ?? `SUP-${stamp.slice(-6).toUpperCase()}`,
+    name: overrides.name ?? `Supplier Uji ${stamp}`,
+    contactPerson: overrides.contactPerson ?? "Budi",
+    phone: overrides.phone ?? "081234567890",
+    email: overrides.email ?? `supplier-${stamp}@example.com`,
+    address: overrides.address ?? "Jl. Vendor No. 1",
+    isActive: overrides.isActive ?? true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await database.insert(suppliers).values(row).onConflictDoNothing();
+  return row;
+}
+
 

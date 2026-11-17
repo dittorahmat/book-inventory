@@ -1321,4 +1321,51 @@ describe("PO supplier exclusivity (#143)", () => {
       await db.delete(suppliers).where(eq(suppliers.id, supplierId));
     }
   });
+
+  it("memproses endpoint /suppliers/import-mapping dengan file base64 (#499)", async () => {
+    const stamp = Date.now();
+    const testIsbn = `97898149${stamp.toString().slice(-5)}`;
+    const bookId = `b-map-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(books).values({
+      id: bookId,
+      isbn: testIsbn,
+      title: "PRIME MATHS 1A",
+      author: "Scholastic",
+      publisher: "Scholastic",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const cnlRows: unknown[][] = [];
+    for (let i = 0; i < 10; i++) cnlRows.push([`header-${i}`]);
+    cnlRows.push([1, testIsbn, "PR1ME MATHS COURSEBOOK 1A (INDONESIA EDITION)"]);
+    const ws = XLSX.utils.aoa_to_sheet(cnlRows);
+    XLSX.utils.book_append_sheet(wb, ws, "CNL");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const fileBase64 = buf.toString("base64");
+
+    try {
+      mockActor("central_admin", null);
+      const res = await procurementRouter.request("/suppliers/import-mapping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64 }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.booksMatched).toBeGreaterThan(0);
+    } finally {
+      mockActor("central_admin", null);
+      const { bookSuppliers } = await import("../../db/schema");
+      await db.delete(bookSuppliers).where(eq(bookSuppliers.bookId, bookId));
+      await db.delete(books).where(eq(books.id, bookId));
+    }
+  });
 });

@@ -51,7 +51,7 @@ export interface StudentFormPayload {
   gender: "male" | "female";
   gradeLevel: string;
   rombel?: string;
-  curriculumType: "international" | "national";
+  curriculumType: string;
   academicYear: string;
   parentName?: string;
   parentEmail?: string;

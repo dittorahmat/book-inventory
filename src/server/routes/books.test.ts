@@ -4,6 +4,7 @@ import { db } from "../../db";
 import { books } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
+import { createTestSupplier } from "../lib/test-fixtures";
 
 beforeEach(() => mockActor("central_admin", null));
 afterEach(() => {
@@ -324,13 +325,11 @@ describe("Books master RBAC (#43)", () => {
 describe("Books alias + supplier M2M (#143)", () => {
   it("menyimpan alias dan relasi multi-supplier; menolak supplier tak dikenal", async () => {
     const stamp = Date.now();
-    const now = new Date().toISOString();
     const { suppliers, bookSuppliers } = await import("../../db/schema");
     const supA = `sup143a-${stamp}`;
     const supB = `sup143b-${stamp}`;
-    for (const [id, code] of [[supA, `S143A-${stamp}`], [supB, `S143B-${stamp}`]]) {
-      await db.insert(suppliers).values({ id, name: `Supplier ${id}`, code, createdAt: now, updatedAt: now }).onConflictDoNothing();
-    }
+    await createTestSupplier(db, { id: supA, code: `S143A-${stamp}` });
+    await createTestSupplier(db, { id: supB, code: `S143B-${stamp}` });
     try {
       mockActor("central_admin", null);
       const created = await booksRouter.request("/", {
