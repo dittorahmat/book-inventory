@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { procurementRouter } from "./procurement";
 import { poWorkflowRouter } from "./po-workflow";
 import { evaluateSendGate, validateSignedDoc } from "../services/purchase-order";
+import { createTestBook } from "../lib/test-fixtures";
 import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
 import { purchaseOrders, purchaseOrderItems, suppliers, books, schools, bookSuppliers } from "../../db/schema";
@@ -455,20 +456,13 @@ describe("Master supplier di tab PO", () => {
   it("menolak menghapus supplier jika masih terhubung dengan relasi buku katalog (400)", async () => {
     const stamp = Date.now();
     const supId = await makeSupplier(stamp, false);
-    const bookId = `b-del-sup-${stamp}`;
+    const book = await createTestBook(db, {
+      title: `Buku Relasi Supplier ${stamp}`,
+    });
     const now = new Date().toISOString();
     try {
-      await db.insert(books).values({
-        id: bookId,
-        isbn: `ISBN-DEL-${stamp}`.slice(0, 32),
-        title: `Buku Relasi Supplier ${stamp}`,
-        author: "Penulis Test",
-        publisher: "Test Publisher",
-        createdAt: now,
-        updatedAt: now,
-      });
       await db.insert(bookSuppliers).values({
-        bookId,
+        bookId: book.id,
         supplierId: supId,
         createdAt: now,
       });
@@ -482,7 +476,7 @@ describe("Master supplier di tab PO", () => {
       expect(json.message).toContain("pemasok katalog buku");
     } finally {
       await db.delete(bookSuppliers).where(eq(bookSuppliers.supplierId, supId));
-      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(books).where(eq(books.id, book.id));
       await db.delete(suppliers).where(eq(suppliers.id, supId));
     }
   });

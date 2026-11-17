@@ -21,9 +21,6 @@ import type {
   InternalPoListItem,
   InternalPoListRow,
   InternalShipmentItemInput,
-  InternalShipmentListItem,
-  InternalShipmentListRow,
-  ListInternalShipmentsResult,
   DeleteInternalPoResult,
 } from "./types";
 
@@ -38,10 +35,9 @@ export type {
   InternalPoListItem,
   InternalPoListRow,
   InternalShipmentItemInput,
-  InternalShipmentListItem,
-  InternalShipmentListRow,
-  ListInternalShipmentsResult,
 };
+
+export { listInternalShipments } from "./shipment";
 
 type InternalPoItemRow = typeof internalPurchaseOrderItems.$inferSelect;
 

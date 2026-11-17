@@ -9,9 +9,11 @@ export type {
   InternalPoListItem,
   InternalPoListRow,
   InternalShipmentItemInput,
+} from "./po";
+export type {
   InternalShipmentListItem,
   InternalShipmentListRow,
-} from "./po";
+} from "./types";
 export {
   createInternalPo,
   deleteInternalPurchaseOrder,

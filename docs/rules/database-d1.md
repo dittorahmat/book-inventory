@@ -34,8 +34,15 @@ Pengecualian pada gate `check:single-writer` hanya diizinkan untuk baseline seed
 
 ### §0.54. Disiplin Navigasi Skema Relasi & Factory Test Fixtures
 1. **Pemisahan Scope Skema Global vs Cabang**: entitas katalog terpusat (`books`, `book_packages`, `uniform_variants`, `uniform_packages`) dilarang diasumsikan memiliki kolom `school_id`; konsultasikan `src/db/SCHEMA_OVERVIEW.md` sebelum merakit query atau fixtures baru.
-2. **Penggunaan Factory Test Fixtures Kanonik**: penyusunan data awal pengujian (test fixtures) wajib memanfaatkan helper kanonik di `src/server/lib/test-fixtures.ts` (`createTestSchool`, `createTestStudent`, `createTestBookOrder`, `createTestPackage`, `createTestBook`) alih-alih merakit baris mentah `insert().values({...})` yang rentan terhadap kegagalan kolom `NOT NULL` SQLite.
-3. **Kelengkapan Antarmuka Pengguna pada Fitur Intake**: penambahan alur intake atau percabangan submit baru di backend tidak boleh berhenti di layer API/state belaka; implementasi dinyatakan selesai (*Definition of Done*) hanya jika telah menyediakan komponen antarmuka pengguna visual (modal/dialog/form) yang teruji secara interaktif.
+2. **Penggunaan Factory Test Fixtures Kanonik**: penyusunan data awal pengujian (test fixtures) wajib memanfaatkan helper kanonik di `src/server/lib/test-fixtures.ts` (`createTestSchool`, `createTestStudent`, `createTestBookOrder`, `createTestPackage`, `createTestBook`, `createTestUniformVariant`, `createTestUniformPackage`) alih-alih merakit baris mentah `insert().values({...})` yang rentan terhadap kegagalan kolom `NOT NULL` SQLite atau ketidaksesuaian skema.
+3. **Standarisasi Tangkapan Error D1 Write Mapping**: pemanggilan `runWriteBatch` pada fungsi mutasi service wajib menangkap constraint SQLite menggunakan pattern:
+   ```ts
+   const mapped = d1WriteErrorStatus(err, "konteks operasi");
+   if (mapped) return { ok: false, status: 400, message: mapped.message };
+   throw err;
+   ```
+   guna memenuhi gate `check:d1-error-mapping` dan memastikan error non-constraint dilempar ulang sebagai 500 infra.
+4. **Kelengkapan Antarmuka Pengguna pada Fitur Intake**: penambahan alur intake atau percabangan submit baru di backend tidak boleh berhenti di layer API/state belaka; implementasi dinyatakan selesai (*Definition of Done*) hanya jika telah menyediakan komponen antarmuka pengguna visual (modal/dialog/form) yang teruji secara interaktif.
 
 ### §0.55. Disiplin Layanan Integrasi Cloud & In-Memory Stream (Cloudflare Workers)
 1. **Seam Layanan Drive Tunggal**: pembacaan berkas atau resource Google Drive / Google Sheets (`/api/books/parse-drive-url` dan `/api/students/parse-drive-url`) wajib didelegasikan ke seam terpusat `drive-service.ts` (`src/server/services/drive-service.ts`), dilarang menduplikasi logika proxy parsing URL Google Drive/Sheets di handler router.
