@@ -18,6 +18,7 @@ export const EMPTY_NEW_STUDENT: NewStudentForm = {
   name: "",
   gender: "male",
   gradeLevel: "1",
+  stream: null,
   curriculumType: "international",
   academicYear: "2026/2027",
   parentName: "",

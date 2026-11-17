@@ -500,6 +500,29 @@ describe("Public Orders & Student Search API", () => {
     const regJson = await regRes.json();
     expect(regJson.data.status).toBe("new_pending");
     expect(regJson.data.nis.startsWith("REG-")).toBe(true);
+    expect(regJson.data.gender).toBe("female");
+
+    // Registrasi murid SMA dengan peminatan stream
+    const regSmaRes = await publicOrdersRouter.request("/register-student", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId,
+        name: `SMA Kid ${stamp}`,
+        gender: "male",
+        gradeLevel: "10",
+        stream: "IPA",
+        curriculumType: "international",
+        academicYear: "2026/2027",
+        parentName: "Ortu SMA",
+        parentEmail: "sma@example.com",
+        parentPhone: "+628100000010",
+      }),
+    });
+    expect(regSmaRes.status).toBe(201);
+    const regSmaJson = await regSmaRes.json();
+    expect(regSmaJson.data.stream).toBe("IPA");
+    expect(regSmaJson.data.gender).toBe("male");
 
     const promotedId = `st-promoted-${stamp}`;
     await db.insert(students).values({

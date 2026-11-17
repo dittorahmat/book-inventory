@@ -93,10 +93,12 @@ export interface PortalBookChoice {
   title: string;
 }
 
-export interface NewStudentForm {  schoolId: string;
+export interface NewStudentForm {
+  schoolId: string;
   name: string;
   gender: "male" | "female";
   gradeLevel: string;
+  stream?: string | null;
   curriculumType: "international" | "national";
   academicYear: string;
   parentName: string;

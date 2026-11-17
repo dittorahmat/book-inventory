@@ -57,8 +57,9 @@ const searchStudentSchema = z.object({
 const createNewStudentSchema = z.object({
   schoolId: z.string().min(1, "Sekolah wajib dipilih"),
   name: z.string().min(1, "Nama murid wajib diisi"),
-  gender: z.enum(["male", "female"]).default("male"),
+  gender: z.enum(["male", "female"], { errorMap: () => ({ message: "Jenis kelamin wajib dipilih" }) }),
   gradeLevel: z.string().min(1, "Kelas wajib dipilih"),
+  stream: z.enum(STREAMS).optional().nullable(),
   curriculumType: z.enum(["international", "national"]).default("international"),
   academicYear: z.string().min(1, "Tahun ajaran wajib diisi"),
   parentName: z.string().min(1, "Nama orang tua wajib diisi"),

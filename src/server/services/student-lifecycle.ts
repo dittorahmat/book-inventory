@@ -142,6 +142,7 @@ export interface RegisterPublicStudentInput {
   name: string;
   gender: "male" | "female";
   gradeLevel: string;
+  stream?: StreamType | null;
   curriculumType: "international" | "national";
   academicYear: string;
   parentName: string;
@@ -174,6 +175,7 @@ export async function registerPublicStudent(
       name: input.name,
       gender: input.gender,
       gradeLevel: input.gradeLevel,
+      stream: input.stream ?? null,
       curriculumType: input.curriculumType,
       academicYear: input.academicYear,
       parentName: input.parentName,
