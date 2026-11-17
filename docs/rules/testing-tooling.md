@@ -84,3 +84,11 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 4. **Proactive File-Size Scaffolding & DOM Shim Hygiene**: Pada saat membuat atau merefaktor komponen modal UI interaktif, agen wajib memecah section picker dan item card sejak awal bila diperkirakan mendekati 300 baris. Seluruh unit test React DOM di lingkungan Bun Windows wajib mengimpor `../../test-dom` di baris pertama dan menggunakan dynamic import `@testing-library/react` guna mencegah ReferenceError document is not defined.
 5. **Definisi Ruang Lingkup Tiket & Eksklusi Notifikasi Eksternal**: saat merancang tiket baru (`/to-tickets`), setiap tiket yang bersinggungan dengan kanal notifikasi eksternal (WhatsApp, Email) wajib memiliki seksi eksplisit batas lingkup (*Out of Scope*) guna mencegah implementasi auto-trigger yang tidak diinginkan pengguna.
 6. **Ekonomi Waktu Eksekusi Test Komponen DOM & Background Task**: suite pengujian komponen DOM (`*.test.tsx`) dan `check:all` yang memicu bundle Vite membutuhkan waktu ~15-25s di Windows pwsh; saat TDD filter skenario secara spesifik per file dan per nama test (`-t "..."`) agar tetap selesai <2s, dan biarkan notifikasi sistem menangani background task tanpa polling status berulang-ulang (§0.32).
+
+---
+
+### §0.77. Hard-Gate CI/CD & Disiplin Larangan Merge Sebelum Checks Pass
+1. **Larangan Keras Merge Tanpa Checks Hijau**: Agen dilarang keras mengeksekusi merge PR (`gh pr merge`) maupun menyarankan merge kepada pengguna sebelum status checks GitHub Actions (`gh pr checks <PR>`) secara nyata bernilai `pass` (hijau). Dilarang memakai flag bypass `--auto` yang berisiko mengeksekusi merge saat checks sedang berjalan atau berujung gagal.
+2. **Isolasi File Runner Bun Test dari Framework Eksternal**: `bun test` secara default mengeksekusi pola file `*.test.ts` dan `*.spec.ts`. File test framework eksternal (seperti Playwright browser spec) dilarang menggunakan ekstensi yang memicu pemindaian `bun test` tanpa dependensi runtime terpasang, atau wajib dipisahkan runner-nya secara eksplisit (`scripts/demo-scenarios/*`).
+3. **Branch Protection & Require Checks Pass**: Branch `main` wajib dilindungi oleh konfigurasi Branch Protection di GitHub Settings dengan opsi *Require status checks to pass before merging* (memilih context check `gates`), memastikan repositori menolak mutasi langsung jika gate CI gagal.
+
