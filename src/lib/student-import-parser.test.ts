@@ -61,6 +61,19 @@ describe("student-import-parser", () => {
     expect(result.validStudents[2].parentEmail).toBeUndefined();
   });
 
+  it("does not falsely detect 'nama siswa' or 'wali murid' as parent phone column", () => {
+    const csv = [
+      "nis,nama siswa,kelas,jk,wali murid,telepon",
+      "2001,Budi Santoso,1.INTER 1,Male,Bapak Santoso,'0812345678",
+    ].join("\n");
+
+    const result = parseStudentData(csv);
+    expect(result.validStudents.length).toBe(1);
+    expect(result.validStudents[0].name).toBe("Budi Santoso");
+    expect(result.validStudents[0].parentName).toBe("Bapak Santoso");
+    expect(result.validStudents[0].parentPhone).toBe("'0812345678");
+  });
+
   it("successfully parses real .xlsm file with 714 students if file exists locally", () => {
     const filePath = process.env.STUDENT_FILE_PATH || "./data/DATA_SISWA_SD_ALW1.xlsm";
     if (!existsSync(filePath)) {

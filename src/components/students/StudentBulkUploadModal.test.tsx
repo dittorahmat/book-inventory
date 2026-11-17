@@ -81,28 +81,31 @@ describe("StudentBulkUploadModal", () => {
   it("exports and triggers download of sample CSV template", () => {
     let clicked = false;
     const origCreateElement = document.createElement.bind(document);
-    document.createElement = (tagName: string) => {
-      const el = origCreateElement(tagName);
-      if (tagName === "a") {
-        el.click = () => {
-          clicked = true;
-        };
-      }
-      return el;
-    };
+    try {
+      document.createElement = (tagName: string) => {
+        const el = origCreateElement(tagName);
+        if (tagName === "a") {
+          el.click = () => {
+            clicked = true;
+          };
+        }
+        return el;
+      };
 
-    render(
-      <StudentBulkUploadModal
-        schoolId="sch-1"
-        schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
-        onClose={() => {}}
-        onSuccess={() => {}}
-      />
-    );
+      render(
+        <StudentBulkUploadModal
+          schoolId="sch-1"
+          schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
+          onClose={() => {}}
+          onSuccess={() => {}}
+        />
+      );
 
-    const downloadLink = screen.getByText("Format CSV");
-    downloadLink.click();
-    expect(clicked).toBe(true);
-    document.createElement = origCreateElement;
+      const downloadLink = screen.getByText("Format CSV");
+      downloadLink.click();
+      expect(clicked).toBe(true);
+    } finally {
+      document.createElement = origCreateElement;
+    }
   });
 });

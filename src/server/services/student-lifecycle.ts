@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from "drizzle-orm";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AppDatabase } from "../../db";
-import { studentBookOrders, students, uniformOrders, type CurriculumType, type IntakeType } from "../../db/schema";
+import { studentBookOrders, students, uniformOrders, type CurriculumType, type IntakeType, type StreamType } from "../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch, writeNow, newWriteId, D1_WIDE_INSERT_CHUNK_SIZE, type WriteDeps } from "../lib/d1-write";
 import { documentNumber, epochTimeFragment } from "../lib/document-number";
 
@@ -35,7 +35,7 @@ export interface StudentImportRow {
   rombel?: string | null;
   gender?: "male" | "female";
   curriculumType?: CurriculumType;
-  stream?: "IPA" | "IPS" | null;
+  stream?: StreamType | null;
   intakeType?: IntakeType;
   academicYear?: string;
   parentName?: string;
