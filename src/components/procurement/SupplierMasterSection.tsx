@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Building2, Plus, Pencil, X, AlertCircle, CheckCircle2 } from "lucide-react";
-import { patchJson, postJson } from "../../lib/api";
+import { Building2, Plus, Pencil, Trash2, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { delJson, patchJson, postJson } from "../../lib/api";
 
 export interface SupplierRecord {
   id: string;
@@ -65,6 +65,23 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
     });
     setFeedback(null);
     setIsFormOpen(true);
+  };
+
+  const handleDelete = async (supplier: SupplierRecord) => {
+    if (!window.confirm(`Hapus master supplier "${supplier.name}" (${supplier.code})? Aksi ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+    setFeedback(null);
+    try {
+      await delJson(`/api/procurement/suppliers/${supplier.id}`, "Gagal menghapus supplier.");
+      setFeedback({ kind: "ok", message: `Supplier "${supplier.name}" berhasil dihapus.` });
+      onChanged();
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Gagal menghapus supplier.",
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -243,14 +260,24 @@ export function SupplierMasterSection({ suppliers, onChanged }: SupplierMasterSe
                   {[s.contactPerson, s.email, s.phone].filter(Boolean).join(" · ") || "Kontak belum dilengkapi"}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => openEdit(s)}
-                title="Ubah supplier"
-                className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0 active:scale-[0.98]"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => openEdit(s)}
+                  title="Ubah supplier"
+                  className="p-1.5 rounded-lg border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors shrink-0 active:scale-[0.98]"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(s)}
+                  title="Hapus supplier"
+                  className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 transition-colors shrink-0 active:scale-[0.98]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>

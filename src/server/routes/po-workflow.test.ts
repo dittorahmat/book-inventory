@@ -4,7 +4,7 @@ import { poWorkflowRouter } from "./po-workflow";
 import { evaluateSendGate, validateSignedDoc } from "../services/purchase-order";
 import { mockActor, restoreActor } from "./test-actor";
 import { db } from "../../db";
-import { purchaseOrders, purchaseOrderItems, suppliers, books, schools } from "../../db/schema";
+import { purchaseOrders, purchaseOrderItems, suppliers, books, schools, bookSuppliers } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 beforeEach(async () => {
@@ -405,6 +405,86 @@ describe("Master supplier di tab PO", () => {
     }
     const [row] = await db.select().from(suppliers).limit(1);
     expect(row).toBeDefined();
+  });
+
+  it("berhasil menghapus supplier yang bersih dari transaksi relasional", async () => {
+    const stamp = Date.now();
+    const supId = await makeSupplier(stamp, false);
+    const deleteRes = await poWorkflowRouter.request(`/suppliers/${supId}`, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(200);
+    const json = await deleteRes.json();
+    expect(json.success).toBe(true);
+    expect(json.data.id).toBe(supId);
+
+    const [deleted] = await db.select().from(suppliers).where(eq(suppliers.id, supId));
+    expect(deleted).toBeUndefined();
+  });
+
+  it("menolak menghapus supplier jika masih terhubung dengan Purchase Order buku (400)", async () => {
+    const stamp = Date.now();
+    const supId = await makeSupplier(stamp, false);
+    const poId = `po-test-del-${stamp}`;
+    const now = new Date().toISOString();
+    try {
+      await db.insert(purchaseOrders).values({
+        id: poId,
+        poNumber: `PO-DEL-${stamp}`.slice(0, 32),
+        supplierId: supId,
+        targetSchoolId: "school-pusat",
+        status: "draft",
+        orderDate: "2026-11-17",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const deleteRes = await poWorkflowRouter.request(`/suppliers/${supId}`, {
+        method: "DELETE",
+      });
+      expect(deleteRes.status).toBe(400);
+      const json = await deleteRes.json();
+      expect(json.success).toBe(false);
+      expect(json.message).toContain("Purchase Order Buku");
+    } finally {
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
+      await db.delete(suppliers).where(eq(suppliers.id, supId));
+    }
+  });
+
+  it("menolak menghapus supplier jika masih terhubung dengan relasi buku katalog (400)", async () => {
+    const stamp = Date.now();
+    const supId = await makeSupplier(stamp, false);
+    const bookId = `b-del-sup-${stamp}`;
+    const now = new Date().toISOString();
+    try {
+      await db.insert(books).values({
+        id: bookId,
+        isbn: `ISBN-DEL-${stamp}`.slice(0, 32),
+        title: `Buku Relasi Supplier ${stamp}`,
+        author: "Penulis Test",
+        publisher: "Test Publisher",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(bookSuppliers).values({
+        bookId,
+        supplierId: supId,
+        createdAt: now,
+      });
+
+      const deleteRes = await poWorkflowRouter.request(`/suppliers/${supId}`, {
+        method: "DELETE",
+      });
+      expect(deleteRes.status).toBe(400);
+      const json = await deleteRes.json();
+      expect(json.success).toBe(false);
+      expect(json.message).toContain("pemasok katalog buku");
+    } finally {
+      await db.delete(bookSuppliers).where(eq(bookSuppliers.supplierId, supId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(suppliers).where(eq(suppliers.id, supId));
+    }
   });
 });
 
