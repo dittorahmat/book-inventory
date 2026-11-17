@@ -93,3 +93,7 @@ export interface InternalShipmentListRow {
 export type ListInternalShipmentsResult =
   | { ok: true; data: InternalShipmentListRow[] }
   | { ok: false; status: 404; message: string };
+
+export type DeleteInternalPoResult =
+  | { ok: true; data: { id: string; poNumber: string } }
+  | { ok: false; status: 400 | 404; message: string };

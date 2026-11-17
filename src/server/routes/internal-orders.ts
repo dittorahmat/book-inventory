@@ -12,6 +12,7 @@ import {
 } from "../services/access-scope";
 import {
   createInternalPo,
+  deleteInternalPurchaseOrder,
   fulfillInternalPo,
   listInternalPOs,
   listInternalShipments,
@@ -257,6 +258,36 @@ internalOrdersRouter.get("/:id/shipments", async (c) => {  try {
       return c.json({ success: false, message: result.message }, result.status);
     }
     return c.json({ success: true, data: result.data });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 6. DELETE PO Internal Cabang
+internalOrdersRouter.delete("/:id", async (c) => {
+  try {
+    const { actor, locations } = await requireScopedActor(db, c);
+    const poId = idSchema.parse(c.req.param("id"));
+
+    const [po] = await db
+      .select()
+      .from(internalPurchaseOrders)
+      .where(eq(internalPurchaseOrders.id, poId));
+    if (!po) {
+      return c.json({ success: false, message: "PO Internal tidak ditemukan" }, 404);
+    }
+    assertLocationAllowed(actor, po.schoolId, locations);
+
+    const result = await deleteInternalPurchaseOrder(db, poId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: `PO Internal "${result.data.poNumber}" berhasil dihapus.`,
+      data: result.data,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

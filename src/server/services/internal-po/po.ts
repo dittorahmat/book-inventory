@@ -2,7 +2,6 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import {
   bookPackages,
-  books,
   internalPurchaseOrderItems,
   internalPurchaseOrders,
   internalShipmentItems,
@@ -25,11 +24,13 @@ import type {
   InternalShipmentListItem,
   InternalShipmentListRow,
   ListInternalShipmentsResult,
+  DeleteInternalPoResult,
 } from "./types";
 
 export type {
   CreateInternalPoInput,
   CreateInternalPoResult,
+  DeleteInternalPoResult,
   FulfillInternalPoInput,
   FulfillInternalPoResult,
   InternalPoDeps,
@@ -97,60 +98,6 @@ export const listInternalPOs = async (
   }
 
   return orders.map((o: (typeof orders)[number]) => ({ ...o, items: itemsByPo.get(o.id) ?? [] }));
-};
-
-/**
- * Satu-satunya pemilik bacaan histori Surat Jalan Internal beserta
- * barisnya: 404 milik seam agar pemanggil langsung aman tanpa fetch ganda.
- */
-export const listInternalShipments = async (
-  database: AppDatabase,
-  poId: string,
-  limit = 100
-): Promise<ListInternalShipmentsResult> => {
-  const [po] = await database.select().from(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poId));
-  if (!po) return { ok: false, status: 404, message: "PO Internal tidak ditemukan" };
-
-  const shipments = await database
-    .select()
-    .from(internalShipments)
-    .where(eq(internalShipments.internalPoId, poId))
-    .orderBy(desc(internalShipments.createdAt))
-    .limit(limit);
-
-  const shipmentIds = shipments.map((s: { id: string }) => s.id);
-  const shipmentItemsList: InternalShipmentListItem[] =
-    shipmentIds.length > 0
-      ? await database
-          .select({
-            id: internalShipmentItems.id,
-            shipmentId: internalShipmentItems.shipmentId,
-            packageId: internalShipmentItems.packageId,
-            packageName: bookPackages.name,
-            bookId: internalShipmentItems.bookId,
-            bookTitle: books.title,
-            quantity: internalShipmentItems.quantity,
-            isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
-            receivedCondition: internalShipmentItems.receivedCondition,
-            receivedNotes: internalShipmentItems.receivedNotes,
-          })
-          .from(internalShipmentItems)
-          .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))
-          .leftJoin(books, eq(internalShipmentItems.bookId, books.id))
-          .where(inArray(internalShipmentItems.shipmentId, shipmentIds))
-      : [];
-
-  const itemsByShipment = new Map<string, InternalShipmentListItem[]>();
-  for (const it of shipmentItemsList) {
-    const list = itemsByShipment.get(it.shipmentId) ?? [];
-    list.push(it);
-    itemsByShipment.set(it.shipmentId, list);
-  }
-
-  return {
-    ok: true,
-    data: shipments.map((s: (typeof shipments)[number]) => ({ ...s, items: itemsByShipment.get(s.id) ?? [] })),
-  };
 };
 
 const validateCreateLines = (items: InternalPoItemInput[]): string | null => {
@@ -338,4 +285,74 @@ export async function fulfillInternalPo(
     throw err;
   }
   return { ok: true, data: { shipmentId, status: nextStatus } };
+}
+
+/**
+ * Single-writer penghapusan PO Internal Cabang:
+ * Hanya PO berstatus 'draft' atau 'submitted' yang belum memiliki pengiriman
+ * dan belum memiliki pemenuhan barang (quantityFulfilled === 0).
+ */
+export async function deleteInternalPurchaseOrder(
+  database: AppDatabase,
+  poId: string
+): Promise<DeleteInternalPoResult> {
+  const [po] = await database
+    .select()
+    .from(internalPurchaseOrders)
+    .where(eq(internalPurchaseOrders.id, poId));
+  if (!po) {
+    return { ok: false, status: 404, message: "PO Internal tidak ditemukan" };
+  }
+
+  // 1. Cek status PO
+  if (po.status !== "draft" && po.status !== "submitted") {
+    return {
+      ok: false,
+      status: 400,
+      message: `PO Internal "${po.poNumber}" tidak dapat dihapus karena sudah dalam status "${po.status}".`,
+    };
+  }
+
+  // 2. Cek apakah ada pengiriman internal yang terkait
+  const [shipment] = await database
+    .select({ id: internalShipments.id, deliveryNoteNumber: internalShipments.deliveryNoteNumber })
+    .from(internalShipments)
+    .where(eq(internalShipments.internalPoId, poId))
+    .limit(1);
+  if (shipment) {
+    return {
+      ok: false,
+      status: 400,
+      message: `PO Internal "${po.poNumber}" tidak dapat dihapus karena sudah memiliki Surat Jalan "${shipment.deliveryNoteNumber}".`,
+    };
+  }
+
+  // 3. Cek pemenuhan barang
+  const items = await database
+    .select({ fulfilled: internalPurchaseOrderItems.quantityFulfilled })
+    .from(internalPurchaseOrderItems)
+    .where(eq(internalPurchaseOrderItems.internalPoId, poId));
+  const totalFulfilled = items.reduce((sum, item) => sum + (item.fulfilled || 0), 0);
+  if (totalFulfilled > 0) {
+    return {
+      ok: false,
+      status: 400,
+      message: `PO Internal "${po.poNumber}" tidak dapat dihapus karena barang sudah teralokasi/terpenuhi (${totalFulfilled} paket).`,
+    };
+  }
+
+  try {
+    await runWriteBatch(database, [
+      database
+        .delete(internalPurchaseOrderItems)
+        .where(eq(internalPurchaseOrderItems.internalPoId, poId)),
+      database.delete(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penghapusan PO Internal");
+    if (mapped) return { ok: false, status: 400, message: mapped.message };
+    throw err;
+  }
+
+  return { ok: true, data: { id: po.id, poNumber: po.poNumber } };
 }
