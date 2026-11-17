@@ -110,6 +110,7 @@ if (has(/^drizzle\/.*\.sql$/)) {
 if (has(/^(src\/.*\.test\.tsx?$|src\/test-dom|test\/|bunfig\.toml)/)) {
   runBun("check:test-isolation");
   runBun("check:test-dom");
+  runBun("check:parser-tokens");
   const changedTestFiles = changed.filter((file) => /\.(test|spec)\.(ts|tsx)$/.test(file));
   if (changedTestFiles.length > 0) {
     run(["bun", "test", ...changedTestFiles]);
