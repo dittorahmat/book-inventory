@@ -426,10 +426,11 @@ describe("Portal retur seragam mandiri", () => {
     const { kainId } = await seedCatalog(stamp);
     await seedPriorOrder(schoolId, studentId, stamp);
 
+    const addr = "Jl. Merdeka No. 45, RT 02 RW 05, Depok, Jawa Barat 16418";
     const res = await postPublic("/orders", {
       studentId,
       academicYear: "2026/2027",
-      homeAddress: "Jl. Boulevard No. 1, BSD City",
+      homeAddress: addr,
       items: [{ variantId: kainId, quantity: 1 }],
     });
     expect(res.status).toBe(201);
