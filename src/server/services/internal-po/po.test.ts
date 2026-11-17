@@ -9,7 +9,8 @@ import {
   internalShipments,
   schools,
 } from "../../../db/schema";
-import { createInternalPo, fulfillInternalPo, listInternalPOs, listInternalShipments } from "./po";
+import { createInternalPo, deleteInternalPurchaseOrder, fulfillInternalPo, listInternalPOs } from "./po";
+import { listInternalShipments } from "./shipment";
 
 describe("Internal PO read seam (T2: list + history behind the module)", () => {
   it("lists POs with grouped lines and filters by school in SQL", async () => {
@@ -111,5 +112,57 @@ describe("Internal PO read seam (T2: list + history behind the module)", () => {
       await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
+  });
+
+  it("deleteInternalPurchaseOrder menolak menghapus jika ada Surat Jalan atau status bukan draft", async () => {
+    const stamp = Date.now();
+    const schoolId = `sch-t2-del-${stamp}`;
+    const pkgId = `pkg-t2-del-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId,
+      name: "Cabang Test Del",
+      code: `CBG-TD-${stamp}`.slice(0, 32),
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      name: "Paket T2 Del",
+      code: `PKG-TD-${stamp}`.slice(0, 32),
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const created = await createInternalPo(
+      db,
+      {
+        schoolId,
+        items: [{ packageId: pkgId, quantityOrdered: 5 }],
+      },
+      {
+        now: () => now,
+        generateId: () => `ipo-t2-del-${stamp}`,
+        generatePoNumber: () => `IPO-DEL-${stamp}`.slice(0, 32),
+      }
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const delRes = await deleteInternalPurchaseOrder(db, created.data.id);
+    expect(delRes.ok).toBe(true);
+
+    const [deleted] = await db
+      .select()
+      .from(internalPurchaseOrders)
+      .where(eq(internalPurchaseOrders.id, created.data.id));
+    expect(deleted).toBeUndefined();
+
+    await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+    await db.delete(schools).where(eq(schools.id, schoolId));
   });
 });

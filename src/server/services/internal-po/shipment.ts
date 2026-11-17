@@ -11,6 +11,61 @@ import {
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import type { InternalShipmentItemInput } from "./po";
+import type { InternalShipmentListItem, ListInternalShipmentsResult } from "./types";
+
+/**
+ * Satu-satunya pemilik bacaan histori Surat Jalan Internal beserta
+ * barisnya: 404 milik seam agar pemanggil langsung aman tanpa fetch ganda.
+ */
+export const listInternalShipments = async (
+  database: AppDatabase,
+  poId: string,
+  limit = 100
+): Promise<ListInternalShipmentsResult> => {
+  const [po] = await database.select().from(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poId));
+  if (!po) return { ok: false, status: 404, message: "PO Internal tidak ditemukan" };
+
+  const shipments = await database
+    .select()
+    .from(internalShipments)
+    .where(eq(internalShipments.internalPoId, poId))
+    .orderBy(desc(internalShipments.createdAt))
+    .limit(limit);
+
+  const shipmentIds = shipments.map((s: { id: string }) => s.id);
+  const shipmentItemsList: InternalShipmentListItem[] =
+    shipmentIds.length > 0
+      ? await database
+          .select({
+            id: internalShipmentItems.id,
+            shipmentId: internalShipmentItems.shipmentId,
+            packageId: internalShipmentItems.packageId,
+            packageName: bookPackages.name,
+            bookId: internalShipmentItems.bookId,
+            bookTitle: books.title,
+            quantity: internalShipmentItems.quantity,
+            isOutstandingFollowup: internalShipmentItems.isOutstandingFollowup,
+            receivedCondition: internalShipmentItems.receivedCondition,
+            receivedNotes: internalShipmentItems.receivedNotes,
+          })
+          .from(internalShipmentItems)
+          .leftJoin(bookPackages, eq(internalShipmentItems.packageId, bookPackages.id))
+          .leftJoin(books, eq(internalShipmentItems.bookId, books.id))
+          .where(inArray(internalShipmentItems.shipmentId, shipmentIds))
+      : [];
+
+  const itemsByShipment = new Map<string, InternalShipmentListItem[]>();
+  for (const it of shipmentItemsList) {
+    const list = itemsByShipment.get(it.shipmentId) ?? [];
+    list.push(it);
+    itemsByShipment.set(it.shipmentId, list);
+  }
+
+  return {
+    ok: true,
+    data: shipments.map((s: (typeof shipments)[number]) => ({ ...s, items: itemsByShipment.get(s.id) ?? [] })),
+  };
+};
 
 export interface OutstandingPoLine {
   id: string;

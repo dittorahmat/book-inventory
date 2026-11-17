@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJson, postJson, buildQuery } from "../../lib/api";
+import { delJson, getJson, postJson, buildQuery } from "../../lib/api";
 import type { InternalOrder, InternalShipment } from "../../lib/internal-orders-types";
 
 /** State pesanan internal cabang: daftar Internal PO + riwayat pengiriman per PO. */
@@ -130,12 +130,25 @@ export function useInternalOrders(schoolId?: string | null) {
     [loadOrders]
   );
 
+  const deleteOrder = useCallback(
+    async (poId: string) => {
+      const res = await delJson<{ id: string; poNumber: string }>(
+        `/api/internal-orders/${encodeURIComponent(poId)}`,
+        "Gagal menghapus PO Internal."
+      );
+      await loadOrders();
+      return res;
+    },
+    [loadOrders]
+  );
+
   return {
     orders,
     isLoading,
     loadError,
     loadData,
     submitOrder,
+    deleteOrder,
     submitPoShipment,
     submitManualShipment,
     incomingShipments,

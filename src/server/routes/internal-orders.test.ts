@@ -495,4 +495,83 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     expect(json.data.length).toBeGreaterThanOrEqual(1);
     expect(json.data.some((s) => s.deliveryNoteNumber === `SJ-ROUTINE-${stamp}`)).toBe(true);
   });
+
+  it("berhasil menghapus PO Internal berstatus draft/submitted tanpa shipment dan menolak jika beda cabang", async () => {
+    const stamp = Date.now();
+    const branchId = `school-del-${stamp}`;
+    const packageId = `pkg-del-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: branchId,
+      name: `Cabang Delete ${stamp}`,
+      code: `CBD-${stamp}`.slice(0, 32),
+      type: "branch",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(bookPackages).values({
+      id: packageId,
+      name: `Paket Delete ${stamp}`,
+      code: `PKD-${stamp}`.slice(0, 32),
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(students).values({
+      id: `std-del-${stamp}`,
+      name: `Siswa Delete ${stamp}`,
+      nis: `NIS-DEL-${stamp}`.slice(0, 32),
+      schoolId: branchId,
+      gradeLevel: "1",
+      curriculumType: "INTER",
+      academicYear: "2026/2027",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    mockActor("branch_admin", branchId);
+
+    // 1. Buat PO Internal
+    const createRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 1 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const createJson = (await createRes.json()) as { success: boolean; data: { id: string; poNumber: string } };
+    const poId = createJson.data.id;
+
+    // 2. Cabang lain mencoba menghapus -> 403
+    mockActor("branch_admin", "school-other-branch");
+    const forbiddenRes = await internalOrdersRouter.request(`/${poId}`, {
+      method: "DELETE",
+    });
+    expect(forbiddenRes.status).toBe(403);
+
+    // 3. Cabang pemilik menghapus -> 200
+    mockActor("branch_admin", branchId);
+    const deleteRes = await internalOrdersRouter.request(`/${poId}`, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(200);
+    const delJson = (await deleteRes.json()) as { success: boolean; message: string };
+    expect(delJson.success).toBe(true);
+    expect(delJson.message).toContain("berhasil dihapus");
+
+    // 4. Verifikasi setelah dihapus -> 404
+    const getRes = await internalOrdersRouter.request(`/${poId}/shipments`);
+    expect(getRes.status).toBe(404);
+
+    // 5. Mencoba menghapus PO yang sudah tidak ada -> 404
+    const ghostRes = await internalOrdersRouter.request(`/${poId}`, {
+      method: "DELETE",
+    });
+    expect(ghostRes.status).toBe(404);
+  });
 });

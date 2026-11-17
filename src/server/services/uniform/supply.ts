@@ -257,3 +257,42 @@ export async function assembleUniformPackages(
   await adjustPackageStockQuery(database, { packageId, delta: quantity }, "create", { now });
   return { ok: true, data: { packageId, quantityAssembled: quantity } };
 }
+
+/**
+ * Single-writer penghapusan PO Eksternal Konveksi/Seragam:
+ * Hanya PO yang belum menerima barang (status bukan 'received' atau 'partially_received',
+ * dan belum ada quantityReceived di setiap item).
+ */
+export async function deleteUniformPo(
+  database: AppDatabase,
+  poId: string
+): Promise<{ ok: true; data: { id: string; poNumber: string } } | UniformError> {
+  const [po] = await database.select().from(uniformPos).where(eq(uniformPos.id, poId));
+  if (!po) return { ok: false, status: 404, message: "PO seragam tidak ditemukan." };
+
+  if (po.status === "received" || po.status === "partially_received") {
+    return invalid(`PO seragam "${po.poNumber}" tidak dapat dihapus karena barang sudah diterima ke gudang.`);
+  }
+
+  const items = await database
+    .select()
+    .from(uniformPoItems)
+    .where(eq(uniformPoItems.poId, poId));
+  const totalReceived = items.reduce((sum, it) => sum + (it.quantityReceived || 0), 0);
+  if (totalReceived > 0) {
+    return invalid(`PO seragam "${po.poNumber}" tidak dapat dihapus karena sudah ada penerimaan fisik (${totalReceived} unit).`);
+  }
+
+  try {
+    await runWriteBatch(database, [
+      database.delete(uniformPoItems).where(eq(uniformPoItems.poId, poId)),
+      database.delete(uniformPos).where(eq(uniformPos.id, poId)),
+    ]);
+  } catch (err) {
+    const mapped = d1WriteErrorStatus(err, "penghapusan PO seragam");
+    if (mapped) return { ok: false, ...mapped };
+    throw err;
+  }
+
+  return { ok: true, data: { id: po.id, poNumber: po.poNumber } };
+}
