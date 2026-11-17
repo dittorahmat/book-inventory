@@ -10,7 +10,7 @@ export interface SearchableOption {
 interface SearchableSingleSelectProps {
   id?: string;
   label?: string;
-  options: SearchableOption[];
+  options: readonly SearchableOption[] | SearchableOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;

@@ -81,6 +81,7 @@ if (has(/^src\//)) {
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {
+  runBun("check:schema-tdz");
   runBun("check:server-structure");
   runBun("check:route-tests");
   if (has(/^src\/server\/routes\//)) {
