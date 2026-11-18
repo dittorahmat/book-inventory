@@ -85,4 +85,52 @@ describe("uniform reserveUniformStock: agregat per kunci", () => {
       await dropSeed({ schoolIds: [schoolId], studentIds: [studentId] });
     }
   });
+
+  it("ADR-0024: pemesanan satuan dan paket seragam berhasil meski stok 0 / belum tersedia", async () => {
+    const now = new Date().toISOString();
+    const schoolId = await seedSchool(`orz-${suffix}`, "ORZ Test");
+    const studentId = await seedStudent(`orz-st-${suffix}`, schoolId, "ORZ", `NISORZ${suffix}`);
+    const variantId = `uv-orz-${suffix}`;
+    const packageId = `up-orz-${suffix}`;
+    await db.insert(uniformVariants).values({
+      id: variantId, code: `UK-ORZ-${suffix}`, name: "Kain ORZ", kind: "kain_harian",
+      gender: "male", jenjang: "sd", academicYear: "2026/2027", price: 60000,
+      createdAt: now, updatedAt: now,
+    });
+    await db.insert(uniformPackages).values({
+      id: packageId, code: `UPK-ORZ-${suffix}`, name: "Paket ORZ",
+      academicYear: "2026/2027", price: 120000, createdAt: now, updatedAt: now,
+    });
+    await db.insert(uniformPackageBom).values({
+      id: `ub-orz-${suffix}`, packageId, variantId, size: "—", quantity: 1, createdAt: now,
+    });
+    // Tanpa insert uniformStock atau uniformPackageStock (stok fisik 0 / kosong)
+    try {
+      const res = await submitUniformOrder(db, {
+        studentId, academicYear: "2026/2027", homeAddress: "Jl. ORZ RT 01 RW 01, 12345",
+        items: [
+          { packageId, quantity: 1 },
+          { variantId, size: "—", quantity: 2 },
+        ],
+      });
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.data.order.shipmentStatus).toBe("belum_dikirim");
+
+      const [pkgStock] = await db.select().from(uniformPackageStock).where(eq(uniformPackageStock.packageId, packageId));
+      expect(pkgStock.quantity).toBe(-1);
+
+      const [varStock] = await db.select().from(uniformStock).where(eq(uniformStock.variantId, variantId));
+      expect(varStock.quantity).toBe(-2);
+    } finally {
+      const orders = await db.select({ id: uniformOrders.id }).from(uniformOrders).where(eq(uniformOrders.studentId, studentId));
+      for (const o of orders) await db.delete(uniformOrders).where(eq(uniformOrders.id, o.id));
+      await db.delete(uniformPackageStock).where(eq(uniformPackageStock.packageId, packageId));
+      await db.delete(uniformStock).where(eq(uniformStock.variantId, variantId));
+      await db.delete(uniformPackageBom).where(eq(uniformPackageBom.packageId, packageId));
+      await db.delete(uniformPackages).where(eq(uniformPackages.id, packageId));
+      await db.delete(uniformVariants).where(eq(uniformVariants.id, variantId));
+      await dropSeed({ schoolIds: [schoolId], studentIds: [studentId] });
+    }
+  });
 });

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { isKhimarSdVariant, KHIMAR_SD_SIZES } from "./khimar-sd";
 
 export type UniformCatalogRowInput = unknown[];
 
@@ -137,7 +138,12 @@ export function parseUniformCatalogRows(
     const code = `UNI-${jenjang.toUpperCase()}-${gender === "male" ? "IKH" : "AKH"}-${itemSlug}`;
     const id = `uv-${code.toLowerCase().replace(/_/g, "-")}`;
 
-    const sizes = isSport ? (SPORT_SIZES_BY_JENJANG[jenjang] ?? []) : [KAIN_SIZE];
+    const isKhimarSd = isKhimarSdVariant({ code, name: rawItemName, jenjang });
+    const sizes = isSport
+      ? (SPORT_SIZES_BY_JENJANG[jenjang] ?? [])
+      : isKhimarSd
+        ? [...KHIMAR_SD_SIZES]
+        : [KAIN_SIZE];
 
     variants.push({
       id,

@@ -1,3 +1,19 @@
+**Pemesanan Stok Kosong (Backorder / Zero-Stock Order Permitted)**:
+Kebijakan operasional pemesanan buku dan seragam di portal publik di mana saldo stok fisik gudang bernilai nol (0) tidak lagi menjadi penghalang (*non-blocking / no-stopper*) bagi orang tua untuk menyelesaikan pesanan. Pesanan tetap tercatat sah dengan status pengiriman `belum_dikirim` (dan `waiting_preparation` untuk buku), dengan angka stok fisik aktual disembunyikan sepenuhnya dari publik dan diserahkan kepada koordinasi pemenuhan tim logistik.
+_Avoid_: Memblokir submit order dengan peringatan stok habis, mengekspos angka stok ke publik, menolak checkout karena shortage
+
+**Ambang Batas Peringatan Stok Menipis (Configurable Low Stock Threshold)**:
+Nilai batas minimum saldo persediaan yang dikonfigurasikan secara terpusat melalui `system_settings` untuk masing-masing kelompok inventaris: buku satuan (`low_stock_threshold_book`), paket buku (`low_stock_threshold_book_package`), varian seragam satuan/olahraga (`low_stock_threshold_uniform_variant`), dan paket seragam (`low_stock_threshold_uniform_package`). Digunakan untuk memicu tanda bahaya/warning operasional bagi staf logistik serta peringatan halus pada portal bila stok menipis.
+_Avoid_: Ambang batas hardcoded di kode sumber, angka stok publik, notifikasi alarm tanpa konfigurasi
+
+**Pre-seleksi Ukuran Khimar SD (Pre-selected Khimar SD Size)**:
+Penetapan ukuran default secara otomatis (*pre-selection*) untuk seragam Khimar SD (akhwat) berdasarkan tingkat kelas murid: Size 1 untuk siswa kelas 1 & 2, dan Size 4 untuk siswa kelas 3 s/d 6, baik pada alur pemesanan portal publik mandiri maupun pembuatan/intake massal, dengan dropdown ukuran tetap fleksibel untuk diganti bila postur anak membutuhkan.
+_Avoid_: Membiarkan dropdown Khimar SD kosong tanpa default, salah memetakan ukuran ke jenjang selain SD
+
+**Partisi Ukuran Olahraga Sesuai Jenjang (Grade-Partitioned Sports Sizes)**:
+Pembatasan opsi dropdown ukuran dan tabel panduan ukuran seragam olahraga agar hanya menampilkan rentang ukuran resmi Al-Wildan yang sesuai dengan jenjang murid bersangkutan (TK: S–XL; SD: S–4XL; SMP/SMA: S–5XL) sesuai standar size chart resmi.
+_Avoid_: Menampilkan seluruh ukuran lintas jenjang di satu dropdown, ukuran SMP/SMA muncul di pilihan anak TK/SD
+
 # Book Inventory
 
 Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sekolah cabang, transfer antar gudang, dan pesanan siswa.

@@ -3,6 +3,7 @@ import {
   getUniformSizeChart,
   normalizeUniformJenjang,
   formatUniformSizeLabel,
+  getOfficialSportSizesForJenjang,
 } from "./uniform-size-chart";
 
 describe("uniform-size-chart", () => {
@@ -35,5 +36,12 @@ describe("uniform-size-chart", () => {
   it("formats size label informatively", () => {
     const label = formatUniformSizeLabel({ chartNumber: 8, size: "M", chestWidthCm: 44, bottomLengthCm: 79 });
     expect(label).toBe("M (No 8 — LD: 44 cm, P: 79 cm)");
+  });
+
+  it("filters official sport sizes by jenjang accurately (ADR-0024)", () => {
+    expect(getOfficialSportSizesForJenjang("tk")).toEqual(["S", "M", "L", "XL"]);
+    expect(getOfficialSportSizesForJenjang("sd")).toEqual(["S", "M", "L", "XL", "2XL", "3XL", "4XL"]);
+    expect(getOfficialSportSizesForJenjang("smp")).toEqual(["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]);
+    expect(getOfficialSportSizesForJenjang("sma")).toEqual(["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]);
   });
 });

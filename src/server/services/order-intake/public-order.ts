@@ -18,7 +18,7 @@ import { ensureWprBook } from "../wpr";
 import { buildBookOrderWriteQueries } from "./book-order-write";
 import { wprFeeForStudent } from "../pricing";
 import { buildReceiptDraft, receiptNumberConflict } from "../payment-ledger";
-import { allocateLooseLines, resolveLooseLines } from "./intake";
+import { resolveLooseLines } from "./intake";
 import {
   derivePaymentStatus,
   grossOrderAmount,
@@ -161,10 +161,8 @@ export async function submitPublicOrder(
   const paymentProofCheck = validatePaymentProof(!isScholarship, input.payment?.paymentProofBase64);
   if (!paymentProofCheck.ok) return paymentProofCheck;
 
-  // 6. Verifikasi ketersediaan satuan via seam alokasi bersama SEBELUM upload bukti.
-  // WPR bukan stok fisik: tidak direservasi, ditambahkan sebagai baris biaya sesudahnya.
-  const reserved = await allocateLooseLines(database, student.schoolId, looseLines);
-  if (!reserved.ok) return { ok: false, status: reserved.status, message: reserved.message };
+  // 6. Per ADR-0024: Stok 0 tidak lagi menjadi stopper checkout buku satuan/paket di portal publik.
+  // Fisik baru diserahkan saat serah terima (order-handover), order publik masuk dengan fulfillmentStatus = "waiting_preparation".
 
   // 6b. WPR wajib untuk satuan tanpa order paket (reguler maupun beasiswa).
   let wprCharged = false;

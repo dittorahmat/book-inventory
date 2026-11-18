@@ -40,3 +40,21 @@ export function formatKhimarSdSizeLabel(size: string): string {
   if (size === "4") return "Size 4 (Kelas 3 - 6)";
   return size;
 }
+
+/**
+ * Menentukan ukuran default Khimar SD berdasarkan tingkat kelas siswa.
+ * Mengabaikan prefix seperti "SD", "Kelas", atau suffix rombel (misal "SD 1", "Kelas 2", "1.INTER").
+ * - Kelas 1 & 2 -> Size 1
+ * - Kelas 3, 4, 5, 6 -> Size 4
+ * Siswa non-SD atau kelas tidak dikenal fallback ke null.
+ */
+export function getDefaultKhimarSdSize(gradeLevel?: string | number | null): KhimarSdSize | null {
+  if (gradeLevel === null || gradeLevel === undefined) return null;
+  const raw = String(gradeLevel).trim().toLowerCase();
+  const digitMatch = raw.match(/\b([1-6])\b/) ?? raw.match(/^([1-6])/);
+  if (!digitMatch) return null;
+  const gradeDigit = digitMatch[1];
+  if (gradeDigit === "1" || gradeDigit === "2") return "1";
+  if (["3", "4", "5", "6"].includes(gradeDigit)) return "4";
+  return null;
+}

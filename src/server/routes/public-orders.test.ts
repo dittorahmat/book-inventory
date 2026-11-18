@@ -1004,7 +1004,7 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
     }
   });
 
-  it("reserves stock before upload: insufficient quantity returns 400 with zero uploads", async () => {
+  it("permits zero stock or shortfall order on public submit (ADR-0024)", async () => {
     const stamp = Date.now();
     const schoolId = `school-t6-short-${stamp}`;
     const studentId = `std-t6-short-${stamp}`;
@@ -1080,17 +1080,17 @@ describe("T6 public intake seam (injected db+storage, reserve-before-upload, orp
         }
       );
 
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.status).toBe(400);
-      expect(result.message).toContain("Stok tidak cukup");
-      expect(storage.uploads).toHaveLength(0);
+      // Sesuai ADR-0024: Stok tidak cukup tidak lagi memblokir submit order publik
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.order.fulfillmentStatus).toBe("waiting_preparation");
+      expect(storage.uploads.length).toBeGreaterThan(0);
 
-      const leaked = await db
+      const created = await db
         .select()
         .from(studentBookOrders)
         .where(eq(studentBookOrders.id, `ord-t6-short-${stamp}`));
-      expect(leaked).toHaveLength(0);
+      expect(created).toHaveLength(1);
     } finally {
       await db.delete(bookItems).where(eq(bookItems.id, `bi-t6-short-${stamp}`));
       await db.delete(books).where(eq(books.id, bookId));

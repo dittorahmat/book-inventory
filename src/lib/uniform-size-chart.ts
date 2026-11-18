@@ -58,3 +58,10 @@ export function getUniformSizeChart(jenjang?: string | null): readonly UniformSi
 export function formatUniformSizeLabel(entry: UniformSizeChartEntry): string {
   return `${entry.size} (No ${entry.chartNumber} — LD: ${entry.chestWidthCm} cm, P: ${entry.bottomLengthCm} cm)`;
 }
+
+/**
+ * Mengembalikan set ukuran resmi olahraga untuk suatu jenjang.
+ */
+export function getOfficialSportSizesForJenjang(jenjang?: string | null): string[] {
+  return getUniformSizeChart(jenjang).map((e) => e.size);
+}

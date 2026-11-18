@@ -3,6 +3,7 @@ import {
   isKhimarSdVariant,
   KHIMAR_SD_SIZES,
   formatKhimarSdSizeLabel,
+  getDefaultKhimarSdSize,
 } from "./khimar-sd";
 
 describe("Khimar SD sizing and predicates", () => {
@@ -73,5 +74,33 @@ describe("Khimar SD sizing and predicates", () => {
     expect(formatKhimarSdSizeLabel("1")).toBe("Size 1 (Kelas 1 - 2)");
     expect(formatKhimarSdSizeLabel("4")).toBe("Size 4 (Kelas 3 - 6)");
     expect(formatKhimarSdSizeLabel("other")).toBe("other");
+  });
+
+  it("determines default Khimar SD size based on student grade level (ADR-0024)", () => {
+    // Kelas 1-2 -> Size 1
+    expect(getDefaultKhimarSdSize("1")).toBe("1");
+    expect(getDefaultKhimarSdSize(1)).toBe("1");
+    expect(getDefaultKhimarSdSize("2")).toBe("1");
+    expect(getDefaultKhimarSdSize(2)).toBe("1");
+    expect(getDefaultKhimarSdSize("SD 1")).toBe("1");
+    expect(getDefaultKhimarSdSize("Kelas 2")).toBe("1");
+    expect(getDefaultKhimarSdSize("1.INTER 1")).toBe("1");
+
+    // Kelas 3-6 -> Size 4
+    expect(getDefaultKhimarSdSize("3")).toBe("4");
+    expect(getDefaultKhimarSdSize(3)).toBe("4");
+    expect(getDefaultKhimarSdSize("4")).toBe("4");
+    expect(getDefaultKhimarSdSize("5")).toBe("4");
+    expect(getDefaultKhimarSdSize("6")).toBe("4");
+    expect(getDefaultKhimarSdSize(6)).toBe("4");
+    expect(getDefaultKhimarSdSize("SD 4")).toBe("4");
+    expect(getDefaultKhimarSdSize("Kelas 6")).toBe("4");
+    expect(getDefaultKhimarSdSize("3.MQ 2")).toBe("4");
+
+    // Kelas lain / null
+    expect(getDefaultKhimarSdSize("7")).toBeNull();
+    expect(getDefaultKhimarSdSize("TK")).toBeNull();
+    expect(getDefaultKhimarSdSize(null)).toBeNull();
+    expect(getDefaultKhimarSdSize(undefined)).toBeNull();
   });
 });
