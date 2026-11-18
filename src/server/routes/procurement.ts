@@ -130,7 +130,7 @@ procurementRouter.post("/suppliers/import-mapping", zValidator("json", importSup
     let buffer: ArrayBuffer | Buffer;
 
     if (url) {
-      const res = await fetchGoogleDriveResource(url);
+      const res = await fetchGoogleDriveResource(url, { forceXlsx: true });
       if (!res.success) {
         return c.json({ success: false, message: res.message }, res.status as 400 | 404 | 502);
       }

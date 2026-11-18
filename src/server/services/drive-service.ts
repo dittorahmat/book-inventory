@@ -44,7 +44,7 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): P
   }
 }
 
-export async function fetchGoogleDriveResource(url: string): Promise<DriveResourceResult> {
+export async function fetchGoogleDriveResource(url: string, options?: { forceXlsx?: boolean }): Promise<DriveResourceResult> {
   try {
     // 1. Google Drive Folder publik
     if (isGoogleDriveFolderUrl(url)) {
@@ -87,7 +87,7 @@ export async function fetchGoogleDriveResource(url: string): Promise<DriveResour
     }
 
     // 2. Google Sheets publik (ekspor ke XLSX multi-sheet atau CSV)
-    const exportUrl = normalizeGoogleSheetsUrl(url);
+    const exportUrl = normalizeGoogleSheetsUrl(url, options);
     if (exportUrl) {
       const resp = await fetchWithRetry(exportUrl, {
         headers: {
