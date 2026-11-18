@@ -146,6 +146,25 @@ for (const file of testFiles) {
   }
 }
 
+// B8 — larangan panggilan live HTTP network fetch ke Drive/Sheets publik tanpa mock (AGENTS.md §6 & §0.77):
+// File test route yang menguji Google Drive atau Google Sheets URL wajib me-mock globalThis.fetch
+// agar pengujian tidak bergantung pada koneksi internet eksternal di runner CI yang terisolasi.
+for (const file of testFiles) {
+  if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) {
+    const content = readFileSync(file, "utf8");
+    if (
+      (content.includes("docs.google.com") || content.includes("drive.google.com")) &&
+      !content.includes("globalThis.fetch") &&
+      !file.includes("src/lib/sheets.test.ts") &&
+      !file.includes("src/lib/student-import-parser.test.ts")
+    ) {
+      hits.push(
+        `${file}: memuat URL Google Docs/Drive tetapi tidak me-mock globalThis.fetch (risiko kegagalan live network di CI sandboxed).`
+      );
+    }
+  }
+}
+
 if (hits.length > 0) {
   console.error("Test-isolation gate FAILED:");
   for (const hit of hits) console.error(`  ${hit}`);
