@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { UniformItemStep } from "./UniformItemStep";
 import type { UniformOrder } from "./useUniformOrder";
 
-const { render, screen, cleanup } = await import("@testing-library/react");
+const { render, screen, cleanup, fireEvent } = await import("@testing-library/react");
 
 afterEach(() => {
   cleanup();
@@ -314,5 +314,54 @@ describe("UniformItemStep", () => {
     const { container } = render(<UniformItemStep order={mockOrder} />);
     expect(container.textContent).not.toContain("Siap kirim:");
     expect(container.textContent).not.toContain("Stok:");
+  });
+
+  it("filters olahraga size options strictly according to student jenjang (ADR-0024)", () => {
+    // Siswa TK hanya boleh melihat S-XL (tidak boleh melihat 2XL, 3XL, 4XL, 5XL)
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "v-ol-tk",
+          code: "UNI-TK-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (TK Ikhwan)",
+          kind: "olahraga" as const,
+          gender: "male" as const,
+          jenjang: "tk" as const,
+          academicYear: "2026/2027",
+          price: 150000,
+          sizeChartUrl: null,
+          sizes: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"], // varian memiliki ukuran meluap
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: {},
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      uniformMode: "satuan" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "TK" },
+      total: 0,
+      itemCount: 0,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+    // Buka dropdown ukuran olahraga
+    const dropdownTrigger = screen.getByRole("button", { name: "Pilih Ukuran Olahraga (Wajib)" });
+    fireEvent.click(dropdownTrigger);
+
+    // Opsi ukuran TK hanya S, M, L, XL
+    expect(screen.getByText("S")).toBeDefined();
+    expect(screen.getByText("XL")).toBeDefined();
+    expect(screen.queryByText("2XL")).toBeNull();
+    expect(screen.queryByText("5XL")).toBeNull();
   });
 });

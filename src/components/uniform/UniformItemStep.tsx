@@ -4,7 +4,7 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import { SearchableSingleSelect } from "../ui/SearchableSingleSelect";
 import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { UniformSizeGuideModal } from "./UniformSizeGuideModal";
-import { formatUniformSizeLabel, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
+import { formatUniformSizeLabel, getOfficialSportSizesForJenjang, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
 import { formatKhimarSdSizeLabel, isKhimarSdVariant } from "../../lib/khimar-sd";
 import type { UniformOrder } from "./useUniformOrder";
 
@@ -38,6 +38,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const khimarSd = order.visibleVariants.filter((v) => isKhimarSdVariant(v));
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
+  const officialSportSizes = getOfficialSportSizesForJenjang(studentJenjang);
 
   const isPackageMode = order.uniformMode !== "satuan";
 
@@ -101,7 +102,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 const v = order.catalog?.variants.find((x) => x.id === b.variantId);
                 return v?.kind === "olahraga" && b.size === "—";
               });
-              const sizeOptions = [
+              const rawSizes = [
                 ...new Set(
                   p.bom.flatMap((b) => {
                     const v = order.catalog?.variants.find((x) => x.id === b.variantId);
@@ -109,6 +110,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   })
                 ),
               ];
+              const sizeOptions = rawSizes.filter((s) => officialSportSizes.includes(s));
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -245,7 +247,9 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               const picked = order.sizeFor[v.id] ?? "";
               const key = picked ? `${v.id}::${picked}` : v.id;
               const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
-              const sizeOptions = v.sizes.map((s) => {
+              const filteredSizes = v.sizes.filter((s) => officialSportSizes.includes(s));
+              const availableSizes = filteredSizes.length > 0 ? filteredSizes : v.sizes;
+              const sizeOptions = availableSizes.map((s) => {
                 const detail = v.sizeDetails?.find((d) => d.size === s);
                 const label = detail ? formatUniformSizeLabel(detail) : s;
                 return { value: s, label };
