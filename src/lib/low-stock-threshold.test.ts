@@ -3,6 +3,7 @@ import {
   LOW_STOCK_THRESHOLD_KEYS,
   getLowStockThresholdSettings,
   isLowStock,
+  isVariantSizeLowStock,
 } from "./low-stock-threshold";
 import { db } from "../db";
 import { systemSettings } from "../db/schema";
@@ -57,5 +58,20 @@ describe("low-stock-threshold", () => {
     // Custom threshold
     expect(isLowStock(8, "uniform_variant", { uniformVariant: 12 })).toBe(true);
     expect(isLowStock(15, "uniform_variant", { uniformVariant: 12 })).toBe(false);
+  });
+
+  it("isVariantSizeLowStock mengevaluasi kuantitas stok per varian ukuran spesifik (ADR-0024)", () => {
+    const stocks = [
+      { size: "S", quantity: 8 },
+      { size: "M", quantity: 2 },
+      { size: "L", quantity: 5 },
+    ];
+
+    // Default uniform variant threshold = 5
+    expect(isVariantSizeLowStock(stocks, "S")).toBe(false); // 8 > 5
+    expect(isVariantSizeLowStock(stocks, "M")).toBe(true);  // 2 <= 5
+    expect(isVariantSizeLowStock(stocks, "L")).toBe(true);  // 5 <= 5
+    expect(isVariantSizeLowStock(stocks, "XL")).toBe(true); // 0 <= 5 (tidak ditemukan dalam stok)
+    expect(isVariantSizeLowStock(undefined, "S")).toBe(true); // 0 <= 5
   });
 });

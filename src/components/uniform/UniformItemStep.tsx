@@ -6,6 +6,7 @@ import { FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { UniformSizeGuideModal } from "./UniformSizeGuideModal";
 import { formatUniformSizeLabel, getOfficialSportSizesForJenjang, normalizeUniformJenjang } from "../../lib/uniform-size-chart";
 import { formatKhimarSdSizeLabel, isKhimarSdVariant } from "../../lib/khimar-sd";
+import { isVariantSizeLowStock } from "../../lib/low-stock-threshold";
 import type { UniformOrder } from "./useUniformOrder";
 
 const stepper = (qty: number, onChange: (delta: number) => void, disabled = false) => (
@@ -37,7 +38,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
   const kain = order.visibleVariants.filter((v) => v.kind === "kain_harian" && !isKhimarSdVariant(v));
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const khimarSd = order.visibleVariants.filter((v) => isKhimarSdVariant(v));
-  const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
+  const studentJenjang = normalizeUniformJenjang(order.jenjang ?? order.student?.gradeLevel);
   const officialSportSizes = getOfficialSportSizesForJenjang(studentJenjang);
 
   const isPackageMode = order.uniformMode !== "satuan";
@@ -110,7 +111,8 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   })
                 ),
               ];
-              const sizeOptions = rawSizes.filter((s) => officialSportSizes.includes(s));
+              const filteredPackageSizes = rawSizes.filter((s) => officialSportSizes.includes(s));
+              const sizeOptions = filteredPackageSizes.length > 0 ? filteredPackageSizes : rawSizes;
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -221,6 +223,11 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                         ⚠️ Wajib memilih ukuran Khimar SD (Size 1 atau Size 4) sebelum menambahkan atau melanjutkan pesanan.
                       </p>
                     )}
+                    {picked && isVariantSizeLowStock(v.stock, picked) && (
+                      <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                        ℹ️ Persediaan ukuran ini sedang diproses konveksi — pesanan Anda tetap diproses mengikuti antrean persediaan.
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -302,6 +309,11 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                     {!errorMessage && !picked && (
                       <p className="mt-1 text-[11px] text-[#65676B]">
                         ⚠️ Wajib memilih ukuran seragam olahraga sebelum menambahkan atau melanjutkan pesanan.
+                      </p>
+                    )}
+                    {picked && isVariantSizeLowStock(v.stock, picked) && (
+                      <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                        ℹ️ Persediaan ukuran ini sedang diproses konveksi — pesanan Anda tetap diproses mengikuti antrean persediaan.
                       </p>
                     )}
                   </div>

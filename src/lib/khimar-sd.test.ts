@@ -82,6 +82,9 @@ describe("Khimar SD sizing and predicates", () => {
     expect(getDefaultKhimarSdSize(1)).toBe("1");
     expect(getDefaultKhimarSdSize("2")).toBe("1");
     expect(getDefaultKhimarSdSize(2)).toBe("1");
+    expect(getDefaultKhimarSdSize("SD 1")).toBe("1");
+    expect(getDefaultKhimarSdSize("Kelas 2")).toBe("1");
+    expect(getDefaultKhimarSdSize("1.INTER 1")).toBe("1");
 
     // Kelas 3-6 -> Size 4
     expect(getDefaultKhimarSdSize("3")).toBe("4");
@@ -90,6 +93,9 @@ describe("Khimar SD sizing and predicates", () => {
     expect(getDefaultKhimarSdSize("5")).toBe("4");
     expect(getDefaultKhimarSdSize("6")).toBe("4");
     expect(getDefaultKhimarSdSize(6)).toBe("4");
+    expect(getDefaultKhimarSdSize("SD 4")).toBe("4");
+    expect(getDefaultKhimarSdSize("Kelas 6")).toBe("4");
+    expect(getDefaultKhimarSdSize("3.MQ 2")).toBe("4");
 
     // Kelas lain / null
     expect(getDefaultKhimarSdSize("7")).toBeNull();

@@ -318,7 +318,7 @@ export function useUniformOrder() {
     kelurahan, setKelurahan, kecamatan, setKecamatan, city, setCity,
     structuredValidation,
     orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
-    uniformMode, setUniformMode,
+    uniformMode, setUniformMode, jenjang,
     missingOlahragaVariants, missingPackageOlahraga, hasMissingOlahragaSize,
     submitting, error, setError, success, total, itemCount, canSubmit,
     loadSchools, handleSearch, selectStudent, backToSearch, handleSubmit,

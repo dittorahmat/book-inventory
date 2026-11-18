@@ -59,6 +59,20 @@ export async function getLowStockThresholdSettings(
   };
 }
 
+const KIND_THRESHOLD_KEY_MAP: Record<LowStockItemKind, keyof LowStockThresholdSettings> = {
+  book: "book",
+  book_package: "bookPackage",
+  uniform_variant: "uniformVariant",
+  uniform_package: "uniformPackage",
+};
+
+const KIND_DEFAULT_MAP: Record<LowStockItemKind, number> = {
+  book: DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.BOOK],
+  book_package: DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.BOOK_PACKAGE],
+  uniform_variant: DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.UNIFORM_VARIANT],
+  uniform_package: DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.UNIFORM_PACKAGE],
+};
+
 /**
  * Menentukan apakah kuantitas stok tertentu berada di bawah ambang batas (low stock).
  * Kuantitas <= threshold dianggap stok menipis / low stock.
@@ -68,20 +82,20 @@ export function isLowStock(
   kind: LowStockItemKind,
   thresholds?: Partial<LowStockThresholdSettings>
 ): boolean {
-  let threshold: number;
-  switch (kind) {
-    case "book":
-      threshold = thresholds?.book ?? DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.BOOK];
-      break;
-    case "book_package":
-      threshold = thresholds?.bookPackage ?? DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.BOOK_PACKAGE];
-      break;
-    case "uniform_variant":
-      threshold = thresholds?.uniformVariant ?? DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.UNIFORM_VARIANT];
-      break;
-    case "uniform_package":
-      threshold = thresholds?.uniformPackage ?? DEFAULT_LOW_STOCK_THRESHOLDS[LOW_STOCK_THRESHOLD_KEYS.UNIFORM_PACKAGE];
-      break;
-  }
+  const settingKey = KIND_THRESHOLD_KEY_MAP[kind];
+  const threshold = thresholds?.[settingKey] ?? KIND_DEFAULT_MAP[kind];
   return quantity <= threshold;
+}
+
+/**
+ * Memeriksa apakah varian ukuran tertentu berstatus low stock dari daftar stok fisik.
+ */
+export function isVariantSizeLowStock(
+  variantStocks: Array<{ size: string; quantity: number }> | undefined,
+  targetSize: string,
+  thresholds?: Partial<LowStockThresholdSettings>
+): boolean {
+  const found = variantStocks?.find((s) => s.size === targetSize);
+  const qty = found ? found.quantity : 0;
+  return isLowStock(qty, "uniform_variant", thresholds);
 }
