@@ -29,6 +29,15 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
   const [sheetName, setSheetName] = useState<string>("");
   const [autoCreatePackages, setAutoCreatePackages] = useState<boolean>(true);
   const [academicYear, setAcademicYear] = useState<string>("2026/2027");
+  const [forcePackageOverride, setForcePackageOverride] = useState<boolean>(false);
+
+  // Deteksi berkas parsial (< 10 buku untuk jenjang non-TK)
+  const isPartialNonTk = parsedBooks.length > 0 &&
+    parsedBooks.length < 10 &&
+    parsedBooks.some((b) => {
+      const g = (b.gradeLevel || "").trim().toLowerCase();
+      return !g.startsWith("tk") && g !== "kb" && g !== "paud";
+    });
 
   const {
     sheetsUrl,
@@ -125,14 +134,18 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
       setIsSubmitting(true);
       setError(null);
 
-      const { totalInserted, totalUpdated, totalPackages } = await submitBooksInChunks({
+      const { totalInserted, totalUpdated, totalPackages, skippedPackages } = await submitBooksInChunks({
         books: parsedBooks,
         autoCreatePackages,
         academicYear,
+        forcePackageOverride,
       });
 
       const pkgNote = totalPackages > 0 ? ` & ${totalPackages} paket dibuat` : "";
-      setResultMsg(`Berhasil mengimpor ${parsedBooks.length} buku! (${totalInserted} baru, ${totalUpdated} diperbarui${pkgNote}).`);
+      const skippedNote = skippedPackages && skippedPackages.length > 0
+        ? ` (${skippedPackages.length} paket dipertahankan karena berkas parsial < 10 buku)`
+        : "";
+      setResultMsg(`Berhasil mengimpor ${parsedBooks.length} buku! (${totalInserted} baru, ${totalUpdated} diperbarui${pkgNote})${skippedNote}.`);
       setTimeout(() => {
         onSuccess();
         onClose();
@@ -250,6 +263,9 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
             onAutoCreateChange={setAutoCreatePackages}
             academicYear={academicYear}
             onAcademicYearChange={setAcademicYear}
+            forcePackageOverride={forcePackageOverride}
+            onForcePackageOverrideChange={setForcePackageOverride}
+            hasPartialWarning={isPartialNonTk}
           />
 
           {folderFiles.length > 0 && (
