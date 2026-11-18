@@ -99,5 +99,16 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 2. **Koneksi Wajib ke Pemanggil Nyata (Wired Up)**: Setiap pembuatan modul domain atau seam baru wajib langsung dihubungkan (*wired up*) ke route handler atau pemanggil nyata dalam PR yang sama. Dilarang menyisakan modul baru berstatus mengambang (unintegrated/dead-code) yang hanya diuji oleh unit test-nya sendiri tanpa integrasi ke alur transaksi sistem riil.
 3. **Eksekusi Otomatis Berkas Test yang Berubah pada Gate Pre-Commit (`check:fast`)**: Setiap berkas test unit/integrasi (`*.test.ts(x)`) yang mengalami perubahan wajib otomatis dieksekusi oleh runner `check-changed.ts` (`bun test <changed_test_files>`), menjamin kegagalan test atau cacat data/fixture terdeteksi seketika sebelum commit mendarat atau terkirim ke CI.
 
+---
+
+### §0.87. Disiplin Eksekusi Worktree & Type-Check Pre-Test
+1. **Runner Eksekusi Worktree Kanonik (`bun run wt`)**:
+   - Pemanggilan test atau skrip di subdirektori worktree (`book1`, `book2`, dsb.) dilarang mengandalkan argumen `Cwd` pada `run_command` (tidak didukung tool schema) atau menjalankan `bun test` langsung dari root repositori utama (yang membaca berkas sebelum diedit).
+   - Gunakan runner kanonik `bun run wt <worktree_dir> <cmd...>` (e.g. `bun run wt book1 test src/lib/book-import-parser.test.ts`), atau navigasikan shell eksplisit `cd <worktree_dir>; bun <cmd>`.
+2. **Type-Check Mendahului Runtime Test & Guard Transformer**:
+   - Saat menambahkan atau memodifikasi Zod validator schema yang memiliki transformator (`.transform(...)`), agen wajib menjalankan `bun run type-check` sebelum mengeksekusi test guna memastikan seluruh dependensi fungsi pembantu (seperti `normalizeCanonicalCurriculum`) telah diimpor dengan benar dan bebas dari `ReferenceError` di runtime.
+3. **Penjagaan Helper Kanonik Kurikulum (`check:canonical-helpers`)**:
+   - Helper kanonik kurikulum `isCambridgeInternationalTitle` dan `inferCurriculumFromText` (`src/lib/curriculum.ts`) wajib digunakan sebagai sumber kebenaran tunggal (*single source of truth*) untuk identifikasi program kurikulum Al-Wildan, dilarang menduplikasi regex substring ad-hoc di parser maupun komponen view. Ditegakkan mekanis oleh `check:canonical-helpers`.
+
 
 
