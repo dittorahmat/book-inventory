@@ -1,5 +1,6 @@
 import "../../test-dom";
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import * as XLSX from "xlsx";
 import { UniformBulkUploadModal } from "./UniformBulkUploadModal";
 
 const { render, screen, cleanup, fireEvent, act } = await import("@testing-library/react");
@@ -53,24 +54,46 @@ describe("UniformBulkUploadModal", () => {
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
       }
-      return new Response(JSON.stringify({ success: true }), { status: 200 });
+      return new Response(JSON.stringify({ success: true, data: { insertedVariants: 1, updatedVariants: 0, packagesCreatedOrUpdated: 1 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }) as typeof fetch;
 
     const { container } = render(<UniformBulkUploadModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />);
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
 
-    const fakeFile = new File([new ArrayBuffer(100)], "katalog.xlsx", {
+    // Build real valid XLSX buffer
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["TK/ IKHWAN", "CELANA ABU", 100000],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, "Katalog");
+    const raw = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as number[];
+    const arrayBuffer = new Uint8Array(raw).buffer as ArrayBuffer;
+
+    const validFile = new File([arrayBuffer], "katalog.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
-    // Mock parseSpreadsheetBufferToRows by triggering change
-    // Even if buffer is dummy, test verifies that upon preview response, UI renders
     await act(async () => {
-      try {
-        fireEvent.change(fileInput, { target: { files: [fakeFile] } });
-      } catch {
-        // ignore parse error if dummy buffer
-      }
+      fireEvent.change(fileInput, { target: { files: [validFile] } });
     });
+
+    // Verify preview cards render in DOM
+    expect(screen.getByText("Total Varian")).toBeDefined();
+    expect(screen.getByText("Varian Baru")).toBeDefined();
+    expect(screen.getByText("Paket Terbentuk")).toBeDefined();
+    expect(screen.getByText("Paket Harian")).toBeDefined();
+
+    // Click submit button to trigger confirmation dialog
+    const submitBtn = screen.getByText("Simpan ke Katalog");
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    // Verify confirmation dialog renders
+    expect(screen.getByText("Konfirmasi Impor Katalog")).toBeDefined();
+    expect(screen.getByText("Ya, Simpan Sekarang")).toBeDefined();
   });
 });
