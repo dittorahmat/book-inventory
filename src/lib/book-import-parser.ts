@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { resolveBookIsbn } from "./isbn";
+import { isCambridgeInternationalTitle, type CurriculumType } from "./curriculum";
 
 export interface ParsedBookRow {
   title: string;
@@ -10,7 +11,7 @@ export interface ParsedBookRow {
   subject?: string;
   publisher?: string;
   semester?: "1" | "2" | "all";
-  curriculumType?: "international" | "national";
+  curriculumType?: CurriculumType;
 }
 
 export interface SkippedBookRow {
@@ -29,18 +30,10 @@ export interface BookParseResult {
  * Inferensi otomatis penerbit cerdas berdasarkan judul buku kurikulum Al-Wildan.
  */
 export function inferBookPublisher(title: string): string {
-  const t = title.toLowerCase();
-  if (
-    t.includes("english") ||
-    t.includes("prime math") ||
-    t.includes("coursebook") ||
-    t.includes("science student") ||
-    t.includes("science workbook") ||
-    t.includes("cambridge") ||
-    t.includes("marshall cavendish")
-  ) {
+  if (isCambridgeInternationalTitle(title)) {
     return "Cambridge";
   }
+  const t = title.toLowerCase();
   if (
     t.includes("akidah") ||
     t.includes("fikih") ||
@@ -136,7 +129,7 @@ function parseSingleSheet(
 
   // Coba ekstrak konteks kelas & kurikulum dari baris atas (misal "KELAS : 1 INTER")
   let defaultGradeLevel = "1";
-  let defaultCurriculum: "international" | "national" = "international";
+  let defaultCurriculum: CurriculumType = "INTER";
 
   const numMatch = sheetName.match(/\d{1,2}/);
   if (numMatch) {
@@ -150,7 +143,7 @@ function parseSingleSheet(
       defaultGradeLevel = kMatch[1];
     }
     if (/mq|markaz|nasional/i.test(textRow)) {
-      defaultCurriculum = "national";
+      defaultCurriculum = "MQ";
     }
   }
 
@@ -270,22 +263,16 @@ function parseSingleSheet(
       }
     }
 
-    // Kurikulum: Jika judul memuat mata pelajaran Cambridge / Internasional, prioritaskan 'international'
-    let curriculumType: "international" | "national" = defaultCurriculum;
-    const tLower = rawTitle.toLowerCase();
-    if (
-      tLower.includes("english") ||
-      tLower.includes("prime math") ||
-      tLower.includes("science student") ||
-      tLower.includes("science workbook") ||
-      tLower.includes("coursebook") ||
-      tLower.includes("cambridge")
-    ) {
-      curriculumType = "international";
+    // Kurikulum: Jika judul memuat mata pelajaran Cambridge / Internasional, prioritaskan 'INTER'
+    let curriculumType: CurriculumType = defaultCurriculum;
+    if (isCambridgeInternationalTitle(rawTitle)) {
+      curriculumType = "INTER";
     } else if (currIdx !== -1 && row[currIdx]) {
-      const cVal = String(row[currIdx]).trim().toLowerCase();
-      if (cVal.includes("nasional") || cVal.includes("mq") || cVal === "national") {
-        curriculumType = "national";
+      const cVal = String(row[currIdx]).trim().toUpperCase();
+      if (cVal.includes("NASIONAL") || cVal.includes("MQ") || cVal === "NATIONAL") {
+        curriculumType = "MQ";
+      } else if (cVal.includes("INTER") || cVal.includes("CAMBRIDGE")) {
+        curriculumType = "INTER";
       }
     }
 

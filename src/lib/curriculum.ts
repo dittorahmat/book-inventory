@@ -82,6 +82,22 @@ export const curriculumLabel = (curriculumType: string): string => {
 };
 
 /**
+ * Predikat kanonik untuk mendeteksi apakah judul buku merupakan bagian dari kurikulum Cambridge / Internasional.
+ */
+export function isCambridgeInternationalTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return (
+    t.includes("english") ||
+    t.includes("prime math") ||
+    t.includes("coursebook") ||
+    t.includes("science student") ||
+    t.includes("science workbook") ||
+    t.includes("cambridge") ||
+    t.includes("marshall cavendish")
+  );
+}
+
+/**
  * Deteksi intakeType (baru / kenaikan) berdasarkan prefix NIS dan tahun ajaran aktif.
  * Contoh: academicYear = "2026/2027" -> 4-digit prefix = "2627".
  * Jika NIS diawali 2627 -> baru, lainnya -> kenaikan.

@@ -224,7 +224,11 @@ export async function importBookCatalog(
         .from(bookPackages)
         .where(eq(bookPackages.code, packageCode));
 
-      const isNonTk = !gradeLevel.toLowerCase().includes("pg") && !gradeLevel.toLowerCase().includes("k");
+      // Boundary check akurat untuk TK/KB/Preschool:
+      // Hanya mengabaikan TK bila diawali 'tk', 'kb', atau 'paud'.
+      const gNorm = gradeLevel.trim().toLowerCase();
+      const isTk = gNorm.startsWith("tk") || gNorm.startsWith("kb") || gNorm.startsWith("paud") || gNorm === "0";
+      const isNonTk = !isTk;
 
       // Guard kelengkapan: paket SD/SMP/SMA yang sudah ada tidak boleh ditimpa paket buntung (< 10 buku) kecuali forcePackageOverride
       if (existingPkg && isNonTk && bookComponents.length < 10 && !options.forcePackageOverride) {

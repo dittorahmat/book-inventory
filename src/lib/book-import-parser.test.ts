@@ -154,12 +154,12 @@ describe("book-import-parser", () => {
     const eng = result.validBooks.find((b) => b.title.includes("ENGLISH"));
     expect(eng).toBeDefined();
     expect(eng?.gradeLevel).toBe("5");
-    expect(eng?.curriculumType).toBe("international");
+    expect(eng?.curriculumType).toBe("INTER");
     expect(eng?.publisher).toBe("Cambridge");
 
     const math = result.validBooks.find((b) => b.title.includes("PRIME MATH"));
     expect(math).toBeDefined();
-    expect(math?.curriculumType).toBe("international");
+    expect(math?.curriculumType).toBe("INTER");
   });
 });
 

@@ -126,7 +126,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
 
   const handleUpload = async () => {
     if (parsedBooks.length === 0) {
-      setError("Belum ada data buku valid untuk diimpor.");
+      setError("Pilih atau muat berkas katalog terlebih dahulu sebelum menyimpan.");
       return;
     }
 
@@ -345,7 +345,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
           <button
             type="button"
             onClick={handleUpload}
-            disabled={isSubmitting || parsedBooks.length === 0}
+            disabled={isSubmitting}
             className="px-5 py-2 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
           >
             {isSubmitting ? (
@@ -354,7 +354,7 @@ export function BookBulkUploadModal({ onClose, onSuccess }: BookBulkUploadModalP
                 <span>Menyimpan ke Katalog...</span>
               </>
             ) : (
-              <span>Simpan {parsedBooks.length > 0 ? `${parsedBooks.length} Judul Buku` : ""}</span>
+              <span>Simpan {parsedBooks.length > 0 ? `${parsedBooks.length} Judul Buku` : "Katalog"}</span>
             )}
           </button>
         </div>
