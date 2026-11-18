@@ -245,6 +245,56 @@ describe("POST /api/books/bulk-import", () => {
     restoreActor();
   });
 
+  it("skips overwriting existing SD package when import has < 10 books unless forcePackageOverride is true", async () => {
+    mockActor("central_admin", null);
+    const stamp = Date.now();
+    const { bookPackages } = await import("../../db/schema");
+
+    // 1. Setup existing package with code PKG-SD3-INT-2026-2027
+    const pkgCode = `PKG-SD3-INT-2026-2027`;
+    const [existingPkg] = await db.insert(bookPackages).values({
+      id: crypto.randomUUID(),
+      code: pkgCode,
+      name: "Paket Buku Kelas 3 Internasional TA 2026/2027",
+      gradeLevel: "3",
+      curriculumType: "INTER",
+      academicYear: "2026/2027",
+      price: 2800000,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    // 2. Import partial book list (only 1 book) with autoCreatePackages: true
+    const isbnA = `978-PARTIAL-${stamp}-A`;
+    const resPartial = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          { title: `Partial Math ${stamp}`, gradeLevel: "3", price: 50000, isbn: isbnA, curriculumType: "international" },
+        ],
+        autoCreatePackages: true,
+        academicYear: "2026/2027",
+      }),
+    });
+
+    expect(resPartial.status).toBe(200);
+    const jsonPartial = await resPartial.json();
+    expect(jsonPartial.success).toBe(true);
+    expect(jsonPartial.data.skippedPackages).toBeDefined();
+    expect(jsonPartial.data.skippedPackages.length).toBe(1);
+    expect(jsonPartial.data.skippedPackages[0].code).toBe(pkgCode);
+
+    // Verify package price unchanged
+    const [pkgAfter] = await db.select().from(bookPackages).where(eq(bookPackages.id, existingPkg.id));
+    expect(pkgAfter.price).toBe(2800000);
+
+    // 3. Clean up
+    await db.delete(bookPackages).where(eq(bookPackages.id, existingPkg.id));
+    await db.delete(books).where(eq(books.isbn, isbnA));
+    restoreActor();
+  });
+
   it("updates book record when re-importing by title even with different casing or whitespace", async () => {
     const stamp = Date.now();
     const uniqueTitle = `Buku Sains Eksperimen ${stamp}`;

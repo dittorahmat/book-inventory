@@ -29,6 +29,7 @@ export interface BookImportRow {
 export interface BookImportOptions {
   autoCreatePackages?: boolean;
   academicYear?: string;
+  forcePackageOverride?: boolean;
 }
 
 export interface BookImportResult {
@@ -36,6 +37,7 @@ export interface BookImportResult {
   updatedCount: number;
   packagesCreatedCount: number;
   total: number;
+  skippedPackages?: Array<{ code: string; name: string; reason: string }>;
 }
 
 /**
@@ -192,6 +194,8 @@ export async function importBookCatalog(
   }
 
   // 5. Otomatisasi pembentukan Paket Buku (BOM) per tingkat & kurikulum bila diminta
+  const skippedPackages: Array<{ code: string; name: string; reason: string }> = [];
+
   if (options?.autoCreatePackages) {
     const packageGroups = new Map<string, Array<{ bookId: string; price: number }>>();
 
@@ -219,6 +223,18 @@ export async function importBookCatalog(
         .select({ id: bookPackages.id })
         .from(bookPackages)
         .where(eq(bookPackages.code, packageCode));
+
+      const isNonTk = !gradeLevel.toLowerCase().includes("pg") && !gradeLevel.toLowerCase().includes("k");
+
+      // Guard kelengkapan: paket SD/SMP/SMA yang sudah ada tidak boleh ditimpa paket buntung (< 10 buku) kecuali forcePackageOverride
+      if (existingPkg && isNonTk && bookComponents.length < 10 && !options.forcePackageOverride) {
+        skippedPackages.push({
+          code: packageCode,
+          name: packageName,
+          reason: `Paket dilewati karena hasil impor hanya berisi ${bookComponents.length} buku (ambang batas minimum SD–SMA adalah 10 buku)`,
+        });
+        continue;
+      }
 
       let pkgId = existingPkg?.id;
       if (!pkgId) {
@@ -270,12 +286,12 @@ export async function importBookCatalog(
     }
   }
 
-
   return {
     insertedCount,
     updatedCount,
     packagesCreatedCount,
     total: items.length,
+    skippedPackages,
   };
 }
 

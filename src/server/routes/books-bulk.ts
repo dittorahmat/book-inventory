@@ -39,6 +39,7 @@ const bulkImportBooksPayloadSchema = z
   .object({
     books: z.array(bookImportItemSchema).min(1, "Minimal 1 data buku untuk diimpor"),
     autoCreatePackages: z.boolean().optional().default(false),
+    forcePackageOverride: z.boolean().optional().default(false),
     academicYear: z.string().optional().default("2026/2027"),
   })
   .strict();
@@ -115,6 +116,7 @@ bookBulkRouter.post("/bulk-import", zValidator("json", bulkImportBooksPayloadSch
     const body = c.req.valid("json");
     const result = await importBookCatalog(db, body.books, {
       autoCreatePackages: body.autoCreatePackages,
+      forcePackageOverride: body.forcePackageOverride,
       academicYear: body.academicYear,
     });
 
