@@ -150,4 +150,65 @@ describe("supplier-mapping-import service (#499)", () => {
     expect(result.totalSheetsProcessed).toBe(2);
     expect(result.booksMatched).toBe(2);
   });
+
+  it("memetakan seluruh variasi seri PRIME MATH (PR1ME MATHS COURSEBOOK & PRACTICE BK) ke CNL dengan ISBN lokal", async () => {
+    // Simulasi buku Prime Math di DB dengan ISBN kode lokal (bukan EAN 13 digit)
+    const primeCb1 = await createTestBook(db, {
+      isbn: "BK-SD1-PRIME-MATH-1A-COURSEBOOK-7A2B1D",
+      title: "PRIME MATH 1A COURSEBOOK",
+      author: "Scholastic",
+      publisher: "Cambridge",
+      price: 120000,
+    });
+    const primeWb1 = await createTestBook(db, {
+      isbn: "BK-SD1-PRIME-MATH-1A-WORKBOOK-93AD25",
+      title: "PRIME MATH 1A WORKBOOK",
+      author: "Scholastic",
+      publisher: "Cambridge",
+      price: 80000,
+    });
+    const primeCb2 = await createTestBook(db, {
+      isbn: "BK-SD2-PRIME-MATH-2A-COURSEBOOK-D39B27",
+      title: "Prime Math 2A Coursebook",
+      author: "Scholastic",
+      publisher: "SCHOLASTIC",
+      price: 125000,
+    });
+    const primePb2 = await createTestBook(db, {
+      isbn: "BK-SD2-PRIME-MATH-2A-PRACTICE-BOOK-A08CDF",
+      title: "Prime Math 2A Practice Book",
+      author: "Scholastic",
+      publisher: "SCHOLASTIC",
+      price: 85000,
+    });
+    testBookIds.push(primeCb1.id, primeWb1.id, primeCb2.id, primePb2.id);
+
+    const wb = XLSX.utils.book_new();
+    const cnlRows: unknown[][] = [];
+    for (let i = 0; i < 10; i++) cnlRows.push([`header-${i}`]);
+
+    // Baris spreadsheet vendor CNL memakai penamaan PR1ME MATHS ... (INDONESIA EDITION) dan EAN fisik
+    cnlRows.push([1, "9789814969529", "PR1ME MATHS COURSEBOOK 1A (INDONESIA EDITION)"]);
+    cnlRows.push([2, "9789814969642", "PR1ME MATHS PRACTICE BK 1A (INDONESIA EDITION)"]);
+    cnlRows.push([3, "9789814969543", "PR1ME MATHS COURSEBOOK 2A (INDONESIA EDITION)"]);
+    cnlRows.push([4, "9789814969666", "PR1ME MATHS PRACTICE BK 2A (INDONESIA EDITION)"]);
+
+    const wsCnl = XLSX.utils.aoa_to_sheet(cnlRows);
+    XLSX.utils.book_append_sheet(wb, wsCnl, "CNL");
+
+    const result = await importSupplierMappingFromWorkbook(db, wb);
+
+    expect(result.booksMatched).toBe(4);
+
+    const matchedLinks = await db
+      .select()
+      .from(bookSuppliers)
+      .where(eq(bookSuppliers.supplierId, result.processedSuppliers[0].id));
+
+    const matchedBookIds = new Set(matchedLinks.map((l) => l.bookId));
+    expect(matchedBookIds.has(primeCb1.id)).toBe(true);
+    expect(matchedBookIds.has(primeWb1.id)).toBe(true);
+    expect(matchedBookIds.has(primeCb2.id)).toBe(true);
+    expect(matchedBookIds.has(primePb2.id)).toBe(true);
+  });
 });
