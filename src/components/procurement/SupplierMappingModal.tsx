@@ -88,13 +88,13 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
 
     try {
       setIsLoadingPreview(true);
-      const res = await postJson<{ success: boolean; data: PreviewResult }>(
+      const res = await postJson<PreviewResult>(
         "/api/procurement/suppliers/preview-mapping",
         payload,
         "Gagal memverifikasi berkas spreadsheet."
       );
-      if (res.data) {
-        setPreview(res.data);
+      if (res) {
+        setPreview(res);
         setStep("preview");
       }
     } catch (err: unknown) {
@@ -111,13 +111,13 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
 
     try {
       setIsSubmitting(true);
-      const res = await postJson<{ success: boolean; data: MappingResult }>(
+      const res = await postJson<MappingResult>(
         "/api/procurement/suppliers/import-mapping",
         payload,
         "Gagal memproses pemetaan supplier."
       );
-      if (res.data) {
-        setResult(res.data);
+      if (res) {
+        setResult(res);
         setStep("done");
         onSuccess();
       }
