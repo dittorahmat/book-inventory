@@ -40,6 +40,9 @@ describe("parseGoogleDriveFolderHtml", () => {
     expect(normalizeGoogleSheetsUrl("https://docs.google.com/spreadsheets/d/test-id/edit#gid=123")).toBe(
       "https://docs.google.com/spreadsheets/d/test-id/export?format=csv&gid=123"
     );
+    expect(normalizeGoogleSheetsUrl("https://docs.google.com/spreadsheets/d/test-id/edit#gid=123", { format: "xlsx" })).toBe(
+      "https://docs.google.com/spreadsheets/d/test-id/export?format=xlsx"
+    );
     expect(normalizeGoogleSheetsUrl("https://docs.google.com/spreadsheets/d/test-id/edit")).toBe(
       "https://docs.google.com/spreadsheets/d/test-id/export?format=xlsx"
     );
