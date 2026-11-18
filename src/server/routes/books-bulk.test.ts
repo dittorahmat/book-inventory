@@ -157,17 +157,30 @@ describe("POST /api/books/bulk-import", () => {
   it("returns graceful warning response for non-catalog spreadsheet sheet", async () => {
     mockActor("central_admin", null);
 
-    // Kirim Google Sheets URL yang mengembalikan sheet kosong / bukan katalog buku
-    // (diuji via payload parse-drive-url yang menangani kegagalan parseBookCatalogData secara graceful)
-    const res = await booksRouter.request("/parse-drive-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/non-existent-sheet-id/edit" }),
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (urlStr.includes("docs.google.com") || urlStr.includes("drive.google.com")) {
+        return new Response("Not Found", { status: 404 });
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
 
-    // Karena URL tidak dapat diakses atau bukan berkas publik, drive-service mengembalikan respons terstruktur
-    expect([200, 400, 502]).toContain(res.status);
-    restoreActor();
+    try {
+      // Kirim Google Sheets URL yang mengembalikan sheet kosong / bukan katalog buku
+      // (diuji via payload parse-drive-url yang menangani kegagalan parseBookCatalogData secara graceful)
+      const res = await booksRouter.request("/parse-drive-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/non-existent-sheet-id/edit" }),
+      });
+
+      // Karena URL tidak dapat diakses atau bukan berkas publik, drive-service mengembalikan respons terstruktur
+      expect([200, 400, 502]).toContain(res.status);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreActor();
+    }
   });
 
   it("creates packages and BOM automatically when autoCreatePackages is true", async () => {
