@@ -9,6 +9,7 @@ import { parseBookCatalogData } from "../../lib/book-import-parser";
 import { fetchGoogleDriveResource } from "../services/drive-service";
 import { d1WriteErrorStatus } from "../lib/d1-write";
 import { CURRICULUM_TYPES } from "../../db/schema";
+import { normalizeCanonicalCurriculum } from "../../lib/curriculum";
 
 export const bookBulkRouter = new Hono();
 
@@ -29,7 +30,10 @@ const bookImportItemSchema = z
     sellPrice: z.number().nonnegative().optional(),
     isbn: z.string().optional(),
     gradeLevel: z.string().optional(),
-    curriculumType: z.enum(CURRICULUM_TYPES).optional(),
+    curriculumType: z
+      .union([z.enum(CURRICULUM_TYPES), z.literal("international"), z.literal("national")])
+      .optional()
+      .transform((val) => (val ? normalizeCanonicalCurriculum(val) : undefined)),
     semester: z.string().optional(),
     academicYear: z.string().optional(),
   })

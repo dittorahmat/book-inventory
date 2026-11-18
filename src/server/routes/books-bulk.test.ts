@@ -346,5 +346,48 @@ describe("POST /api/books/bulk-import", () => {
     await db.delete(books).where(sql`UPPER(trim(${books.title})) = UPPER(${uniqueTitle})`);
     restoreActor();
   });
+
+  it("accepts legacy curriculum names and generates appropriate SMP/SMA package codes", async () => {
+    mockActor("central_admin", null);
+    const stamp = Date.now();
+    const isbnSmp = `978-SMP-${stamp}`;
+
+    const res = await booksRouter.request("/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        books: [
+          {
+            title: `English SMP 7 ${stamp}`,
+            gradeLevel: "7",
+            price: 200000,
+            isbn: isbnSmp,
+            curriculumType: "AE",
+          },
+        ],
+        autoCreatePackages: true,
+        academicYear: "2026/2027",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    const { bookPackages } = await import("../../db/schema");
+    const [pkg] = await db
+      .select()
+      .from(bookPackages)
+      .where(eq(bookPackages.code, "PKG-SMP7-AE-2026-2027"));
+
+    expect(pkg).toBeDefined();
+    expect(pkg.name).toContain("Kelas 7");
+    expect(pkg.name).toContain("Al-Wildan English");
+
+    // Clean up
+    await db.delete(bookPackages).where(eq(bookPackages.id, pkg.id));
+    await db.delete(books).where(eq(books.isbn, isbnSmp));
+    restoreActor();
+  });
 });
 
