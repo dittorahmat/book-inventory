@@ -265,4 +265,35 @@ describe("Uniform batch: stok manual, export CSV, import ekspedisi", () => {
       await db.delete(schools).where(eq(schools.id, schoolId));
     }
   });
+
+  it("preview & commit bulk upload katalog seragam", async () => {
+    const rows = [
+      ["TK/ IKHWAN", "CELANA ABU KHUSUS", 185000],
+      [null, "BAJU OLAHRAGA KHUSUS", 355000],
+    ];
+
+    const previewRes = await postBatch("/catalog/bulk-upload/preview", {
+      rows,
+      academicYear: "2026/2027",
+      autoBundlePackages: true,
+    });
+
+    expect(previewRes.status).toBe(200);
+    const previewJson = await previewRes.json();
+    expect(previewJson.success).toBe(true);
+    expect(previewJson.data.variants).toHaveLength(2);
+    expect(previewJson.data.packages).toHaveLength(1);
+
+    const commitRes = await postBatch("/catalog/bulk-upload/commit", {
+      rows,
+      academicYear: "2026/2027",
+      autoBundlePackages: true,
+    });
+
+    expect(commitRes.status).toBe(200);
+    const commitJson = await commitRes.json();
+    expect(commitJson.success).toBe(true);
+    expect(commitJson.data.insertedVariants + commitJson.data.updatedVariants).toBe(2);
+    expect(commitJson.data.packagesCreatedOrUpdated).toBe(1);
+  });
 });

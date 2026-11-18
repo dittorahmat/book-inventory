@@ -13,11 +13,17 @@ import { EditUniformVariantModal } from "./EditUniformVariantModal";
 import { UniformCatalogToolbar } from "./UniformCatalogToolbar";
 import { CreateUniformVariantForm } from "./CreateUniformVariantForm";
 import { UniformVariantList } from "./UniformVariantList";
+import { UniformBulkUploadModal } from "./UniformBulkUploadModal";
+import type { StaffRole } from "../../lib/staff-roles";
 import { useDemoMode } from "../../lib/useDemoMode";
 
 import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
-export function UniformCatalogSection() {
+interface UniformCatalogSectionProps {
+  userRole?: StaffRole;
+}
+
+export function UniformCatalogSection({ userRole }: UniformCatalogSectionProps = {}) {
   const { isDemoMode } = useDemoMode();
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [editingVariant, setEditingVariant] = useState<UniformVariantRow | null>(null);
@@ -27,6 +33,7 @@ export function UniformCatalogSection() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [activePanel, setActivePanel] = useState<"none" | "stock" | "reject">("none");
 
   const [stVariant, setStVariant] = useState("");
@@ -94,6 +101,17 @@ export function UniformCatalogSection() {
         onSearchChange={setSearchQuery}
         showForm={showAddForm}
         onToggleForm={() => setShowAddForm((prev) => !prev)}
+        onOpenBulkUpload={() => setShowBulkUpload(true)}
+        userRole={userRole}
+      />
+
+      <UniformBulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        onSuccess={() => {
+          setShowBulkUpload(false);
+          reload();
+        }}
       />
 
       {/* Form Tambah Varian */}

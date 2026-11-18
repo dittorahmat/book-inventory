@@ -108,3 +108,14 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
 2. **Pengaitan Paket Atomik & Rollback Guard**:
    - Pembuatan buku baru yang sekaligus mengaitkan buku ke paket (`packageIds`) wajib dieksekusi secara terproteksi. Bila pengaitan supplier atau paket gagal, pembuatan buku wajib di-rollback (menghapus baris buku baru yang terbuat) agar tidak meninggalkan buku yatim (*orphan books*) di katalog.
    - Pemuatan daftar paket di modal katalog wajib mengelola state loading dan error secara eksplisit tanpa silent-catch.
+
+### §0.84. Standar Bulk Upload Master Katalog & Paket Seragam
+1. **Parser Spreadsheet Kanonik & Anti-Heuristik Substring (§0.79)**:
+   - Modul parser spreadsheet seragam (`src/lib/uniform-catalog-parser.ts`) wajib menangani format matriks 3 kolom supplier (`Jenjang & Gender | Nama Varian | Harga`) dan memetakan jenjang (`tk`, `sd`, `smp`, `sma`) serta gender (`male`, `female`) dengan token array split eksplisit, bukan `.includes()` substring longgar.
+   - Baris non-jenjang (seperti header catatan pengadaan atau teks judul dokumen) wajib diabaikan/di-skip dan dilarang di-fallback sembarang ke jenjang default (e.g. SMA).
+2. **Batching Atomik D1 & Tipe Kontrak Terpadu (§0.10, §10.3)**:
+   - Eksekusi commit impor varian, ukuran, paket, dan BOM seragam (`commitBulkUniformCatalog`) wajib dibungkus secara atomik per entitas induk-anak via `runWriteBatch` D1, dilarang menjalankan sequential single inserts tak ber-batch yang berisiko meninggalkan varian yatim tanpa ukuran atau paket dengan BOM terhapus.
+   - Definisi tipe data pratinjau dan commit (`BulkCatalogPreviewResult`, `BulkCatalogCommitResult`) wajib didefinisikan tunggal di `uniform-catalog-parser.ts` dan diimpor oleh backend service maupun adapter API frontend klien untuk mencegah data clumps dan duplikasi tipe.
+3. **Guard Hak Akses Toolbar & Dialog Konfirmasi Transaksional**:
+   - Tombol mutasi masal katalog di UI (`UniformCatalogToolbar`) wajib diproteksi predikat peran kanonik `isUniformStaffRole(userRole)` / `isCentralRole(userRole)`.
+   - Modal impor (`UniformBulkUploadModal`) wajib menampilkan pratinjau ringkasan item (total varian, varian baru, varian update harga, default paket seragam) dan menyertakan dialog konfirmasi transaksional sebelum mengeksekusi commit ke database master.

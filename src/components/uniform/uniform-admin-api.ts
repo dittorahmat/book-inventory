@@ -301,3 +301,32 @@ export const commitBulkUniformResi = (payload: {
   rows: Array<{ nis: string; name: string; resi: string }>;
 }): Promise<{ updatedCount: number; results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> }> =>
   postJson("/api/uniforms/orders/bulk-shipping-resi/commit", payload, "Gagal mengunggah resi massal.");
+
+import type {
+  BulkCatalogPreviewResult,
+  BulkCatalogCommitResult,
+} from "../../lib/uniform-catalog-parser";
+
+export type { BulkCatalogPreviewResult, BulkCatalogCommitResult };
+
+export const previewBulkUniformCatalog = (payload: {
+  rows: unknown[][];
+  academicYear?: string;
+  autoBundlePackages?: boolean;
+}): Promise<{ success: boolean; data: BulkCatalogPreviewResult }> =>
+  postJson<{ success: boolean; data: BulkCatalogPreviewResult }>(
+    "/api/uniforms/catalog/bulk-upload/preview",
+    payload,
+    "Gagal memvalidasi katalog seragam."
+  );
+
+export const commitBulkUniformCatalog = (payload: {
+  rows: unknown[][];
+  academicYear?: string;
+  autoBundlePackages?: boolean;
+}): Promise<{ success: boolean; message: string; data: BulkCatalogCommitResult }> =>
+  postJson<{ success: boolean; message: string; data: BulkCatalogCommitResult }>(
+    "/api/uniforms/catalog/bulk-upload/commit",
+    payload,
+    "Gagal menyimpan katalog seragam."
+  );
