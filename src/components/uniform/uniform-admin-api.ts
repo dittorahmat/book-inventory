@@ -301,3 +301,67 @@ export const commitBulkUniformResi = (payload: {
   rows: Array<{ nis: string; name: string; resi: string }>;
 }): Promise<{ updatedCount: number; results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> }> =>
   postJson("/api/uniforms/orders/bulk-shipping-resi/commit", payload, "Gagal mengunggah resi massal.");
+
+export interface BulkCatalogPreviewItem {
+  id: string;
+  code: string;
+  name: string;
+  kind: "kain_harian" | "olahraga";
+  gender: "male" | "female";
+  jenjang: "tk" | "sd" | "smp" | "sma";
+  academicYear: string;
+  price: number;
+  sizes: string[];
+  isNew: boolean;
+}
+
+export interface BulkCatalogPreviewPackage {
+  id: string;
+  code: string;
+  name: string;
+  jenjang: "tk" | "sd" | "smp" | "sma";
+  gender: "male" | "female";
+  academicYear: string;
+  price: number;
+  items: Array<{ variantId: string; quantity: number }>;
+}
+
+export interface BulkCatalogPreviewResult {
+  variants: BulkCatalogPreviewItem[];
+  packages: BulkCatalogPreviewPackage[];
+  summary: {
+    totalVariants: number;
+    newVariantsCount: number;
+    updateVariantsCount: number;
+    totalPackages: number;
+    skippedCount: number;
+  };
+}
+
+export interface BulkCatalogCommitResult {
+  insertedVariants: number;
+  updatedVariants: number;
+  packagesCreatedOrUpdated: number;
+}
+
+export const previewBulkUniformCatalog = (payload: {
+  rows: unknown[][];
+  academicYear?: string;
+  autoBundlePackages?: boolean;
+}): Promise<{ success: boolean; data: BulkCatalogPreviewResult }> =>
+  postJson<{ success: boolean; data: BulkCatalogPreviewResult }>(
+    "/api/uniforms/catalog/bulk-upload/preview",
+    payload,
+    "Gagal memvalidasi katalog seragam."
+  );
+
+export const commitBulkUniformCatalog = (payload: {
+  rows: unknown[][];
+  academicYear?: string;
+  autoBundlePackages?: boolean;
+}): Promise<{ success: boolean; message: string; data: BulkCatalogCommitResult }> =>
+  postJson<{ success: boolean; message: string; data: BulkCatalogCommitResult }>(
+    "/api/uniforms/catalog/bulk-upload/commit",
+    payload,
+    "Gagal menyimpan katalog seragam."
+  );

@@ -1,4 +1,4 @@
-import { Plus, Search, ChevronUp } from "lucide-react";
+import { Plus, Search, ChevronUp, Upload } from "lucide-react";
 
 interface UniformCatalogToolbarProps {
   totalCount: number;
@@ -6,6 +6,7 @@ interface UniformCatalogToolbarProps {
   onSearchChange: (q: string) => void;
   showForm: boolean;
   onToggleForm: () => void;
+  onOpenBulkUpload?: () => void;
 }
 
 /**
@@ -18,6 +19,7 @@ export function UniformCatalogToolbar({
   onSearchChange,
   showForm,
   onToggleForm,
+  onOpenBulkUpload,
 }: UniformCatalogToolbarProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] shadow-xs">
@@ -41,6 +43,17 @@ export function UniformCatalogToolbar({
             className="pl-9 pr-3 py-2 text-xs font-medium border border-[#CED0D4] rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] focus:bg-white w-full sm:w-72 focus:outline-none focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2] transition-all placeholder-[#8A8D91]"
           />
         </div>
+
+        {onOpenBulkUpload && (
+          <button
+            type="button"
+            onClick={onOpenBulkUpload}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg border border-[#CED0D4] bg-white text-[#050505] hover:bg-[#F0F2F5] transition-all shadow-xs active:scale-[0.98]"
+          >
+            <Upload className="w-3.5 h-3.5 text-[#1877F2]" />
+            <span>Bulk Upload (.xlsx)</span>
+          </button>
+        )}
 
         <button
           type="button"
