@@ -14,6 +14,18 @@ export const normalizeBookTitle = (title: string): string => {
 };
 
 /**
+ * Menghasilkan token set berurutan dari judul buku untuk pencocokan toleran variasi urutan kata & tanda baca.
+ */
+export const tokenizeBookTitle = (title: string): string => {
+  if (!title) return "";
+  const cleaned = normalizeBookTitle(title)
+    .replace(/[^A-Z0-9]/g, " ")
+    .trim();
+  const tokens = cleaned.split(/\s+/).filter(Boolean).sort();
+  return tokens.join(" ");
+};
+
+/**
  * Menghasilkan hash deterministik singkat (6 karakter hex) dari string.
  * Memastikan judul-judul panjang yang dipotong tetap memiliki identitas unik.
  */

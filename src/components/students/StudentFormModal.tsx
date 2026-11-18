@@ -228,7 +228,7 @@ export function StudentFormModal({
             <div>
               <SearchableSingleSelect
                 label="Kelas"
-                options={CANONICAL_GRADES.map((g) => ({ value: g, label: `Kelas ${g}` }))}
+                options={CANONICAL_GRADES.map((g) => ({ value: g, label: g === "TK" ? "TK / Preschool" : `Kelas ${g}` }))}
                 value={gradeLevel}
                 onChange={(val) => {
                   setGradeLevel(val);
@@ -260,7 +260,7 @@ export function StudentFormModal({
                 options={getAvailableCurriculaForGrade(gradeLevel)}
                 value={curriculumType}
                 onChange={(v) => setCurriculumType(v as CurriculumType)}
-                placeholder="Pilih..."
+                placeholder="Pilih program..."
               />
             </div>
             {["10", "11", "12"].includes(gradeLevel) && (

@@ -10,6 +10,7 @@ describe("Better-Auth security configuration", () => {
     expect(allowed).toContain("http://localhost:5173");
     expect(allowed).toContain("http://localhost:3000");
     expect(allowed).toContain("https://book-inventory.tech1solusi.workers.dev");
+    expect(allowed).toContain("https://inv-aw.tech1solusi.workers.dev");
 
     // Ensure no wildcard regexes exist that would trust arbitrary Cloudflare subdomains
     for (const origin of allowed) {

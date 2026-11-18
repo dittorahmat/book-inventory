@@ -67,7 +67,7 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 4. Test suite baru untuk fitur pembaruan portal wajib membersihkan seluruh fixtures data dummy/seeder (`schools`, `students`, `bookPackages`, `studentBookOrders`) pada blok penyelesaian tes (`cleanup`/`finally`) guna menjamin isolasi database pengujian (§6.1).
 5. State mutation array murid di view portal wajib dibungkus dalam action hook (`updateSearchResult`), dilarang mengekspos raw array setter (`setSearchResults`) langsung ke komponen antarmuka.
 
-### §0.81. Standar Kelengkapan Form Pendaftaran Murid & Pilihan Program Kanonik
+### §0.83. Standar Kelengkapan Form Pendaftaran Murid & Pilihan Program Kanonik
 1. **Kelengkapan Identitas Murid**:
    - Seluruh formulir pendaftaran data murid baru, baik pada portal publik (`NewStudentRegistrationForm`) maupun modal manajemen staf (`StudentFormModal`), wajib menyertakan field identitas lengkap:
      - `gender`: Jenis kelamin ("male" / "female", berlabel "Laki-laki (Ikhwan)" / "Perempuan (Akhwat)").
@@ -108,6 +108,12 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 1. **Anti-Pencocokan Substring Longgar**: Deteksi header kolom file spreadsheet/CSV (seperti no HP, telepon, nama, email) dilarang menggunakan `includes()` substring pendek (seperti `includes("wa")`, `includes("hp")`, atau `includes("id")`) yang rawan bertabrakan dengan kata lain (misal substring `"wa"` tidak sengaja mencocokkan kolom `"nama siswa"` atau alias `"wali"`). Gunakan pencocokan kata utuh yang eksplisit (`=== "no wa"`, `=== "no hp"`, `=== "telepon"`).
 2. **Kanonikalisasi Validasi Email**: Sanitasi format email pada parser import data wajib memanfaatkan helper kanonik `validateEmail` (`src/lib/form-validation.ts`), dilarang menduplikasi instansiasi regex email ad-hoc di dalam loop baris data.
 3. **Isolasi State Test DOM**: Uji coba komponen klien yang memanipulasi atau me-monkeypatch metode browser global (seperti `document.createElement`, `fetch`, `localStorage`, atau `window.location`) wajib dibungkus blok `try ... finally` atau dipulihkan di hook `afterEach` guna mencegah kebocoran state antar test.
+
+### §0.81. Sinkronisasi Program Murid & Pemetaan Multi-Sheet Supplier Buku
+1. **Penyelarasan Program Murid**: Formulir data induk murid (`StudentFormModal.tsx`) wajib menggunakan opsi program kanonik `CURRICULUM_TYPES` (`getAvailableCurriculaForGrade`) yang reaktif terhadap tingkat kelas (TK: `TK`, SD: `INTER`/`MQ`, SMP-SMA: `AE`/`ME`/`DI`/`MQ`). Endpoint backend (`src/server/routes/students.ts`) wajib menerima nilai kurikulum kanonik yang sama agar form submit tidak gagal dengan 400 Bad Request.
+2. **Pemetaan Supplier Berbasis Sheet Vendor**: Impor relasi buku-supplier dari spreadsheet PO vendor wajib hanya meng-upsert supplier yang sheet-nya benar-benar ada di dalam berkas workbook. Pencocokan berbasis jenjang (`gradeCol`) dilarang fallback membabi-buta ke kandidat buku pertama jika jenjang tidak cocok, guna mencegah tertukarnya buku ber-judul identik antar jenjang SD/SMP/SMA.
+3. **Kanonikalisasi Token Judul**: Pembentukan token pembanding judul buku wajib menggunakan helper terpusat `tokenizeBookTitle` di `src/lib/isbn.ts`, dilarang merakit fungsi tokenisasi judul ad-hoc di tingkat service lokal.
+
 
 
 
