@@ -40,3 +40,17 @@ export function formatKhimarSdSizeLabel(size: string): string {
   if (size === "4") return "Size 4 (Kelas 3 - 6)";
   return size;
 }
+
+/**
+ * Menentukan ukuran default Khimar SD berdasarkan tingkat kelas siswa.
+ * - Kelas 1 & 2 -> Size 1
+ * - Kelas 3, 4, 5, 6 -> Size 4
+ * Siswa non-SD atau kelas tidak dikenal fallback ke null.
+ */
+export function getDefaultKhimarSdSize(gradeLevel?: string | number | null): KhimarSdSize | null {
+  if (gradeLevel === null || gradeLevel === undefined) return null;
+  const normalized = String(gradeLevel).trim().toLowerCase();
+  if (normalized === "1" || normalized === "2") return "1";
+  if (["3", "4", "5", "6"].includes(normalized)) return "4";
+  return null;
+}

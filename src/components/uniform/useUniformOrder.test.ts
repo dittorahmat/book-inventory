@@ -1,6 +1,7 @@
 import "../../test-dom";
 import { afterEach, describe, expect, it } from "bun:test";
 import { useUniformOrder } from "./useUniformOrder";
+import type { UniformStudent } from "../../lib/uniform-types";
 
 const { renderHook, act, cleanup } = await import("@testing-library/react");
 
@@ -170,6 +171,75 @@ describe("useUniformOrder hook API interaction", () => {
     expect(result.current.satuanQty["uv-ol-1"]).toBe(1);
     // Tombol submit belum bisa aktif karena ukuran olahraga belum dipilih
     expect(result.current.canSubmit).toBe(false);
+  });
+
+  it("pre-selects Khimar SD size based on student grade level (ADR-0024)", async () => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/catalog")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              packages: [],
+              variants: [
+                {
+                  id: "uv-khimar-sd-1",
+                  code: "UNI-SD-AKH-KHIMAR_MERAH",
+                  name: "KHIMAR MERAH (SD Akhwat)",
+                  kind: "kain_harian",
+                  gender: "female",
+                  jenjang: "sd",
+                  price: 120000,
+                  sizes: ["1", "4"],
+                  stock: [],
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({ success: true, data: { open: true } }), { status: 200 });
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useUniformOrder());
+
+    // Murid SD kelas 1 -> Size 1
+    await act(async () => {
+      await result.current.selectStudent({
+        id: "std-khimar-1",
+        nis: "2024101009",
+        name: "Aisyah 1",
+        gender: "female",
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        schoolId: "school-alw-1",
+        schoolName: "Al Wildan 1",
+        canOrder: true,
+      } as unknown as UniformStudent);
+    });
+
+    expect(result.current.sizeFor["uv-khimar-sd-1"]).toBe("1");
+
+    // Ganti ke murid SD kelas 4 -> Size 4
+    await act(async () => {
+      await result.current.selectStudent({
+        id: "std-khimar-4",
+        nis: "2024101010",
+        name: "Fatimah 4",
+        gender: "female",
+        gradeLevel: "4",
+        academicYear: "2026/2027",
+        status: "active",
+        schoolId: "school-alw-1",
+        schoolName: "Al Wildan 1",
+        canOrder: true,
+      } as unknown as UniformStudent);
+    });
+
+    expect(result.current.sizeFor["uv-khimar-sd-1"]).toBe("4");
   });
 
   it("validates postal code: requires 5 digits and combines with address on submit", async () => {

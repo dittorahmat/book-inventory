@@ -12,7 +12,7 @@ import {
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
 import { findMatchingUniformSelection } from "../../lib/uniform-selection";
-import { isKhimarSdVariant } from "../../lib/khimar-sd";
+import { getDefaultKhimarSdSize, isKhimarSdVariant } from "../../lib/khimar-sd";
 import {
   formatStructuredHomeAddress,
   validateStructuredAddress,
@@ -156,6 +156,21 @@ export function useUniformOrder() {
       if (matched.olahraga) {
         // Otomatis siapkan 1 stel olahraga (namun menunggu ukuran dipilih di UI)
         setSatuanQty({ [matched.olahraga.id]: 1 });
+      }
+
+      // Pre-seleksi ukuran Khimar SD sesuai kelas siswa (ADR-0024):
+      // Kelas 1-2 -> Size 1, Kelas 3-6 -> Size 4
+      const defaultKhimarSize = getDefaultKhimarSdSize(s.gradeLevel);
+      if (defaultKhimarSize) {
+        const initialSizes: Record<string, string> = {};
+        for (const v of catalogData.variants) {
+          if (isKhimarSdVariant(v)) {
+            initialSizes[v.id] = defaultKhimarSize;
+          }
+        }
+        if (Object.keys(initialSizes).length > 0) {
+          setSizeFor((prev) => ({ ...prev, ...initialSizes }));
+        }
       }
 
       setStep(2);

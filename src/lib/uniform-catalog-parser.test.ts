@@ -17,6 +17,7 @@ describe("uniform-catalog-parser", () => {
       [null, "BAJU OLAHRAGA", 392000],
       ["SD/ IKHWAN ", "CELANA MERAH", 196000],
       [null, "BAJU OLAHRAGA", 392000],
+      ["SD/ AKHWAT", "KHIMAR MERAH", 120000],
       ["SMP/IKHWAN", "CELANA NAVY", 205000],
       [null, "BAJU OLAHRAGA", 409000],
       [" SMA AKHWAT", "GAMIS ABU-ABU", 246000],
@@ -28,7 +29,7 @@ describe("uniform-catalog-parser", () => {
       now: "2026-11-18T00:00:00.000Z",
     });
 
-    expect(result.variants.length).toBe(11);
+    expect(result.variants.length).toBe(12);
 
     // Kain harian TK Ikhwan
     const celanaAbu = result.variants.find((v) => v.code === "UNI-TK-IKH-CELANA_ABU");
@@ -44,6 +45,11 @@ describe("uniform-catalog-parser", () => {
     expect(olahragaTk).toBeDefined();
     expect(olahragaTk?.kind).toBe("olahraga");
     expect(olahragaTk?.sizes).toEqual(["S", "M", "L", "XL"]);
+
+    // Khimar SD Akhwat otomatis memiliki ukuran ["1", "4"] (ADR-0024)
+    const khimarSd = result.variants.find((v) => v.code === "UNI-SD-AKH-KHIMAR_MERAH");
+    expect(khimarSd).toBeDefined();
+    expect(khimarSd?.sizes).toEqual(["1", "4"]);
 
     // Olahraga SD (S-4XL)
     const olahragaSd = result.variants.find((v) => v.code === "UNI-SD-IKH-BAJU_OLAHRAGA");
