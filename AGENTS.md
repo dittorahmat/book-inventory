@@ -25,9 +25,10 @@ Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokum
 2. **Skema & Master Katalog D1** → Skema berubah: `bun run db:push` (lokal) & `bun run db:generate` → migrasi D1 remote `book-inventory-db`. Cek drift skema: `bun run check:d1-drift`. Drizzle mengelola DDL struktur skema; sinkronisasi data master katalog D1 diverifikasi oleh `bun run check:d1-catalog` (wajib memastikan tidak ada master kosong di remote). Baca data lokal via `bun run db:query`.
 3. **Migrasi destruktif** (`DROP`, ubah kolom breaking) dilarang diterapkan ke remote sebelum PR merge **dan** deploy (pola expand-contract dua PR). Sebut perubahan destruktif di deskripsi PR (ADR-0013).
 4. **Tipe** — `bun run type-check` nol error. `AppDatabase` schema-aware: biarkan inferensi, jangan anotasi `$inferSelect` manual pada JOIN, jangan tutup celah dengan `any`/cast baru.
-5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap modifikasi file route wajib menambah skenario di sana (`check:route-tests --diff` menegakkan kegagalan keras exit 1).
+5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap modifikasi file route wajib menambah skenario di sana (`check:route-tests --diff` menegakkan kegagalan keras exit 1; ubah `*.test.ts` pendamping dalam diff yang sama sebelum memicu `check:fast`).
 6. **Frontend & Batch Intake** — dilarang `fetch` tanpa penanganan kegagalan: setiap respons `!ok`/`success: false` wajib menampilkan pesan yang mengekstrak `message`/`error` (pakai `lib/api.ts`). Loop batching intake eksternal wajib menerapkan jeda pacing (~800ms) dan menyediakan tombol retry per-item yang gagal. Test komponen UI meniru `StudentSearchStep.test.tsx` (shim `test-dom`, dynamic import `@testing-library/react`, dan `afterEach(cleanup)` anti-polusi DOM).
-7. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan isi bagian **“Perubahan perilaku”** di PR.
+7. **Tooling & Path Absolut** — pemanggilan tool manipulasi berkas (`read_file`, `write_file`, `edit_file`) wajib selalu memakai path absolut berbasis root proyek (`D:\development\book-inventory\...`), dilarang mengoper path relatif yang memicu error permission (§0.51.3).
+8. **Verifikasi penutup** — `bun run check:all` hijau sekali sebelum merge, dan isi bagian **“Perubahan perilaku”** di PR.
 
 ---
 
