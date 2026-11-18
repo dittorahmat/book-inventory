@@ -25,8 +25,8 @@ describe("SupplierMasterSection & SupplierMappingModal (#499)", () => {
     expect(btn).toBeDefined();
 
     fireEvent.click(btn);
-    expect(screen.getByText("Sinkronkan supplier & relasi buku dari file Estimasi PO")).toBeDefined();
-    expect(screen.getByText("Mulai Sinkronisasi")).toBeDefined();
+    expect(screen.getByText("Langkah 1: Masukkan sumber berkas spreadsheet")).toBeDefined();
+    expect(screen.getByText("Muat & Review Data")).toBeDefined();
   });
 
   it("merender rincian supplier yang diproses saat modal dibuka", () => {

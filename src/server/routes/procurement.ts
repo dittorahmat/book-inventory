@@ -26,7 +26,10 @@ import {
 } from "../services/access-scope";
 import { idSchema } from "../lib/validators";
 import { fetchGoogleDriveResource } from "../services/drive-service";
-import { importSupplierMappingFromWorkbook } from "../services/supplier-mapping-import";
+import {
+  importSupplierMappingFromWorkbook,
+  previewSupplierMappingFromWorkbook,
+} from "../services/supplier-mapping-import";
 import * as XLSX from "xlsx";
 export const procurementRouter = new Hono();
 
@@ -120,6 +123,40 @@ procurementRouter.post("/suppliers", zValidator("json", createSupplierSchema), a
 const importSupplierMappingSchema = z.object({
   url: z.string().url("URL Google Sheets tidak valid").optional(),
   fileBase64: z.string().max(20_000_000, "Ukuran berkas melebihi 20MB").optional(),
+});
+
+procurementRouter.post("/suppliers/preview-mapping", zValidator("json", importSupplierMappingSchema), async (c) => {
+  try {
+    await requireScopedLogisticsActor(db, c);
+    const { url, fileBase64 } = c.req.valid("json");
+
+    let buffer: ArrayBuffer | Buffer;
+
+    if (url) {
+      const res = await fetchGoogleDriveResource(url, { format: "xlsx" });
+      if (!res.success) {
+        return c.json({ success: false, message: res.message }, res.status as 400 | 404 | 502);
+      }
+      if (res.type !== "sheet" || !res.data.buffer) {
+        return c.json({ success: false, message: "URL yang dimasukkan bukan berkas spreadsheet yang valid." }, 400);
+      }
+      buffer = res.data.buffer;
+    } else if (fileBase64) {
+      buffer = Buffer.from(fileBase64, "base64");
+    } else {
+      return c.json({ success: false, message: "Harap sertakan url atau fileBase64 spreadsheet." }, 400);
+    }
+
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const preview = await previewSupplierMappingFromWorkbook(db, workbook);
+
+    return c.json({
+      success: true,
+      data: preview,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
 });
 
 procurementRouter.post("/suppliers/import-mapping", zValidator("json", importSupplierMappingSchema), async (c) => {
