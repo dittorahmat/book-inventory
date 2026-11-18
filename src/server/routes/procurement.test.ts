@@ -1370,16 +1370,42 @@ describe("PO supplier exclusivity (#143)", () => {
   });
 
   it("memproses endpoint /suppliers/import-mapping dengan tautan URL yang memiliki gid (#503)", async () => {
-    mockActor("central_admin", null);
-    const res = await procurementRouter.request("/suppliers/import-mapping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/141ecGw58OW6PGnvz8cIiAgpjeQY1iSs_EtPu7bxf8Uw/edit?gid=1163470503#gid=1163470503" }),
-    });
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const cnlRows: unknown[][] = [];
+    for (let i = 0; i < 10; i++) cnlRows.push([`header-${i}`]);
+    cnlRows.push([1, "9781234567890", "TEST BOOK FOR GID URL"]);
+    const ws = XLSX.utils.aoa_to_sheet(cnlRows);
+    XLSX.utils.book_append_sheet(wb, ws, "CNL");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.totalSheetsProcessed).toBeGreaterThan(0);
+    // Mock fetch untuk endpoint Drive agar tidak bergantung pada koneksi internet di test runner CI
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (urlStr.includes("docs.google.com") && urlStr.includes("export?format=xlsx")) {
+        return new Response(buf, {
+          status: 200,
+          headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        });
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      mockActor("central_admin", null);
+      const res = await procurementRouter.request("/suppliers/import-mapping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/141ecGw58OW6PGnvz8cIiAgpjeQY1iSs_EtPu7bxf8Uw/edit?gid=1163470503#gid=1163470503" }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.totalSheetsProcessed).toBeGreaterThan(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
