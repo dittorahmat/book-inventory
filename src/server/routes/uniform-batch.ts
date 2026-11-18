@@ -23,6 +23,11 @@ import {
 } from "../services/uniform";
 import { resolveUniformScholarship } from "../services/uniform";
 import { commitBulkUniformResi, previewBulkUniformResi } from "../services/uniform/bulk-resi-service";
+import {
+  commitBulkUniformCatalog,
+  previewBulkUniformCatalog,
+} from "../services/uniform/bulk-catalog-service";
+import { currentAcademicYear } from "../../lib/wib-time";
 
 export const uniformBatchRouter = new Hono();
 
@@ -222,6 +227,53 @@ uniformBatchRouter.post("/orders/bulk-shipping-resi/commit", zValidator("json", 
     }
     const result = await commitBulkUniformResi(db, rows, schoolId);
     return c.json({ success: true, message: `${result.updatedCount} resi berhasil diperbarui.`, data: result });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+const bulkCatalogSchema = z.object({
+  rows: z.array(z.array(z.unknown())).min(1, "Minimal 1 baris data"),
+  academicYear: z.string().optional(),
+  sizeChartUrl: z.string().nullable().optional(),
+  autoBundlePackages: z.boolean().optional(),
+});
+
+// Preview bulk upload katalog seragam
+uniformBatchRouter.post("/catalog/bulk-upload/preview", zValidator("json", bulkCatalogSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+    const academicYear = body.academicYear || currentAcademicYear();
+    const preview = await previewBulkUniformCatalog(db, {
+      rows: body.rows,
+      academicYear,
+      sizeChartUrl: body.sizeChartUrl,
+      autoBundlePackages: body.autoBundlePackages ?? true,
+    });
+    return c.json({ success: true, data: preview });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// Commit bulk upload katalog seragam
+uniformBatchRouter.post("/catalog/bulk-upload/commit", zValidator("json", bulkCatalogSchema), async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const body = c.req.valid("json");
+    const academicYear = body.academicYear || currentAcademicYear();
+    const result = await commitBulkUniformCatalog(db, {
+      rows: body.rows,
+      academicYear,
+      sizeChartUrl: body.sizeChartUrl,
+      autoBundlePackages: body.autoBundlePackages ?? true,
+    });
+    return c.json({
+      success: true,
+      message: `${result.insertedVariants} varian baru ditambahkan, ${result.updatedVariants} varian diperbarui, ${result.packagesCreatedOrUpdated} paket disinkronkan.`,
+      data: result,
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }
