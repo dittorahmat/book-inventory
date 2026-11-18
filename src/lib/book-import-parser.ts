@@ -1,6 +1,10 @@
 import * as XLSX from "xlsx";
 import { resolveBookIsbn } from "./isbn";
-import { isCambridgeInternationalTitle, type CurriculumType } from "./curriculum";
+import {
+  isCambridgeInternationalTitle,
+  inferCurriculumFromText,
+  type CurriculumType,
+} from "./curriculum";
 
 export interface ParsedBookRow {
   title: string;
@@ -142,8 +146,9 @@ function parseSingleSheet(
     if (kMatch) {
       defaultGradeLevel = kMatch[1];
     }
-    if (/mq|markaz|nasional/i.test(textRow)) {
-      defaultCurriculum = "MQ";
+    const detected = inferCurriculumFromText(textRow, defaultGradeLevel);
+    if (detected !== "INTER" || /inter/i.test(textRow)) {
+      defaultCurriculum = detected;
     }
   }
 
@@ -265,15 +270,12 @@ function parseSingleSheet(
 
     // Kurikulum: Jika judul memuat mata pelajaran Cambridge / Internasional, prioritaskan 'INTER'
     let curriculumType: CurriculumType = defaultCurriculum;
-    if (isCambridgeInternationalTitle(rawTitle)) {
-      curriculumType = "INTER";
-    } else if (currIdx !== -1 && row[currIdx]) {
-      const cVal = String(row[currIdx]).trim().toUpperCase();
-      if (cVal.includes("NASIONAL") || cVal.includes("MQ") || cVal === "NATIONAL") {
-        curriculumType = "MQ";
-      } else if (cVal.includes("INTER") || cVal.includes("CAMBRIDGE")) {
-        curriculumType = "INTER";
-      }
+    if (currIdx !== -1 && row[currIdx]) {
+      curriculumType = inferCurriculumFromText(String(row[currIdx]), gradeLevel);
+    } else if (isCambridgeInternationalTitle(rawTitle)) {
+      const gNum = parseInt(gradeLevel, 10);
+      // Untuk SMP/SMA (7-12), Cambridge mapel masuk ke AE (Al-Wildan English) kecuali ditentukan lain
+      curriculumType = !isNaN(gNum) && gNum >= 7 ? "AE" : "INTER";
     }
 
     seenKeys.add(dedupeKey);

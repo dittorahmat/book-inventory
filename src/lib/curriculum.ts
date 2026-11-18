@@ -43,11 +43,37 @@ export function getAvailableCurriculaForGrade(gradeLevel: string): Array<{ value
 }
 
 /**
- * Memetakan nilai legacy 'international' / 'national' ke nilai kanonik baru:
- * - 'international' -> 'INTER'
- * - 'national' -> 'MQ'
- * Jika sudah berupa nilai kanonik (TK, INTER, AE, ME, DI, MQ), tetap dikembalikan apa adanya.
+ * Mendeteksi tipe kurikulum kanonik dari teks (judul sheet, baris header/catatan, atau kolom kurikulum).
+ * Mendukung seluruh jenjang Al-Wildan:
+ * - TK / Preschool: 'TK'
+ * - SD: 'INTER', 'MQ'
+ * - SMP & SMA: 'AE', 'ME', 'DI', 'MQ'
  */
+export function inferCurriculumFromText(text: string, gradeLevel?: string): CurriculumType {
+  const norm = text.trim().toUpperCase();
+
+  // 1. Deteksi eksplisit kode kurikulum Al-Wildan
+  if (/\b(AE|AL-WILDAN ENGLISH|ENGLISH CLASS)\b/i.test(norm)) return "AE";
+  if (/\b(ME|MIDDLE EAST|TIMUR TENGAH)\b/i.test(norm)) return "ME";
+  if (/\b(DI|DUAL INTERNATIONAL)\b/i.test(norm)) return "DI";
+  if (/\b(MQ|MARKAZ|NASIONAL PLUS|TAHFIDZ)\b/i.test(norm)) return "MQ";
+  if (/\b(TK|PRE-SCHOOL|PRESCHOOL|PLAYGROUP|KB|PAUD)\b/i.test(norm)) return "TK";
+  if (/\b(INTER|INTERNATIONAL|CAMBRIDGE)\b/i.test(norm)) return "INTER";
+
+  // 2. Fallback berdasarkan jenjang bila ada
+  if (gradeLevel) {
+    const g = gradeLevel.trim().toUpperCase();
+    if (g.startsWith("TK") || g.startsWith("KB") || g.startsWith("PAUD") || g === "0") {
+      return "TK";
+    }
+    const num = parseInt(g, 10);
+    if (!isNaN(num) && num >= 7 && num <= 12) {
+      return "AE"; // default program internasional SMP/SMA
+    }
+  }
+
+  return "INTER";
+}
 export function normalizeCanonicalCurriculum(curriculumType: string): CurriculumType {
   const norm = curriculumType.trim().toUpperCase();
   if (norm === "INTERNATIONAL") return "INTER";
