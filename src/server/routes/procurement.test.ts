@@ -1379,11 +1379,12 @@ describe("PO supplier exclusivity (#143)", () => {
     XLSX.utils.book_append_sheet(wb, ws, "CNL");
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
-    // Mock fetch untuk endpoint Drive agar tidak bergantung pada koneksi internet di test runner CI
+    let requestedExportUrl: string | null = null;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (urlStr.includes("docs.google.com") && urlStr.includes("export?format=xlsx")) {
+        requestedExportUrl = urlStr;
         return new Response(buf, {
           status: 200,
           headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
@@ -1404,6 +1405,7 @@ describe("PO supplier exclusivity (#143)", () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.data.totalSheetsProcessed).toBeGreaterThan(0);
+      expect(String(requestedExportUrl)).toContain("export?format=xlsx");
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -61,10 +61,16 @@ export function parseGoogleDriveFolderHtml(html: string): GoogleDriveFolderFile[
   return Array.from(unique.values());
 }
 
+export type GoogleSheetsExportFormat = "xlsx" | "csv";
+
+export interface GoogleSheetsNormalizeOptions {
+  format?: GoogleSheetsExportFormat;
+}
+
 /**
  * Utility bantuan untuk tautan Google Sheets publik.
  */
-export function normalizeGoogleSheetsUrl(url: string, options?: { forceXlsx?: boolean }): string | null {
+export function normalizeGoogleSheetsUrl(url: string, options?: GoogleSheetsNormalizeOptions): string | null {
   try {
     const parsed = new URL(url.trim());
     if (!parsed.hostname.includes("docs.google.com") || !parsed.pathname.includes("/spreadsheets/d/")) {
@@ -74,7 +80,7 @@ export function normalizeGoogleSheetsUrl(url: string, options?: { forceXlsx?: bo
     if (!match) return null;
     const sheetId = match[1];
 
-    if (options?.forceXlsx) {
+    if (options?.format === "xlsx") {
       return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
     }
 

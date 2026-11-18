@@ -3,6 +3,7 @@ import {
   normalizeGoogleSheetsUrl,
   parseGoogleDriveFolderHtml,
   type GoogleDriveFolderFile,
+  type GoogleSheetsNormalizeOptions,
 } from "../../lib/sheets";
 
 export type DriveResourceResult =
@@ -44,7 +45,7 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): P
   }
 }
 
-export async function fetchGoogleDriveResource(url: string, options?: { forceXlsx?: boolean }): Promise<DriveResourceResult> {
+export async function fetchGoogleDriveResource(url: string, options?: GoogleSheetsNormalizeOptions): Promise<DriveResourceResult> {
   try {
     // 1. Google Drive Folder publik
     if (isGoogleDriveFolderUrl(url)) {
