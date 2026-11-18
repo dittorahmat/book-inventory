@@ -1410,4 +1410,30 @@ describe("PO supplier exclusivity (#143)", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("mendukung endpoint preview /suppliers/preview-mapping secara read-only", async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const cnlRows: unknown[][] = [];
+    for (let i = 0; i < 10; i++) cnlRows.push([`header-${i}`]);
+    cnlRows.push([1, "9781234567890", "TEST PREVIEW BOOK"]);
+    const ws = XLSX.utils.aoa_to_sheet(cnlRows);
+    XLSX.utils.book_append_sheet(wb, ws, "CNL");
+    const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+
+    mockActor("central_admin", null);
+    const res = await procurementRouter.request("/suppliers/preview-mapping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileBase64: base64 }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.totalSheetsProcessed).toBe(1);
+    expect(json.data.suppliers.length).toBe(1);
+    expect(json.data.suppliers[0].code).toBe("SUP-CNL");
+    expect(json.data.suppliers[0].contactPerson).toBe("Fil Rahman");
+  });
 });
