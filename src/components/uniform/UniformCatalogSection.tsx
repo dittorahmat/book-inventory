@@ -14,11 +14,16 @@ import { UniformCatalogToolbar } from "./UniformCatalogToolbar";
 import { CreateUniformVariantForm } from "./CreateUniformVariantForm";
 import { UniformVariantList } from "./UniformVariantList";
 import { UniformBulkUploadModal } from "./UniformBulkUploadModal";
+import type { StaffRole } from "../../lib/staff-roles";
 import { useDemoMode } from "../../lib/useDemoMode";
 
 import { UNIFORM_INPUT_CLS, UNIFORM_LABEL_CLS } from "./uniform-styles";
 
-export function UniformCatalogSection() {
+interface UniformCatalogSectionProps {
+  userRole?: StaffRole;
+}
+
+export function UniformCatalogSection({ userRole }: UniformCatalogSectionProps = {}) {
   const { isDemoMode } = useDemoMode();
   const [variants, setVariants] = useState<UniformVariantRow[]>([]);
   const [editingVariant, setEditingVariant] = useState<UniformVariantRow | null>(null);
@@ -97,6 +102,7 @@ export function UniformCatalogSection() {
         showForm={showAddForm}
         onToggleForm={() => setShowAddForm((prev) => !prev)}
         onOpenBulkUpload={() => setShowBulkUpload(true)}
+        userRole={userRole}
       />
 
       <UniformBulkUploadModal

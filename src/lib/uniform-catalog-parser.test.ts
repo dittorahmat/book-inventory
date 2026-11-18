@@ -88,4 +88,19 @@ describe("uniform-catalog-parser", () => {
     expect(tkAkhwatPkg?.price).toBe(196000);
     expect(tkAkhwatPkg?.items.length).toBe(1);
   });
+
+  it("safely skips rows with invalid non-jenjang headers instead of misclassifying as SMA", () => {
+    const rows: UniformCatalogRowInput[] = [
+      ["CATATAN KHUSUS PENGADAAN", "KANCING CADANGAN", 5000],
+      ["SMA/IKHWAN", "CELANA ABU", 205000],
+    ];
+
+    const result = parseUniformCatalogRows(rows, {
+      academicYear: "2026/2027",
+    });
+
+    expect(result.variants.length).toBe(1);
+    expect(result.variants[0].jenjang).toBe("sma");
+    expect(result.skippedCount).toBe(1);
+  });
 });

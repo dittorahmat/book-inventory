@@ -74,7 +74,7 @@ export function UniformView({ schools, activeSchool, userRole, userSchoolId }: U
 
       <div>
         {section === "kirim" && <UniformShipmentSection schools={schools} lockedSchoolId={lockedSchoolId} />}
-        {section === "katalog" && logistics && <UniformCatalogSection />}
+        {section === "katalog" && logistics && <UniformCatalogSection userRole={userRole} />}
         {section === "packages" && logistics && <UniformAssemblySection />}
         {section === "procurement" && logistics && <UniformProcurementSection />}
         {section === "retur" && <UniformReturnsSection schools={schools} lockedSchoolId={lockedSchoolId} logistics={logistics} />}

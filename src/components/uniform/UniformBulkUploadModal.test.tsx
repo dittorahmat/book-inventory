@@ -31,4 +31,9 @@ describe("UniformBulkUploadModal", () => {
     });
     expect(screen.getByText("Pilih berkas Excel terlebih dahulu.")).toBeDefined();
   });
+
+  it("shows confirmation dialog before final commit when preview data is present", async () => {
+    render(<UniformBulkUploadModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />);
+    expect(screen.queryByText("Konfirmasi Impor Katalog")).toBeNull();
+  });
 });

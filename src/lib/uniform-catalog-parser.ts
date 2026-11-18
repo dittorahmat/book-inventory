@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 export type UniformCatalogRowInput = unknown[];
 
 export interface ParsedUniformVariant {
@@ -28,6 +30,28 @@ export interface DefaultUniformPackageDefinition {
   items: Array<{ variantId: string; quantity: number }>;
 }
 
+export interface BulkCatalogPreviewItem extends ParsedUniformVariant {
+  isNew: boolean;
+}
+
+export interface BulkCatalogPreviewResult {
+  variants: BulkCatalogPreviewItem[];
+  packages: DefaultUniformPackageDefinition[];
+  summary: {
+    totalVariants: number;
+    newVariantsCount: number;
+    updateVariantsCount: number;
+    totalPackages: number;
+    skippedCount: number;
+  };
+}
+
+export interface BulkCatalogCommitResult {
+  insertedVariants: number;
+  updatedVariants: number;
+  packagesCreatedOrUpdated: number;
+}
+
 export const KAIN_SIZE = "STANDAR";
 
 export const SPORT_SIZES_BY_JENJANG: Record<string, string[]> = {
@@ -37,16 +61,29 @@ export const SPORT_SIZES_BY_JENJANG: Record<string, string[]> = {
   sma: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"],
 };
 
-export function parseJenjang(header: string): "tk" | "sd" | "smp" | "sma" {
+export function parseJenjang(header: string): "tk" | "sd" | "smp" | "sma" | null {
   const tokens = header.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
   if (tokens.includes("TK")) return "tk";
   if (tokens.includes("SD")) return "sd";
   if (tokens.includes("SMP")) return "smp";
-  return "sma";
+  if (tokens.includes("SMA")) return "sma";
+  return null;
 }
 
 export function parseGender(header: string): "male" | "female" {
-  return header.toUpperCase().includes("AKHWAT") ? "female" : "male";
+  const tokens = header.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  return tokens.includes("AKHWAT") ? "female" : "male";
+}
+
+export function parseSpreadsheetBufferToRows(buffer: ArrayBuffer): unknown[][] {
+  const wb = XLSX.read(buffer, { type: "array" });
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+  if (!rows || rows.length === 0) {
+    throw new Error("Berkas spreadsheet kosong.");
+  }
+  return rows;
 }
 
 export interface ParseCatalogOptions {
@@ -88,6 +125,10 @@ export function parseUniformCatalogRows(
     }
 
     const jenjang = parseJenjang(currentHeader);
+    if (!jenjang) {
+      skippedCount++;
+      continue;
+    }
     const gender = parseGender(currentHeader);
     const isSport = rawItemName.toUpperCase().includes("OLAHRAGA");
     const kind: "kain_harian" | "olahraga" = isSport ? "olahraga" : "kain_harian";

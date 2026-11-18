@@ -1,4 +1,6 @@
 import { Plus, Search, ChevronUp, Upload } from "lucide-react";
+import type { StaffRole } from "../../lib/staff-roles";
+import { isUniformStaffRole } from "../../lib/staff-roles";
 
 interface UniformCatalogToolbarProps {
   totalCount: number;
@@ -7,6 +9,7 @@ interface UniformCatalogToolbarProps {
   showForm: boolean;
   onToggleForm: () => void;
   onOpenBulkUpload?: () => void;
+  userRole?: StaffRole;
 }
 
 /**
@@ -20,7 +23,9 @@ export function UniformCatalogToolbar({
   showForm,
   onToggleForm,
   onOpenBulkUpload,
+  userRole,
 }: UniformCatalogToolbarProps) {
+  const canManageCatalog = !userRole || isUniformStaffRole(userRole);
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] shadow-xs">
       <div>
@@ -44,7 +49,7 @@ export function UniformCatalogToolbar({
           />
         </div>
 
-        {onOpenBulkUpload && (
+        {canManageCatalog && onOpenBulkUpload && (
           <button
             type="button"
             onClick={onOpenBulkUpload}
@@ -55,27 +60,29 @@ export function UniformCatalogToolbar({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={onToggleForm}
-          className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all shadow-xs active:scale-[0.98] ${
-            showForm
-              ? "bg-[#F0F2F5] text-[#050505] hover:bg-[#E4E6EB]"
-              : "bg-[#1877F2] text-white hover:bg-[#166FE5]"
-          }`}
-        >
-          {showForm ? (
-            <>
-              <ChevronUp className="w-4 h-4" />
-              Tutup Form
-            </>
-          ) : (
-            <>
-              <Plus className="w-4 h-4" />
-              Tambah Varian
-            </>
-          )}
-        </button>
+        {canManageCatalog && (
+          <button
+            type="button"
+            onClick={onToggleForm}
+            className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all shadow-xs active:scale-[0.98] ${
+              showForm
+                ? "bg-[#F0F2F5] text-[#050505] hover:bg-[#E4E6EB]"
+                : "bg-[#1877F2] text-white hover:bg-[#166FE5]"
+            }`}
+          >
+            {showForm ? (
+              <>
+                <ChevronUp className="w-4 h-4" />
+                Tutup Form
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Tambah Varian
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

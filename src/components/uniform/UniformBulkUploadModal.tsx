@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { X, Upload, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet, Package } from "lucide-react";
-import * as XLSX from "xlsx";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { currentAcademicYear } from "../../lib/wib-time";
+import { parseSpreadsheetBufferToRows } from "../../lib/uniform-catalog-parser";
 import {
   previewBulkUniformCatalog,
   commitBulkUniformCatalog,
@@ -25,6 +25,7 @@ export function UniformBulkUploadModal({
   const [rawRows, setRawRows] = useState<unknown[][]>([]);
   const [academicYear, setAcademicYear] = useState(() => currentAcademicYear());
   const [autoBundlePackages, setAutoBundlePackages] = useState(true);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const [previewResult, setPreviewResult] = useState<BulkCatalogPreviewResult | null>(null);
   const [isParsing, setIsParsingFile] = useState(false);
@@ -47,14 +48,7 @@ export function UniformBulkUploadModal({
 
     try {
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
-      const sheetName = wb.SheetNames[0];
-      const sheet = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
-
-      if (!rows || rows.length === 0) {
-        throw new Error("Berkas Excel kosong.");
-      }
+      const rows = parseSpreadsheetBufferToRows(buffer);
 
       setRawRows(rows);
       const res = await previewBulkUniformCatalog({
@@ -76,7 +70,11 @@ export function UniformBulkUploadModal({
       setError("Pilih berkas Excel terlebih dahulu.");
       return;
     }
+    setShowConfirmDialog(true);
+  };
 
+  const handleExecuteCommit = async () => {
+    setShowConfirmDialog(false);
     setError(null);
     setIsSubmitting(true);
 
@@ -258,6 +256,54 @@ export function UniformBulkUploadModal({
             )}
           </button>
         </div>
+
+        {/* Dialog Konfirmasi */}
+        {showConfirmDialog && previewResult && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-[#E4E6EB] space-y-4 animate-in fade-in zoom-in-95">
+              <h4 className="text-base font-bold text-[#050505] flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-[#1877F2]" />
+                Konfirmasi Impor Katalog
+              </h4>
+              <p className="text-xs text-[#65676B] leading-relaxed">
+                Anda akan mengimpor <strong>{previewResult.summary.totalVariants} varian</strong> ke katalog Tahun Ajaran <strong>{academicYear}</strong>:
+              </p>
+              <div className="p-3 bg-[#F0F2F5] rounded-xl text-xs space-y-1.5 text-[#050505]">
+                <div className="flex justify-between">
+                  <span>• Varian baru:</span>
+                  <span className="font-bold text-emerald-700">{previewResult.summary.newVariantsCount} item</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>• Varian diperbarui (harga):</span>
+                  <span className="font-bold text-[#1877F2]">{previewResult.summary.updateVariantsCount} item</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>• Default paket seragam:</span>
+                  <span className="font-bold text-amber-700">{previewResult.summary.totalPackages} paket</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-[#65676B]">
+                Lanjutkan penyimpanan ke database master katalog seragam?
+              </p>
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDialog(false)}
+                  className="px-4 py-2 text-xs font-bold text-[#050505] bg-[#F0F2F5] hover:bg-[#E4E6EB] rounded-xl transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteCommit}
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] rounded-xl transition-colors shadow-xs"
+                >
+                  Ya, Simpan Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

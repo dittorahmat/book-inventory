@@ -9,9 +9,10 @@ import {
   parseUniformCatalogRows,
   buildDefaultUniformPackages,
   type UniformCatalogRowInput,
-  type ParsedUniformVariant,
-  type DefaultUniformPackageDefinition,
+  type BulkCatalogPreviewResult,
+  type BulkCatalogCommitResult,
 } from "../../../lib/uniform-catalog-parser";
+import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { eq, inArray } from "drizzle-orm";
 
 export interface BulkUniformCatalogPayload {
@@ -21,23 +22,7 @@ export interface BulkUniformCatalogPayload {
   autoBundlePackages?: boolean;
 }
 
-export interface BulkCatalogPreviewResult {
-  variants: Array<ParsedUniformVariant & { isNew: boolean }>;
-  packages: DefaultUniformPackageDefinition[];
-  summary: {
-    totalVariants: number;
-    newVariantsCount: number;
-    updateVariantsCount: number;
-    totalPackages: number;
-    skippedCount: number;
-  };
-}
-
-export interface BulkCatalogCommitResult {
-  insertedVariants: number;
-  updatedVariants: number;
-  packagesCreatedOrUpdated: number;
-}
+export type { BulkCatalogPreviewResult, BulkCatalogCommitResult };
 
 const CHUNK_SIZE = 10;
 
@@ -96,36 +81,47 @@ export async function commitBulkUniformCatalog(
   let insertedCount = 0;
   let updatedCount = 0;
 
-  // 1. Process variants & sizes
+  // 1. Process variants & sizes atomically
   for (const variant of preview.variants) {
     if (variant.isNew) {
-      await database.insert(uniformVariants).values({
-        id: variant.id,
-        code: variant.code,
-        name: variant.name,
-        kind: variant.kind,
-        gender: variant.gender,
-        jenjang: variant.jenjang,
-        academicYear: variant.academicYear,
-        price: variant.price,
-        sizeChartUrl: variant.sizeChartUrl,
-        description: variant.description,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Insert sizes for this variant
+      const sizeInserts = [];
       for (let i = 0; i < variant.sizes.length; i += CHUNK_SIZE) {
         const sizeChunk = variant.sizes.slice(i, i + CHUNK_SIZE);
-        await database.insert(uniformSizes).values(
-          sizeChunk.map((sz, idx) => ({
-            id: `usz-${variant.id}-${sz.toLowerCase().replace(/[^a-z0-9]/g, "_")}`,
-            variantId: variant.id,
-            size: sz,
-            sortOrder: i + idx,
-            createdAt: now,
-          }))
+        sizeInserts.push(
+          database.insert(uniformSizes).values(
+            sizeChunk.map((sz, idx) => ({
+              id: `usz-${variant.id}-${sz.toLowerCase().replace(/[^a-z0-9]/g, "_")}`,
+              variantId: variant.id,
+              size: sz,
+              sortOrder: i + idx,
+              createdAt: now,
+            }))
+          )
         );
+      }
+
+      try {
+        await runWriteBatch(database, [
+          database.insert(uniformVariants).values({
+            id: variant.id,
+            code: variant.code,
+            name: variant.name,
+            kind: variant.kind,
+            gender: variant.gender,
+            jenjang: variant.jenjang,
+            academicYear: variant.academicYear,
+            price: variant.price,
+            sizeChartUrl: variant.sizeChartUrl,
+            description: variant.description,
+            createdAt: now,
+            updatedAt: now,
+          }),
+          ...sizeInserts,
+        ]);
+      } catch (err) {
+        const mapped = d1WriteErrorStatus(err, "impor varian seragam");
+        if (mapped) throw new Error(mapped.message);
+        throw err;
       }
       insertedCount++;
     } else {
@@ -142,7 +138,7 @@ export async function commitBulkUniformCatalog(
     }
   }
 
-  // 2. Process packages & BOM
+  // 2. Process packages & BOM atomically
   let packagesCount = 0;
   for (const pkg of preview.packages) {
     const existing = await database.query.uniformPackages.findFirst({
@@ -151,46 +147,53 @@ export async function commitBulkUniformCatalog(
 
     const packageId = existing ? existing.id : pkg.id;
 
-    if (existing) {
-      await database
-        .update(uniformPackages)
-        .set({
-          name: pkg.name,
-          price: pkg.price,
-          description: pkg.description,
-          updatedAt: now,
-        })
-        .where(eq(uniformPackages.id, packageId));
-
-      // Hapus BOM lama lalu insert ulang
-      await database.delete(uniformPackageBom).where(eq(uniformPackageBom.packageId, packageId));
-    } else {
-      await database.insert(uniformPackages).values({
-        id: packageId,
-        code: pkg.code,
-        name: pkg.name,
-        academicYear: pkg.academicYear,
-        price: pkg.price,
-        description: pkg.description,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    // Insert BOM items
+    const bomInserts = [];
     for (let i = 0; i < pkg.items.length; i += CHUNK_SIZE) {
       const chunk = pkg.items.slice(i, i + CHUNK_SIZE);
-      await database.insert(uniformPackageBom).values(
-        chunk.map((it) => ({
-          id: `bom-${packageId}-${it.variantId}`,
-          packageId,
-          variantId: it.variantId,
-          size: "STANDAR",
-          quantity: it.quantity,
-          createdAt: now,
-        }))
+      bomInserts.push(
+        database.insert(uniformPackageBom).values(
+          chunk.map((it) => ({
+            id: `bom-${packageId}-${it.variantId}`,
+            packageId,
+            variantId: it.variantId,
+            size: "STANDAR",
+            quantity: it.quantity,
+            createdAt: now,
+          }))
+        )
       );
     }
+
+    if (existing) {
+      await runWriteBatch(database, [
+        database
+          .update(uniformPackages)
+          .set({
+            name: pkg.name,
+            price: pkg.price,
+            description: pkg.description,
+            updatedAt: now,
+          })
+          .where(eq(uniformPackages.id, packageId)),
+        database.delete(uniformPackageBom).where(eq(uniformPackageBom.packageId, packageId)),
+        ...bomInserts,
+      ]);
+    } else {
+      await runWriteBatch(database, [
+        database.insert(uniformPackages).values({
+          id: packageId,
+          code: pkg.code,
+          name: pkg.name,
+          academicYear: pkg.academicYear,
+          price: pkg.price,
+          description: pkg.description,
+          createdAt: now,
+          updatedAt: now,
+        }),
+        ...bomInserts,
+      ]);
+    }
+
     packagesCount++;
   }
 

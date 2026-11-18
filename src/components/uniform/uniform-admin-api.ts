@@ -302,47 +302,12 @@ export const commitBulkUniformResi = (payload: {
 }): Promise<{ updatedCount: number; results: Array<{ nis: string; orderNumber: string; resi: string; success: boolean }> }> =>
   postJson("/api/uniforms/orders/bulk-shipping-resi/commit", payload, "Gagal mengunggah resi massal.");
 
-export interface BulkCatalogPreviewItem {
-  id: string;
-  code: string;
-  name: string;
-  kind: "kain_harian" | "olahraga";
-  gender: "male" | "female";
-  jenjang: "tk" | "sd" | "smp" | "sma";
-  academicYear: string;
-  price: number;
-  sizes: string[];
-  isNew: boolean;
-}
+import type {
+  BulkCatalogPreviewResult,
+  BulkCatalogCommitResult,
+} from "../../lib/uniform-catalog-parser";
 
-export interface BulkCatalogPreviewPackage {
-  id: string;
-  code: string;
-  name: string;
-  jenjang: "tk" | "sd" | "smp" | "sma";
-  gender: "male" | "female";
-  academicYear: string;
-  price: number;
-  items: Array<{ variantId: string; quantity: number }>;
-}
-
-export interface BulkCatalogPreviewResult {
-  variants: BulkCatalogPreviewItem[];
-  packages: BulkCatalogPreviewPackage[];
-  summary: {
-    totalVariants: number;
-    newVariantsCount: number;
-    updateVariantsCount: number;
-    totalPackages: number;
-    skippedCount: number;
-  };
-}
-
-export interface BulkCatalogCommitResult {
-  insertedVariants: number;
-  updatedVariants: number;
-  packagesCreatedOrUpdated: number;
-}
+export type { BulkCatalogPreviewResult, BulkCatalogCommitResult };
 
 export const previewBulkUniformCatalog = (payload: {
   rows: unknown[][];
