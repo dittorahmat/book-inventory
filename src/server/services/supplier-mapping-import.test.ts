@@ -48,6 +48,14 @@ describe("supplier-mapping-import service (#499)", () => {
     expect(result.totalSheetsProcessed).toBe(1);
     expect(result.booksMatched).toBe(1);
     expect(result.suppliersUpserted).toBeGreaterThanOrEqual(0);
+    expect(result.processedSuppliers.length).toBe(1);
+    expect(result.processedSuppliers[0].code).toBe("SUP-CNL");
+    expect(result.processedSuppliers[0].contactPerson).toBe("Fil Rahman");
+    expect(result.processedSuppliers[0].phone).toBe("0896 0274 4493");
+
+    const [supInDb] = await db.select().from(suppliers).where(eq(suppliers.code, "SUP-CNL"));
+    expect(supInDb.contactPerson).toBe("Fil Rahman");
+    expect(supInDb.phone).toBe("0896 0274 4493");
 
     const links = await db
       .select()
