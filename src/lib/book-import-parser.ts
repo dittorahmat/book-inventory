@@ -1,5 +1,10 @@
 import * as XLSX from "xlsx";
 import { resolveBookIsbn } from "./isbn";
+import {
+  isCambridgeInternationalTitle,
+  inferCurriculumFromText,
+  type CurriculumType,
+} from "./curriculum";
 
 export interface ParsedBookRow {
   title: string;
@@ -10,7 +15,7 @@ export interface ParsedBookRow {
   subject?: string;
   publisher?: string;
   semester?: "1" | "2" | "all";
-  curriculumType?: "international" | "national";
+  curriculumType?: CurriculumType;
 }
 
 export interface SkippedBookRow {
@@ -29,18 +34,10 @@ export interface BookParseResult {
  * Inferensi otomatis penerbit cerdas berdasarkan judul buku kurikulum Al-Wildan.
  */
 export function inferBookPublisher(title: string): string {
-  const t = title.toLowerCase();
-  if (
-    t.includes("english") ||
-    t.includes("prime math") ||
-    t.includes("coursebook") ||
-    t.includes("science student") ||
-    t.includes("science workbook") ||
-    t.includes("cambridge") ||
-    t.includes("marshall cavendish")
-  ) {
+  if (isCambridgeInternationalTitle(title)) {
     return "Cambridge";
   }
+  const t = title.toLowerCase();
   if (
     t.includes("akidah") ||
     t.includes("fikih") ||
@@ -97,25 +94,29 @@ function parseSingleSheet(
   let headerRowIndex = -1;
   let headers: string[] = [];
 
-  for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
-    const row = (rawRows[r] || []).map(normalizeHeaderName);
-    if (
-      row.some((h) =>
+  // Cek apakah baris ini adalah header baru dalam sheet (multi-tabel)
+  function isHeaderRow(rowCells: unknown[]): boolean {
+    const rowNorm = rowCells.map(normalizeHeaderName);
+    return rowNorm.some(
+      (h) =>
         h === "judul" ||
         h === "title" ||
         h === "judul buku" ||
         h === "nama buku" ||
         h.includes("nama buku") ||
-        h.includes("judul")
-      )
-    ) {
+        (h.includes("judul") && !h.includes("keterangan"))
+    );
+  }
+
+  for (let r = 0; r < rawRows.length; r++) {
+    if (isHeaderRow(rawRows[r] || [])) {
       headerRowIndex = r;
-      headers = row;
+      headers = (rawRows[r] || []).map(normalizeHeaderName);
       break;
     }
   }
 
-  // Jika tidak ditemukan baris header nama buku, abaikan sheet ini (misal sheet rekap formula #REF!)
+  // Jika tidak ditemukan baris header nama buku, coba cek baris paling atas
   if (headerRowIndex === -1) {
     if (rawRows.length > 0 && rawRows[0].length >= 2) {
       const topRow = (rawRows[0] || []).map(normalizeHeaderName);
@@ -132,7 +133,7 @@ function parseSingleSheet(
 
   // Coba ekstrak konteks kelas & kurikulum dari baris atas (misal "KELAS : 1 INTER")
   let defaultGradeLevel = "1";
-  let defaultCurriculum: "international" | "national" = "international";
+  let defaultCurriculum: CurriculumType = "INTER";
 
   const numMatch = sheetName.match(/\d{1,2}/);
   if (numMatch) {
@@ -145,48 +146,65 @@ function parseSingleSheet(
     if (kMatch) {
       defaultGradeLevel = kMatch[1];
     }
-    if (/mq|markaz|nasional/i.test(textRow)) {
-      defaultCurriculum = "national";
+    const detected = inferCurriculumFromText(textRow, defaultGradeLevel);
+    if (detected !== "INTER" || /inter/i.test(textRow)) {
+      defaultCurriculum = detected;
     }
   }
 
-  const titleIdx = headers.findIndex(
-    (h) => h === "judul" || h === "title" || h === "judul buku" || h === "nama buku" || h.includes("nama buku")
-  );
-  const gradeIdx = headers.findIndex(
-    (h) => h === "kelas" || h === "grade" || h === "gradelevel" || h === "jenjang"
-  );
-  const priceIdx = headers.findIndex(
-    (h) =>
-      h === "harga" ||
-      h === "price" ||
-      h === "harga jual" ||
-      h === "sellprice" ||
-      h.includes("harga/unit") ||
-      h.includes("harga") ||
-      h.includes("biaya buku")
-  );
-  const buyPriceIdx = headers.findIndex(
-    (h) => h === "harga beli" || h === "buyprice" || h === "modal" || h.includes("harga beli")
-  );
-  const isbnIdx = headers.findIndex((h) => h === "isbn" || h === "barcode");
-  const subjIdx = headers.findIndex((h) => h === "mapel" || h === "subject" || h === "mata pelajaran");
-  const pubIdx = headers.findIndex((h) => h === "penerbit" || h === "publisher");
-  const semIdx = headers.findIndex((h) => h === "semester" || h === "sem" || h === "keterangan");
-  const currIdx = headers.findIndex((h) => h === "kurikulum" || h === "curriculum" || h === "curriculumtype");
+  function resolveColumnIndices(hList: string[]) {
+    return {
+      titleIdx: hList.findIndex(
+        (h) => h === "judul" || h === "title" || h === "judul buku" || h === "nama buku" || h.includes("nama buku")
+      ),
+      gradeIdx: hList.findIndex(
+        (h) => h === "kelas" || h === "grade" || h === "gradelevel" || h === "jenjang"
+      ),
+      priceIdx: hList.findIndex(
+        (h) =>
+          h === "harga" ||
+          h === "price" ||
+          h === "harga jual" ||
+          h === "sellprice" ||
+          h.includes("harga/unit") ||
+          h.includes("harga") ||
+          h.includes("biaya buku")
+      ),
+      buyPriceIdx: hList.findIndex(
+        (h) => h === "harga beli" || h === "buyprice" || h === "modal" || h.includes("harga beli")
+      ),
+      isbnIdx: hList.findIndex((h) => h === "isbn" || h === "barcode"),
+      subjIdx: hList.findIndex((h) => h === "mapel" || h === "subject" || h === "mata pelajaran"),
+      pubIdx: hList.findIndex((h) => h === "penerbit" || h === "publisher"),
+      semIdx: hList.findIndex((h) => h === "semester" || h === "sem" || h === "keterangan"),
+      currIdx: hList.findIndex((h) => h === "kurikulum" || h === "curriculum" || h === "curriculumtype"),
+    };
+  }
+
+  let colIndices = resolveColumnIndices(headers);
 
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
     const row = rawRows[r] || [];
+
+    // Deteksi sub-header baru di tengah sheet (misal tabel kedua)
+    if (isHeaderRow(row)) {
+      headers = row.map(normalizeHeaderName);
+      colIndices = resolveColumnIndices(headers);
+      continue;
+    }
+
     const rawObj: Record<string, unknown> = {};
     headers.forEach((h, i) => {
       if (h) rawObj[h] = row[i];
     });
 
+    const { titleIdx, gradeIdx, priceIdx, buyPriceIdx, isbnIdx, subjIdx, pubIdx, semIdx, currIdx } = colIndices;
     const rawTitle = titleIdx !== -1 && row[titleIdx] !== undefined ? String(row[titleIdx]).trim() : "";
     if (!rawTitle) continue;
 
-    // Abaikan jika baris judul adalah baris total atau subheader
-    if (/^(total|jumlah|subtotal)\b/i.test(rawTitle)) continue;
+    // Abaikan jika baris judul adalah baris total, subheader, atau catatan
+    if (/^(total|jumlah|subtotal|catatan|keterangan|program weekly)\b/i.test(rawTitle)) continue;
+    if (rawTitle.toLowerCase().includes("wajib untuk semua murid")) continue;
 
     // Kelas / Grade
     let gradeLevel = defaultGradeLevel;
@@ -250,13 +268,14 @@ function parseSingleSheet(
       }
     }
 
-    // Kurikulum
-    let curriculumType: "international" | "national" = defaultCurriculum;
+    // Kurikulum: Jika judul memuat mata pelajaran Cambridge / Internasional, prioritaskan 'INTER'
+    let curriculumType: CurriculumType = defaultCurriculum;
     if (currIdx !== -1 && row[currIdx]) {
-      const cVal = String(row[currIdx]).trim().toLowerCase();
-      if (cVal.includes("nasional") || cVal.includes("mq") || cVal === "national") {
-        curriculumType = "national";
-      }
+      curriculumType = inferCurriculumFromText(String(row[currIdx]), gradeLevel);
+    } else if (isCambridgeInternationalTitle(rawTitle)) {
+      const gNum = parseInt(gradeLevel, 10);
+      // Untuk SMP/SMA (7-12), Cambridge mapel masuk ke AE (Al-Wildan English) kecuali ditentukan lain
+      curriculumType = !isNaN(gNum) && gNum >= 7 ? "AE" : "INTER";
     }
 
     seenKeys.add(dedupeKey);

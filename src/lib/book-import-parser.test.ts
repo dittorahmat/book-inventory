@@ -120,5 +120,46 @@ describe("book-import-parser", () => {
     expect(book2?.gradeLevel).toBe("2");
     expect(book2?.price).toBe(197600);
   });
+
+  it("parses multi-table sections and infers international curriculum for Cambridge books even in unlabelled sections", () => {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet dengan tabel Diniyah di baris awal, lalu jeda/sub-header buku Cambridge di baris ke-20
+    const wsData = [
+      ["LOGISTICS AL-WILDAN"],
+      ["DAFTAR BUKU KELAS 5"],
+      ["No.", "NAMA BUKU", "Harga/Unit (Rp)", "KETERANGAN"],
+      [1, "Akidah Akhlak 5", 50000, "SEMESTER GANJIL/GENAP"],
+      [2, "Fikih 5", 50000, "SEMESTER GANJIL/GENAP"],
+      ["JUMLAH", null, 100000],
+      [],
+      [],
+      ["BUKU CAMBRIDGE / INTERNASIONAL"],
+      ["No.", "JUDUL BUKU", "Harga", "KETERANGAN"],
+      [1, "ENGLISH STUDENT BOOK+WORKBOOK 5", 381000, "SEMESTER GANJIL/GENAP"],
+      [2, "PRIME MATH 5A COURSEBOOK", 210500, "SEMESTER GANJIL"],
+      [3, "SCIENCE 5 STUDENT BOOK", 282000, "SEMESTER GANJIL/GENAP"],
+      ["JUMLAH", null, 873500],
+      [],
+      ["CATATAN :", "Program Weekly Progress Report 1 Tahun WAJIB UNTUK SEMUA MURID AL-WILDAN,"],
+      [null, "MERUPAKAN PROGRAM DARI WALAS UNTUK LAPORAN PEKANAN"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "5");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const result = parseBookCatalogData(buf);
+
+    expect(result.validBooks.length).toBe(5);
+    const eng = result.validBooks.find((b) => b.title.includes("ENGLISH"));
+    expect(eng).toBeDefined();
+    expect(eng?.gradeLevel).toBe("5");
+    expect(eng?.curriculumType).toBe("INTER");
+    expect(eng?.publisher).toBe("Cambridge");
+
+    const math = result.validBooks.find((b) => b.title.includes("PRIME MATH"));
+    expect(math).toBeDefined();
+    expect(math?.curriculumType).toBe("INTER");
+  });
 });
 

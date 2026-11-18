@@ -53,6 +53,8 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "calcBufferQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
   { name: "calcDemandQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
   { name: "resolveInitialOrderQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
+  { name: "isCambridgeInternationalTitle", owner: "src/lib/curriculum.ts", module: "lib/curriculum" },
+  { name: "inferCurriculumFromText", owner: "src/lib/curriculum.ts", module: "lib/curriculum" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */

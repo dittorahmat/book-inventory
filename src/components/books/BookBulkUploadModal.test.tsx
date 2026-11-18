@@ -51,4 +51,41 @@ describe("BookBulkUploadModal", () => {
     expect(screen.getByText("2 judul buku unik siap diimpor")).toBeDefined();
     expect(screen.queryByText(/duplikat judul & kelas otomatis diabaikan/)).toBeNull();
   });
+
+  it("renders partial package warning and force override checkbox in BookAutoPackageOptions", async () => {
+    const { BookAutoPackageOptions } = await import("./BookAutoPackageOptions");
+    let forceChecked = false;
+    const { rerender } = render(
+      <BookAutoPackageOptions
+        autoCreatePackages={true}
+        onAutoCreateChange={() => {}}
+        academicYear="2026/2027"
+        onAcademicYearChange={() => {}}
+        hasPartialWarning={true}
+        forcePackageOverride={forceChecked}
+        onForcePackageOverrideChange={(val) => {
+          forceChecked = val;
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Peringatan: Berkas terdeteksi hanya berisi < 10 buku per jenjang/)).toBeDefined();
+    expect(screen.getByText(/Tetap perbarui\/timpa paket bundling dengan buku parsial ini/)).toBeDefined();
+
+    // Pastikan checkbox interaktif
+    const checkbox = screen.getByLabelText(/Tetap perbarui\/timpa paket bundling dengan buku parsial ini/) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+
+    // Tanpa warning
+    rerender(
+      <BookAutoPackageOptions
+        autoCreatePackages={true}
+        onAutoCreateChange={() => {}}
+        academicYear="2026/2027"
+        onAcademicYearChange={() => {}}
+        hasPartialWarning={false}
+      />
+    );
+    expect(screen.queryByText(/Peringatan: Berkas terdeteksi hanya berisi < 10 buku per jenjang/)).toBeNull();
+  });
 });

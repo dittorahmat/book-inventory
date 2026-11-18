@@ -120,3 +120,15 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Tombol mutasi masal katalog di UI (`UniformCatalogToolbar`) wajib diproteksi predikat peran kanonik `isUniformStaffRole(userRole)` / `isCentralRole(userRole)`.
    - Modal impor (`UniformBulkUploadModal`) wajib menampilkan pratinjau ringkasan item (total varian, varian baru, varian update harga, default paket seragam) dan menyertakan dialog konfirmasi transaksional sebelum mengeksekusi commit ke database master.
    - **Disiplin Kontrak Unboxing `postJson<T>`**: Helper HTTP klien `postJson<T>` (`src/lib/api.ts`) secara otomatis membongkar amplop backend `{ success: true, data: T }` dan mengembalikan payload `data as T` secara langsung. Definisi adapter API admin frontend (`uniform-admin-api.ts`) dilarang membungkus tipe generic kembalian secara ganda (`Promise<{ data: T }>` atau `Promise<{ success: boolean; data: T }>`). Seluruh komponen UI yang memanggil adapter ini wajib mengonsumsi hasil respons secara langsung (`const result = await ...; setPreviewResult(result);`) alih-alih mengakses `.data`, guna mencegah nilai `undefined` yang menyebabkan UI pratinjau/konfirmasi stuck tanpa umpan balik kesalahan. Pengujian komponen modal UI wajib memverifikasi transisi render state dari pratinjau hingga konfirmasi dialog secara interaktif.
+
+### §0.86. Standar Parser Katalog Buku Multi-Tabel & Guard Kelengkapan Paket Auto-Bundling
+1. **Multi-Table & Cambridge Subject Inference**:
+   - Parser spreadsheet katalog buku (`book-import-parser.ts`) wajib memindai seluruh sheet tanpa membatasi diri pada 15 baris pertama guna mendeteksi sub-tabel tambahan (misal sub-tabel Diniyah/Agama vs Cambridge).
+   - Klasifikasi judul Cambridge wajib didelegasikan ke predikat kanonik `isCambridgeInternationalTitle` (`src/lib/curriculum.ts`), dilarang menduplikasi regex/substring checker secara ad-hoc di modul pemanggil.
+2. **Threshold Kelengkapan Paket Non-Destruktif & Anti-Substring Collision**:
+   - Ambang batas minimum buku paket SD–SMA saat auto-create paket adalah 10 buku (`bookComponents.length >= 10`). Paket eksisting yang lengkap dilarang ditimpa oleh file parsial/suplemen (< 10 buku) kecuali ada flag konfirmasi `forcePackageOverride`.
+   - Pemeriksaan jenjang TK/KB wajib menggunakan token boundary/prefix eksplisit (`startsWith('tk')`, `startsWith('kb')`, `startsWith('paud')`, atau `'0'`), dilarang memakai `.includes('k')` longgar yang memicu tabrakan substring pada jenjang non-TK.
+3. **Penamaan Kode Paket Multi-Jenjang & Bundling Policy**:
+   - Kode paket hasil bundling otomatis wajib menyesuaikan prefix jenjang: `PKG-TK...` untuk TK/Preschool, `PKG-SD...` untuk SD (1–6), `PKG-SMP...` untuk SMP (7–9), dan `PKG-SMA...` untuk SMA (10–12).
+   - Opsi konfigurasi bundling paket pada domain service (`book-catalog-import.ts`) wajib dikelompokkan dalam model kebijakan terstruktur `PackageBundlingPolicy` guna mencegah bau kode *Primitive Obsession* / *Data Clumps*.
+   - Deteksi program kurikulum wajib mencakup seluruh 6 program kanonik Al-Wildan (`TK`, `INTER`, `AE`, `ME`, `DI`, `MQ`) via helper kanonik `inferCurriculumFromText` (`src/lib/curriculum.ts`).

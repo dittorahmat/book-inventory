@@ -22,11 +22,13 @@ export async function submitBooksInChunks(params: {
   books: ParsedBookRow[];
   autoCreatePackages: boolean;
   academicYear: string;
-}): Promise<{ totalInserted: number; totalUpdated: number; totalPackages: number }> {
+  forcePackageOverride?: boolean;
+}): Promise<{ totalInserted: number; totalUpdated: number; totalPackages: number; skippedPackages?: Array<{ packageName: string; gradeLevel: string; reason: string }> }> {
   const CHUNK_SIZE = 50;
   let totalInserted = 0;
   let totalUpdated = 0;
   let totalPackages = 0;
+  const skippedPackages: Array<{ packageName: string; gradeLevel: string; reason: string }> = [];
 
   // Deduplikasi chunk import berdasarkan kanonik identifier ISBN (anti-collision)
   // Menjamin batch chunk bebas dari tabrakan UNIQUE constraint books.isbn di database D1
@@ -45,7 +47,12 @@ export async function submitBooksInChunks(params: {
     const res = await apiEnvelope<{
       success: boolean;
       message: string;
-      data: { insertedCount: number; updatedCount: number; packagesCreatedCount?: number };
+      data: {
+        insertedCount: number;
+        updatedCount: number;
+        packagesCreatedCount?: number;
+        skippedPackages?: Array<{ packageName: string; gradeLevel: string; reason: string }>;
+      };
     }>("/api/books/bulk-import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -53,6 +60,7 @@ export async function submitBooksInChunks(params: {
         books: batch,
         autoCreatePackages: params.autoCreatePackages,
         academicYear: params.academicYear,
+        forcePackageOverride: params.forcePackageOverride,
       }),
     });
 
@@ -60,8 +68,11 @@ export async function submitBooksInChunks(params: {
       totalInserted += res.data.insertedCount;
       totalUpdated += res.data.updatedCount;
       totalPackages += res.data.packagesCreatedCount || 0;
+      if (res.data.skippedPackages && res.data.skippedPackages.length > 0) {
+        skippedPackages.push(...res.data.skippedPackages);
+      }
     }
   }
 
-  return { totalInserted, totalUpdated, totalPackages };
+  return { totalInserted, totalUpdated, totalPackages, skippedPackages };
 }

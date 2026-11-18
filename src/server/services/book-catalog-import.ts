@@ -1,7 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { bookPackageItems, bookPackages, books, type CurriculumType } from "../../db/schema";
 import { normalizeBookTitle, resolveBookIsbn } from "../../lib/isbn";
-import { normalizeCanonicalCurriculum } from "../../lib/curriculum";
+import { normalizeCanonicalCurriculum, curriculumLabel } from "../../lib/curriculum";
 import { chunkRows } from "../lib/d1-write";
 import { recalcPackagePrice } from "./pricing";
 import { ensurePackageHasWpr } from "./wpr";
@@ -26,9 +26,14 @@ export interface BookImportRow {
   academicYear?: string;
 }
 
-export interface BookImportOptions {
+export interface PackageBundlingPolicy {
   autoCreatePackages?: boolean;
   academicYear?: string;
+  forcePackageOverride?: boolean;
+}
+
+export interface BookImportOptions extends PackageBundlingPolicy {
+  bundlingPolicy?: PackageBundlingPolicy;
 }
 
 export interface BookImportResult {
@@ -36,6 +41,7 @@ export interface BookImportResult {
   updatedCount: number;
   packagesCreatedCount: number;
   total: number;
+  skippedPackages?: Array<{ code: string; name: string; reason: string }>;
 }
 
 /**
@@ -192,7 +198,12 @@ export async function importBookCatalog(
   }
 
   // 5. Otomatisasi pembentukan Paket Buku (BOM) per tingkat & kurikulum bila diminta
-  if (options?.autoCreatePackages) {
+  const skippedPackages: Array<{ code: string; name: string; reason: string }> = [];
+
+  const shouldAutoCreate = options?.bundlingPolicy?.autoCreatePackages ?? options?.autoCreatePackages;
+  const isForceOverride = options?.bundlingPolicy?.forcePackageOverride ?? options?.forcePackageOverride;
+
+  if (shouldAutoCreate) {
     const packageGroups = new Map<string, Array<{ bookId: string; price: number }>>();
 
     for (const item of normalizedItems) {
@@ -208,10 +219,28 @@ export async function importBookCatalog(
 
     for (const [groupKey, bookComponents] of packageGroups.entries()) {
       const [gradeLevel, curriculumType] = groupKey.split("__") as [string, CurriculumType];
+
+      // Tentukan jenjang otomatis (TK, SD, SMP, SMA)
+      const gNorm = gradeLevel.trim().toLowerCase();
+      const isTk = gNorm.startsWith("tk") || gNorm.startsWith("kb") || gNorm.startsWith("paud") || gNorm === "0";
+      const gNum = parseInt(gNorm, 10);
+      let jenjangPrefix = "SD";
+      if (isTk) {
+        jenjangPrefix = "TK";
+      } else if (!isNaN(gNum)) {
+        if (gNum >= 7 && gNum <= 9) jenjangPrefix = "SMP";
+        else if (gNum >= 10 && gNum <= 12) jenjangPrefix = "SMA";
+      }
+
       const isInt = curriculumType === "INTER" || curriculumType === "international";
-      const codeSuffix = isInt ? "INT" : curriculumType === "MQ" || curriculumType === "national" ? "NAT" : curriculumType;
-      const packageCode = `PKG-SD${gradeLevel}-${codeSuffix}-${academicYear.replace("/", "-")}`;
-      const packageName = `Paket Buku Kelas ${gradeLevel} ${isInt ? "Internasional" : "Nasional Plus"} TA ${academicYear}`;
+      const codeSuffix = isInt
+        ? "INT"
+        : curriculumType === "MQ" || curriculumType === "national"
+        ? "NAT"
+        : curriculumType;
+      const packageCode = `PKG-${jenjangPrefix}${gradeLevel}-${codeSuffix}-${academicYear.replace("/", "-")}`;
+      const curriculumName = curriculumLabel(curriculumType);
+      const packageName = `Paket Buku Kelas ${gradeLevel} ${curriculumName} TA ${academicYear}`;
       const totalPrice = bookComponents.reduce((sum, b) => sum + b.price, 0);
 
       // Cek apakah paket sudah ada
@@ -219,6 +248,18 @@ export async function importBookCatalog(
         .select({ id: bookPackages.id })
         .from(bookPackages)
         .where(eq(bookPackages.code, packageCode));
+
+      const isNonTk = !isTk;
+
+      // Guard kelengkapan: paket SD/SMP/SMA yang sudah ada tidak boleh ditimpa paket buntung (< 10 buku) kecuali forcePackageOverride
+      if (existingPkg && isNonTk && bookComponents.length < 10 && !isForceOverride) {
+        skippedPackages.push({
+          code: packageCode,
+          name: packageName,
+          reason: `Paket dilewati karena hasil impor hanya berisi ${bookComponents.length} buku (ambang batas minimum SD–SMA adalah 10 buku)`,
+        });
+        continue;
+      }
 
       let pkgId = existingPkg?.id;
       if (!pkgId) {
@@ -270,12 +311,12 @@ export async function importBookCatalog(
     }
   }
 
-
   return {
     insertedCount,
     updatedCount,
     packagesCreatedCount,
     total: items.length,
+    skippedPackages,
   };
 }
 

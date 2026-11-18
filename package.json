@@ -35,6 +35,7 @@
     "worktree:setup": "bun scripts/worktree-setup.ts",
     "worktree:add": "bun scripts/worktree-setup.ts",
     "worktree:remove": "bun scripts/worktree-cleanup.ts",
+    "wt": "bun scripts/worktree-exec.ts",
     "check:string-packing": "bun scripts/check-string-packing.ts --all",
     "check:no-silent-catch": "bun scripts/check-no-silent-catch.ts",
     "check:seed-integrity": "bun scripts/check-seed-integrity.ts",
