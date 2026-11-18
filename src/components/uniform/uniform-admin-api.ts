@@ -313,8 +313,8 @@ export const previewBulkUniformCatalog = (payload: {
   rows: unknown[][];
   academicYear?: string;
   autoBundlePackages?: boolean;
-}): Promise<{ success: boolean; data: BulkCatalogPreviewResult }> =>
-  postJson<{ success: boolean; data: BulkCatalogPreviewResult }>(
+}): Promise<BulkCatalogPreviewResult> =>
+  postJson<BulkCatalogPreviewResult>(
     "/api/uniforms/catalog/bulk-upload/preview",
     payload,
     "Gagal memvalidasi katalog seragam."
@@ -324,8 +324,8 @@ export const commitBulkUniformCatalog = (payload: {
   rows: unknown[][];
   academicYear?: string;
   autoBundlePackages?: boolean;
-}): Promise<{ success: boolean; message: string; data: BulkCatalogCommitResult }> =>
-  postJson<{ success: boolean; message: string; data: BulkCatalogCommitResult }>(
+}): Promise<BulkCatalogCommitResult> =>
+  postJson<BulkCatalogCommitResult>(
     "/api/uniforms/catalog/bulk-upload/commit",
     payload,
     "Gagal menyimpan katalog seragam."
