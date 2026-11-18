@@ -242,4 +242,77 @@ describe("UniformItemStep", () => {
     expect(screen.getByText("Kain Harian Satuan")).toBeDefined();
     expect(screen.getByText("CELANA MERAH (SD Ikhwan)")).toBeDefined();
   });
+
+  it("does not render raw stock numbers or readyQty in public UI (ADR-0024)", () => {
+    const mockOrder = {
+      visiblePackages: [
+        {
+          id: "pkg-1",
+          code: "PKG-1",
+          name: "Paket Bahan Seragam Harian SD Ikhwan",
+          academicYear: "2026/2027",
+          price: 500000,
+          readyQty: 99,
+          bom: [{ variantId: "v-kain-1", variantName: "Kain Kemeja", kind: "kain_harian", size: "—", quantity: 1 }],
+        },
+      ],
+      visibleVariants: [
+        {
+          id: "v-kain-1",
+          code: "UNI-SD-IKH-CELANA",
+          name: "CELANA MERAH (SD Ikhwan)",
+          kind: "kain_harian" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 75000,
+          sizeChartUrl: null,
+          sizes: [],
+          sizeDetails: [],
+          stock: [{ size: "—", quantity: 42 }],
+        },
+        {
+          id: "v-ol-1",
+          code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+          name: "BAJU OLAHRAGA (SD Ikhwan)",
+          kind: "olahraga" as const,
+          gender: "male" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 150000,
+          sizeChartUrl: null,
+          sizes: ["S", "M"],
+          sizeDetails: [
+            { chartNumber: 7, size: "S", chestWidthCm: 42, bottomLengthCm: 76 },
+            { chartNumber: 8, size: "M", chestWidthCm: 44, bottomLengthCm: 79 },
+          ],
+          stock: [{ size: "S", quantity: 13 }, { size: "M", quantity: 17 }],
+        },
+      ],
+      catalog: {
+        variants: [
+          { id: "v-kain-1", stock: [{ size: "—", quantity: 42 }] },
+          { id: "v-ol-1", stock: [{ size: "S", quantity: 13 }, { size: "M", quantity: 17 }] },
+        ],
+      },
+      packageQty: { "pkg-1": 1 },
+      satuanQty: {},
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      uniformMode: "package" as "package" | "satuan",
+      setUniformMode: () => {},
+      student: { gradeLevel: "1" },
+      total: 500000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    const { container } = render(<UniformItemStep order={mockOrder} />);
+    expect(container.textContent).not.toContain("Siap kirim:");
+    expect(container.textContent).not.toContain("Stok:");
+  });
 });

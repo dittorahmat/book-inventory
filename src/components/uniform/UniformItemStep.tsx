@@ -38,8 +38,6 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
   const olahraga = order.visibleVariants.filter((v) => v.kind === "olahraga");
   const khimarSd = order.visibleVariants.filter((v) => isKhimarSdVariant(v));
   const studentJenjang = normalizeUniformJenjang(order.student?.gradeLevel);
-  const stockOf = (variantId: string, size: string) =>
-    order.catalog?.variants.find((v) => v.id === variantId)?.stock.find((s) => s.size === size)?.quantity ?? 0;
 
   const isPackageMode = order.uniformMode !== "satuan";
 
@@ -118,7 +116,6 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                       <div className="text-sm font-bold">{p.name}</div>
                       <div className="text-xs text-[#65676B]">{p.bom.map((b) => b.variantName).join(" + ")}</div>
                       <div className="text-xs font-semibold text-[#1877F2] mt-0.5">{formatRupiah(p.price)}</div>
-                      <div className="text-[11px] text-[#65676B]">Siap kirim: {p.readyQty}</div>
                     </div>
                     {stepper(order.packageQty[p.id] ?? 0, (d) => order.bumpPackage(p.id, d))}
                   </div>
@@ -149,7 +146,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               <div key={v.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold">{v.name}</div>
-                  <div className="text-xs text-[#65676B]">{formatRupiah(v.price)} · Stok: {stockOf(v.id, "—")}</div>
+                  <div className="text-xs text-[#65676B]">{formatRupiah(v.price)}</div>
                 </div>
                 {stepper(order.satuanQty[v.id] ?? 0, (d) => order.bumpSatuan(v.id, d))}
               </div>
@@ -171,7 +168,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
               const sizeOptions = (v.sizes.length > 0 ? v.sizes : ["1", "4"]).map((s) => ({
                 value: s,
-                label: `${formatKhimarSdSizeLabel(s)} · Stok: ${stockOf(v.id, s)}`,
+                label: formatKhimarSdSizeLabel(s),
               }));
 
               const handleSizeChange = (val: string) => {
@@ -251,7 +248,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               const sizeOptions = v.sizes.map((s) => {
                 const detail = v.sizeDetails?.find((d) => d.size === s);
                 const label = detail ? formatUniformSizeLabel(detail) : s;
-                return { value: s, label: `${label} · Stok: ${stockOf(v.id, s)}` };
+                return { value: s, label };
               });
 
               const handleSizeChange = (val: string) => {
