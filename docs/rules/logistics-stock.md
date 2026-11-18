@@ -128,4 +128,7 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
 2. **Threshold Kelengkapan Paket Non-Destruktif & Anti-Substring Collision**:
    - Ambang batas minimum buku paket SD–SMA saat auto-create paket adalah 10 buku (`bookComponents.length >= 10`). Paket eksisting yang lengkap dilarang ditimpa oleh file parsial/suplemen (< 10 buku) kecuali ada flag konfirmasi `forcePackageOverride`.
    - Pemeriksaan jenjang TK/KB wajib menggunakan token boundary/prefix eksplisit (`startsWith('tk')`, `startsWith('kb')`, `startsWith('paud')`, atau `'0'`), dilarang memakai `.includes('k')` longgar yang memicu tabrakan substring pada jenjang non-TK.
-   - Modal upload (`BookBulkUploadModal.tsx`) wajib mematuhi §0.63: tombol simpan tetap interaktif memvalidasi input saat ditekan (hanya `disabled={isSubmitting}`), menampilkan peringatan saat berkas parsial terdeteksi, serta memberikan checkbox override transaksional bila admin memang sengaja ingin memperbarui paket.
+3. **Penamaan Kode Paket Multi-Jenjang & Bundling Policy**:
+   - Kode paket hasil bundling otomatis wajib menyesuaikan prefix jenjang: `PKG-TK...` untuk TK/Preschool, `PKG-SD...` untuk SD (1–6), `PKG-SMP...` untuk SMP (7–9), dan `PKG-SMA...` untuk SMA (10–12).
+   - Opsi konfigurasi bundling paket pada domain service (`book-catalog-import.ts`) wajib dikelompokkan dalam model kebijakan terstruktur `PackageBundlingPolicy` guna mencegah bau kode *Primitive Obsession* / *Data Clumps*.
+   - Deteksi program kurikulum wajib mencakup seluruh 6 program kanonik Al-Wildan (`TK`, `INTER`, `AE`, `ME`, `DI`, `MQ`) via helper kanonik `inferCurriculumFromText` (`src/lib/curriculum.ts`).

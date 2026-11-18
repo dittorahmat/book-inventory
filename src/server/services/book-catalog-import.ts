@@ -26,10 +26,14 @@ export interface BookImportRow {
   academicYear?: string;
 }
 
-export interface BookImportOptions {
+export interface PackageBundlingPolicy {
   autoCreatePackages?: boolean;
   academicYear?: string;
   forcePackageOverride?: boolean;
+}
+
+export interface BookImportOptions extends PackageBundlingPolicy {
+  bundlingPolicy?: PackageBundlingPolicy;
 }
 
 export interface BookImportResult {
@@ -196,7 +200,10 @@ export async function importBookCatalog(
   // 5. Otomatisasi pembentukan Paket Buku (BOM) per tingkat & kurikulum bila diminta
   const skippedPackages: Array<{ code: string; name: string; reason: string }> = [];
 
-  if (options?.autoCreatePackages) {
+  const shouldAutoCreate = options?.bundlingPolicy?.autoCreatePackages ?? options?.autoCreatePackages;
+  const isForceOverride = options?.bundlingPolicy?.forcePackageOverride ?? options?.forcePackageOverride;
+
+  if (shouldAutoCreate) {
     const packageGroups = new Map<string, Array<{ bookId: string; price: number }>>();
 
     for (const item of normalizedItems) {
@@ -245,7 +252,7 @@ export async function importBookCatalog(
       const isNonTk = !isTk;
 
       // Guard kelengkapan: paket SD/SMP/SMA yang sudah ada tidak boleh ditimpa paket buntung (< 10 buku) kecuali forcePackageOverride
-      if (existingPkg && isNonTk && bookComponents.length < 10 && !options.forcePackageOverride) {
+      if (existingPkg && isNonTk && bookComponents.length < 10 && !isForceOverride) {
         skippedPackages.push({
           code: packageCode,
           name: packageName,
