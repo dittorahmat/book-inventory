@@ -24,7 +24,7 @@ import { defaultStorage } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
 import { emitChargeQuery } from "../branch-charges";
 import { eligibilityStatus, evaluateStudentEligibility } from "../student-eligibility";
-import { adjustPackageStockQuery, adjustVariantStockQuery, checkUniformAvailability, type UniformStockLine } from "./stock";
+import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 import { isKhimarSdSize, isKhimarSdVariant } from "../../../lib/khimar-sd";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
@@ -179,23 +179,9 @@ export async function submitUniformOrder(
     );
   }
 
-  // Kecukupan stok: paket (ready) + satuan (per varian-size) lewat interface kanonik checkUniformAvailability.
-  const stockLines: UniformStockLine[] = payload.items.map((item) => {
-    const qty = item.quantity ?? 1;
-    if (item.packageId) {
-      return { kind: "package", id: item.packageId, quantity: qty };
-    }
-    return { kind: "variant", id: item.variantId!, size: item.size?.trim() || KAIN_SIZE, quantity: qty };
-  });
-
-  const availability = await checkUniformAvailability(database, stockLines);
-  if (!availability.ok) {
-    const pkgShortfall = availability.shortfalls.find((s) => s.kind === "package");
-    if (pkgShortfall) {
-      return invalid("Stok paket rakitan belum cukup — hubungi admin gudang.");
-    }
-    return invalid("Stok satuan tidak cukup untuk ukuran tersebut.");
-  }
+  // Per ADR-0024: Stok 0 tidak lagi menjadi stopper checkout di portal pemesanan publik.
+  // Order tetap masuk (fulfillment antrean logistik). Mutasi stok menggunakan policy "create"
+  // agar record stok terbuat/diperbarui meskipun saldo stok menjadi negatif.
 
   // Total + baris order (beasiswa/free: total 0 menunggu verifikasi).
   const lines: UniformOrderLine[] = payload.items.map((item) => {
@@ -277,14 +263,14 @@ export async function submitUniformOrder(
         }
       }
       for (const [packageId, qty] of needPaket) {
-        queries.push(adjustPackageStockQuery(database, { packageId, delta: -qty }, "require", { now }));
+        queries.push(adjustPackageStockQuery(database, { packageId, delta: -qty }, "create", { now }));
       }
       for (const need of needSatuan.values()) {
         queries.push(
           adjustVariantStockQuery(
             database,
             { variantId: need.variantId, size: need.size, delta: -need.qty },
-            "require",
+            "create",
             { now }
           )
         );
