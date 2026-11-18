@@ -1554,6 +1554,54 @@ describe("Public catalog tanpa login (#143)", () => {
     }
   });
 
+  it("GET /packages dan /book-choices fallback ke judul asli buku jika publicTitle kosong atau null", async () => {
+    const stamp = Date.now();
+    const schoolId = `school-pub-fallback-${stamp}`;
+    const bookId = `book-pub-fallback-${stamp}`;
+    const pkgId = `pkg-pub-fallback-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId, name: `Sekolah Fallback ${stamp}`, code: `PFB-${stamp}`,
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(books).values({
+      id: bookId, isbn: `ISBN-FB-${stamp}`, title: `Buku Matematika Dasar ${stamp}`,
+      publicTitle: null, author: "Pengarang", publisher: "Penerbit",
+      price: 45000, sellPrice: 50000, createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(bookPackages).values({
+      id: pkgId, code: `PKG-FB-${stamp}`, name: `Paket Fallback ${stamp}`,
+      gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027",
+      price: 50000, createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+    const { bookPackageItems } = await import("../../db/schema");
+    await db.insert(bookPackageItems).values([
+      { id: `bom-fb-${stamp}`, packageId: pkgId, bookId, quantity: 1, createdAt: now },
+    ]).onConflictDoNothing();
+
+    try {
+      const pkgRes = await publicOrdersRouter.request("/packages", { method: "GET" });
+      expect(pkgRes.status).toBe(200);
+      const pkgJson = await pkgRes.json();
+      const found = ((pkgJson.data as unknown[]) as Array<{ id: string; items: Array<{ bookId: string; title: string }> }>).find((p) => p.id === pkgId);
+      expect(found).toBeDefined();
+      expect(found?.items.find((i) => i.bookId === bookId)?.title).toBe(`Buku Matematika Dasar ${stamp}`);
+
+      const choiceRes = await publicOrdersRouter.request("/book-choices", { method: "GET" });
+      expect(choiceRes.status).toBe(200);
+      const choiceJson = await choiceRes.json();
+      const choice = ((choiceJson.data as unknown[]) as Array<{ bookId: string; title: string }>).find((b) => b.bookId === bookId);
+      expect(choice?.title).toBe(`Buku Matematika Dasar ${stamp}`);
+    } finally {
+      const { bookPackageItems: bom } = await import("../../db/schema");
+      await db.delete(bom).where(eq(bom.id, `bom-fb-${stamp}`));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+      await db.delete(books).where(eq(books.id, bookId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
+
   it("GET /api/packages staf tetap 401 tanpa sesi", async () => {
     const { packagesRouter } = await import("./packages");
     const res = await packagesRouter.request("/", { method: "GET" });

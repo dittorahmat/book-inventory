@@ -1,5 +1,3 @@
-import { formatRupiah } from "../../lib/transfer-pricing";
-
 export interface BreakdownItem {
   title: string;
   quantity: number;
@@ -11,9 +9,9 @@ interface PackageBreakdownProps {
 }
 
 /**
- * Rincian isi paket: daftar judul buku + jumlah per judul + harga satuan.
- * Selalu terlihat (bukan di balik expand) agar orang tua tahu
- * persis apa yang dibayar sebelum lanjut ke pembayaran.
+ * Rincian isi paket: daftar judul buku + jumlah eksemplar per judul.
+ * Harga per satuan buku tidak ditampilkan pada rincian paket
+ * (hanya total harga paket yang ditampilkan di ringkasan).
  */
 export function PackageBreakdown({ items }: PackageBreakdownProps) {
   const totalQty = items.reduce((s, i) => s + (i.quantity || 0), 0);
@@ -39,12 +37,6 @@ export function PackageBreakdown({ items }: PackageBreakdownProps) {
             <li key={`${item.title}-${idx}`} className="px-3 py-2 flex items-center justify-between gap-3 bg-white">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-[#050505] truncate">{item.title}</div>
-                {item.unitPrice !== undefined && item.unitPrice > 0 && (
-                  <div className="text-[11px] text-[#65676B]">
-                    {formatRupiah(item.unitPrice)}
-                    {item.quantity > 1 && ` × ${item.quantity} = ${formatRupiah(item.unitPrice * item.quantity)}`}
-                  </div>
-                )}
               </div>
               <span className="shrink-0 text-[11px] font-bold text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-md">
                 {item.quantity} eks

@@ -151,7 +151,7 @@ publicOrdersRouter.get("/packages", async (c) => {
       items: p.items.map((it) => ({
         id: it.id,
         bookId: it.bookId,
-        title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"),
+        title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle?.trim() || it.title),
         quantity: it.quantity,
         unitPrice: effectiveSellPrice(it),
       })),
@@ -166,7 +166,7 @@ publicOrdersRouter.get("/book-choices", async (c) => {
   for (const p of pkgs) {
     for (const it of p.items) {
       if (!seen.has(it.bookId)) {
-        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"));
+        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle?.trim() || it.title));
       }
     }
   }

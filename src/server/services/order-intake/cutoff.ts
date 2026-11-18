@@ -217,14 +217,14 @@ export async function getSatuanCatalogIfOpen(
     ? await baseQuery.where(inArray(books.id, allowedBookIds)).orderBy(books.title)
     : await baseQuery.orderBy(books.title);
 
-  // Anti window-shopping: alias samaran saja (fallback generik), tanpa
+  // Anti window-shopping: alias samaran bila diisi, fallback judul asli buku, tanpa
   // ISBN/penulis/penerbit/cover.
   return {
     open: true,
     status,
     books: rows.map((b: { id: string; title: string; publicTitle: string | null; price: number; sellPrice: number }) => ({
       id: b.id,
-      title: b.publicTitle ?? "Buku Paket",
+      title: b.publicTitle?.trim() || b.title,
       sellPrice: effectiveSellPrice(b),
     })),
   };

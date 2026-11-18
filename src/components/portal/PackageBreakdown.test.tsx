@@ -13,7 +13,7 @@ describe("PackageBreakdown", () => {
     expect(screen.getByText(/Rincian buku belum tersedia/i)).toBeDefined();
   });
 
-  it("renders titles, quantities, and individual unit prices", () => {
+  it("renders titles and quantities without displaying unit prices", () => {
     render(
       <PackageBreakdown
         items={[
@@ -26,8 +26,11 @@ describe("PackageBreakdown", () => {
 
     expect(screen.getByText("Matematika Internasional Kelas 2")).toBeDefined();
     expect(screen.getByText("Weekly Progress Report (WPR)")).toBeDefined();
-    expect(screen.getByText("Rp 95.000")).toBeDefined();
-    expect(screen.getByText("Rp 750.000")).toBeDefined();
-    expect(screen.getByText("Rp 20.000 × 2 = Rp 40.000")).toBeDefined();
+    expect(screen.getByText("Buku Tulis")).toBeDefined();
+    expect(screen.getByText("2 eks")).toBeDefined();
+    // Harga satuan tidak boleh muncul di rincian paket
+    expect(screen.queryByText(/Rp 95\.000/)).toBeNull();
+    expect(screen.queryByText(/Rp 750\.000/)).toBeNull();
+    expect(screen.queryByText(/Rp 20\.000/)).toBeNull();
   });
 });
