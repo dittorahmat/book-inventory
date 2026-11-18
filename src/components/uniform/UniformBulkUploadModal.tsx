@@ -57,7 +57,7 @@ export function UniformBulkUploadModal({
         autoBundlePackages,
       });
 
-      setPreviewResult(res.data);
+      setPreviewResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membaca berkas Excel.");
     } finally {
@@ -85,7 +85,9 @@ export function UniformBulkUploadModal({
         autoBundlePackages,
       });
 
-      setSuccessMsg(res.message);
+      setSuccessMsg(
+        `${res.insertedVariants} varian baru ditambahkan, ${res.updatedVariants} diperbarui, ${res.packagesCreatedOrUpdated} paket disinkronkan.`
+      );
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mengimpor katalog seragam.");
