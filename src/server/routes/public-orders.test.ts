@@ -1554,7 +1554,7 @@ describe("Public catalog tanpa login (#143)", () => {
     }
   });
 
-  it("GET /packages dan /book-choices fallback ke judul asli buku jika publicTitle kosong atau null", async () => {
+  it("GET /packages dan /book-choices fallback ke judul asli buku via resolvePublicBookTitle jika publicTitle kosong atau null", async () => {
     const stamp = Date.now();
     const schoolId = `school-pub-fallback-${stamp}`;
     const bookId = `book-pub-fallback-${stamp}`;

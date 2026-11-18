@@ -9,7 +9,7 @@ import {
   systemSettings,
 } from "../../../db/schema";
 import { currentAcademicYear, isWIBOnOrAfter, todayWIB } from "../../../lib/wib-time";
-import { effectiveSellPrice } from "../../../lib/book-pricing";
+import { effectiveSellPrice, resolvePublicBookTitle } from "../../../lib/book-pricing";
 import type { SatuanOverride, SatuanStatus } from "../../../lib/portal-types";
 
 export type { SatuanOverride, SatuanStatus } from "../../../lib/portal-types";
@@ -224,7 +224,7 @@ export async function getSatuanCatalogIfOpen(
     status,
     books: rows.map((b: { id: string; title: string; publicTitle: string | null; price: number; sellPrice: number }) => ({
       id: b.id,
-      title: b.publicTitle?.trim() || b.title,
+      title: resolvePublicBookTitle(b),
       sellPrice: effectiveSellPrice(b),
     })),
   };

@@ -9,6 +9,19 @@ export interface PriceLike {
   sellPrice?: number | null;
 }
 
+export interface BookTitleLike {
+  title: string;
+  publicTitle?: string | null;
+  bookId?: string | null;
+}
+
+/**
+ * Resolusi judul publik buku: menggunakan `publicTitle` bila tersedia (non-empty),
+ * fallback ke judul asli buku (`title`).
+ */
+export const resolvePublicBookTitle = (book: BookTitleLike): string =>
+  book.publicTitle?.trim() || book.title;
+
 const num = (v: number | null | undefined): number => v || 0;
 
 /** Harga jual efektif: fallback ke harga lama (`price`) bila harga jual belum pernah diisi. */

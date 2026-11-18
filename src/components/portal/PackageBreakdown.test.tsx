@@ -17,9 +17,9 @@ describe("PackageBreakdown", () => {
     render(
       <PackageBreakdown
         items={[
-          { title: "Matematika Internasional Kelas 2", quantity: 1, unitPrice: 95000 },
-          { title: "Weekly Progress Report (WPR)", quantity: 1, unitPrice: 750000 },
-          { title: "Buku Tulis", quantity: 2, unitPrice: 20000 },
+          { title: "Matematika Internasional Kelas 2", quantity: 1 },
+          { title: "Weekly Progress Report (WPR)", quantity: 1 },
+          { title: "Buku Tulis", quantity: 2 },
         ]}
       />
     );

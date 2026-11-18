@@ -1,7 +1,6 @@
 export interface BreakdownItem {
   title: string;
   quantity: number;
-  unitPrice?: number;
 }
 
 interface PackageBreakdownProps {
