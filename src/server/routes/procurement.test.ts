@@ -1368,4 +1368,18 @@ describe("PO supplier exclusivity (#143)", () => {
       await db.delete(books).where(eq(books.id, bookId));
     }
   });
+
+  it("memproses endpoint /suppliers/import-mapping dengan tautan URL yang memiliki gid (#503)", async () => {
+    mockActor("central_admin", null);
+    const res = await procurementRouter.request("/suppliers/import-mapping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://docs.google.com/spreadsheets/d/141ecGw58OW6PGnvz8cIiAgpjeQY1iSs_EtPu7bxf8Uw/edit?gid=1163470503#gid=1163470503" }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.totalSheetsProcessed).toBeGreaterThan(0);
+  });
 });

@@ -64,7 +64,7 @@ export function parseGoogleDriveFolderHtml(html: string): GoogleDriveFolderFile[
 /**
  * Utility bantuan untuk tautan Google Sheets publik.
  */
-export function normalizeGoogleSheetsUrl(url: string): string | null {
+export function normalizeGoogleSheetsUrl(url: string, options?: { forceXlsx?: boolean }): string | null {
   try {
     const parsed = new URL(url.trim());
     if (!parsed.hostname.includes("docs.google.com") || !parsed.pathname.includes("/spreadsheets/d/")) {
@@ -73,6 +73,10 @@ export function normalizeGoogleSheetsUrl(url: string): string | null {
     const match = parsed.pathname.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     if (!match) return null;
     const sheetId = match[1];
+
+    if (options?.forceXlsx) {
+      return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+    }
 
     // Ambil gid bila ada
     const gid = parsed.searchParams.get("gid") || parsed.hash.replace("#gid=", "");
