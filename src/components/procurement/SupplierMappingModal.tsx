@@ -8,11 +8,22 @@ interface SupplierMappingModalProps {
   onSuccess: () => void;
 }
 
+interface SupplierProcessedItem {
+  id: string;
+  code: string;
+  name: string;
+  contactPerson?: string | null;
+  phone?: string | null;
+  sheet: string;
+  isNew: boolean;
+}
+
 interface MappingResult {
   suppliersUpserted: number;
   booksMatched: number;
   newLinksCount: number;
   totalSheetsProcessed: number;
+  processedSuppliers?: SupplierProcessedItem[];
 }
 
 export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModalProps) {
@@ -184,14 +195,41 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
           {error && <FormSummaryAlert errors={{ general: error }} title="Gagal Memproses Data" />}
 
           {result && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-2.5">
               <div className="flex items-center gap-1.5 font-bold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>Pemetaan Berhasil Disinkronkan!</span>
               </div>
-              <p className="text-[11px]">
-                {result.booksMatched} buku terpetakan dari {result.totalSheetsProcessed} sheet vendor. ({result.suppliersUpserted} supplier baru didaftarkan).
+              <p className="text-[11px] text-emerald-900 leading-relaxed">
+                Sebanyak <strong>{result.booksMatched} buku</strong> berhasil terpetakan dari <strong>{result.totalSheetsProcessed} sheet vendor</strong> ({result.newLinksCount} relasi buku baru). Terdapat <strong>{result.suppliersUpserted} supplier baru</strong> yang didaftarkan.
               </p>
+
+              {result.processedSuppliers && result.processedSuppliers.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-emerald-200/60">
+                  <span className="font-semibold text-[11px] block mb-1 text-emerald-900">
+                    Rincian Supplier & Sheet Terdeteksi ({result.processedSuppliers.length}):
+                  </span>
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                    {result.processedSuppliers.map((s, idx) => (
+                      <div
+                        key={`${s.code}-${idx}`}
+                        className="flex items-center justify-between gap-2 p-1.5 bg-white/70 rounded-lg text-[10px] text-gray-700 border border-emerald-100"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono font-bold text-[#1877F2] mr-1.5">{s.code}</span>
+                          <span className="font-medium text-gray-900">{s.name}</span>
+                          <span className="text-gray-500 block truncate">
+                            {[s.contactPerson, s.phone].filter(Boolean).join(" · ") || "Kontak belum dilengkapi"}
+                          </span>
+                        </div>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-100/80 text-emerald-800 font-medium">
+                          Sheet: {s.sheet}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

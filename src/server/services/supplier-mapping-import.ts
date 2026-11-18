@@ -4,12 +4,24 @@ import type { AppDatabase } from "../../db";
 import { books, bookSuppliers, suppliers } from "../../db/schema";
 import { normalizeBookTitle, tokenizeBookTitle } from "../../lib/isbn";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../lib/d1-write";
+import { OFFICIAL_SUPPLIERS } from "../seed-suppliers";
+
+export interface SupplierSummaryItem {
+  id: string;
+  code: string;
+  name: string;
+  contactPerson?: string | null;
+  phone?: string | null;
+  sheet: string;
+  isNew: boolean;
+}
 
 export interface SupplierMappingResult {
   suppliersUpserted: number;
   booksMatched: number;
   newLinksCount: number;
   totalSheetsProcessed: number;
+  processedSuppliers: SupplierSummaryItem[];
 }
 
 export interface SheetVendorConfig {
@@ -47,15 +59,71 @@ export async function importSupplierMappingFromWorkbook(
   // Saring hanya config yang sheet-nya benar-benar ada di workbook
   const activeConfigs = customConfigs.filter((cfg) => Boolean(workbook.Sheets[cfg.sheet]));
 
+  // Siapkan map data kontak supplier resmi Al-Wildan
+  const officialByCode = new Map(OFFICIAL_SUPPLIERS.map((s) => [s.code, s]));
+  officialByCode.set("SUP-ERLANGGA", officialByCode.get("SUP-ERL")!);
+
+  const processedSuppliers: SupplierSummaryItem[] = [];
+
   for (const cfg of activeConfigs) {
-    if (supplierCodeToId.has(cfg.supCode)) continue;
+    const official = officialByCode.get(cfg.supCode);
+    const resolvedContact = official?.contactPerson ?? null;
+    const resolvedPhone = official?.phone ?? null;
+    const resolvedAddress = official?.address ?? null;
+
+    if (supplierCodeToId.has(cfg.supCode)) {
+      const existingId = supplierCodeToId.get(cfg.supCode)!;
+      processedSuppliers.push({
+        id: existingId,
+        code: cfg.supCode,
+        name: cfg.supName,
+        contactPerson: resolvedContact,
+        phone: resolvedPhone,
+        sheet: cfg.sheet,
+        isNew: false,
+      });
+      continue;
+    }
+
     const existing = await database
-      .select({ id: suppliers.id, code: suppliers.code })
+      .select({
+        id: suppliers.id,
+        code: suppliers.code,
+        name: suppliers.name,
+        contactPerson: suppliers.contactPerson,
+        phone: suppliers.phone,
+      })
       .from(suppliers)
       .where(eq(suppliers.code, cfg.supCode));
 
     if (existing.length > 0) {
-      supplierCodeToId.set(cfg.supCode, existing[0].id);
+      const cur = existing[0];
+      supplierCodeToId.set(cfg.supCode, cur.id);
+
+      // Bila kontak di database masih kosong tetapi ada data resmi, lengkapi datanya
+      if ((!cur.contactPerson || !cur.phone) && (resolvedContact || resolvedPhone)) {
+        await runWriteBatch(database, [
+          database
+            .update(suppliers)
+            .set({
+              contactPerson: cur.contactPerson || resolvedContact,
+              phone: cur.phone || resolvedPhone,
+              address: resolvedAddress,
+              updatedAt: now,
+            })
+            .where(eq(suppliers.id, cur.id)),
+        ]);
+      }
+
+      processedSuppliers.push({
+        id: cur.id,
+        code: cfg.supCode,
+        name: cfg.supName,
+        contactPerson: cur.contactPerson || resolvedContact,
+        phone: cur.phone || resolvedPhone,
+        sheet: cfg.sheet,
+        isNew: false,
+      });
     } else {
       const newId = `sup-${cfg.supCode.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
       await runWriteBatch(database, [
@@ -64,12 +132,25 @@ export async function importSupplierMappingFromWorkbook(
           code: cfg.supCode,
           name: cfg.supName,
           type: "book",
+          contactPerson: resolvedContact,
+          phone: resolvedPhone,
+          address: resolvedAddress,
           createdAt: now,
           updatedAt: now,
         }),
       ]);
       supplierCodeToId.set(cfg.supCode, newId);
       suppliersUpserted++;
+
+      processedSuppliers.push({
+        id: newId,
+        code: cfg.supCode,
+        name: cfg.supName,
+        contactPerson: resolvedContact,
+        phone: resolvedPhone,
+        sheet: cfg.sheet,
+        isNew: true,
+      });
     }
   }
 
@@ -205,5 +286,6 @@ export async function importSupplierMappingFromWorkbook(
     booksMatched: matchedBookIds.size,
     newLinksCount: newLinks.length,
     totalSheetsProcessed: sheetsProcessed,
+    processedSuppliers,
   };
 }
