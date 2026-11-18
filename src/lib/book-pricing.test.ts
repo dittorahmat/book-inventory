@@ -1,5 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { calcLooseOrderTotal } from "./book-pricing";
+import { calcLooseOrderTotal, resolvePublicBookTitle } from "./book-pricing";
+
+describe("resolvePublicBookTitle (Kanonik judul buku portal publik)", () => {
+  test("mengembalikan publicTitle jika tersedia dan tidak kosong", () => {
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: "Judul Publik Ramah" })).toBe("Judul Publik Ramah");
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: "  Judul Spasi  " })).toBe("Judul Spasi");
+  });
+
+  test("fallback ke judul asli jika publicTitle null, undefined, atau string kosong", () => {
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: null })).toBe("Judul Asli");
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: undefined })).toBe("Judul Asli");
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: "" })).toBe("Judul Asli");
+    expect(resolvePublicBookTitle({ title: "Judul Asli", publicTitle: "   " })).toBe("Judul Asli");
+  });
+});
 
 describe("calcLooseOrderTotal (T7 portal optimistic total behind seam)", () => {
   const catalog = [

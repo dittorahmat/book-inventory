@@ -19,7 +19,7 @@ import { needsWprForStudent } from "../services/pricing";
 import { registerPublicStudent } from "../services/student-lifecycle";
 import { confirmBookPayment, lookupBookByToken } from "../services/order-invoice";
 import { WPR_BOOK_ID, WPR_TITLE, wprFeeForEligibility } from "../../lib/wpr";
-import { effectiveSellPrice } from "../../lib/book-pricing";
+import { effectiveSellPrice, resolvePublicBookTitle } from "../../lib/book-pricing";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { idSchema, base64UploadSchema } from "../lib/validators";
 import { getWarehouseReturnAddress } from "../services/return-address";
@@ -151,7 +151,7 @@ publicOrdersRouter.get("/packages", async (c) => {
       items: p.items.map((it) => ({
         id: it.id,
         bookId: it.bookId,
-        title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"),
+        title: it.bookId === WPR_BOOK_ID ? WPR_TITLE : resolvePublicBookTitle(it),
         quantity: it.quantity,
         unitPrice: effectiveSellPrice(it),
       })),
@@ -166,7 +166,7 @@ publicOrdersRouter.get("/book-choices", async (c) => {
   for (const p of pkgs) {
     for (const it of p.items) {
       if (!seen.has(it.bookId)) {
-        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : (it.publicTitle ?? "Buku Paket"));
+        seen.set(it.bookId, it.bookId === WPR_BOOK_ID ? WPR_TITLE : resolvePublicBookTitle(it));
       }
     }
   }

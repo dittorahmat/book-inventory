@@ -9,7 +9,7 @@ import {
   systemSettings,
 } from "../../../db/schema";
 import { currentAcademicYear, isWIBOnOrAfter, todayWIB } from "../../../lib/wib-time";
-import { effectiveSellPrice } from "../../../lib/book-pricing";
+import { effectiveSellPrice, resolvePublicBookTitle } from "../../../lib/book-pricing";
 import type { SatuanOverride, SatuanStatus } from "../../../lib/portal-types";
 
 export type { SatuanOverride, SatuanStatus } from "../../../lib/portal-types";
@@ -217,14 +217,14 @@ export async function getSatuanCatalogIfOpen(
     ? await baseQuery.where(inArray(books.id, allowedBookIds)).orderBy(books.title)
     : await baseQuery.orderBy(books.title);
 
-  // Anti window-shopping: alias samaran saja (fallback generik), tanpa
+  // Anti window-shopping: alias samaran bila diisi, fallback judul asli buku, tanpa
   // ISBN/penulis/penerbit/cover.
   return {
     open: true,
     status,
     books: rows.map((b: { id: string; title: string; publicTitle: string | null; price: number; sellPrice: number }) => ({
       id: b.id,
-      title: b.publicTitle ?? "Buku Paket",
+      title: resolvePublicBookTitle(b),
       sellPrice: effectiveSellPrice(b),
     })),
   };
