@@ -1335,6 +1335,9 @@ describe("PO supplier exclusivity (#143)", () => {
     const { bookPackages, bookPackageItems, students, suppliers, bookSuppliers } = await import("../../db/schema");
     const { and } = await import("drizzle-orm");
 
+    const gradeLevel = "9";
+    const curriculumType = "INTER";
+
     await db.insert(suppliers).values({
       id: supplierId,
       code: `SUP-DEM-${stamp.toString().slice(-4)}`,
@@ -1368,9 +1371,9 @@ describe("PO supplier exclusivity (#143)", () => {
     await db.insert(bookPackages).values({
       id: packageId,
       code: `PKG-DEM-${stamp}`,
-      name: "Paket Demand Test Kelas 1 INTER",
-      gradeLevel: "1",
-      curriculumType: "INTER",
+      name: "Paket Demand Test Kelas 9 INTER",
+      gradeLevel,
+      curriculumType,
       academicYear: year,
       price: 198600,
       createdAt: now,
@@ -1390,8 +1393,8 @@ describe("PO supplier exclusivity (#143)", () => {
       schoolId,
       nis: `NIS-DEM-${stamp}`,
       name: "Student Demand Test",
-      gradeLevel: "1",
-      curriculumType: "INTER",
+      gradeLevel,
+      curriculumType,
       academicYear: year,
       status: "active",
       createdAt: now,
