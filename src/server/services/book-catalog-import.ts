@@ -94,17 +94,28 @@ export async function importBookCatalog(
     }
   }
 
-  // Query seluruh buku yang judulnya cocok untuk pencocokan berbasis nama lengkap (§0.28)
+  // Query seluruh buku yang judulnya cocok untuk pencocokan berbasis nama lengkap (§0.28, §0.86.4)
+  // Utamakan buku yang sudah terdaftar di paket (book_package_items) agar tidak memecah identitas buku
   const allNormalizedTitles = Array.from(new Set(normalizedItems.map((i) => i.normalizedTitle)));
   const titleChunks = chunkRows(allNormalizedTitles, 10);
   for (const chunk of titleChunks) {
     const titleInSql = sql.join(chunk.map((t) => sql`${t}`), sql`, `);
     const found = await database
-      .select({ id: books.id, isbn: books.isbn, title: books.title })
+      .select({
+        id: books.id,
+        isbn: books.isbn,
+        title: books.title,
+        packageCount: sql<number>`(SELECT COUNT(*) FROM ${bookPackageItems} WHERE ${bookPackageItems.bookId} = ${books.id})`,
+      })
       .from(books)
       .where(sql`UPPER(trim(${books.title})) IN (${titleInSql})`);
     for (const b of found) {
-      existingTitleMap.set(normalizeBookTitle(b.title), { id: b.id, isbn: b.isbn });
+      const normT = normalizeBookTitle(b.title);
+      const existing = existingTitleMap.get(normT);
+      // Jika belum ada atau jika buku ini terhubung ke paket sementara yang lama tidak, jadikan kanonik
+      if (!existing || Number(b.packageCount) > 0) {
+        existingTitleMap.set(normT, { id: b.id, isbn: b.isbn });
+      }
       existingMap.set(b.isbn, b.id);
     }
   }

@@ -54,8 +54,9 @@ async function seedLooseCopies(input: {
   condition?: "new" | "good" | "fair" | "damaged";
 }) {
   const ids: string[] = [];
+  const stamp = `${Date.now()}-${Math.floor(Math.random() * 100_000)}`;
   for (let i = 0; i < input.count; i++) {
-    const id = `bi-${input.bookId}-${input.schoolId}-${i}-${Date.now()}`;
+    const id = `bi-${input.bookId}-${input.schoolId}-${i}-${stamp}`;
     await db.insert(bookItems).values({
       id,
       bookId: input.bookId,

@@ -18,6 +18,7 @@ import { readSettingsMap } from "../settings-map";
 import { resolveWarehouseId } from "./workflow";
 import { books, bookSuppliers } from "../../../db/schema";
 import { effectiveBookPrice } from "../../../lib/book-pricing";
+import { sqlNormalizeCurriculum } from "../../../lib/curriculum";
 
 export { calcBufferQty, calcDemandQty, resolveInitialOrderQty };
 
@@ -93,6 +94,7 @@ export async function calculateBookDemandSummary(
   }
 
   // 1. Hitung siswa aktif per buku via BOM paket buku
+  // Mendukung normalisasi kurikulum via sqlNormalizeCurriculum (§0.59)
   const pkgStudentCounts = await database
     .select({
       bookId: bookPackageItems.bookId,
@@ -103,7 +105,7 @@ export async function calculateBookDemandSummary(
       bookPackages,
       and(
         eq(students.gradeLevel, bookPackages.gradeLevel),
-        eq(students.curriculumType, bookPackages.curriculumType),
+        sql`${sqlNormalizeCurriculum(sql`${students.curriculumType}`)} = ${sqlNormalizeCurriculum(sql`${bookPackages.curriculumType}`)}`,
         eq(students.academicYear, bookPackages.academicYear)
       )
     )

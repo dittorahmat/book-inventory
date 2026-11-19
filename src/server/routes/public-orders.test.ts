@@ -574,7 +574,7 @@ describe("Public Orders & Student Search API", () => {
     expect(found.currentGradeLevel).toBe("2");
     expect(found.targetGradeLevel).toBe("3");
     expect(found.canOrder).toBe(true);
-    await db.delete(students).where(inArray(students.id, [regJson.data.id, promotedId]));
+    await db.delete(students).where(inArray(students.id, [regJson.data.id, regSmaJson.data.id, regMqJson.data.id, promotedId]));
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
 

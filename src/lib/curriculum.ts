@@ -1,3 +1,4 @@
+import { sql, type SQL } from "drizzle-orm";
 import { CURRICULUM_TYPES, type CurriculumType } from "../db/schema";
 
 export { CURRICULUM_TYPES, type CurriculumType };
@@ -82,6 +83,18 @@ export function normalizeCanonicalCurriculum(curriculumType: string): Curriculum
     return norm as CurriculumType;
   }
   return "INTER";
+}
+
+/**
+ * Pemetaan ekspresi SQL SQLite untuk normalisasi kurikulum/program siswa dan paket buku (§0.59).
+ * Menyelaraskan variasi penamaan legacy/DB ('INTERNATIONAL' -> 'INTER', 'NATIONAL' -> 'MQ', 'CAMBRIDGE' -> 'INTER', dsb.).
+ */
+export function sqlNormalizeCurriculum(columnSql: SQL | ReturnType<typeof sql>): SQL {
+  return sql`CASE 
+    WHEN UPPER(TRIM(${columnSql})) IN ('INTERNATIONAL', 'CAMBRIDGE', 'IB') THEN 'INTER'
+    WHEN UPPER(TRIM(${columnSql})) IN ('NATIONAL', 'REGULER', 'DIKNAS') THEN 'MQ'
+    ELSE UPPER(TRIM(${columnSql}))
+  END`;
 }
 
 export const curriculumLabel = (curriculumType: string): string => {

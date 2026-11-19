@@ -55,6 +55,7 @@ const CANONICAL: CanonicalHelper[] = [
   { name: "resolveInitialOrderQty", owner: "src/lib/po-demand.ts", module: "lib/po-demand" },
   { name: "isCambridgeInternationalTitle", owner: "src/lib/curriculum.ts", module: "lib/curriculum" },
   { name: "inferCurriculumFromText", owner: "src/lib/curriculum.ts", module: "lib/curriculum" },
+  { name: "sqlNormalizeCurriculum", owner: "src/lib/curriculum.ts", module: "lib/curriculum" },
 ];
 
 /** Tipe kanonik; deklarasi ulang tipe ini di luar file owner dilarang. */
