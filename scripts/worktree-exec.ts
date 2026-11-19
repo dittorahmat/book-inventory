@@ -29,7 +29,13 @@ if (!worktreeName.includes("/") && !worktreeName.includes("\\")) {
   targetDir = resolve(worktreeName);
 }
 
-const result = spawnSync("bun", [cmd, ...cmdArgs], {
+// Eksekusi perintah: jika cmd adalah 'git' atau binary system lain, spawn langsung;
+// jika perintah bun (run, test, x, dsb.) atau script npm, gunakan 'bun'.
+const isBunCommand = ["run", "test", "x", "install", "add", "remove", "pm"].includes(cmd);
+const executable = isBunCommand ? "bun" : cmd;
+const execArgs = isBunCommand ? [cmd, ...cmdArgs] : cmdArgs;
+
+const result = spawnSync(executable, execArgs, {
   cwd: targetDir,
   stdio: "inherit",
   shell: false,
