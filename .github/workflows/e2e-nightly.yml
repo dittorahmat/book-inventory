@@ -1,0 +1,66 @@
+name: e2e-nightly
+
+# Berjalan tiap tengah malam (00:00 WIB = 17:00 UTC) dan dapat dipicu manual
+on:
+  schedule:
+    # 17:00 UTC = 00:00 WIB (UTC+7)
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  e2e-browser:
+    name: Playwright Browser E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium with dependencies
+        run: bunx playwright install --with-deps chromium
+
+      - name: Setup local database
+        run: bun run db:push:bun --all
+
+      - name: Build web assets
+        run: bun run build
+
+      - name: Start preview & API server
+        env:
+          PORT: 3000
+          NODE_ENV: production
+        run: |
+          bun run dev &
+          # Tunggu server aktif
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/api/health > /dev/null || curl -s http://localhost:3000 > /dev/null; then
+              echo "Server siap di port 3000."
+              break
+            fi
+            echo "Menunggu server menyala ($i/30)..."
+            sleep 1
+          done
+
+      - name: Run Playwright demo automation
+        env:
+          CI: "true"
+          HEADLESS: "true"
+          DEMO_BASE_URL: "http://localhost:3000"
+        run: bun run demo:automate
+
+      - name: Upload screenshots if any
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-screenshots
+          path: data/demo-screenshots/
+          if-no-files-found: ignore
