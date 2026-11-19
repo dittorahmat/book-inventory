@@ -61,13 +61,13 @@ export function CreatePOModal({ suppliers, catalogBooks, defaultSupplierId, onCl
   // Muat ringkasan demand siswa per buku dari server dan populate baris PO awal
   useEffect(() => {
     let active = true;
-    getJson<{ success: boolean; data: { bufferPercentage: number; items: Record<string, BookDemandItemInfo> } }>(
+    getJson<{ bufferPercentage: number; items: Record<string, BookDemandItemInfo> }>(
       "/api/procurement/book-demand-summary"
     )
       .then((res) => {
-        if (!active || !res?.data) return;
-        const items = res.data.items || {};
-        const buffer = typeof res.data.bufferPercentage === "number" ? res.data.bufferPercentage : 10;
+        if (!active || !res) return;
+        const items = res.items || {};
+        const buffer = typeof res.bufferPercentage === "number" ? res.bufferPercentage : 10;
         setDemandMap(items);
         setBufferPercent(buffer);
         // Sinkronkan baris awal PO dari eligibleBooks dan demand yang baru saja dimuat
