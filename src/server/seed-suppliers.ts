@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../db";
-import { bookSuppliers, books, suppliers } from "../db/schema";
+import { bookPackageItems, bookSuppliers, books, suppliers } from "../db/schema";
 import { chunkRows } from "./lib/d1-write";
 
 export interface SupplierSeedDefinition {
@@ -157,6 +157,7 @@ export async function seedMasterSuppliers(targetDb: AppDatabase) {
   }
 
   // 2. Hubungkan Buku ke Supplier di book_suppliers
+  // Dapatkan seluruh buku beserta status paketnya agar jika ada buku duplikat, hanya buku kanonik yang dipetakan
   const allBooks = await targetDb
     .select({
       id: books.id,
@@ -165,9 +166,36 @@ export async function seedMasterSuppliers(targetDb: AppDatabase) {
     })
     .from(books);
 
+  // Periksa buku mana saja yang terdaftar di book_package_items
+  const packageItems = await targetDb
+    .select({ bookId: bookPackageItems.bookId })
+    .from(bookPackageItems);
+  const booksInPackage = new Set(packageItems.map((p) => p.bookId));
+
+  // Kelompokkan per judul yang dinormalisasi untuk mencegah duplikasi pemetaan buku non-kanonik
+  const titleToBooks = new Map<string, typeof allBooks>();
+  for (const b of allBooks) {
+    const key = (b.title || "").trim().toUpperCase();
+    if (!titleToBooks.has(key)) {
+      titleToBooks.set(key, []);
+    }
+    titleToBooks.get(key)!.push(b);
+  }
+
+  // Pilih satu buku representatif per judul unik: utamakan yang ada di paket
+  const canonicalBooks: typeof allBooks = [];
+  for (const booksWithTitle of titleToBooks.values()) {
+    if (booksWithTitle.length === 1) {
+      canonicalBooks.push(booksWithTitle[0]);
+    } else {
+      const inPkg = booksWithTitle.find((b) => booksInPackage.has(b.id));
+      canonicalBooks.push(inPkg || booksWithTitle[0]);
+    }
+  }
+
   const newLinks: Array<{ bookId: string; supplierId: string; createdAt: string }> = [];
 
-  for (const b of allBooks) {
+  for (const b of canonicalBooks) {
     const pub = (b.publisher || "").toLowerCase();
     const title = (b.title || "").toUpperCase();
 
