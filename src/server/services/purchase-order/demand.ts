@@ -18,6 +18,7 @@ import { readSettingsMap } from "../settings-map";
 import { resolveWarehouseId } from "./workflow";
 import { books, bookSuppliers } from "../../../db/schema";
 import { effectiveBookPrice } from "../../../lib/book-pricing";
+import { sqlNormalizeCurriculum } from "../../../lib/curriculum";
 
 export { calcBufferQty, calcDemandQty, resolveInitialOrderQty };
 
@@ -93,7 +94,7 @@ export async function calculateBookDemandSummary(
   }
 
   // 1. Hitung siswa aktif per buku via BOM paket buku
-  // Mendukung normalisasi kurikulum (case-insensitive & alias kompatibilitas INTERNATIONAL->INTER, NATIONAL->MQ)
+  // Mendukung normalisasi kurikulum via sqlNormalizeCurriculum (§0.59)
   const pkgStudentCounts = await database
     .select({
       bookId: bookPackageItems.bookId,
@@ -104,13 +105,7 @@ export async function calculateBookDemandSummary(
       bookPackages,
       and(
         eq(students.gradeLevel, bookPackages.gradeLevel),
-        sql`(
-          UPPER(trim(${students.curriculumType})) = UPPER(trim(${bookPackages.curriculumType}))
-          OR (UPPER(trim(${students.curriculumType})) = 'INTERNATIONAL' AND UPPER(trim(${bookPackages.curriculumType})) IN ('INTER', 'TK', 'AE', 'ME', 'DI'))
-          OR (UPPER(trim(${students.curriculumType})) = 'NATIONAL' AND UPPER(trim(${bookPackages.curriculumType})) = 'MQ')
-          OR (UPPER(trim(${bookPackages.curriculumType})) = 'INTERNATIONAL' AND UPPER(trim(${students.curriculumType})) IN ('INTER', 'TK', 'AE', 'ME', 'DI'))
-          OR (UPPER(trim(${bookPackages.curriculumType})) = 'NATIONAL' AND UPPER(trim(${students.curriculumType})) = 'MQ')
-        )`,
+        sql`${sqlNormalizeCurriculum(sql`${students.curriculumType}`)} = ${sqlNormalizeCurriculum(sql`${bookPackages.curriculumType}`)}`,
         eq(students.academicYear, bookPackages.academicYear)
       )
     )
