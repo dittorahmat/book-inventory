@@ -1324,87 +1324,68 @@ describe("PO supplier exclusivity (#143)", () => {
 
   it("calculates positive studentCount and recommended order qty for package-linked supplier books (#530)", async () => {
     const stamp = Date.now();
-    const supplierId = `sup-test-demand-${stamp}`;
-    const bookId = `b-dem-${stamp}`;
-    const packageId = `pkg-dem-${stamp}`;
-    const studentId = `std-dem-${stamp}`;
-    const schoolId = "school-aw1";
     const year = "2026/2027";
-    const now = new Date().toISOString();
-
-    const { bookPackages, bookPackageItems, students, suppliers, bookSuppliers } = await import("../../db/schema");
-    const { and } = await import("drizzle-orm");
-
     const gradeLevel = "9";
     const curriculumType = "INTER";
 
-    await db.insert(suppliers).values({
-      id: supplierId,
+    const { createTestSupplier, createTestBook, createTestPackage, createTestStudent } = await import("../lib/test-fixtures");
+    const { SCHOOL_IDS } = await import("../lib/school-constants");
+    const { bookPackageItems, bookSuppliers, students, bookPackages, books, suppliers } = await import("../../db/schema");
+    const { and } = await import("drizzle-orm");
+
+    const sup = await createTestSupplier(db, {
+      id: `sup-test-demand-${stamp}`,
       code: `SUP-DEM-${stamp.toString().slice(-4)}`,
       name: "Supplier Demand Test",
-      type: "book",
-      contactPerson: "Contact",
-      phone: "0812345678",
-      address: "Address",
-      createdAt: now,
-      updatedAt: now,
     });
 
-    await db.insert(books).values({
-      id: bookId,
+    const b = await createTestBook(db, {
+      id: `b-dem-${stamp}`,
       isbn: `ISBN-DEM-${stamp}`,
       title: "PRIME MATH 1A COURSEBOOK DEMAND TEST",
-      author: "Scholastic",
-      publisher: "Cambridge",
       price: 198600,
       buyPrice: 158880,
-      createdAt: now,
-      updatedAt: now,
     });
 
     await db.insert(bookSuppliers).values({
-      bookId,
-      supplierId,
-      createdAt: now,
+      bookId: b.id,
+      supplierId: sup.id,
+      createdAt: new Date().toISOString(),
     });
 
-    await db.insert(bookPackages).values({
-      id: packageId,
+    const pkg = await createTestPackage(db, {
+      id: `pkg-dem-${stamp}`,
       code: `PKG-DEM-${stamp}`,
       name: "Paket Demand Test Kelas 9 INTER",
       gradeLevel,
-      curriculumType,
+      curriculumType: curriculumType as "international" | "national",
       academicYear: year,
       price: 198600,
-      createdAt: now,
-      updatedAt: now,
     });
 
     await db.insert(bookPackageItems).values({
       id: `bpi-dem-${stamp}`,
-      packageId,
-      bookId,
+      packageId: pkg.id,
+      bookId: b.id,
       quantity: 1,
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     });
 
-    await db.insert(students).values({
-      id: studentId,
-      schoolId,
+    const stu = await createTestStudent(db, {
+      id: `std-dem-${stamp}`,
+      schoolId: SCHOOL_IDS.ALW_1_HQ,
       nis: `NIS-DEM-${stamp}`,
       name: "Student Demand Test",
       gradeLevel,
-      curriculumType,
+      curriculumType: curriculumType as "international" | "national",
       academicYear: year,
       status: "active",
-      createdAt: now,
-      updatedAt: now,
     });
 
     try {
       mockActor("central_admin", null);
       const res = await procurementRouter.request(
-        `/book-demand-summary?supplierId=${supplierId}&academicYear=${year}&bufferPercentage=10`,
+        `/book-demand-summary?supplierId=${sup.id}&academicYear=${year}&bufferPercentage=10`,
         { method: "GET" }
       );
       expect(res.status).toBe(200);
@@ -1412,7 +1393,7 @@ describe("PO supplier exclusivity (#143)", () => {
       expect(json.success).toBe(true);
       expect(Array.isArray(json.data.proposedItems)).toBe(true);
 
-      const item = json.data.proposedItems.find((p: { bookId: string }) => p.bookId === bookId);
+      const item = json.data.proposedItems.find((p: { bookId: string }) => p.bookId === b.id);
       expect(item).toBeDefined();
       expect(item.studentCount).toBe(1);
       // Buffer 10%: ceil(1 * 1.1) = 2 eks
@@ -1420,12 +1401,12 @@ describe("PO supplier exclusivity (#143)", () => {
       expect(item.unitPrice).toBe(158880);
     } finally {
       mockActor("central_admin", null);
-      await db.delete(students).where(eq(students.id, studentId));
-      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, packageId));
-      await db.delete(bookPackages).where(eq(bookPackages.id, packageId));
-      await db.delete(bookSuppliers).where(and(eq(bookSuppliers.bookId, bookId), eq(bookSuppliers.supplierId, supplierId)));
-      await db.delete(books).where(eq(books.id, bookId));
-      await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+      await db.delete(students).where(eq(students.id, stu.id));
+      await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, pkg.id));
+      await db.delete(bookPackages).where(eq(bookPackages.id, pkg.id));
+      await db.delete(bookSuppliers).where(and(eq(bookSuppliers.bookId, b.id), eq(bookSuppliers.supplierId, sup.id)));
+      await db.delete(books).where(eq(books.id, b.id));
+      await db.delete(suppliers).where(eq(suppliers.id, sup.id));
     }
   });
 

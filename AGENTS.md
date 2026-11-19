@@ -57,7 +57,7 @@ Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokum
 2. **Default sekuensial**: satu tiket per commit, satu integration branch.
 3. **Paralel hanya bila manifest ada**: fan-out diizinkan bila lane file-disjoint di **satu working tree** dan `docs/agents/lanes.json` dideklarasikan.
 4. **Aturan lane** (`CODING_STANDARDS.md` §8): file bersama (`schema.ts`, `public-orders.ts`, dsb.) milik satu lane. Commit + gate repo-wide dijalankan serial oleh agent utama yang wajib menutup dengan `check:all`.
-5. **Pantau CI & Larangan Merge Sebelum Pass**: satu `gh pr checks` berkala hingga status hijau (`pass`); dilarang keras merge atau `--auto` saat checks belum selesai atau masih gagal (§0.77).
+5. **Pantau CI & Larangan Merge Tanpa Izin Eksplisit**: pantau status hingga hijau (`pass`); dilarang keras merge atau `--auto` saat checks belum selesai atau masih gagal (§0.77). **Agen DILARANG keras mengeksekusi `gh pr merge` sendiri tanpa persetujuan eksplisit dari user di chat** (status CI hijau adalah syarat untuk meminta review/izin merge ke pengguna, bukan izin merge otomatis). Tiket perbaikan logic wajib memodifikasi fungsionalitas di `src/` (bukan hanya tes pendamping).
 6. **Dilarang commit ke `main`/`master` & Dilarang Commit Kosong**: mendarat lewat branch + PR, ditegakkan branch guard di pre-commit hook (bypass darurat: `ALLOW_MAIN_COMMIT=1`). Setiap commit tiket wajib berisi perubahan kode nyata (`git diff --cached --quiet` ditolak oleh empty-commit guard, bypass: `ALLOW_EMPTY_COMMIT=1`).
 
 ---
