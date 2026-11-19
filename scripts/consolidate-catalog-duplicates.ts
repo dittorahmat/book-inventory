@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { normalizeBookTitle } from "../src/lib/isbn";
 
 export interface DuplicateGroup {
   normalizedTitle: string;
@@ -16,12 +17,19 @@ export function consolidateBookDuplicates(dbPath = "./data/inventory.db"): {
   const db = new Database(dbPath);
 
   // 1. Temukan seluruh judul yang memiliki duplikasi ID buku
-  const duplicateTitlesQuery = db.query(`
-    SELECT UPPER(TRIM(title)) as norm_title, COUNT(*) as cnt
-    FROM books
-    GROUP BY UPPER(TRIM(title))
-    HAVING cnt > 1
-  `).all() as Array<{ norm_title: string; cnt: number }>;
+  const allBookTitles = db.query(`SELECT id, title FROM books`).all() as Array<{ id: string; title: string }>;
+  const titleGroups = new Map<string, string[]>();
+  for (const b of allBookTitles) {
+    const key = normalizeBookTitle(b.title);
+    if (!titleGroups.has(key)) {
+      titleGroups.set(key, []);
+    }
+    titleGroups.get(key)!.push(b.id);
+  }
+
+  const duplicateNormTitles = Array.from(titleGroups.entries())
+    .filter(([, ids]) => ids.length > 1)
+    .map(([normTitle]) => normTitle);
 
   let orphansRemoved = 0;
   let stockRowsCleaned = 0;
@@ -29,7 +37,7 @@ export function consolidateBookDuplicates(dbPath = "./data/inventory.db"): {
   let consolidatedTitles = 0;
 
   db.transaction(() => {
-    for (const row of duplicateTitlesQuery) {
+    for (const normTitle of duplicateNormTitles) {
       const allMatches = db.query(`
         SELECT 
           b.id, 
@@ -43,7 +51,7 @@ export function consolidateBookDuplicates(dbPath = "./data/inventory.db"): {
         FROM books b
         WHERE UPPER(TRIM(b.title)) = ?
         ORDER BY in_package DESC, in_orders DESC, in_transfers DESC, in_pos DESC, b.created_at ASC
-      `).all(row.norm_title) as Array<{
+      `).all(normTitle) as Array<{
         id: string;
         isbn: string;
         title: string;

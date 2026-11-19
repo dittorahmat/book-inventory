@@ -87,12 +87,12 @@ export function normalizeCanonicalCurriculum(curriculumType: string): Curriculum
 
 /**
  * Pemetaan ekspresi SQL SQLite untuk normalisasi kurikulum/program siswa dan paket buku (§0.59).
- * Menyelaraskan variasi penamaan legacy/DB ('INTERNATIONAL' -> 'INTER', 'NATIONAL' -> 'MQ').
+ * Menyelaraskan variasi penamaan legacy/DB ('INTERNATIONAL' -> 'INTER', 'NATIONAL' -> 'MQ', 'CAMBRIDGE' -> 'INTER', dsb.).
  */
 export function sqlNormalizeCurriculum(columnSql: SQL | ReturnType<typeof sql>): SQL {
   return sql`CASE 
-    WHEN UPPER(TRIM(${columnSql})) = 'INTERNATIONAL' THEN 'INTER'
-    WHEN UPPER(TRIM(${columnSql})) = 'NATIONAL' THEN 'MQ'
+    WHEN UPPER(TRIM(${columnSql})) IN ('INTERNATIONAL', 'CAMBRIDGE', 'IB') THEN 'INTER'
+    WHEN UPPER(TRIM(${columnSql})) IN ('NATIONAL', 'REGULER', 'DIKNAS') THEN 'MQ'
     ELSE UPPER(TRIM(${columnSql}))
   END`;
 }
