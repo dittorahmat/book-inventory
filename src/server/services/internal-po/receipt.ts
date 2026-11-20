@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { internalShipmentItems, internalShipments } from "../../../db/schema";
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { moveInventoryStock } from "../stock/movement";
 
 export type InternalReceiptCondition = "good" | "damaged" | "missing";
 
@@ -28,10 +29,10 @@ type InternalShipmentItemRow = typeof internalShipmentItems.$inferSelect;
 
 /**
  * Penerimaan Surat Jalan Internal oleh cabang: validasi keanggotaan baris
- * pra-tulis (400, bukan 500), lalu tulis kondisi per baris + status
+ * pra-tulis (400, bukan 500), mutasi kredit stok cabang untuk kondisi good,
+ * catat adjustment audit untuk kondisi rusak/hilang, lalu tulis kondisi per baris + status
  * (`delivered` bila semua baik, `discrepancy` bila ada non-baik) dalam satu
- * batch atomik via seam `lib/d1-write`. Mutasi stok fisik bukan di sini —
- * itu milik Transfer Shipment tertaut (ADR 0003).
+ * batch atomik via seam `lib/d1-write`.
  */
 export async function receiveInternalShipment(
   database: AppDatabase,
@@ -55,10 +56,81 @@ export async function receiveInternalShipment(
     .select()
     .from(internalShipmentItems)
     .where(eq(internalShipmentItems.shipmentId, shipmentId));
-  const known = new Set(lines.map((l) => l.id));
-  const foreign = input.items.find((it) => !known.has(it.shipmentItemId));
+  const linesMap = new Map(lines.map((l) => [l.id, l]));
+  const foreign = input.items.find((it) => !linesMap.has(it.shipmentItemId));
   if (foreign) {
     return { ok: false, status: 400, message: `Baris ${foreign.shipmentItemId} bukan bagian dari Surat Jalan ini` };
+  }
+
+  const destinationSchoolId = shipment.destinationSchoolId ?? undefined;
+
+  // Mutasi penambahan stok cabang (transfer_receive untuk good, audit adjustment untuk damaged/missing)
+  const creditRollbacks: Array<{ packageId?: string; bookId?: string; quantity: number }> = [];
+  for (const item of input.items) {
+    const line = linesMap.get(item.shipmentItemId);
+    if (!line) continue;
+
+    if (item.condition === "good") {
+      if (line.packageId) {
+        const res = await moveInventoryStock(database, {
+          movementType: "transfer_receive",
+          itemType: "package",
+          packageId: line.packageId,
+          toSchoolId: destinationSchoolId,
+          quantity: line.quantity,
+        });
+        if (!res.ok) {
+          for (const rb of creditRollbacks) {
+            await moveInventoryStock(database, {
+              movementType: "transfer_dispatch",
+              itemType: rb.packageId ? "package" : "loose",
+              packageId: rb.packageId,
+              bookId: rb.bookId,
+              fromSchoolId: destinationSchoolId,
+              quantity: rb.quantity,
+            });
+          }
+          return { ok: false, status: 400, message: res.message || "Gagal menambah stok penerimaan di cabang" };
+        }
+        creditRollbacks.push({ packageId: line.packageId, quantity: line.quantity });
+      } else if (line.bookId) {
+        const res = await moveInventoryStock(database, {
+          movementType: "transfer_receive",
+          itemType: "loose",
+          bookId: line.bookId,
+          toSchoolId: destinationSchoolId,
+          quantity: line.quantity,
+        });
+        if (!res.ok) {
+          for (const rb of creditRollbacks) {
+            await moveInventoryStock(database, {
+              movementType: "transfer_dispatch",
+              itemType: rb.packageId ? "package" : "loose",
+              packageId: rb.packageId,
+              bookId: rb.bookId,
+              fromSchoolId: destinationSchoolId,
+              quantity: rb.quantity,
+            });
+          }
+          return { ok: false, status: 400, message: res.message || "Gagal menambah stok buku penerimaan di cabang" };
+        }
+        creditRollbacks.push({ bookId: line.bookId, quantity: line.quantity });
+      }
+    } else {
+      // Kondisi damaged atau missing: catat audit adjustment di cabang tanpa menambah saldo available cabang
+      await moveInventoryStock(database, {
+        movementType: "adjustment",
+        itemType: line.packageId ? "package" : "loose",
+        packageId: line.packageId ?? undefined,
+        bookId: line.bookId ?? undefined,
+        schoolId: destinationSchoolId,
+        quantity: -line.quantity,
+        reason: item.condition === "damaged" ? "damaged" : "missing",
+        referenceDocumentNumber: shipment.deliveryNoteNumber,
+        notes: item.notes || `Selisih penerimaan Surat Jalan ${shipment.deliveryNoteNumber}: kondisi ${item.condition}`,
+        updateStockBalance: false,
+      });
+    }
   }
 
   const hasDiscrepancy = input.items.some((it) => it.condition !== "good");

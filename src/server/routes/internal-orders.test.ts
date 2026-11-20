@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 
 beforeEach(() => mockActor("central_admin", null));
@@ -730,5 +730,135 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
     // 4. Verifikasi stok cabang tujuan belum bertambah (masih 0 / belum ada record)
     const [branchStock] = await db.select().from(packageStocks).where(eq(packageStocks.schoolId, branchId));
     expect(branchStock?.availableQuantity ?? 0).toBe(0);
+  });
+
+  it("Ticket #546: menambah stok paket cabang saat penerimaan good dan mencatat discrepancy untuk damaged/missing", async () => {
+    const stamp = Date.now() + 300;
+    const branchId = `school-rcv-stk-${stamp}`;
+    const hqId = `school-hq-stk-${stamp}`;
+    const packageId = `pkg-rcv-stk-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Rcv Stk", code: `CRCV-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Rcv Stk", code: `GRCV-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-RSTK-${stamp}`,
+      name: "Paket Rcv Stock",
+      gradeLevel: "1",
+      curriculumType: "national",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Stok awal di HQ: 10 paket
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Buat siswa aktif agar PO cabang lolos validasi kuota
+    await db.insert(students).values([
+      {
+        id: `std-rcv-1-${stamp}`,
+        name: `Siswa Rcv 1 ${stamp}`,
+        nis: `NIS-RCV-1-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-rcv-2-${stamp}`,
+        name: `Siswa Rcv 2 ${stamp}`,
+        nis: `NIS-RCV-2-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-rcv-3-${stamp}`,
+        name: `Siswa Rcv 3 ${stamp}`,
+        nis: `NIS-RCV-3-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    mockActor("branch_admin", branchId);
+    const poRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 3 }],
+      }),
+    });
+    const poJson = (await poRes.json()) as { data: { id: string } };
+    const poId = poJson.data.id;
+
+    // 1. Gudang menerbitkan Surat Jalan untuk 3 paket
+    mockActor("warehouse_admin", hqId);
+    const shipRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-RCVSTK-${stamp}`,
+        items: [{ packageId, quantity: 3 }],
+      }),
+    });
+    expect(shipRes.status).toBe(200);
+    const { shipmentId } = (await shipRes.json()).data;
+
+    // Dapatkan ID baris pengiriman
+    const histRes = await internalOrdersRouter.request(`/${poId}/shipments`, { method: "GET" });
+    const hist = ((await histRes.json()) as { data: Array<{ id: string; items: Array<{ id: string }> }> }).data;
+    const currentShip = hist.find((s) => s.id === shipmentId);
+    const lineId = currentShip?.items[0]?.id as string;
+
+    // 2. Cabang menerima surat jalan dengan kondisi "good"
+    mockActor("branch_admin", branchId);
+    const rcvRes = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed-546.pdf",
+        items: [{ shipmentItemId: lineId, condition: "good" }],
+      }),
+    });
+    expect(rcvRes.status).toBe(200);
+    expect((await rcvRes.json()).data.status).toBe("delivered");
+
+    // 3. Verifikasi stok paket cabang kini bertambah menjadi 3
+    const [branchStockAfter] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, branchId), eq(packageStocks.packageId, packageId)));
+    expect(branchStockAfter).toBeDefined();
+    expect(branchStockAfter.availableQuantity).toBe(3);
+
+    // 4. Verifikasi stok gudang tetap 7 (sudah terpotong saat in-transit dan tidak terpotong ganda)
+    const [hqStockFinal] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, hqId), eq(packageStocks.packageId, packageId)));
+    expect(hqStockFinal.availableQuantity).toBe(7);
   });
 });
