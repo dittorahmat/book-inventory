@@ -28,7 +28,7 @@ import { adjustPackageStockQuery, adjustVariantStockQuery } from "./stock";
 import { isKhimarSdSize, isKhimarSdVariant } from "../../../lib/khimar-sd";
 import { KAIN_SIZE, type UniformError } from "./catalog";
 import type { SubmitUniformOrderPayload } from "../../../lib/uniform-types";
-import { canDispatchUniformOrder } from "../../../lib/order-handover-guard";
+import { buildReceiptDraft, receiptWriteQueries } from "../payment-ledger";
 
 export interface SubmitUniformOrderDeps extends WriteDeps {
   generateOrderNumber?: (nowIso: string) => string;
@@ -210,6 +210,15 @@ export async function submitUniformOrder(
     );
   }
 
+  let paymentProofUrl: string | null = null;
+  if (!isScholarship && payload.paymentProofBase64) {
+    paymentProofUrl = await defaultStorage.upload(
+      `uniform-payments/${payload.studentId}_${Date.now()}.jpg`,
+      decodeBase64ToBytes(payload.paymentProofBase64),
+      "image/jpeg"
+    );
+  }
+
   // Tulis atomik (§10): order + item + kurangi stok dalam satu batch.
   // Tiap percobaan memakai orderId baru + best-effort hapus order yatim
   // parsial — retry dengan id sama menabrak UNIQUE dan menyisakan order
@@ -220,6 +229,28 @@ export async function submitUniformOrder(
     const orderId = newWriteId(deps);
     const orderNumber = (deps?.generateOrderNumber ?? ((iso: string) => defaultOrderNumber(prefix, iso)))(now);
     try {
+      const transferAmt = payload.transferAmount ?? total;
+      const receiptId = !isScholarship && payload.paymentProofBase64 ? newWriteId(deps) : null;
+      let receiptDraft = null;
+      if (receiptId) {
+        const built = buildReceiptDraft(
+          {
+            studentId: payload.studentId,
+            schoolId,
+            amount: transferAmt,
+            allocations: [{ orderId, kind: "seragam", amount: total, billAmount: total }],
+            bankName: payload.bankName ?? "BCA",
+            referenceNumber: payload.referenceNumber ?? null,
+            proofUrl: paymentProofUrl,
+            transferDate: payload.transferDate,
+            notes: "Submitted via Uniform Public Form",
+          },
+          now,
+          receiptId
+        );
+        if (built.ok) receiptDraft = built.draft;
+      }
+
       queries.push(
         database.insert(uniformOrders).values({
           id: orderId,
@@ -234,11 +265,15 @@ export async function submitUniformOrder(
           paymentStatus: isScholarship ? "scholarship_pending" : "unpaid",
           orderType: isScholarship ? "scholarship" : "regular",
           scholarshipProofUrl,
+          packagePhotoUrl: paymentProofUrl,
           notes: payload.notes?.trim() || null,
           createdAt: now,
           updatedAt: now,
         })
       );
+      if (receiptDraft) {
+        queries.push(...receiptWriteQueries(database, receiptDraft));
+      }
       for (const rows of chunkRows(
         lines.map((l) => ({ id: newWriteId(deps), orderId, packageId: l.packageId, variantId: l.variantId, size: l.size, quantity: l.quantity, unitPriceSnapshot: l.unitPrice, createdAt: now }))
       )) {
@@ -303,89 +338,13 @@ export async function submitUniformOrder(
   return invalid("Gagal membuat order seragam, silakan ulangi.");
 }
 
-/** Verifikasi beasiswa seragam oleh staf: approve (lunas) atau reject. */
-export async function resolveUniformScholarship(
-  database: AppDatabase,
-  orderId: string,
-  action: "approve" | "reject",
-  deps?: WriteDeps
-): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
-  const now = writeNow(deps);
-  const [order]: Array<typeof uniformOrders.$inferSelect> = await database
-    .select()
-    .from(uniformOrders)
-    .where(eq(uniformOrders.id, orderId));
-  if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
-  if (order.orderType !== "scholarship" || order.paymentStatus !== "scholarship_pending") {
-    return invalid("Order ini bukan pengajuan beasiswa yang menunggu verifikasi.");
-  }
-  const paymentStatus = action === "approve" ? "paid" : "unpaid";
-  await database.update(uniformOrders).set({ paymentStatus, updatedAt: now }).where(eq(uniformOrders.id, orderId));
-  const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
-  return { ok: true, data: updated };
-}
+export {
+  resolveUniformScholarship,
+  markUniformShipped,
+  type MarkUniformShippedPayload,
+  type MarkUniformShippedDeps,
+} from "./order-dispatch";
 
-export interface MarkUniformShippedPayload {
-  shippingResi?: string;
-  packagePhotoBase64?: string;
-}
-
-export interface MarkUniformShippedDeps extends WriteDeps {
-  storage?: typeof defaultStorage;
-}
-
-/** Tandai kiriman gudang: belum_dikirim → sudah_dikirim (+ shippedAt). Satu arah, tanpa un-ship. */
-export async function markUniformShipped(
-  database: AppDatabase,
-  orderId: string,
-  payload?: MarkUniformShippedPayload,
-  deps?: MarkUniformShippedDeps
-): Promise<{ ok: true; data: typeof uniformOrders.$inferSelect } | UniformError> {
-  const now = writeNow(deps);
-  const [order]: Array<typeof uniformOrders.$inferSelect> = await database
-    .select()
-    .from(uniformOrders)
-    .where(eq(uniformOrders.id, orderId));
-  if (!order) return { ok: false, status: 404, message: "Order seragam tidak ditemukan." };
-  if (order.shipmentStatus === "sudah_dikirim") return invalid("Order sudah ditandai terkirim.");
-
-  const resi = (payload?.shippingResi ?? order.shippingResi)?.trim();
-  if (!resi) {
-    return invalid("Nomor resi kurir wajib diisi sebelum menandai kiriman.");
-  }
-
-  // Guard kelayakan pengiriman kanonik (§0.75): paid, partial, atau scholarship_approved
-  if (!canDispatchUniformOrder(order)) {
-    return invalid("Order belum layak kirim: pembayaran masih belum tercatat (unpaid).");
-  }
-
-  let packagePhotoUrl = order.packagePhotoUrl;
-  if (payload?.packagePhotoBase64) {
-    const storage = deps?.storage ?? defaultStorage;
-    packagePhotoUrl = await storage.upload(
-      `uniform-packages/${orderId}_${Date.now()}.jpg`,
-      decodeBase64ToBytes(payload.packagePhotoBase64),
-      "image/jpeg"
-    );
-  }
-
-  await database
-    .update(uniformOrders)
-    .set({
-      shipmentStatus: "sudah_dikirim",
-      shippingResi: resi,
-      packagePhotoUrl,
-      shippedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(uniformOrders.id, orderId));
-  await database
-    .update(students)
-    .set({ hasTakenUniform: true, updatedAt: now })
-    .where(eq(students.id, order.studentId));
-  const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
-  return { ok: true, data: updated };
-}
 
 
 

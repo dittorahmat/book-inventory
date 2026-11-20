@@ -437,6 +437,32 @@ describe("Portal retur seragam mandiri", () => {
     expect(oldOrder.supersededByOrderId).toBe(secondId);
   });
 
+  it("submits uniform order with paymentProofBase64 and generates payment receipt", async () => {
+    const stamp = `u_pay_${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const { kainId } = await seedCatalog(stamp);
+    await seedPriorOrder(schoolId, studentId, stamp);
+
+    const addr = "Jl. Melati Indah No. 12, RT 01 RW 02, Tangerang Selatan 15310";
+    const res = await postPublic("/orders", {
+      studentId,
+      academicYear: "2026/2027",
+      homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+      paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      bankName: "BCA",
+      referenceNumber: `REF-UNI-${stamp}`,
+      transferDate: "2026-10-19",
+      transferAmount: 150000,
+    });
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { success: boolean; data: { order: { id: string } } };
+    expect(json.success).toBe(true);
+
+    const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, json.data.order.id));
+    expect(order.packagePhotoUrl).toBeTruthy();
+  });
+
   it("submits uniform order and dispatches notification via OrderNotificationHub seam", async () => {
     const stamp = `u_hub_${Date.now()}`;
     const { schoolId, studentId } = await seedSchoolStudent(stamp);

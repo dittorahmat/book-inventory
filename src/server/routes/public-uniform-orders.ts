@@ -52,6 +52,11 @@ const submitUniformOrderSchema = z
     notes: z.string().optional(),
     orderType: z.enum(["regular", "scholarship"]).default("regular"),
     scholarshipProofBase64: base64UploadSchema,
+    paymentProofBase64: base64UploadSchema,
+    bankName: z.string().optional(),
+    referenceNumber: z.string().optional(),
+    transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
+    transferAmount: z.number().int().min(1).optional(),
     replacePendingOrderId: idSchema.optional(),
   })
   .refine((v) => v.items.every((i) => (i.packageId ? 1 : 0) + (i.variantId ? 1 : 0) === 1), {

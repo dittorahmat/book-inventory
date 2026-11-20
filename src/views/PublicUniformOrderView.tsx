@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Shirt } from "lucide-react";
 import { useUniformOrder } from "../components/uniform/useUniformOrder";
 import { UniformSearchStep } from "../components/uniform/UniformSearchStep";
 import { UniformItemStep } from "../components/uniform/UniformItemStep";
+import { UniformOrderPaymentSection } from "../components/uniform/UniformOrderPaymentSection";
 import { FormFieldFeedback, FormSummaryAlert } from "../components/ui/FormFieldFeedback";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { validateHomeAddress } from "../lib/home-address";
@@ -298,8 +299,12 @@ export function PublicUniformOrderView() {
             <div className="flex justify-between"><span className="text-[#65676B]">Murid</span><span className="font-semibold">{order.student.name}</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Item</span><span className="font-semibold">{order.itemCount} item</span></div>
             <div className="flex justify-between"><span className="text-[#65676B]">Total bayar</span><span className="font-bold">{order.orderType === "scholarship" ? "Rp 0 (Beasiswa)" : formatRupiah(order.total)}</span></div>
-            <p className="text-[#65676B]">Seragam diasumsikan lunas — gudang menagih ke sekolah cabang.</p>
+            <p className="text-[#65676B]">Seragam dikirim ke alamat rumah setelah konfirmasi pembayaran.</p>
           </div>
+
+          {order.orderType === "regular" && (
+            <UniformOrderPaymentSection order={order} />
+          )}
           {addressAttempted && (!order.canSubmit || !order.isPostalCodeValid) && (
             <FormSummaryAlert
               title="Data Pengiriman Belum Lengkap"

@@ -21,6 +21,8 @@ import {
 
 export type UniformStep = 1 | 2 | 3 | 4;
 
+export type UseUniformOrderReturn = ReturnType<typeof useUniformOrder>;
+
 export function useUniformOrder() {
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [student, setStudent] = useState<UniformStudent | null>(null);
@@ -43,6 +45,11 @@ export function useUniformOrder() {
   const [notes, setNotes] = useState("");
   const [orderType, setOrderType] = useState<"regular" | "scholarship">("regular");
   const [scholarshipProof, setScholarshipProof] = useState("");
+  const [paymentProof, setPaymentProof] = useState("");
+  const [bankName, setBankName] = useState("BCA");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [transferDate, setTransferDate] = useState("");
+  const [transferAmount, setTransferAmount] = useState<number>(0);
   const [satuanOpen, setSatuanOpen] = useState(true);
   const [uniformMode, setUniformMode] = useState<"package" | "satuan">("package");
   const [step, setStep] = useState<UniformStep>(1);
@@ -303,7 +310,16 @@ export function useUniformOrder() {
         sizeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
         notes: notes.trim() || undefined,
         ...(replacePendingOrderId ? { replacePendingOrderId } : {}),
-        ...(orderType === "scholarship" ? { orderType, scholarshipProofBase64: scholarshipProof } : {}),
+        ...(orderType === "scholarship"
+          ? { orderType, scholarshipProofBase64: scholarshipProof }
+          : {
+              orderType,
+              paymentProofBase64: paymentProof || undefined,
+              bankName: bankName || undefined,
+              referenceNumber: referenceNumber || undefined,
+              transferDate: transferDate || undefined,
+              transferAmount: transferAmount || total || undefined,
+            }),
       });
       setSuccess({ orderNumber: res.order.orderNumber, total: res.totalAmount });
       setStep(4);
@@ -323,7 +339,10 @@ export function useUniformOrder() {
     street, setStreet, rt, setRt, rw, setRw, houseNumber, setHouseNumber,
     kelurahan, setKelurahan, kecamatan, setKecamatan, city, setCity,
     structuredValidation,
-    orderType, setOrderType, scholarshipProof, setScholarshipProof, satuanOpen,
+    orderType, setOrderType, scholarshipProof, setScholarshipProof,
+    paymentProof, setPaymentProof, bankName, setBankName, referenceNumber, setReferenceNumber,
+    transferDate, setTransferDate, transferAmount, setTransferAmount,
+    satuanOpen,
     uniformMode, setUniformMode, jenjang,
     missingOlahragaVariants, missingPackageOlahraga, hasMissingOlahragaSize,
     submitting, error, setError, success, total, itemCount, canSubmit,
