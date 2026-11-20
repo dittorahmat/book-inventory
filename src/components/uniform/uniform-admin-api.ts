@@ -258,14 +258,21 @@ export const createUniformReject = (payload: { variantId: string; size?: string;
 export const resolveUniformScholarship = (id: string, action: "approve" | "reject"): Promise<unknown> =>
   postJson(`/api/uniforms/orders/${id}/scholarship`, { action }, "Gagal memproses beasiswa.");
 
-export const downloadUniformCsv = async (params: { schoolId: string; format: "packing" | "ekspedisi"; paidOnly?: boolean }): Promise<void> => {
+export const downloadUniformCsv = async (params: {
+  schoolId: string;
+  format: "packing" | "ekspedisi" | "excel-ekspedisi" | "excel-internal";
+  paidOnly?: boolean;
+}): Promise<void> => {
   const res = await fetch(buildQuery("/api/uniforms/orders/export", { ...params, paidOnly: String(params.paidOnly ?? true) }));
   if (!res.ok) throw new Error("Gagal mengunduh data.");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `seragam-${params.format}-${params.schoolId}.csv`;
+  const isExcel = params.format.startsWith("excel-");
+  const ext = isExcel ? "xlsx" : "csv";
+  const name = params.format === "excel-ekspedisi" ? "ekspedisi" : params.format === "excel-internal" ? "internal-logistik" : params.format;
+  a.download = `seragam-${name}-${params.schoolId}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
 };

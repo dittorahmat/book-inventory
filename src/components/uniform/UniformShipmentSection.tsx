@@ -163,7 +163,7 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
     }
   };
 
-  const handleExport = async (type: "packing" | "ekspedisi") => {
+  const handleExport = async (type: "packing" | "ekspedisi" | "excel-ekspedisi" | "excel-internal") => {
     try {
       await downloadUniformCsv({ schoolId: schoolId || "", format: type, paidOnly });
     } catch (err) {
