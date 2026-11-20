@@ -20,6 +20,7 @@ import {
   listOutstandingPOs,
   createManualShipment,
   receiveInternalShipment,
+  cancelInternalShipment,
 } from "../services/internal-po";
 import { idSchema } from "../lib/validators";
 import { isLogisticsRole } from "../../lib/staff-roles";
@@ -290,6 +291,27 @@ internalOrdersRouter.delete("/:id", async (c) => {
       success: true,
       message: `PO Internal "${result.data.poNumber}" berhasil dihapus.`,
       data: result.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 7. DELETE Surat Jalan Pengiriman Internal (Pembatalan Surat Jalan & Rollback Stok In-Transit)
+internalOrdersRouter.delete("/shipments/:shipmentId", async (c) => {
+  try {
+    const actor = await resolveLogisticsActor(c);
+    const shipmentId = idSchema.parse(c.req.param("shipmentId"));
+    const sourceSchoolId = actor.schoolId || "school-warehouse";
+
+    const result = await cancelInternalShipment(db, shipmentId, sourceSchoolId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: result.message,
     });
   } catch (err) {
     return accessErrorResponse(c, err);

@@ -11,8 +11,8 @@ import {
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
-import { moveInventoryStock } from "../stock";
 import { SCHOOL_IDS } from "../../lib/school-constants";
+import { dispatchShipmentStock } from "./stock-sync";
 import type {
   CreateInternalPoInput,
   CreateInternalPoResult,
@@ -261,32 +261,10 @@ export async function fulfillInternalPo(
 
   const originSchoolId = input.sourceSchoolId || SCHOOL_IDS.WAREHOUSE;
 
-  // 1. Validasi saldo dan debit stok gudang asal (fase in-transit) via single-writer moveInventoryStock
-  const stockRollbacks: Array<{ packageId: string; quantity: number }> = [];
-  for (const item of input.items) {
-    if (item.packageId) {
-      const res = await moveInventoryStock(database, {
-        movementType: "transfer_dispatch",
-        itemType: "package",
-        packageId: item.packageId,
-        fromSchoolId: originSchoolId,
-        quantity: item.quantity,
-      });
-      if (!res.ok) {
-        // Rollback stok yang sudah terpotong jika ada item sebelumnya yang lolos
-        for (const rb of stockRollbacks) {
-          await moveInventoryStock(database, {
-            movementType: "transfer_receive",
-            itemType: "package",
-            packageId: rb.packageId,
-            toSchoolId: originSchoolId,
-            quantity: rb.quantity,
-          });
-        }
-        return { ok: false, status: 400, message: res.message || "Stok paket di gudang asal tidak mencukupi" };
-      }
-      stockRollbacks.push({ packageId: item.packageId, quantity: item.quantity });
-    }
+  // 1. Validasi saldo dan debit stok gudang asal (fase in-transit) via stock-sync seam
+  const dispatchRes = await dispatchShipmentStock(database, originSchoolId, input.items);
+  if (!dispatchRes.ok) {
+    return { ok: false, status: 400, message: dispatchRes.message || "Stok paket di gudang asal tidak mencukupi" };
   }
 
   try {

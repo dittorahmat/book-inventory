@@ -196,7 +196,7 @@ export function InternalProcurementView({
       {/* Panel Ringkasan Stok Paket Cabang (Read-Only) */}
       {!isLogistics && (
         <BranchPackageStockCard
-          school={schools.find((s) => s.id === (filterSchoolId ?? activeSchool?.id)) ?? activeSchool}
+          school={activeSchool}
         />
       )}
 

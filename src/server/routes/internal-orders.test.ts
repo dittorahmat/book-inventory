@@ -8,7 +8,8 @@ afterEach(() => {
 });
 import { internalOrdersRouter } from "./internal-orders";
 import { db } from "../../db";
-import { schools, bookPackages, books, students, packageStocks } from "../../db/schema";
+import { schools, bookPackages, books, students, packageStocks, studentBookOrders } from "../../db/schema";
+import { handoverPackage } from "../services/order-handover";
 
 describe("Internal Orders & Multi-Delivery Shipments API", () => {
   it("creates internal PO from branch to HQ and records multiple partial shipments without duplicating PO", async () => {
@@ -860,5 +861,33 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       .from(packageStocks)
       .where(and(eq(packageStocks.schoolId, hqId), eq(packageStocks.packageId, packageId)));
     expect(hqStockFinal.availableQuantity).toBe(7);
+
+    // 5. Uji integrasi serah terima pesanan siswa: handover berhasil karena stok paket cabang sudah terisi
+    const studentOrderId = `ord-int-ho-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: studentOrderId,
+      orderNumber: `ORD-HO-${stamp}`.slice(0, 32),
+      studentId: `std-rcv-1-${stamp}`,
+      schoolId: branchId,
+      packageId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 150000,
+      paidAmount: 150000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const handoverRes = await handoverPackage(db, studentOrderId, {
+      recipientName: "Wali Murid",
+    });
+    expect(handoverRes.ok).toBe(true);
+
+    const [branchStockAfterHandover] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, branchId), eq(packageStocks.packageId, packageId)));
+    expect(branchStockAfterHandover.availableQuantity).toBe(2);
   });
 });
