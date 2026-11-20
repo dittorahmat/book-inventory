@@ -160,16 +160,22 @@ export function useUniformOrder() {
 
       // Pre-seleksi ukuran Khimar SD sesuai kelas siswa (ADR-0024):
       // Kelas 1-2 -> Size 1, Kelas 3-6 -> Size 4
+      // Dan otomatis set default qty = 1 untuk setiap varian Khimar SD (Issue #533)
       const defaultKhimarSize = getDefaultKhimarSdSize(s.gradeLevel);
       if (defaultKhimarSize) {
         const initialSizes: Record<string, string> = {};
+        const initialKhimarQty: Record<string, number> = {};
         for (const v of catalogData.variants) {
           if (isKhimarSdVariant(v)) {
             initialSizes[v.id] = defaultKhimarSize;
+            initialKhimarQty[`${v.id}::${defaultKhimarSize}`] = 1;
           }
         }
         if (Object.keys(initialSizes).length > 0) {
           setSizeFor((prev) => ({ ...prev, ...initialSizes }));
+        }
+        if (Object.keys(initialKhimarQty).length > 0) {
+          setSatuanQty((prev) => ({ ...prev, ...initialKhimarQty }));
         }
       }
 

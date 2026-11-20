@@ -222,6 +222,7 @@ describe("useUniformOrder hook API interaction", () => {
     });
 
     expect(result.current.sizeFor["uv-khimar-sd-1"]).toBe("1");
+    expect(result.current.satuanQty["uv-khimar-sd-1::1"]).toBe(1);
 
     // Ganti ke murid SD kelas 4 -> Size 4
     await act(async () => {
@@ -240,6 +241,7 @@ describe("useUniformOrder hook API interaction", () => {
     });
 
     expect(result.current.sizeFor["uv-khimar-sd-1"]).toBe("4");
+    expect(result.current.satuanQty["uv-khimar-sd-1::4"]).toBe(1);
   });
 
   it("validates postal code: requires 5 digits and combines with address on submit", async () => {

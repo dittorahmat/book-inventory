@@ -364,4 +364,63 @@ describe("UniformItemStep", () => {
     expect(screen.queryByText("2XL")).toBeNull();
     expect(screen.queryByText("5XL")).toBeNull();
   });
+
+  it("renders Khimar SD with default quantity 1 and allows changing size and quantity (Issue #533)", () => {
+    let bumpedKey: string | null = null;
+    let bumpedDelta: number | null = null;
+
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "uv-khimar-1",
+          code: "UNI-SD-AKH-KHIMAR_HIJAU",
+          name: "KHIMAR HIJAU (SD Akhwat)",
+          kind: "kain_harian" as const,
+          gender: "female" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 225000,
+          sizeChartUrl: null,
+          sizes: ["1", "4"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: { "uv-khimar-1::4": 1 },
+      sizeFor: { "uv-khimar-1": "4" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: (key: string, delta: number) => {
+        bumpedKey = key;
+        bumpedDelta = delta;
+      },
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "4" },
+      total: 225000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+
+    // Memastikan judul dan harga tertera
+    expect(screen.getByText("KHIMAR HIJAU (SD Akhwat)")).toBeDefined();
+    expect(screen.getByText("Rp 225.000")).toBeDefined();
+
+    // Verifikasi stepper menunjukkan qty 1
+    const qtyDisplays = screen.getAllByText("1");
+    expect(qtyDisplays.length).toBeGreaterThan(0);
+
+    // Klik tombol minus stepper untuk mengurangi qty
+    const minusBtn = screen.getByRole("button", { name: "−" });
+    fireEvent.click(minusBtn);
+    expect(bumpedKey as string | null).toBe("uv-khimar-1::4");
+    expect(bumpedDelta as number | null).toBe(-1);
+  });
 });
