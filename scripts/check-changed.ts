@@ -78,6 +78,7 @@ if (has(/^src\//)) {
   runBun("check:string-packing");
   runBun("check:no-silent-catch");
   runBun("check:form-buttons");
+  runBun("check:client-file-guards");
 }
 
 if (has(/^(src\/server\/|src\/db\/|drizzle\/)/)) {

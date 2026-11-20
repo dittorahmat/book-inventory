@@ -61,6 +61,10 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
       setError("Harap pilih berkas spreadsheet .xlsx / .xls.");
       return null;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Ukuran berkas spreadsheet maksimal 5MB.");
+      return null;
+    }
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -218,10 +222,16 @@ export function SupplierMappingModal({ onClose, onSuccess }: SupplierMappingModa
                     type="file"
                     ref={fileInputRef}
                     onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setFile(e.target.files[0]);
-                        setError(null);
+                      const selected = e.target.files?.[0];
+                      if (!selected) return;
+                      if (selected.size > 5 * 1024 * 1024) {
+                        setError("Ukuran berkas spreadsheet maksimal 5MB.");
+                        setFile(null);
+                        e.target.value = "";
+                        return;
                       }
+                      setFile(selected);
+                      setError(null);
                     }}
                     accept=".xlsx, .xls"
                     className="hidden"

@@ -59,6 +59,17 @@ export function PaymentConfirmView({ kind, token }: Props) {
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Berkas bukti transfer harus berupa gambar (JPG, PNG).");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Ukuran berkas bukti transfer maksimal 5MB.");
+      e.target.value = "";
+      return;
+    }
+    setError(null);
     const reader = new FileReader();
     reader.onloadend = () => setProof(reader.result as string);
     reader.readAsDataURL(file);

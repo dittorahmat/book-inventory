@@ -46,6 +46,12 @@ export function StudentCurriculumOverrideModal({
       setApprovalProofBase64("");
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, approvalProof: "Ukuran dokumen surat persetujuan maksimal 5MB." }));
+      setApprovalProofBase64("");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setApprovalProofBase64(reader.result as string);
