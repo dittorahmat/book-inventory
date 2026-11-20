@@ -48,6 +48,7 @@ export const cashierPaymentSchema = z
     bankName: z.string().optional(),
     referenceNumber: z.string().optional(),
     verifiedByUserId: z.string().optional(),
+    transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
     notes: z.string().optional(),
   })
   .refine(
@@ -279,6 +280,7 @@ export interface CashierPaymentInput {
   bankName?: string;
   referenceNumber?: string;
   verifiedByUserId?: string | null;
+  transferDate?: string;
   notes?: string;
 }
 
@@ -316,6 +318,7 @@ export const recordCashierPayment = async (
       referenceNumber: input.referenceNumber,
       verifiedByUserId: input.verifiedByUserId ?? null,
       autoVerify: true,
+      transferDate: input.transferDate,
       notes: input.notes,
     },
     now,

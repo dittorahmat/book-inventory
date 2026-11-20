@@ -154,7 +154,7 @@ export const rejectUniformPayment = (
 /** Input bayar kasir manual untuk order seragam (tunai/transfer). */
 export const payUniformOrder = (
   orderId: string,
-  payload: { transferAmount: number; allocationAmount: number; bankName: string; referenceNumber?: string }
+  payload: { transferAmount: number; allocationAmount: number; bankName: string; referenceNumber?: string; transferDate?: string }
 ): Promise<PaymentReviewResult> =>
   postJson<PaymentReviewResult>(
     `/api/uniforms/orders/${orderId}/pay`,

@@ -237,6 +237,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         bookAllocationAmount,
         bankName,
         referenceNumber,
+        transferDate: draft.transferDate,
         paymentProofBase64,
         notes,
         homeAddress,

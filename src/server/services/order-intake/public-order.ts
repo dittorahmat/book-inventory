@@ -42,6 +42,7 @@ export interface PaymentSubmissionInput {
   bookAllocationAmount?: number;
   bankName?: string;
   referenceNumber?: string;
+  transferDate?: string;
   paymentProofBase64?: string;
 }
 
@@ -209,6 +210,7 @@ export async function submitPublicOrder(
             ],
             bankName: input.payment?.bankName,
             referenceNumber: input.payment?.referenceNumber,
+            transferDate: input.payment?.transferDate,
             notes: "Submitted via Public Form",
           },
           now,

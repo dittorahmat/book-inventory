@@ -203,14 +203,14 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
     }
   };
 
-  const handlePay = async (transfer: string, allocation: string, bank: string) => {
+  const handlePay = async (transfer: string, allocation: string, bank: string, transferDate?: string) => {
     if (!payOrder) return;
     setPayBusy(true);
     setError(null);
     try {
       const t = parseInt(transfer) || 0;
       const a = parseInt(allocation) || 0;
-      const res = await payUniformOrder(payOrder.id, { transferAmount: t, allocationAmount: a, bankName: bank });
+      const res = await payUniformOrder(payOrder.id, { transferAmount: t, allocationAmount: a, bankName: bank, transferDate });
       setPayResult(`Pembayaran berhasil dicatat.${res.notification ? " " + formatNotification("verifikasi", res.notification) : ""}`);
       setPayOrder(null);
       await load();

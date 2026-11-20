@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
+import { todayWIB } from "../../lib/wib-time";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { validateRequiredText } from "../../lib/form-validation";
 import { allocationViolation } from "../../lib/order-allocation";
@@ -18,6 +19,7 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
   const [bookAllocation, setBookAllocation] = useState<number>(0);
   const [bankName, setBankName] = useState<string>("BCA");
   const [refNo, setRefNo] = useState<string>("");
+  const [transferDate, setTransferDate] = useState<string>(todayWIB());
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
@@ -63,6 +65,7 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
           bookAllocationAmount: bookAllocation,
           bankName: bankName.trim(),
           referenceNumber: refNo.trim() || undefined,
+          transferDate: transferDate || undefined,
         },
         "Gagal mencatat pembayaran"
       );
@@ -163,6 +166,15 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
               placeholder="Contoh: REF9821421"
               value={refNo}
               onChange={(e) => setRefNo(e.target.value)}
+              className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-1">Tanggal Transfer Bank</label>
+            <input
+              type="date"
+              value={transferDate}
+              onChange={(e) => setTransferDate(e.target.value)}
               className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
             />
           </div>

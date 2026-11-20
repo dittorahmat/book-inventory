@@ -38,6 +38,22 @@ describe("Public uniform confirm token", () => {
     expect(res.status).toBe(404);
     expect((await res.json()).success).toBe(false);
   });
+
+  it("menerima konfirmasi pembayaran dengan transferDate yang valid", async () => {
+    const res = await publicUniformOrdersRouter.request("/confirm/tok-test-dummy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transferAmount: 200000,
+        allocationAmount: 200000,
+        bankName: "BCA",
+        transferDate: "2026-10-21",
+        paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      }),
+    });
+    // Token tidak ditemukan (404), membuktikan validator payload lolos dan tidak 400
+    expect(res.status).toBe(404);
+  });
 });
 
 async function seedSchoolStudent(stamp: string, uuidIds = false) {

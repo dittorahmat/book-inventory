@@ -45,6 +45,8 @@ export interface ReceiptInput {
   verifiedByUserId?: string | null;
   createdByUserId?: string | null;
   autoVerify?: boolean;
+  /** Tanggal riil transfer / mutasi bank (YYYY-MM-DD atau ISO). Fallback ke `now`. */
+  transferDate?: string | null;
 }
 
 /** Kredit hasil hitung ulang satu order; bentuknya sama untuk buku dan seragam. */
@@ -219,7 +221,7 @@ export const buildReceiptDraft = (
         bankName: input.bankName?.trim() || "Tanpa Bank",
         referenceNumber: input.referenceNumber?.trim() || null,
         proofUrl: input.proofUrl ?? null,
-        receivedAt: now,
+        receivedAt: input.transferDate ? (input.transferDate.includes("T") ? input.transferDate : `${input.transferDate}T00:00:00.000Z`) : now,
         verifiedByUserId: input.autoVerify ? input.verifiedByUserId ?? null : null,
         verifiedAt: input.autoVerify ? now : null,
         notes: input.notes ?? null,

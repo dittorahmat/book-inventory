@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { X } from "lucide-react";
+import { todayWIB } from "../../lib/wib-time";
 
 interface UniformOngkirModalProps {
   isOpen: boolean;
@@ -94,7 +95,7 @@ interface UniformCashierPayModalProps {
   orderNumber: string;
   studentName: string;
   busy: boolean;
-  onSave: (transfer: string, allocation: string, bank: string) => void;
+  onSave: (transfer: string, allocation: string, bank: string, transferDate?: string) => void;
   onCancel: () => void;
 }
 
@@ -109,6 +110,7 @@ export function UniformCashierPayModal({
   const [transfer, setTransfer] = useState("");
   const [allocation, setAllocation] = useState("");
   const [bank, setBank] = useState("TUNAI");
+  const [transferDate, setTransferDate] = useState(todayWIB());
   const [error, setError] = useState<string | null>(null);
   const transferInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,7 +123,7 @@ export function UniformCashierPayModal({
       return;
     }
     setError(null);
-    onSave(transfer, allocation || transfer, bank);
+    onSave(transfer, allocation || transfer, bank, transferDate || undefined);
   };
 
   return (
@@ -173,6 +175,15 @@ export function UniformCashierPayModal({
               value={bank}
               onChange={(e) => setBank(e.target.value)}
               placeholder="TUNAI / BCA / MANDIRI"
+              className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-xs focus:outline-none focus:border-[#1877F2]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">Tanggal Transfer Bank</label>
+            <input
+              type="date"
+              value={transferDate}
+              onChange={(e) => setTransferDate(e.target.value)}
               className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-xs focus:outline-none focus:border-[#1877F2]"
             />
           </div>
