@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
-import { uniformOrders } from "../../../db/schema";
+import { students, uniformOrders } from "../../../db/schema";
 import { writeNow, type WriteDeps } from "../../lib/d1-write";
 import { defaultStorage } from "../../../services/storage";
 import { decodeBase64ToBytes } from "../../base64";
@@ -85,6 +85,10 @@ export async function markUniformShipped(
       updatedAt: now,
     })
     .where(eq(uniformOrders.id, orderId));
+  await database
+    .update(students)
+    .set({ hasTakenUniform: true, uniformReceivedAt: now, updatedAt: now })
+    .where(eq(students.id, order.studentId));
   const [updated] = await database.select().from(uniformOrders).where(eq(uniformOrders.id, orderId));
   return { ok: true, data: updated };
 }
