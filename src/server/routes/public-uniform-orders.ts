@@ -16,6 +16,7 @@ import {
   requestUniformExchange,
   requestUniformRefund,
   submitUniformOrder,
+  isUniformPortalLowStockWarningEnabled,
   isUniformSatuanEnabled,
 } from "../services/uniform";
 import { requestStudentWithdrawal } from "../services/student-withdrawal";
@@ -75,10 +76,15 @@ publicUniformOrdersRouter.get("/search-students", zValidator("query", searchStud
 // Katalog seragam per tahun ajaran (katalog kecil, tanpa partisi sekolah).
 publicUniformOrdersRouter.get("/catalog", zValidator("query", catalogQuerySchema), async (c) => {
   const { academicYear } = c.req.valid("query");
-  const [variants, packages] = await Promise.all([listUniformVariants(db), listUniformPackages(db)]);
+  const [variants, packages, showLowStockWarning] = await Promise.all([
+    listUniformVariants(db),
+    listUniformPackages(db),
+    isUniformPortalLowStockWarningEnabled(db),
+  ]);
   return c.json({
     success: true,
     data: {
+      showLowStockWarning,
       variants: variants
         .filter((v) => v.variant.academicYear === academicYear)
         .map((v) => ({

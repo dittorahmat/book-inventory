@@ -4,9 +4,20 @@ export type { CreateUniformPackageInput, CreateVariantInput, PackageWithBom, Var
 export { createUniformPackage, createUniformVariant, listUniformPackages, listUniformVariants } from "./catalog";
 export type { UpdateVariantInput, UpdateUniformPackageInput } from "./mutation";
 export { updateUniformVariant, deleteUniformVariant, updateUniformPackage, deleteUniformPackage } from "./mutation";
-export { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY, UNIFORM_SATUAN_KEY } from "./orders";
+export {
+  DEFAULT_UNIFORM_ORDER_PREFIX,
+  UNIFORM_ORDER_PREFIX_KEY,
+  UNIFORM_PORTAL_SHOW_LOW_STOCK_WARNING_KEY,
+  UNIFORM_SATUAN_KEY,
+} from "./orders";
 export type { SubmitUniformOrderDeps, UniformOrderLine } from "./orders";
-export { isUniformSatuanEnabled, markUniformShipped, resolveUniformScholarship, submitUniformOrder } from "./orders";
+export {
+  isUniformPortalLowStockWarningEnabled,
+  isUniformSatuanEnabled,
+  markUniformShipped,
+  resolveUniformScholarship,
+  submitUniformOrder,
+} from "./orders";
 export type { ExchangeRequestInput, ResolveExchangeInput } from "./exchange";
 export type { RefundRequestInput } from "./returns";
 export {
@@ -29,7 +40,12 @@ export { importUniformShipping } from "./shipping-import";
 export type { UniformShippingCsvRow } from "./csv-row";
 export { EKSPEDISI_CSV_HEADER, PACKING_CSV_HEADER, normalizeCsvNis } from "./csv-row";
 export type { UniformNumbering } from "./numbering";
-export { getUniformNumbering, saveUniformNumbering, setUniformSatuanEnabled } from "./numbering";
+export {
+  getUniformNumbering,
+  saveUniformNumbering,
+  setUniformPortalLowStockWarningEnabled,
+  setUniformSatuanEnabled,
+} from "./numbering";
 export {
   UNIFORM_SHIPPING_INSTRUCTIONS_KEY,
   DEFAULT_UNIFORM_SHIPPING_INSTRUCTIONS,

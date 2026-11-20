@@ -159,6 +159,7 @@ describe("Portal seragam publik", () => {
     expect(ol?.sizes).toEqual(["S", "M"]);
     expect(ol?.sizeChartUrl).toBe("https://contoh.id/size-sd.png");
     expect((ol as { sizeDetails?: Array<{ size: string; chestWidthCm: number }> })?.sizeDetails?.length).toBeGreaterThan(0);
+    expect(catalog.data.showLowStockWarning).toBe(false);
   });
 
   it("submit satuan + paket; beli 2x = 2 order 1 murid", async () => {

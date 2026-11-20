@@ -488,4 +488,33 @@ describe("Settings penomoran seragam (USO/CLM customizable)", () => {
       body: JSON.stringify({ enabled: false }),
     });
   });
+
+  it("Settings uniform-portal-warning (GET & POST) > central admin updates low-stock warning toggle (Issue #534)", async () => {
+    mockActor("central_admin");
+    const getRes = await settingsRouter.request("/uniform-portal-warning");
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as { success: boolean; data: { showLowStockWarning: boolean } };
+    expect(getJson.success).toBe(true);
+
+    // Default harus false
+    expect(typeof getJson.data.showLowStockWarning).toBe("boolean");
+
+    // Toggle ke true
+    const postRes = await settingsRouter.request("/uniform-portal-warning", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect(postRes.status).toBe(200);
+    const postJson = (await postRes.json()) as { success: boolean; data: { showLowStockWarning: boolean } };
+    expect(postJson.success).toBe(true);
+    expect(postJson.data.showLowStockWarning).toBe(true);
+
+    // Rollback ke false
+    await settingsRouter.request("/uniform-portal-warning", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+  });
 });

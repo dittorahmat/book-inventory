@@ -364,4 +364,175 @@ describe("UniformItemStep", () => {
     expect(screen.queryByText("2XL")).toBeNull();
     expect(screen.queryByText("5XL")).toBeNull();
   });
+
+  it("renders Khimar SD with default quantity 1 and allows changing size and quantity (Issue #533)", () => {
+    let bumpedKey: string | null = null;
+    let bumpedDelta: number | null = null;
+
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "uv-khimar-1",
+          code: "UNI-SD-AKH-KHIMAR_HIJAU",
+          name: "KHIMAR HIJAU (SD Akhwat)",
+          kind: "kain_harian" as const,
+          gender: "female" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 225000,
+          sizeChartUrl: null,
+          sizes: ["1", "4"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: { "uv-khimar-1::4": 1 },
+      sizeFor: { "uv-khimar-1": "4" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: (key: string, delta: number) => {
+        bumpedKey = key;
+        bumpedDelta = delta;
+      },
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "4" },
+      total: 225000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+
+    // Memastikan judul dan harga tertera
+    expect(screen.getByText("KHIMAR HIJAU (SD Akhwat)")).toBeDefined();
+    expect(screen.getByText("Rp 225.000")).toBeDefined();
+
+    // Verifikasi stepper menunjukkan qty 1
+    const qtyDisplays = screen.getAllByText("1");
+    expect(qtyDisplays.length).toBeGreaterThan(0);
+
+    // Klik tombol minus stepper untuk mengurangi qty
+    const minusBtn = screen.getByRole("button", { name: "−" });
+    fireEvent.click(minusBtn);
+    expect(bumpedKey as string | null).toBe("uv-khimar-1::4");
+    expect(bumpedDelta as number | null).toBe(-1);
+  });
+
+  it("migrates existing Khimar SD quantity when size is changed in dropdown (Issue #533 AC 3)", () => {
+    const bumpedCalls: Array<{ key: string; delta: number }> = [];
+
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "uv-khimar-1",
+          code: "UNI-SD-AKH-KHIMAR_HIJAU",
+          name: "KHIMAR HIJAU (SD Akhwat)",
+          kind: "kain_harian" as const,
+          gender: "female" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 225000,
+          sizeChartUrl: null,
+          sizes: ["1", "4"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: { "uv-khimar-1::1": 1 },
+      sizeFor: { "uv-khimar-1": "1" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: (key: string, delta: number) => {
+        bumpedCalls.push({ key, delta });
+      },
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "1" },
+      total: 225000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+
+    // Buka dropdown Khimar SD
+    const dropdownBtn = screen.getByRole("button", { name: "Pilih Ukuran Khimar SD (Wajib)" });
+    fireEvent.click(dropdownBtn);
+
+    // Pilih Size 4
+    const optionSize4 = screen.getByText("Size 4 (Kelas 3 - 6)");
+    fireEvent.click(optionSize4);
+
+    // Kuantitas lama (Size 1) didebit dan kuantitas baru (Size 4) dikredit
+    expect(bumpedCalls).toEqual([
+      { key: "uv-khimar-1::1", delta: -1 },
+      { key: "uv-khimar-1::4", delta: 1 },
+    ]);
+  });
+
+  it("hides konveksi low stock warning by default and only shows when showLowStockWarning is true (Issue #534)", () => {
+    const lowStockVariant = {
+      id: "uv-ol-low",
+      code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+      name: "BAJU OLAHRAGA (SD Ikhwan)",
+      kind: "olahraga" as const,
+      gender: "male" as const,
+      jenjang: "sd" as const,
+      academicYear: "2026/2027",
+      price: 150000,
+      sizeChartUrl: null,
+      sizes: ["S"],
+      sizeDetails: [],
+      stock: [{ size: "S", quantity: 1 }], // stok 1 <= 5 (low stock)
+    };
+
+    // 1. Default / showLowStockWarning = false -> Banner tidak muncul
+    const orderWithoutWarning = {
+      visiblePackages: [],
+      visibleVariants: [lowStockVariant],
+      catalog: { packages: [], variants: [lowStockVariant], showLowStockWarning: false },
+      packageQty: {},
+      satuanQty: { "uv-ol-low::S": 1 },
+      sizeFor: { "uv-ol-low": "S" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "1" },
+      total: 150000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    const { unmount } = render(<UniformItemStep order={orderWithoutWarning} />);
+    expect(
+      screen.queryByText(/Persediaan ukuran ini sedang diproses konveksi/i)
+    ).toBeNull();
+    unmount();
+
+    // 2. showLowStockWarning = true -> Banner muncul
+    const orderWithWarning = {
+      ...orderWithoutWarning,
+      catalog: { packages: [], variants: [lowStockVariant], showLowStockWarning: true },
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={orderWithWarning} />);
+    expect(
+      screen.getByText(/Persediaan ukuran ini sedang diproses konveksi/i)
+    ).toBeDefined();
+  });
 });
