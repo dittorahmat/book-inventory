@@ -24,7 +24,18 @@ const SD_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 16, size: "4XL", chestWidthCm: 54, bottomLengthCm: 97 },
 ];
 
-const SMP_SMA_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+const SMP_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+  { chartNumber: 13, size: "S", chestWidthCm: 48, bottomLengthCm: 89 },
+  { chartNumber: 14, size: "M", chestWidthCm: 50, bottomLengthCm: 92 },
+  { chartNumber: 15, size: "L", chestWidthCm: 52, bottomLengthCm: 94 },
+  { chartNumber: 16, size: "XL", chestWidthCm: 54, bottomLengthCm: 97 },
+  { chartNumber: 17, size: "2XL", chestWidthCm: 56, bottomLengthCm: 102 },
+  { chartNumber: 18, size: "3XL", chestWidthCm: 58, bottomLengthCm: 104 },
+  { chartNumber: 19, size: "4XL", chestWidthCm: 60, bottomLengthCm: 106 },
+  { chartNumber: 20, size: "5XL", chestWidthCm: 62, bottomLengthCm: 108 },
+];
+
+const SMA_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 13, size: "S", chestWidthCm: 48, bottomLengthCm: 89 },
   { chartNumber: 14, size: "M", chestWidthCm: 50, bottomLengthCm: 92 },
   { chartNumber: 15, size: "L", chestWidthCm: 52, bottomLengthCm: 94 },
@@ -38,8 +49,8 @@ const SMP_SMA_SIZE_CHART: readonly UniformSizeChartEntry[] = [
 export const UNIFORM_SIZE_CHARTS: Record<UniformJenjang, readonly UniformSizeChartEntry[]> = {
   tk: TK_SIZE_CHART,
   sd: SD_SIZE_CHART,
-  smp: SMP_SMA_SIZE_CHART,
-  sma: SMP_SMA_SIZE_CHART,
+  smp: SMP_SIZE_CHART,
+  sma: SMA_SIZE_CHART,
 };
 
 export function normalizeUniformJenjang(raw?: string | null): UniformJenjang {
