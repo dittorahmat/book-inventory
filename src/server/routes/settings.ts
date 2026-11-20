@@ -2,7 +2,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../db";
-import { getUniformNumbering, isUniformSatuanEnabled, saveUniformNumbering, setUniformSatuanEnabled } from "../services/uniform";
+import {
+  getUniformNumbering,
+  isUniformPortalLowStockWarningEnabled,
+  isUniformSatuanEnabled,
+  saveUniformNumbering,
+  setUniformPortalLowStockWarningEnabled,
+  setUniformSatuanEnabled,
+} from "../services/uniform";
 import { getWprPriceSetting, saveWprPriceSetting } from "../services/wpr";
 import type { EmailRuntimeEnv } from "../services/email/types";
 import {
@@ -127,6 +134,31 @@ settingsRouter.post("/uniform-satuan", zValidator("json", z.object({ enabled: z.
     await assertSettingsAdmin(c, "cutoff");
     const { open } = await setUniformSatuanEnabled(db, c.req.valid("json").enabled);
     return c.json({ success: true, message: `Pembelian satuan seragam ${open ? "dibuka" : "ditutup"}.`, data: { open } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// GET status warning persediaan konveksi portal seragam
+settingsRouter.get("/uniform-portal-warning", async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    return c.json({ success: true, data: { showLowStockWarning: await isUniformPortalLowStockWarningEnabled(db) } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// POST toggle warning persediaan konveksi portal seragam
+settingsRouter.post("/uniform-portal-warning", zValidator("json", z.object({ enabled: z.boolean() })), async (c) => {
+  try {
+    await assertSettingsAdmin(c, "cutoff");
+    const { showLowStockWarning } = await setUniformPortalLowStockWarningEnabled(db, c.req.valid("json").enabled);
+    return c.json({
+      success: true,
+      message: `Peringatan persediaan konveksi di portal ${showLowStockWarning ? "diaktifkan" : "dinonaktifkan"}.`,
+      data: { showLowStockWarning },
+    });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

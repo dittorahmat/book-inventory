@@ -41,8 +41,14 @@ export const DEFAULT_UNIFORM_ORDER_PREFIX = "USO";
 /** Toggle on/off pembelian satuan seragam (default buka agar kompatibel). */
 export const UNIFORM_SATUAN_KEY = "uniform_satuan_enabled";
 
+/** Toggle on/off tampilan peringatan persediaan/konveksi di portal seragam (default off). */
+export const UNIFORM_PORTAL_SHOW_LOW_STOCK_WARNING_KEY = "uniform_portal_show_low_stock_warning";
+
 export const isUniformSatuanEnabled = async (database: AppDatabase): Promise<boolean> =>
   (await readSettingsMap(database))[UNIFORM_SATUAN_KEY] !== "false";
+
+export const isUniformPortalLowStockWarningEnabled = async (database: AppDatabase): Promise<boolean> =>
+  (await readSettingsMap(database))[UNIFORM_PORTAL_SHOW_LOW_STOCK_WARNING_KEY] === "true";
 
 type VariantRow = typeof uniformVariants.$inferSelect;
 type PackageRow = typeof uniformPackages.$inferSelect;

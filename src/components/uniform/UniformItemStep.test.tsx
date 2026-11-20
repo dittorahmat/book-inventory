@@ -423,4 +423,59 @@ describe("UniformItemStep", () => {
     expect(bumpedKey as string | null).toBe("uv-khimar-1::4");
     expect(bumpedDelta as number | null).toBe(-1);
   });
+
+  it("hides konveksi low stock warning by default and only shows when showLowStockWarning is true (Issue #534)", () => {
+    const lowStockVariant = {
+      id: "uv-ol-low",
+      code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+      name: "BAJU OLAHRAGA (SD Ikhwan)",
+      kind: "olahraga" as const,
+      gender: "male" as const,
+      jenjang: "sd" as const,
+      academicYear: "2026/2027",
+      price: 150000,
+      sizeChartUrl: null,
+      sizes: ["S"],
+      sizeDetails: [],
+      stock: [{ size: "S", quantity: 1 }], // stok 1 <= 5 (low stock)
+    };
+
+    // 1. Default / showLowStockWarning = false -> Banner tidak muncul
+    const orderWithoutWarning = {
+      visiblePackages: [],
+      visibleVariants: [lowStockVariant],
+      catalog: { packages: [], variants: [lowStockVariant], showLowStockWarning: false },
+      packageQty: {},
+      satuanQty: { "uv-ol-low::S": 1 },
+      sizeFor: { "uv-ol-low": "S" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "1" },
+      total: 150000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    const { unmount } = render(<UniformItemStep order={orderWithoutWarning} />);
+    expect(
+      screen.queryByText(/Persediaan ukuran ini sedang diproses konveksi/i)
+    ).toBeNull();
+    unmount();
+
+    // 2. showLowStockWarning = true -> Banner muncul
+    const orderWithWarning = {
+      ...orderWithoutWarning,
+      catalog: { packages: [], variants: [lowStockVariant], showLowStockWarning: true },
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={orderWithWarning} />);
+    expect(
+      screen.getByText(/Persediaan ukuran ini sedang diproses konveksi/i)
+    ).toBeDefined();
+  });
 });

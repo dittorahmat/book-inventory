@@ -45,6 +45,7 @@ export interface UniformPackageOption {
 export interface UniformCatalog {
   variants: UniformVariantOption[];
   packages: UniformPackageOption[];
+  showLowStockWarning?: boolean;
 }
 
 export interface SubmitUniformOrderItem {

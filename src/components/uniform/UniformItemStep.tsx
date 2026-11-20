@@ -223,7 +223,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                         ⚠️ Wajib memilih ukuran Khimar SD (Size 1 atau Size 4) sebelum menambahkan atau melanjutkan pesanan.
                       </p>
                     )}
-                    {picked && isVariantSizeLowStock(v.stock, picked) && (
+                    {Boolean(order.catalog?.showLowStockWarning) && picked && isVariantSizeLowStock(v.stock, picked) && (
                       <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
                         ℹ️ Persediaan ukuran ini sedang diproses konveksi — pesanan Anda tetap diproses mengikuti antrean persediaan.
                       </p>
@@ -311,7 +311,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                         ⚠️ Wajib memilih ukuran seragam olahraga sebelum menambahkan atau melanjutkan pesanan.
                       </p>
                     )}
-                    {picked && isVariantSizeLowStock(v.stock, picked) && (
+                    {Boolean(order.catalog?.showLowStockWarning) && picked && isVariantSizeLowStock(v.stock, picked) && (
                       <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
                         ℹ️ Persediaan ukuran ini sedang diproses konveksi — pesanan Anda tetap diproses mengikuti antrean persediaan.
                       </p>

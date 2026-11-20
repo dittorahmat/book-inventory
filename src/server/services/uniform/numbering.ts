@@ -2,7 +2,12 @@ import type { AppDatabase } from "../../../db";
 import { systemSettings } from "../../../db/schema";
 import { readSettingsMap } from "../settings-map";
 import { CLAIM_PREFIX_KEY, DEFAULT_CLAIM_PREFIX } from "../branch-claims";
-import { DEFAULT_UNIFORM_ORDER_PREFIX, UNIFORM_ORDER_PREFIX_KEY, UNIFORM_SATUAN_KEY } from "./orders";
+import {
+  DEFAULT_UNIFORM_ORDER_PREFIX,
+  UNIFORM_ORDER_PREFIX_KEY,
+  UNIFORM_PORTAL_SHOW_LOW_STOCK_WARNING_KEY,
+  UNIFORM_SATUAN_KEY,
+} from "./orders";
 
 /**
  * Satu-satunya pemilik penomoran + toggle satuan seragam: prefix
@@ -44,4 +49,17 @@ export const setUniformSatuanEnabled = async (database: AppDatabase, enabled: bo
     .values({ key: UNIFORM_SATUAN_KEY, value, updatedAt: now })
     .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
   return { open: enabled };
+};
+
+export const setUniformPortalLowStockWarningEnabled = async (
+  database: AppDatabase,
+  enabled: boolean
+): Promise<{ showLowStockWarning: boolean }> => {
+  const now = new Date().toISOString();
+  const value = enabled ? "true" : "false";
+  await database
+    .insert(systemSettings)
+    .values({ key: UNIFORM_PORTAL_SHOW_LOW_STOCK_WARNING_KEY, value, updatedAt: now })
+    .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } });
+  return { showLowStockWarning: enabled };
 };
