@@ -469,7 +469,7 @@ describe("Public Orders & Student Search API", () => {
   });
 
   it("register via lifecycle seam sets REG- NIS and promoted view targets next grade", async () => {
-    const stamp = Date.now();
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
     const schoolId = `school-lifecycle-${stamp}`;
     const now = new Date().toISOString();
     await db.insert(schools).values({
@@ -570,6 +570,7 @@ describe("Public Orders & Student Search API", () => {
     expect(searchRes.status).toBe(200);
     const searchJson = await searchRes.json();
     const found = searchJson.data.find((s: { id: string }) => s.id === promotedId);
+    expect(found).toBeDefined();
     expect(found.detectedStatus).toBe("naik_kelas");
     expect(found.currentGradeLevel).toBe("2");
     expect(found.targetGradeLevel).toBe("3");

@@ -7,8 +7,9 @@ import { $ } from "bun";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { columnNames } from "../src/server/lib/d1-drift-scan";
+import { resolveD1Targets, type D1DatabaseTarget } from "../src/server/lib/d1-targets";
 
-const D1_DATABASE = process.env.D1_DATABASE || "book-inventory-db";
+const TARGET_DATABASES = resolveD1Targets(process.env.D1_DATABASE, process.env.D1_ENV);
 const DRIZZLE_DIR = process.env.DRIZZLE_DIR || "./drizzle";
 
 const checkWranglerAuth = async (): Promise<boolean> => {
@@ -49,9 +50,10 @@ interface D1ExecuteOutput {
   results?: Array<{ name: string; sql: string }>;
 }
 
-const fetchRemote = async (): Promise<Map<string, string>> => {
+const fetchRemote = async (target: D1DatabaseTarget): Promise<Map<string, string>> => {
+  const envArgs = target.env ? ["-e", target.env] : [];
   const out =
-    await $`./node_modules/.bin/wrangler d1 execute ${D1_DATABASE} --remote --command=${"SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name"} --json`.text();
+    await $`./node_modules/.bin/wrangler d1 execute ${target.name} --remote ${envArgs} --command=${"SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name"} --json`.text();
   const parsed = JSON.parse(out) as D1ExecuteOutput[] | D1ExecuteOutput;
   const first = Array.isArray(parsed) ? parsed[0] : parsed;
   const rows = first?.results ?? [];
@@ -72,28 +74,42 @@ if (!isAuthed) {
 }
 
 const expected = buildExpected();
-const remote = await fetchRemote();
+let totalFailed = 0;
 
-let failed = 0;
-for (const [table, sql] of expected) {
-  const remoteSql = remote.get(table);
-  if (!remoteSql) {
-    console.error(`HILANG di D1 remote: tabel \`${table}\` (endpoint menyentuhnya akan 500)`);
-    failed++;
-    continue;
+for (const target of TARGET_DATABASES) {
+  console.log(`\n🔍 Memeriksa drift untuk target D1: \`${target.name}\`${target.env ? ` (env: ${target.env})` : ""}...`);
+  const remote = await fetchRemote(target);
+
+  let failed = 0;
+  for (const [table, sql] of expected) {
+    const remoteSql = remote.get(table);
+    if (!remoteSql) {
+      console.error(`  HILANG di D1 remote (${target.name}): tabel \`${table}\` (endpoint menyentuhnya akan 500)`);
+      failed++;
+      continue;
+    }
+    const missingCols = columnNames(sql).filter((c) => !columnNames(remoteSql).includes(c));
+    if (missingCols.length > 0) {
+      console.error(`  KOLOM HILANG di D1 remote (${target.name}): \`${table}\` kurang: ${missingCols.join(", ")}`);
+      failed++;
+    }
   }
-  const missingCols = columnNames(sql).filter((c) => !columnNames(remoteSql).includes(c));
-  if (missingCols.length > 0) {
-    console.error(`KOLOM HILANG di D1 remote: \`${table}\` kurang: ${missingCols.join(", ")}`);
-    failed++;
+  for (const table of remote.keys()) {
+    if (!expected.has(table)) {
+      console.log(`  Info: tabel \`${table}\` ada di remote (${target.name}) tapi tak ada di drizzle/ (ekstra, aman).`);
+    }
+  }
+
+  if (failed > 0) {
+    console.error(`  ❌ Drift D1 terdeteksi pada ${target.name} (${failed} temuan).`);
+    totalFailed += failed;
+  } else {
+    console.log(`  ✅ D1 drift OK: ${expected.size} tabel cocok dengan drizzle/ pada ${target.name}.`);
   }
 }
-for (const table of remote.keys()) {
-  if (!expected.has(table)) console.log(`Info: tabel \`${table}\` ada di remote tapi tak ada di drizzle/ (ekstra, aman).`);
-}
 
-if (failed > 0) {
-  console.error(`\nDrift D1 terdeteksi (${failed} temuan): sinkronkan remote sebelum merge (lihat AGENTS.md §1).`);
+if (totalFailed > 0) {
+  console.error(`\nDrift D1 terdeteksi di total target (${totalFailed} temuan): sinkronkan remote sebelum merge (lihat AGENTS.md §1).`);
   process.exit(1);
 }
-console.log(`D1 drift OK: ${expected.size} tabel cocok dengan drizzle/.`);
+console.log(`\nSemua target D1 (${TARGET_DATABASES.map((t) => t.name).join(", ")}) sinkron dengan drizzle/.`);
