@@ -43,6 +43,7 @@ const createInternalPoSchema = z.object({
 
 const baseShipmentHeaderSchema = z.object({
   deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
+  sourceSchoolId: idSchema.optional(),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
   transferShipmentId: idSchema.optional(),
@@ -146,10 +147,11 @@ const createManualShipmentSchema = baseShipmentHeaderSchema.extend({
 // 4. POST create Manual Shipment without PO
 internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualShipmentSchema), async (c) => {
   try {
-    await resolveLogisticsActor(c);
+    const actor = await resolveLogisticsActor(c);
     const body = c.req.valid("json");
+    const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
 
-    const result = await createManualShipment(db, body);
+    const result = await createManualShipment(db, { ...body, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -170,11 +172,12 @@ internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualSh
 // 3. POST create Shipment (Surat Jalan Pengiriman Internal)
 internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSchema), async (c) => {
   try {
-    await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
+    const actor = await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
     const poId = c.req.param("id");
     const body = c.req.valid("json");
+    const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
 
-    const result = await fulfillInternalPo(db, poId, body);
+    const result = await fulfillInternalPo(db, poId, { ...body, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
