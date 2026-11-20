@@ -64,5 +64,10 @@ export interface SubmitUniformOrderPayload {
   notes?: string;
   orderType?: "regular" | "scholarship";
   scholarshipProofBase64?: string;
+  paymentProofBase64?: string;
+  bankName?: string;
+  referenceNumber?: string;
+  transferDate?: string;
+  transferAmount?: number;
   replacePendingOrderId?: string;
 }

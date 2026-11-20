@@ -151,6 +151,7 @@ export interface ConfirmPaymentInput {
   allocationAmount: number;
   bankName?: string;
   referenceNumber?: string;
+  transferDate?: string;
   paymentProofBase64?: string;
 }
 
@@ -230,6 +231,7 @@ const confirmPaymentCore = async (
       bankName: input.bankName,
       referenceNumber: input.referenceNumber,
       proofUrl: url,
+      transferDate: input.transferDate,
       notes: kind.notes,
     },
     now,

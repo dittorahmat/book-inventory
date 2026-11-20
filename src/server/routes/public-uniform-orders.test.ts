@@ -5,7 +5,7 @@ import { uniformsRouter } from "./uniforms";
 import { setUniformSatuanEnabled } from "../services/uniform";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds, paymentReceipts, paymentAllocations } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -37,6 +37,22 @@ describe("Public uniform confirm token", () => {
     const res = await lookupConfirmToken("tok-ghost-seragam");
     expect(res.status).toBe(404);
     expect((await res.json()).success).toBe(false);
+  });
+
+  it("menerima konfirmasi pembayaran dengan transferDate yang valid", async () => {
+    const res = await publicUniformOrdersRouter.request("/confirm/tok-test-dummy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transferAmount: 200000,
+        allocationAmount: 200000,
+        bankName: "BCA",
+        transferDate: "2026-10-21",
+        paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      }),
+    });
+    // Token tidak ditemukan (404), membuktikan validator payload lolos dan tidak 400
+    expect(res.status).toBe(404);
   });
 });
 
@@ -419,6 +435,43 @@ describe("Portal retur seragam mandiri", () => {
     const [oldOrder] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, firstId));
     expect(oldOrder.shipmentStatus).toBe("superseded");
     expect(oldOrder.supersededByOrderId).toBe(secondId);
+  });
+
+  it("submits uniform order with paymentProofBase64 and generates payment receipt", async () => {
+    const stamp = `u_pay_${Date.now()}`;
+    const { schoolId, studentId } = await seedSchoolStudent(stamp);
+    const { kainId } = await seedCatalog(stamp);
+    await seedPriorOrder(schoolId, studentId, stamp);
+
+    const addr = "Jl. Melati Indah No. 12, RT 01 RW 02, Tangerang Selatan 15310";
+    const res = await postPublic("/orders", {
+      studentId,
+      academicYear: "2026/2027",
+      homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+      paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      bankName: "BCA",
+      referenceNumber: `REF-UNI-${stamp}`,
+      transferDate: "2026-10-19",
+      transferAmount: 150000,
+    });
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { success: boolean; data: { order: { id: string } } };
+    expect(json.success).toBe(true);
+
+    const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, json.data.order.id));
+    expect(order.packagePhotoUrl).toBeNull();
+
+    // Verifikasi bukti bayar disimpan di paymentReceipts, bukan di packagePhotoUrl (§0.89)
+    const [receipt] = await db
+      .select({ receipt: paymentReceipts, alloc: paymentAllocations })
+      .from(paymentReceipts)
+      .innerJoin(paymentAllocations, eq(paymentAllocations.receiptId, paymentReceipts.id))
+      .where(eq(paymentAllocations.orderId, json.data.order.id));
+    expect(receipt).toBeDefined();
+    expect(receipt.receipt.proofUrl).toBeTruthy();
+    expect(receipt.receipt.bankName).toBe("BCA");
+    expect(receipt.alloc.kind).toBe("seragam");
   });
 
   it("submits uniform order and dispatches notification via OrderNotificationHub seam", async () => {

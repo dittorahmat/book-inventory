@@ -4,7 +4,7 @@ import { X, Upload, Download, FileText } from "lucide-react";
 interface UniformShippingBatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (type: "packing" | "ekspedisi") => void;
+  onExport: (type: "packing" | "ekspedisi" | "excel-ekspedisi" | "excel-internal") => void;
   paidOnly: boolean;
   onPaidOnlyChange: (val: boolean) => void;
   importText: string;
@@ -87,7 +87,7 @@ export function UniformShippingBatchModal({
             }`}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Unduh CSV</span>
+            <span>Unduh Excel & CSV</span>
           </button>
           <button
             type="button"
@@ -109,7 +109,30 @@ export function UniformShippingBatchModal({
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#050505] mb-1">
-                  Format Unduhan
+                  Format Unduhan Excel (.xlsx)
+                </label>
+                <div className="grid grid-cols-2 gap-2.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => onExport("excel-ekspedisi")}
+                    className="p-3 bg-white border border-[#CED0D4] rounded-xl text-left hover:border-[#1877F2] hover:bg-blue-50/30 transition-all group active:scale-[0.98]"
+                  >
+                    <div className="text-xs font-bold text-[#050505] group-hover:text-[#1877F2]">Excel Ekspedisi</div>
+                    <div className="text-[11px] text-[#65676B] mt-0.5">NIS, Nama Siswa, Jenjang, JK, Nama Penerima, No Kontak, Alamat</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onExport("excel-internal")}
+                    className="p-3 bg-white border border-[#CED0D4] rounded-xl text-left hover:border-[#1877F2] hover:bg-blue-50/30 transition-all group active:scale-[0.98]"
+                  >
+                    <div className="text-xs font-bold text-[#050505] group-hover:text-[#1877F2]">Excel Internal Logistik</div>
+                    <div className="text-[11px] text-[#65676B] mt-0.5">NIS, Nama Siswa, Kelas, Jenjang, JK, Size Seragam Olahraga</div>
+                  </button>
+                </div>
+
+                <label className="block text-xs font-semibold text-[#050505] mb-1">
+                  Format Unduhan CSV (.csv)
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   <button

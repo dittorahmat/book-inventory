@@ -97,6 +97,7 @@ const submitOrderSchema = z
         bookAllocationAmount: z.number().int().min(0).optional(),
         bankName: z.string().optional(),
         referenceNumber: z.string().optional(),
+        transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
         paymentProofBase64: base64UploadSchema,
       })
       .transform((p) => ({
@@ -316,6 +317,7 @@ const confirmPaymentSchema = z.object({
   allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
   bankName: z.string().optional(),
   referenceNumber: z.string().optional(),
+  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
   paymentProofBase64: base64UploadSchema,
 });
 

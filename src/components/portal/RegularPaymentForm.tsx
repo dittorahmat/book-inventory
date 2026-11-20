@@ -32,6 +32,7 @@ export function RegularPaymentForm({
     bookAllocationAmount,
     bankName,
     referenceNumber,
+    transferDate,
     paymentProofBase64,
     financeProofBase64,
     parentPhoneManual,
@@ -101,6 +102,18 @@ export function RegularPaymentForm({
             value={referenceNumber}
             onChange={(e) => edit({ referenceNumber: e.target.value })}
             placeholder="Contoh: 981249821 / Ref ATM"
+            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Tanggal Transfer Bank <span className="text-[#65676B] font-normal">(Opsional / Default: Hari ini)</span>
+          </label>
+          <input
+            type="date"
+            value={transferDate}
+            onChange={(e) => edit({ transferDate: e.target.value })}
             className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
           />
         </div>

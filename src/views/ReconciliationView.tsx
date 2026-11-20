@@ -4,6 +4,7 @@ import { useReconciliation } from "../components/reconciliation/useReconciliatio
 import { ReconciliationSummary } from "../components/reconciliation/ReconciliationSummary";
 import { PendingShippingList } from "../components/reconciliation/PendingShippingList";
 import { TermReconciliationTab } from "../components/reconciliation/TermReconciliationTab";
+import { BankTransferReconciliationTable } from "../components/reconciliation/BankTransferReconciliationTable";
 import type { School } from "../types";
 
 interface ReconciliationViewProps {
@@ -108,6 +109,12 @@ export function ReconciliationView({ activeSchool, schools = [], isCentralAdmin 
               <p className="text-xs text-[#65676B] mt-1">Pilih periode lain, lalu muat ulang.</p>
             </div>
           )}
+
+          <BankTransferReconciliationTable
+            transfers={recon.transfers}
+            onExportExcel={recon.downloadExcel}
+            exporting={recon.loading}
+          />
 
           <PendingShippingList charges={recon.openCharges} />
         </>

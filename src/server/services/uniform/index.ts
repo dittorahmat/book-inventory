@@ -14,10 +14,12 @@ export type { SubmitUniformOrderDeps, UniformOrderLine } from "./orders";
 export {
   isUniformPortalLowStockWarningEnabled,
   isUniformSatuanEnabled,
-  markUniformShipped,
-  resolveUniformScholarship,
   submitUniformOrder,
 } from "./orders";
+export {
+  markUniformShipped,
+  resolveUniformScholarship,
+} from "./order-dispatch";
 export type { ExchangeRequestInput, ResolveExchangeInput } from "./exchange";
 export type { RefundRequestInput } from "./returns";
 export {

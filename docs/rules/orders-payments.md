@@ -91,4 +91,14 @@ Seluruh intake pembatalan pesanan akibat murid mengundurkan diri (buku maupun se
    - PO Internal (`deleteInternalPurchaseOrder`) hanya boleh dihapus jika status masih `draft` atau `submitted`, belum memiliki Surat Jalan pengiriman (`internal_shipments`), dan belum ada barang yang terpenuhi (`quantityFulfilled === 0`).
    - Akses rute wajib memverifikasi lokasi cabang pemesan (`assertLocationAllowed`). Endpoint route boleh mengoper entitas `po` yang sudah dimuat ke service seam guna mencegah query ganda (anti-*feature envy*).
 
+### §0.89. Pemisahan Semantik Bukti Pembayaran vs Bukti Fisik Pengiriman & Guard Upload File Klien
+1. **Pemisahan Semantik `packagePhotoUrl` vs `payment_receipts.proofUrl`**:
+   - Kolom `packagePhotoUrl` pada tabel `uniform_orders` adalah bukti fisik foto paket pengiriman kurir saat dispatch logistik gudang (`markUniformShipped` / `order-dispatch.ts`).
+   - Bukti transfer bank yang diunggah oleh wali murid/kasir dilarang disimpan ke `packagePhotoUrl`. Bukti bayar wajib disimpan secara eksklusif ke tabel ledger penerimaan kas `payment_receipts.proofUrl` via single-writer `buildReceiptDraft` / `payment-ledger.ts`.
+2. **Guard Ukuran & Tipe Berkas Upload Klien**:
+   - Seluruh formulir input berkas bukti bayar atau dokumen di browser klien wajib memvalidasi tipe file gambar (`image/*`) dan batas ukuran berkas (maksimal 5MB, $\le 5 \times 1024 \times 1024$ bytes) sebelum memproses `FileReader.readAsDataURL` guna mencegah *out-of-memory*, browser tab crash, atau payload overload pada Cloudflare Worker. Ditegakkan mekanis oleh gate `check:client-file-guards`.
+3. **Eksplisit Label Format Toolbar Multi-Ekspor**:
+   - Tombol aksi pemicu modal ekspor di toolbar staf (`UniformShipmentToolbar.tsx`, dsb.) wajib mencantumkan secara eksplisit format file yang didukung (misal "Ekspor Excel & CSV") jika modal tersebut menyediakan opsi unduh ganda (`.xlsx` dan `.csv`), guna mencegah kerancuan ketersediaan fitur bagi tim logistik/finance.
+
+
 
