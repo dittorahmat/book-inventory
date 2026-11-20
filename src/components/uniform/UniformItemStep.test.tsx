@@ -424,6 +424,63 @@ describe("UniformItemStep", () => {
     expect(bumpedDelta as number | null).toBe(-1);
   });
 
+  it("migrates existing Khimar SD quantity when size is changed in dropdown (Issue #533 AC 3)", () => {
+    const bumpedCalls: Array<{ key: string; delta: number }> = [];
+
+    const mockOrder = {
+      visiblePackages: [],
+      visibleVariants: [
+        {
+          id: "uv-khimar-1",
+          code: "UNI-SD-AKH-KHIMAR_HIJAU",
+          name: "KHIMAR HIJAU (SD Akhwat)",
+          kind: "kain_harian" as const,
+          gender: "female" as const,
+          jenjang: "sd" as const,
+          academicYear: "2026/2027",
+          price: 225000,
+          sizeChartUrl: null,
+          sizes: ["1", "4"],
+          sizeDetails: [],
+          stock: [],
+        },
+      ],
+      catalog: null,
+      packageQty: {},
+      satuanQty: { "uv-khimar-1::1": 1 },
+      sizeFor: { "uv-khimar-1": "1" },
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: (key: string, delta: number) => {
+        bumpedCalls.push({ key, delta });
+      },
+      satuanOpen: true,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "1" },
+      total: 225000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+
+    // Buka dropdown Khimar SD
+    const dropdownBtn = screen.getByRole("button", { name: "Pilih Ukuran Khimar SD (Wajib)" });
+    fireEvent.click(dropdownBtn);
+
+    // Pilih Size 4
+    const optionSize4 = screen.getByText("Size 4 (Kelas 3 - 6)");
+    fireEvent.click(optionSize4);
+
+    // Kuantitas lama (Size 1) didebit dan kuantitas baru (Size 4) dikredit
+    expect(bumpedCalls).toEqual([
+      { key: "uv-khimar-1::1", delta: -1 },
+      { key: "uv-khimar-1::4", delta: 1 },
+    ]);
+  });
+
   it("hides konveksi low stock warning by default and only shows when showLowStockWarning is true (Issue #534)", () => {
     const lowStockVariant = {
       id: "uv-ol-low",
