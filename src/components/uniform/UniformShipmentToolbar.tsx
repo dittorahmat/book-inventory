@@ -58,7 +58,7 @@ export function UniformShipmentToolbar({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-[#CED0D4] bg-white text-[#050505] rounded-xl text-xs font-semibold hover:bg-[#F0F2F5] active:scale-[0.98] transition-all shadow-2xs"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#1877F2]" />
-            <span>Ekspor & Impor CSV</span>
+            <span>Ekspor Excel & CSV</span>
           </button>
 
           <button

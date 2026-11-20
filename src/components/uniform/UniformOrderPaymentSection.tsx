@@ -1,11 +1,40 @@
+import { useState } from "react";
 import type { UseUniformOrderReturn } from "./useUniformOrder";
 
 interface UniformOrderPaymentSectionProps {
   order: UseUniformOrderReturn;
 }
 
+const MAX_PAYMENT_PROOF_BYTES = 5 * 1024 * 1024; // 5MB limit
+
 export function UniformOrderPaymentSection({ order }: UniformOrderPaymentSectionProps) {
+  const [fileError, setFileError] = useState<string | null>(null);
+
   if (order.orderType !== "regular") return null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setFileError("Berkas harus berupa gambar (JPG, PNG).");
+      order.setPaymentProof("");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_PAYMENT_PROOF_BYTES) {
+      setFileError("Ukuran file bukti transfer maksimal 5MB.");
+      order.setPaymentProof("");
+      e.target.value = "";
+      return;
+    }
+
+    setFileError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => order.setPaymentProof(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="space-y-3 pt-2 border-t border-[#E4E6EB]">
@@ -50,16 +79,13 @@ export function UniformOrderPaymentSection({ order }: UniformOrderPaymentSection
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onloadend = () => order.setPaymentProof(reader.result as string);
-              reader.readAsDataURL(file);
-            }}
+            onChange={handleFileChange}
             className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#1877F2] file:text-white"
           />
-          {order.paymentProof && (
+          {fileError && (
+            <p className="mt-1 text-[11px] font-semibold text-rose-600">{fileError}</p>
+          )}
+          {!fileError && order.paymentProof && (
             <p className="mt-1 text-[11px] font-semibold text-emerald-600">✓ Bukti transfer telah terlampir</p>
           )}
         </div>

@@ -5,7 +5,7 @@ import { uniformsRouter } from "./uniforms";
 import { setUniformSatuanEnabled } from "../services/uniform";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
-import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds } from "../../db/schema";
+import { schools, students, suppliers, uniformVariants, uniformSizes, uniformStock, uniformOrders, uniformRefunds, paymentReceipts, paymentAllocations } from "../../db/schema";
 
 const postStaff = async (path: string, body: unknown) => {
   mockActor("central_admin", null);
@@ -460,7 +460,18 @@ describe("Portal retur seragam mandiri", () => {
     expect(json.success).toBe(true);
 
     const [order] = await db.select().from(uniformOrders).where(eq(uniformOrders.id, json.data.order.id));
-    expect(order.packagePhotoUrl).toBeTruthy();
+    expect(order.packagePhotoUrl).toBeNull();
+
+    // Verifikasi bukti bayar disimpan di paymentReceipts, bukan di packagePhotoUrl (§0.89)
+    const [receipt] = await db
+      .select({ receipt: paymentReceipts, alloc: paymentAllocations })
+      .from(paymentReceipts)
+      .innerJoin(paymentAllocations, eq(paymentAllocations.receiptId, paymentReceipts.id))
+      .where(eq(paymentAllocations.orderId, json.data.order.id));
+    expect(receipt).toBeDefined();
+    expect(receipt.receipt.proofUrl).toBeTruthy();
+    expect(receipt.receipt.bankName).toBe("BCA");
+    expect(receipt.alloc.kind).toBe("seragam");
   });
 
   it("submits uniform order and dispatches notification via OrderNotificationHub seam", async () => {

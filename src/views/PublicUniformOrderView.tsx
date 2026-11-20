@@ -131,6 +131,11 @@ export function PublicUniformOrderView() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    order.setError("Ukuran berkas beasiswa maksimal 5MB.");
+                    e.target.value = "";
+                    return;
+                  }
                   const reader = new FileReader();
                   reader.onloadend = () => order.setScholarshipProof(reader.result as string);
                   reader.readAsDataURL(file);

@@ -265,7 +265,7 @@ export async function submitUniformOrder(
           paymentStatus: isScholarship ? "scholarship_pending" : "unpaid",
           orderType: isScholarship ? "scholarship" : "regular",
           scholarshipProofUrl,
-          packagePhotoUrl: paymentProofUrl,
+          packagePhotoUrl: null,
           notes: payload.notes?.trim() || null,
           createdAt: now,
           updatedAt: now,
