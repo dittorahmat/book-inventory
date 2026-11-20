@@ -111,6 +111,9 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
    - Helper kanonik kurikulum `isCambridgeInternationalTitle`, `inferCurriculumFromText`, dan `sqlNormalizeCurriculum` (`src/lib/curriculum.ts`) wajib digunakan sebagai sumber kebenaran tunggal (*single source of truth*) untuk identifikasi program kurikulum Al-Wildan, dilarang menduplikasi regex substring ad-hoc maupun raw SQL normalisasi di parser, komponen view, atau query database. Ditegakkan mekanis oleh `check:canonical-helpers`.
 4. **Isolasi Entitas Uji & Pencegahan Test Leak Antar-File**:
    - Setiap test yang menambahkan data entitas transaksional atau registrasi murid publik (`students`, `orders`, `purchase_orders`) wajib membersihkan seluruh ID baris yang dihasilkan pada blok `finally` atau hook `afterEach` (§0.51.8). Dilarang meninggalkan entitas yatim (*orphan records*) yang dapat terakumulasi pada runner proses tunggal `bun test` di CI dan mencemari kalkulasi demand/agregasi file tes lain.
+5. **Disiplin Deklarasi Tipe Mock Variabel Uji & Wildcard Pencarian Shell**:
+   - Variabel penampung hasil mock/spying pada closure test wajib dideklarasikan dengan tipe eksplisit (`let bumpedKey: string | null = null`) dan asersi `expect(bumpedKey as string | null).toBe(...)` guna mencegah type-checker `tsc` menolak pemanggilan akibat inferensi tipe literal `null` yang terlalu sempit.
+   - Pemanggilan pencarian teks `rg` di shell Windows pwsh dilarang meneruskan karakter wildcard glob tanpa tanda kutip (misal `rg pattern src/seed*.ts` memicu os error 123); wajib gunakan argumen bertanda kutip tunggal literal atau flag `-g 'src/seed*.ts'`.
 
 
 
