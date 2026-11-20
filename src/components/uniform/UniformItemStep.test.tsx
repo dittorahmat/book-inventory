@@ -365,6 +365,73 @@ describe("UniformItemStep", () => {
     expect(screen.queryByText("5XL")).toBeNull();
   });
 
+  it("strictly filters package olahraga sizes without leaking cross-grade sizes (Issue #538)", () => {
+    const mockOrder = {
+      visiblePackages: [
+        {
+          id: "pkg-sd-ikh",
+          code: "PKG-SD-IKH-2026",
+          name: "Paket Seragam SD Ikhwan",
+          academicYear: "2026/2027",
+          price: 500000,
+          readyQty: 10,
+          bom: [
+            {
+              variantId: "v-ol-sd-dirty",
+              variantName: "Baju Olahraga SD",
+              kind: "olahraga",
+              size: "—",
+              quantity: 1,
+            },
+          ],
+        },
+      ],
+      visibleVariants: [],
+      catalog: {
+        packages: [],
+        variants: [
+          {
+            id: "v-ol-sd-dirty",
+            code: "UNI-SD-IKH-BAJU_OLAHRAGA",
+            name: "Baju Olahraga SD",
+            kind: "olahraga" as const,
+            gender: "male" as const,
+            jenjang: "sd" as const,
+            academicYear: "2026/2027",
+            price: 150000,
+            sizeChartUrl: null,
+            sizes: ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"], // Ukuran 5XL kotor (hanya milik SMP/SMA)
+            sizeDetails: [],
+            stock: [],
+          },
+        ],
+      },
+      packageQty: { "pkg-sd-ikh": 1 },
+      satuanQty: {},
+      sizeFor: {},
+      setSizeFor: () => {},
+      bumpPackage: () => {},
+      bumpSatuan: () => {},
+      satuanOpen: false,
+      uniformMode: "package" as const,
+      setUniformMode: () => {},
+      student: { gradeLevel: "3" }, // SD
+      total: 500000,
+      itemCount: 1,
+      backToSearch: () => {},
+      setStep: () => {},
+    } as unknown as UniformOrder;
+
+    render(<UniformItemStep order={mockOrder} />);
+    const dropdownTrigger = screen.getByRole("button", { name: "Ukuran olahraga dalam paket" });
+    fireEvent.click(dropdownTrigger);
+
+    // SD hanya boleh S s/d 4XL, dilarang 5XL
+    expect(screen.getByText("S")).toBeDefined();
+    expect(screen.getByText("4XL")).toBeDefined();
+    expect(screen.queryByText("5XL")).toBeNull();
+  });
+
   it("renders Khimar SD with default quantity 1 and allows changing size and quantity (Issue #533)", () => {
     let bumpedKey: string | null = null;
     let bumpedDelta: number | null = null;

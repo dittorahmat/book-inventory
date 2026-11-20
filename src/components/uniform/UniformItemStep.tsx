@@ -112,7 +112,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                 ),
               ];
               const filteredPackageSizes = rawSizes.filter((s) => officialSportSizes.includes(s));
-              const sizeOptions = filteredPackageSizes.length > 0 ? filteredPackageSizes : rawSizes;
+              const finalPackageSizes = filteredPackageSizes.length > 0 ? filteredPackageSizes : officialSportSizes;
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -127,7 +127,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                     <div>
                       <SearchableSingleSelect
                         label="Ukuran olahraga dalam paket"
-                        options={sizeOptions.map((s) => ({ value: s, label: s }))}
+                        options={finalPackageSizes.map((s) => ({ value: s, label: s }))}
                         value={order.sizeFor[p.id] ?? ""}
                         onChange={(v) => order.setSizeFor((s) => ({ ...s, [p.id]: v }))}
                         placeholder="— Pilih ukuran —"
@@ -255,7 +255,7 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
               const key = picked ? `${v.id}::${picked}` : v.id;
               const currentQty = order.satuanQty[key] ?? order.satuanQty[v.id] ?? 0;
               const filteredSizes = v.sizes.filter((s) => officialSportSizes.includes(s));
-              const availableSizes = filteredSizes.length > 0 ? filteredSizes : v.sizes;
+              const availableSizes = filteredSizes.length > 0 ? filteredSizes : officialSportSizes;
               const sizeOptions = availableSizes.map((s) => {
                 const detail = v.sizeDetails?.find((d) => d.size === s);
                 const label = detail ? formatUniformSizeLabel(detail) : s;

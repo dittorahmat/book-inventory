@@ -4,6 +4,10 @@ import {
   normalizeUniformJenjang,
   formatUniformSizeLabel,
   getOfficialSportSizesForJenjang,
+  TK_SIZE_CHART,
+  SD_SIZE_CHART,
+  SMP_SIZE_CHART,
+  SMA_SIZE_CHART,
 } from "./uniform-size-chart";
 
 describe("uniform-size-chart", () => {
@@ -27,10 +31,20 @@ describe("uniform-size-chart", () => {
     expect(sd.find((e) => e.size === "M")).toEqual({ chartNumber: 8, size: "M", chestWidthCm: 44, bottomLengthCm: 79 });
   });
 
-  it("retrieves official SMP/SMA size chart (S to 5XL with matching cm)", () => {
+  it("retrieves official SMP size chart (S to 5XL with matching cm)", () => {
     const smp = getUniformSizeChart("smp");
     expect(smp.map((e) => e.size)).toEqual(["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]);
     expect(smp.find((e) => e.size === "5XL")).toEqual({ chartNumber: 20, size: "5XL", chestWidthCm: 62, bottomLengthCm: 108 });
+    expect(smp).toBe(SMP_SIZE_CHART);
+  });
+
+  it("retrieves official SMA size chart as an independent entity (S to 5XL with matching cm)", () => {
+    const sma = getUniformSizeChart("sma");
+    expect(sma.map((e) => e.size)).toEqual(["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]);
+    expect(sma.find((e) => e.size === "S")).toEqual({ chartNumber: 13, size: "S", chestWidthCm: 48, bottomLengthCm: 89 });
+    expect(sma).toBe(SMA_SIZE_CHART);
+    expect(TK_SIZE_CHART[0].size).toBe("S");
+    expect(SD_SIZE_CHART[0].size).toBe("S");
   });
 
   it("formats size label informatively", () => {
