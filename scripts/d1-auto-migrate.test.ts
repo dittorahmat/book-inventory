@@ -68,5 +68,9 @@ describe("d1-auto-migrate logic & safety", () => {
     expect(result.totalFiles).toBeGreaterThan(0);
     // Verifikasi command create table _d1_migrations terpanggil
     expect(mockExecutedCmds.some((cmd) => cmd.includes("CREATE TABLE IF NOT EXISTS _d1_migrations"))).toBe(true);
+    // Verifikasi result targets memuat canonical targets
+    expect(result.targets?.length).toBe(2);
+    expect(result.targets?.[0].database).toBe("book-inventory-db");
+    expect(result.targets?.[1].database).toBe("inv-aw-db");
   });
 });
