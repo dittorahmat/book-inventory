@@ -7,23 +7,9 @@ import { $ } from "bun";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { columnNames } from "../src/server/lib/d1-drift-scan";
+import { resolveD1Targets, type D1DatabaseTarget } from "../src/server/lib/d1-targets";
 
-interface DatabaseTarget {
-  name: string;
-  env?: string;
-}
-
-const parseTargetDatabases = (): DatabaseTarget[] => {
-  if (process.env.D1_DATABASE) {
-    return [{ name: process.env.D1_DATABASE }];
-  }
-  return [
-    { name: "book-inventory-db" },
-    { name: "inv-aw-db", env: "inv-aw" },
-  ];
-};
-
-const TARGET_DATABASES = parseTargetDatabases();
+const TARGET_DATABASES = resolveD1Targets(process.env.D1_DATABASE, process.env.D1_ENV);
 const DRIZZLE_DIR = process.env.DRIZZLE_DIR || "./drizzle";
 
 const checkWranglerAuth = async (): Promise<boolean> => {
@@ -64,7 +50,7 @@ interface D1ExecuteOutput {
   results?: Array<{ name: string; sql: string }>;
 }
 
-const fetchRemote = async (target: DatabaseTarget): Promise<Map<string, string>> => {
+const fetchRemote = async (target: D1DatabaseTarget): Promise<Map<string, string>> => {
   const envArgs = target.env ? ["-e", target.env] : [];
   const out =
     await $`./node_modules/.bin/wrangler d1 execute ${target.name} --remote ${envArgs} --command=${"SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name"} --json`.text();
