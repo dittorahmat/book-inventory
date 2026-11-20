@@ -99,6 +99,7 @@ export interface FinalOrderPayload {
     bookAllocationAmount: number;
     bankName?: string;
     referenceNumber?: string;
+    transferDate?: string;
     paymentProofBase64?: string;
   };
   notes?: string;

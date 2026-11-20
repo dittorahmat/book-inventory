@@ -148,6 +148,17 @@ describe("Rekonsiliasi API", () => {
 
       const bad = await reconciliationRouter.request(`/?schoolId=${schoolB}&period=2026-13`);
       expect(bad.status).toBe(400);
+
+      const transfers = await reconciliationRouter.request(`/transfers?schoolId=${schoolB}&period=${period}`);
+      expect(transfers.status).toBe(200);
+      const transfersData = await transfers.json();
+      expect(transfersData.success).toBe(true);
+
+      const transfersExport = await reconciliationRouter.request(`/transfers/export?schoolId=${schoolB}&period=${period}`);
+      expect(transfersExport.status).toBe(200);
+      expect(transfersExport.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+      const exportBuf = await transfersExport.arrayBuffer();
+      expect(exportBuf.byteLength).toBeGreaterThan(100);
     } finally {
       await db.delete(paymentReceipts).where(inArray(paymentReceipts.id, [receiptB]));
       await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));

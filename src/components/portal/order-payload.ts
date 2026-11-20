@@ -18,6 +18,7 @@ export interface OrderTotalsInput {
   bookAllocationAmount: number;
   bankName: string;
   referenceNumber: string;
+  transferDate?: string;
   paymentProofBase64: string;
   notes: string;
   homeAddress?: string;
@@ -82,6 +83,7 @@ export function buildFinalOrderPayload(input: OrderTotalsInput): FinalOrderPaylo
             bookAllocationAmount: input.bookAllocationAmount,
             bankName: input.bankName,
             referenceNumber: input.referenceNumber || undefined,
+            transferDate: input.transferDate || undefined,
             paymentProofBase64: input.paymentProofBase64 || undefined,
           },
         }

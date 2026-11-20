@@ -45,6 +45,7 @@ const draft = (overrides: Partial<OrderDraft> = {}): OrderDraft => ({
   bookAllocationAmount: 900000,
   bankName: "BCA",
   referenceNumber: "REF123",
+  transferDate: "2026-10-20",
   paymentProofBase64: "",
   financeProofBase64: "",
   parentPhoneManual: "08123456789",

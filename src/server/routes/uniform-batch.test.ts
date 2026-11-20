@@ -84,6 +84,18 @@ describe("Uniform batch: stok manual, export CSV, import ekspedisi", () => {
       expect(ekspText).toContain("kontak_ortu");
       expect(ekspText).toContain("081200000010");
 
+      const excelEkspedisi = await uniformBatchRouter.request(`/orders/export?schoolId=${schoolId}&format=excel-ekspedisi`, { method: "GET" });
+      expect(excelEkspedisi.status).toBe(200);
+      expect(excelEkspedisi.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+      const excelEkspBuf = await excelEkspedisi.arrayBuffer();
+      expect(excelEkspBuf.byteLength).toBeGreaterThan(100);
+
+      const excelInternal = await uniformBatchRouter.request(`/orders/export?schoolId=${schoolId}&format=excel-internal`, { method: "GET" });
+      expect(excelInternal.status).toBe(200);
+      expect(excelInternal.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+      const excelIntBuf = await excelInternal.arrayBuffer();
+      expect(excelIntBuf.byteLength).toBeGreaterThan(100);
+
       const noSchool = await uniformBatchRouter.request("/orders/export?format=packing", { method: "GET" });
       expect(noSchool.status).toBe(400);
 

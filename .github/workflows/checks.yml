@@ -10,6 +10,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gates:
     runs-on: ubuntu-latest
@@ -62,6 +66,9 @@ jobs:
 
       - name: Base64 schemas gate
         run: bun run check:base64-schemas
+
+      - name: Client file guards gate
+        run: bun run check:client-file-guards
 
       - name: Dead-export gate
         run: bun run check:dead

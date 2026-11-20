@@ -16,6 +16,7 @@ export interface OrderDraft {
   bookAllocationAmount: number;
   bankName: string;
   referenceNumber: string;
+  transferDate: string;
   paymentProofBase64: string;
   financeProofBase64: string;
   parentPhoneManual: string;
@@ -69,6 +70,7 @@ const EMPTY_DRAFT: OrderDraft = {
   bookAllocationAmount: 0,
   bankName: "BCA",
   referenceNumber: "",
+  transferDate: "",
   paymentProofBase64: "",
   financeProofBase64: "",
   parentPhoneManual: "",

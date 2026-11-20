@@ -203,6 +203,11 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
   const handleFileUpload: FileUploadHandler = (e, setter) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage("Ukuran berkas bukti maksimal 5MB.");
+        e.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setter(reader.result as string);
@@ -237,6 +242,7 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
         bookAllocationAmount,
         bankName,
         referenceNumber,
+        transferDate: draft.transferDate,
         paymentProofBase64,
         notes,
         homeAddress,

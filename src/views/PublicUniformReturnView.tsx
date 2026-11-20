@@ -146,6 +146,11 @@ export function PublicUniformReturnView() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
+                            ret.setError("Ukuran dokumen surat pengunduran diri maksimal 5MB.");
+                            e.target.value = "";
+                            return;
+                          }
                           const reader = new FileReader();
                           reader.onload = () => ret.setLetterBase64(String(reader.result));
                           reader.readAsDataURL(file);

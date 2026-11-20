@@ -62,6 +62,7 @@ describe("buildReceiptDraft", () => {
     expect(built.ok).toBe(true);
     if (!built.ok) return;
     expect(built.draft.receipt.bankName).toBe("Tanpa Bank");
+    expect(built.draft.receipt.receivedAt).toBe("2026-10-23T00:00:00.000Z");
     expect(built.draft.receipt.verifiedAt).toBeNull();
     expect(built.draft.allocations[0].id).toBe("rcp-1-buku-ord-1");
     expect(built.draft.allocations[0].receiptId).toBe("rcp-1");
@@ -69,13 +70,14 @@ describe("buildReceiptDraft", () => {
 
   test("autoVerify mengisi verifiedAt dan mempertahankan id alokasi pemanggil", () => {
     const built = buildReceiptDraft(
-      baseInput({ autoVerify: true, verifiedByUserId: "usr-1" }),
+      baseInput({ autoVerify: true, verifiedByUserId: "usr-1", transferDate: "2026-10-20" }),
       "2026-10-23T00:00:00.000Z",
       "rcp-2",
       { allocationId: () => "alc-rcp-2" }
     );
     expect(built.ok).toBe(true);
     if (!built.ok) return;
+    expect(built.draft.receipt.receivedAt).toBe("2026-10-20T00:00:00.000Z");
     expect(built.draft.receipt.verifiedAt).toBe("2026-10-23T00:00:00.000Z");
     expect(built.draft.receipt.verifiedByUserId).toBe("usr-1");
     expect(built.draft.allocations[0].id).toBe("alc-rcp-2");

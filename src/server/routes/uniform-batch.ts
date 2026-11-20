@@ -27,6 +27,11 @@ import {
   commitBulkUniformCatalog,
   previewBulkUniformCatalog,
 } from "../services/uniform/bulk-catalog-service";
+import {
+  buildEkspedisiExcelBuffer,
+  buildInternalLogistikExcelBuffer,
+  fetchUniformExcelData,
+} from "../services/uniform/shipment-excel";
 import { currentAcademicYear } from "../../lib/wib-time";
 
 export const uniformBatchRouter = new Hono();
@@ -133,15 +138,31 @@ uniformBatchRouter.get("/reports/sales-csv", async (c) => {
   }
 });
 
-// Download CSV order lunas: packing vs ekspedisi (sekolah wajib).
+// Download CSV / Excel order: packing vs ekspedisi vs internal-logistik (sekolah wajib).
 uniformBatchRouter.get("/orders/export", async (c) => {
   try {
     const { scope } = await requireScopedActor(db, c, c.req.query("schoolId"));
     const schoolId = scope.length === 1 ? scope[0] : c.req.query("schoolId");
     if (!schoolId) return c.json({ success: false, message: "Filter sekolah wajib diisi." }, 400);
     if (scope.length === 1 && scope[0] !== schoolId) return c.json({ success: false, message: "Akses ke sekolah lain dilarang." }, 403);
-    const format = c.req.query("format") === "ekspedisi" ? "ekspedisi" : "packing";
+    const format = c.req.query("format") || "packing";
     const paidOnly = (c.req.query("paidOnly") ?? "true") !== "false";
+
+    if (format === "excel-ekspedisi" || format === "excel-internal") {
+      const data = await fetchUniformExcelData(db, schoolId, paidOnly);
+      const isEkspedisi = format === "excel-ekspedisi";
+      const buffer = isEkspedisi
+        ? buildEkspedisiExcelBuffer(data.ekspedisi)
+        : buildInternalLogistikExcelBuffer(data.internalLogistik);
+      const filename = `seragam-${isEkspedisi ? "ekspedisi" : "internal-logistik"}-${schoolId}.xlsx`;
+      return new Response(buffer.buffer as ArrayBuffer, {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    }
+
     const rows = await fetchUniformExportRows(db, schoolId, paidOnly);
     const csv = format === "ekspedisi" ? buildEkspedisiCsv(rows) : buildPackingCsv(rows);
     return new Response(`\uFEFF${csv}`, {

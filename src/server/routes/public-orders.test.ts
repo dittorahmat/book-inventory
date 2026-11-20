@@ -93,6 +93,7 @@ describe("Public Orders & Student Search API", () => {
           bookAllocationAmount: 800000,
           bankName: "BCA",
           referenceNumber: "TRX-BCA-9921",
+          transferDate: "2026-10-18",
           paymentProofBase64: "data:image/jpeg;base64,dGVzdC1oZW5kcmEtcHJvb2Y=",
         },
       }),
@@ -103,6 +104,9 @@ describe("Public Orders & Student Search API", () => {
     // ADR-0018: Alokasi 800.000 dari 1.500.000 dicatat sebagai partial (cicilan)
     expect(orderJson.data.paidAmount).toBe(800000);
     expect(orderJson.data.paymentStatus).toBe("partial");
+
+    const receipts = await selectReceiptsForOrder(orderJson.data.order.id);
+    expect(receipts[0]?.receipt.receivedAt).toBe("2026-10-18T00:00:00.000Z");
     // Notifikasi dilaporkan ke pemanggil, tidak fire-and-forget (simulasi di test).
     expect(orderJson.data.notification).toBeDefined();
     expect(orderJson.data.notification.success).toBe(true);

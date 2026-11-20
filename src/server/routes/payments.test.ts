@@ -81,12 +81,16 @@ describe("Payments & Cashier Verification API", () => {
 
     const pay1 = await postJson(`/orders/${orderId}/pay`, {
       transferAmount: 3000000, bookAllocationAmount: 400000, bankName: "Mandiri", referenceNumber: "REF-MND-001",
+      transferDate: "2026-10-15",
     });
     expect(pay1.status).toBe(200);
     const pay1Json = await pay1.json();
     expect(pay1Json.data.paidAmount).toBe(400000);
     expect(pay1Json.data.remainingAmount).toBe(600000);
     expect(pay1Json.data.paymentStatus).toBe("partial");
+
+    const [rcp1] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.referenceNumber, "REF-MND-001"));
+    expect(rcp1?.receivedAt).toBe("2026-10-15T00:00:00.000Z");
 
     const pay2 = await postJson(`/orders/${orderId}/pay`, {
       transferAmount: 600000, bookAllocationAmount: 600000, bankName: "Mandiri", referenceNumber: "REF-MND-002",
