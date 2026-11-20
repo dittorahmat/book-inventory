@@ -7,10 +7,11 @@ import {
   internalPurchaseOrders,
   internalShipmentItems,
   internalShipments,
+  packageStocks,
   schools,
 } from "../../../db/schema";
 import { createInternalPo, deleteInternalPurchaseOrder, fulfillInternalPo, listInternalPOs } from "./po";
-import { listInternalShipments } from "./shipment";
+import { cancelInternalShipment, listInternalShipments } from "./index";
 
 describe("Internal PO read seam (T2: list + history behind the module)", () => {
   it("lists POs with grouped lines and filters by school in SQL", async () => {
@@ -75,6 +76,14 @@ describe("Internal PO read seam (T2: list + history behind the module)", () => {
     await db.insert(bookPackages).values({
       id: pkgId, code: `PKG-T2-S-${stamp}`, name: "Paket T2 Ship", gradeLevel: "2", curriculumType: "national",
       academicYear: "2026/2027", createdAt: now, updatedAt: now,
+    });
+    await db.insert(packageStocks).values({
+      id: `ps-t2-s-${stamp}`,
+      packageId: pkgId,
+      schoolId: "school-warehouse",
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
     });
     try {
       const created = await createInternalPo(db, { schoolId, items: [{ packageId: pkgId, quantityOrdered: 4 }] });
@@ -164,5 +173,85 @@ describe("Internal PO read seam (T2: list + history behind the module)", () => {
 
     await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
     await db.delete(schools).where(eq(schools.id, schoolId));
+  });
+
+  it("Ticket #545: memotong stok gudang asal saat dispatch dan mengembalikannya saat pembatalan shipment", async () => {
+    const stamp = Date.now() + 500;
+    const branchId = `school-svc-br-${stamp}`;
+    const hqId = `school-svc-hq-${stamp}`;
+    const pkgId = `pkg-svc-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Svc", code: `SVC-BR-${stamp}`.slice(0, 32), type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Svc HQ", code: `SVC-HQ-${stamp}`.slice(0, 32), type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(bookPackages).values({
+      id: pkgId,
+      name: "Paket Svc",
+      code: `PKG-SVC-${stamp}`.slice(0, 32),
+      gradeLevel: "1",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Seed stok awal di gudang asal: 10 paket
+    await db.insert(packageStocks).values({
+      id: `ps-svc-${stamp}`,
+      packageId: pkgId,
+      schoolId: hqId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    const poRes = await createInternalPo(db, {
+      schoolId: branchId,
+      items: [{ packageId: pkgId, quantityOrdered: 4 }],
+    });
+    expect(poRes.ok).toBe(true);
+    if (!poRes.ok) return;
+
+    // 1. Dispatch melebihi stok (15 paket) -> ditolak 400
+    const overDispatch = await fulfillInternalPo(db, poRes.data.id, {
+      sourceSchoolId: hqId,
+      deliveryNoteNumber: `SJ-SVC-OVER-${stamp}`,
+      items: [{ packageId: pkgId, quantity: 15 }],
+    });
+    expect(overDispatch.ok).toBe(false);
+
+    // 2. Dispatch sah (4 paket) -> berhasil dan stok berkurang jadi 6
+    const dispatchRes = await fulfillInternalPo(db, poRes.data.id, {
+      sourceSchoolId: hqId,
+      deliveryNoteNumber: `SJ-SVC-OK-${stamp}`,
+      items: [{ packageId: pkgId, quantity: 4 }],
+    });
+    expect(dispatchRes.ok).toBe(true);
+    if (!dispatchRes.ok) return;
+
+    const [stockAfterDispatch] = await db
+      .select()
+      .from(packageStocks)
+      .where(eq(packageStocks.id, `ps-svc-${stamp}`));
+    expect(stockAfterDispatch.availableQuantity).toBe(6);
+
+    // 3. Batalkan Surat Jalan -> stok kembali jadi 10
+    const cancelRes = await cancelInternalShipment(db, dispatchRes.data.shipmentId, hqId);
+    expect(cancelRes.ok).toBe(true);
+
+    const [stockAfterCancel] = await db
+      .select()
+      .from(packageStocks)
+      .where(eq(packageStocks.id, `ps-svc-${stamp}`));
+    expect(stockAfterCancel.availableQuantity).toBe(10);
+
+    // Cleanup
+    await db.delete(packageStocks).where(eq(packageStocks.id, `ps-svc-${stamp}`));
+    await db.delete(internalPurchaseOrderItems).where(eq(internalPurchaseOrderItems.internalPoId, poRes.data.id));
+    await db.delete(internalPurchaseOrders).where(eq(internalPurchaseOrders.id, poRes.data.id));
+    await db.delete(bookPackages).where(eq(bookPackages.id, pkgId));
+    await db.delete(schools).where(eq(schools.id, branchId));
+    await db.delete(schools).where(eq(schools.id, hqId));
   });
 });

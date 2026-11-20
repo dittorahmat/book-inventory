@@ -83,6 +83,17 @@ describe("Push Distribution Routes", () => {
       updatedAt: new Date().toISOString(),
     });
 
+    // Seed stok awal di Gudang Pusat (school-warehouse) agar pengiriman push lolos validasi stok in-transit
+    const { packageStocks } = await import("../../db/schema");
+    await db.insert(packageStocks).values({
+      id: `ps-push-${Date.now()}`,
+      packageId: pkgId,
+      schoolId: "school-warehouse",
+      availableQuantity: 50,
+      reservedQuantity: 0,
+      updatedAt: new Date().toISOString(),
+    });
+
     const res = await app.request("/api/push-distribution", {
       method: "POST",
       headers: {

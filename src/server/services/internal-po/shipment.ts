@@ -10,6 +10,8 @@ import {
   schools,
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
+import { SCHOOL_IDS } from "../../lib/school-constants";
+import { dispatchShipmentStock } from "./stock-sync";
 import type { InternalShipmentItemInput } from "./po";
 import type { InternalShipmentListItem, ListInternalShipmentsResult } from "./types";
 
@@ -89,6 +91,7 @@ export interface OutstandingPoRow {
 
 export interface CreateManualShipmentInput {
   destinationSchoolId: string;
+  sourceSchoolId?: string;
   deliveryNoteNumber: string;
   shippedDate?: string;
   notes?: string;
@@ -213,6 +216,14 @@ export async function createManualShipment(
     isOutstandingFollowup: item.isOutstandingFollowup ?? false,
     createdAt: now,
   }));
+
+  const originSchoolId = input.sourceSchoolId || SCHOOL_IDS.WAREHOUSE;
+
+  // Debit stok gudang asal (in-transit) via stock-sync seam
+  const dispatchRes = await dispatchShipmentStock(database, originSchoolId, input.items);
+  if (!dispatchRes.ok) {
+    return { ok: false, status: 400, message: dispatchRes.message || "Stok paket di gudang asal tidak mencukupi" };
+  }
 
   try {
     await runWriteBatch(database, [

@@ -12,6 +12,8 @@ export type StockMovementType =
   | "receipt"               // penerimaan PO supplier
   | "handover"              // serah terima ke siswa
   | "transfer"              // transfer antar sekolah (debit asal, credit tujuan)
+  | "transfer_dispatch"     // debit asal saat kirim (barang keluar / in-transit)
+  | "transfer_receive"      // credit tujuan saat terima dari in-transit
   | "transfer_discrepancy"  // debit asal dan catat selisih rusak/hilang di tujuan
   | "assembly"              // kitting buku satuan menjadi bundel paket
   | "disassembly";          // unbundling paket menjadi buku satuan
@@ -104,6 +106,38 @@ export async function moveInventoryStock(
         const debitRes = await adjustPackageStock(database, input.packageId, input.fromSchoolId, -qty, deps);
         if (!debitRes.ok) return { ok: false, message: "Stok paket asal tidak mencukupi untuk transfer." };
         await adjustPackageStock(database, input.packageId, input.toSchoolId, qty, deps);
+      }
+      return { ok: true };
+    }
+
+    case "transfer_dispatch": {
+      if (!sourceSchoolId) {
+        return { ok: false, message: "Lokasi asal (schoolId/fromSchoolId) wajib diisi untuk transfer_dispatch." };
+      }
+      if (input.itemType === "loose") {
+        if (!input.bookId) return { ok: false, message: "bookId wajib untuk transfer_dispatch buku satuan." };
+        const debitRes = await adjustLooseStock(database, input.bookId, sourceSchoolId, -qty, deps);
+        if (!debitRes.ok) return { ok: false, message: "Stok buku satuan asal tidak mencukupi untuk pengiriman." };
+      } else {
+        if (!input.packageId) return { ok: false, message: "packageId wajib untuk transfer_dispatch paket." };
+        const debitRes = await adjustPackageStock(database, input.packageId, sourceSchoolId, -qty, deps);
+        if (!debitRes.ok) return { ok: false, message: "Stok paket asal tidak mencukupi untuk pengiriman." };
+      }
+      return { ok: true };
+    }
+
+    case "transfer_receive": {
+      if (!targetSchoolId) {
+        return { ok: false, message: "Lokasi tujuan (schoolId/toSchoolId) wajib diisi untuk transfer_receive." };
+      }
+      if (input.itemType === "loose") {
+        if (!input.bookId) return { ok: false, message: "bookId wajib untuk transfer_receive buku satuan." };
+        const creditRes = await adjustLooseStock(database, input.bookId, targetSchoolId, qty, deps);
+        if (!creditRes.ok) return { ok: false, message: "Gagal menambah stok buku satuan penerimaan transfer." };
+      } else {
+        if (!input.packageId) return { ok: false, message: "packageId wajib untuk transfer_receive paket." };
+        const creditRes = await adjustPackageStock(database, input.packageId, targetSchoolId, qty, deps);
+        if (!creditRes.ok) return { ok: false, message: "Gagal menambah stok paket penerimaan transfer." };
       }
       return { ok: true };
     }

@@ -11,6 +11,7 @@ import { useInternalOrders } from "../components/internal-orders/useInternalOrde
 import { InternalOrdersTable } from "../components/internal-orders/InternalOrdersTable";
 import { CreateInternalOrderModal } from "../components/internal-orders/CreateInternalOrderModal";
 import { ReceiveInternalShipmentModal } from "../components/internal-orders/ReceiveInternalShipmentModal";
+import { BranchPackageStockCard } from "../components/internal-orders/BranchPackageStockCard";
 import type { InternalShipment } from "../lib/internal-orders-types";
 
 interface InternalProcurementViewProps {
@@ -190,6 +191,13 @@ export function InternalProcurementView({
               ))}
           </div>
         </div>
+      )}
+
+      {/* Panel Ringkasan Stok Paket Cabang (Read-Only) */}
+      {!isLogistics && (
+        <BranchPackageStockCard
+          school={activeSchool}
+        />
       )}
 
       <InternalOrdersTable

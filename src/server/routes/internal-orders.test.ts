@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { and, eq } from "drizzle-orm";
 import { mockActor, restoreActor } from "./test-actor";
 
 beforeEach(() => mockActor("central_admin", null));
@@ -7,7 +8,8 @@ afterEach(() => {
 });
 import { internalOrdersRouter } from "./internal-orders";
 import { db } from "../../db";
-import { schools, bookPackages, books, students } from "../../db/schema";
+import { schools, bookPackages, books, students, packageStocks, studentBookOrders } from "../../db/schema";
+import { handoverPackage } from "../services/order-handover";
 
 describe("Internal Orders & Multi-Delivery Shipments API", () => {
   it("creates internal PO from branch to HQ and records multiple partial shipments without duplicating PO", async () => {
@@ -60,6 +62,16 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
       updatedAt: now,
     });
 
+    // Seed stok awal di gudang asal
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: 50,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
     // 3. Cabang menerbitkan PO Internal ke Pusat (10 Paket)
     const createPoRes = await internalOrdersRouter.request("/", {
       method: "POST",
@@ -81,13 +93,14 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        sourceSchoolId: hqId,
         deliveryNoteNumber: `SJ-INT-001-${stamp}`,
         notes: "Pengiriman tahap 1 (7 dari 10 paket)",
         items: [{ packageId, quantity: 7, isOutstandingFollowup: false }],
       }),
     });
-    expect(ship1Res.status).toBe(200);
     const ship1Json = await ship1Res.json();
+    expect(ship1Res.status).toBe(200);
     expect(ship1Json.data.status).toBe("partial_fulfilled");
 
     // 5. Pengiriman Surat Jalan Tahap 2 (Kirim sisa 3 paket backorder dengan Surat Jalan baru)
@@ -95,6 +108,7 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        sourceSchoolId: hqId,
         deliveryNoteNumber: `SJ-INT-002-${stamp}`,
         notes: "Pengiriman tahap 2 pelunasan sisa 3 paket",
         items: [{ packageId, quantity: 3, isOutstandingFollowup: true }],
@@ -140,6 +154,18 @@ describe("Internal Orders & Multi-Delivery Shipments API", () => {
       updatedAt: now,
     }));
     await db.insert(bookPackages).values(packageSeeds);
+
+    // Seed initial package stocks for the 30 packages at HQ (SCHOOL_IDS.WAREHOUSE)
+    await db.insert(packageStocks).values(
+      packageSeeds.map((p) => ({
+        id: crypto.randomUUID(),
+        packageId: p.id,
+        schoolId: "school-warehouse",
+        availableQuantity: 10,
+        reservedQuantity: 0,
+        updatedAt: now,
+      }))
+    );
 
     const createPoRes = await internalOrdersRouter.request("/", {
       method: "POST",
@@ -200,6 +226,14 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       id: packageId, code: `PKG-RCV-${stamp}`, name: "Paket Terima", gradeLevel: "1",
       curriculumType: "international", academicYear: "2026/2027", createdAt: now, updatedAt: now,
     });
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: lineCount + 50,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
     const createRes = await internalOrdersRouter.request("/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,6 +245,7 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        sourceSchoolId: hqId,
         deliveryNoteNumber: `SJ-RCV-${stamp}`,
         items: Array.from({ length: lineCount }, (_, i) =>
           i === 0 ? { packageId, quantity: lineCount } : { bookId, quantity: 1, isOutstandingFollowup: true }
@@ -328,6 +363,15 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       curriculumType: "national",
       academicYear: "2026/2027",
       createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: 20,
+      reservedQuantity: 0,
       updatedAt: now,
     });
 
@@ -573,5 +617,277 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       method: "DELETE",
     });
     expect(ghostRes.status).toBe(404);
+  });
+
+  it("Ticket #545: memotong stok gudang asal saat menerbitkan Surat Jalan (in-transit) dan menolak jika stok kurang", async () => {
+    const stamp = Date.now() + 50;
+    const branchId = `school-cbg-${stamp}`;
+    const hqId = `school-wh-${stamp}`;
+    const packageId = `pkg-trf-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Stok Test", code: `STK-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Asal Test", code: `GWH-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-STK-${stamp}`,
+      name: "Paket Stok Transit",
+      gradeLevel: "1",
+      curriculumType: "national",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Seed stok paket di gudang asal = 5, di cabang = 0
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: 5,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Buat 3 siswa aktif kelas 1
+    await db.insert(students).values([
+      {
+        id: `std-stk-1-${stamp}`,
+        name: `Siswa Stok 1 ${stamp}`,
+        nis: `NIS-STK-1-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-stk-2-${stamp}`,
+        name: `Siswa Stok 2 ${stamp}`,
+        nis: `NIS-STK-2-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-stk-3-${stamp}`,
+        name: `Siswa Stok 3 ${stamp}`,
+        nis: `NIS-STK-3-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    mockActor("branch_admin", branchId);
+    const poRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 3 }],
+      }),
+    });
+    const poJson = (await poRes.json()) as { data: { id: string } };
+    const poId = poJson.data.id;
+
+    // 1. Warehouse admin menerbitkan SJ dengan kuantitas 10 (melebihi stok gudang 5) -> 400
+    mockActor("warehouse_admin", hqId);
+    const overRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-OVER-${stamp}`,
+        items: [{ packageId, quantity: 10 }],
+      }),
+    });
+    expect(overRes.status).toBe(400);
+
+    // 2. Warehouse admin menerbitkan SJ sah dengan kuantitas 3 -> 200
+    const shipRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-OK-${stamp}`,
+        items: [{ packageId, quantity: 3 }],
+      }),
+    });
+    expect(shipRes.status).toBe(200);
+
+    // 3. Verifikasi stok gudang asal berkurang dari 5 menjadi 2 (in-transit)
+    const [hqStock] = await db.select().from(packageStocks).where(eq(packageStocks.schoolId, hqId));
+    expect(hqStock.availableQuantity).toBe(2);
+
+    // 4. Verifikasi stok cabang tujuan belum bertambah (masih 0 / belum ada record)
+    const [branchStock] = await db.select().from(packageStocks).where(eq(packageStocks.schoolId, branchId));
+    expect(branchStock?.availableQuantity ?? 0).toBe(0);
+  });
+
+  it("Ticket #546: menambah stok paket cabang saat penerimaan good dan mencatat discrepancy untuk damaged/missing", async () => {
+    const stamp = Date.now() + 300;
+    const branchId = `school-rcv-stk-${stamp}`;
+    const hqId = `school-hq-stk-${stamp}`;
+    const packageId = `pkg-rcv-stk-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values([
+      { id: branchId, name: "Cabang Rcv Stk", code: `CRCV-${stamp}`, type: "branch", createdAt: now, updatedAt: now },
+      { id: hqId, name: "Gudang Rcv Stk", code: `GRCV-${stamp}`, type: "warehouse", createdAt: now, updatedAt: now },
+    ]);
+
+    await db.insert(bookPackages).values({
+      id: packageId,
+      code: `PKG-RSTK-${stamp}`,
+      name: "Paket Rcv Stock",
+      gradeLevel: "1",
+      curriculumType: "national",
+      academicYear: "2026/2027",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Stok awal di HQ: 10 paket
+    await db.insert(packageStocks).values({
+      id: crypto.randomUUID(),
+      packageId,
+      schoolId: hqId,
+      availableQuantity: 10,
+      reservedQuantity: 0,
+      updatedAt: now,
+    });
+
+    // Buat siswa aktif agar PO cabang lolos validasi kuota
+    await db.insert(students).values([
+      {
+        id: `std-rcv-1-${stamp}`,
+        name: `Siswa Rcv 1 ${stamp}`,
+        nis: `NIS-RCV-1-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-rcv-2-${stamp}`,
+        name: `Siswa Rcv 2 ${stamp}`,
+        nis: `NIS-RCV-2-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `std-rcv-3-${stamp}`,
+        name: `Siswa Rcv 3 ${stamp}`,
+        nis: `NIS-RCV-3-${stamp}`.slice(0, 32),
+        schoolId: branchId,
+        gradeLevel: "1",
+        academicYear: "2026/2027",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    mockActor("branch_admin", branchId);
+    const poRes = await internalOrdersRouter.request("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schoolId: branchId,
+        items: [{ packageId, quantityOrdered: 3 }],
+      }),
+    });
+    const poJson = (await poRes.json()) as { data: { id: string } };
+    const poId = poJson.data.id;
+
+    // 1. Gudang menerbitkan Surat Jalan untuk 3 paket
+    mockActor("warehouse_admin", hqId);
+    const shipRes = await internalOrdersRouter.request(`/${poId}/shipments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryNoteNumber: `SJ-RCVSTK-${stamp}`,
+        items: [{ packageId, quantity: 3 }],
+      }),
+    });
+    expect(shipRes.status).toBe(200);
+    const { shipmentId } = (await shipRes.json()).data;
+
+    // Dapatkan ID baris pengiriman
+    const histRes = await internalOrdersRouter.request(`/${poId}/shipments`, { method: "GET" });
+    const hist = ((await histRes.json()) as { data: Array<{ id: string; items: Array<{ id: string }> }> }).data;
+    const currentShip = hist.find((s) => s.id === shipmentId);
+    const lineId = currentShip?.items[0]?.id as string;
+
+    // 2. Cabang menerima surat jalan dengan kondisi "good"
+    mockActor("branch_admin", branchId);
+    const rcvRes = await internalOrdersRouter.request(`/shipments/${shipmentId}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryProofUrl: "https://storage.example.com/sj-signed-546.pdf",
+        items: [{ shipmentItemId: lineId, condition: "good" }],
+      }),
+    });
+    expect(rcvRes.status).toBe(200);
+    expect((await rcvRes.json()).data.status).toBe("delivered");
+
+    // 3. Verifikasi stok paket cabang kini bertambah menjadi 3
+    const [branchStockAfter] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, branchId), eq(packageStocks.packageId, packageId)));
+    expect(branchStockAfter).toBeDefined();
+    expect(branchStockAfter.availableQuantity).toBe(3);
+
+    // 4. Verifikasi stok gudang tetap 7 (sudah terpotong saat in-transit dan tidak terpotong ganda)
+    const [hqStockFinal] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, hqId), eq(packageStocks.packageId, packageId)));
+    expect(hqStockFinal.availableQuantity).toBe(7);
+
+    // 5. Uji integrasi serah terima pesanan siswa: handover berhasil karena stok paket cabang sudah terisi
+    const studentOrderId = `ord-int-ho-${stamp}`;
+    await db.insert(studentBookOrders).values({
+      id: studentOrderId,
+      orderNumber: `ORD-HO-${stamp}`.slice(0, 32),
+      studentId: `std-rcv-1-${stamp}`,
+      schoolId: branchId,
+      packageId,
+      orderType: "regular",
+      paymentStatus: "paid",
+      fulfillmentStatus: "waiting_preparation",
+      totalAmount: 150000,
+      paidAmount: 150000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const handoverRes = await handoverPackage(db, studentOrderId, {
+      recipientName: "Wali Murid",
+    });
+    expect(handoverRes.ok).toBe(true);
+
+    const [branchStockAfterHandover] = await db
+      .select()
+      .from(packageStocks)
+      .where(and(eq(packageStocks.schoolId, branchId), eq(packageStocks.packageId, packageId)));
+    expect(branchStockAfterHandover.availableQuantity).toBe(2);
   });
 });

@@ -20,6 +20,7 @@ import {
   listOutstandingPOs,
   createManualShipment,
   receiveInternalShipment,
+  cancelInternalShipment,
 } from "../services/internal-po";
 import { idSchema } from "../lib/validators";
 import { isLogisticsRole } from "../../lib/staff-roles";
@@ -43,6 +44,7 @@ const createInternalPoSchema = z.object({
 
 const baseShipmentHeaderSchema = z.object({
   deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
+  sourceSchoolId: idSchema.optional(),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
   transferShipmentId: idSchema.optional(),
@@ -146,10 +148,11 @@ const createManualShipmentSchema = baseShipmentHeaderSchema.extend({
 // 4. POST create Manual Shipment without PO
 internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualShipmentSchema), async (c) => {
   try {
-    await resolveLogisticsActor(c);
+    const actor = await resolveLogisticsActor(c);
     const body = c.req.valid("json");
+    const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
 
-    const result = await createManualShipment(db, body);
+    const result = await createManualShipment(db, { ...body, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -170,11 +173,12 @@ internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualSh
 // 3. POST create Shipment (Surat Jalan Pengiriman Internal)
 internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSchema), async (c) => {
   try {
-    await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
+    const actor = await resolveLogisticsActor(c); // Hanya HQ / Gudang yang boleh menerbitkan pengiriman
     const poId = c.req.param("id");
     const body = c.req.valid("json");
+    const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
 
-    const result = await fulfillInternalPo(db, poId, body);
+    const result = await fulfillInternalPo(db, poId, { ...body, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -287,6 +291,27 @@ internalOrdersRouter.delete("/:id", async (c) => {
       success: true,
       message: `PO Internal "${result.data.poNumber}" berhasil dihapus.`,
       data: result.data,
+    });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
+// 7. DELETE Surat Jalan Pengiriman Internal (Pembatalan Surat Jalan & Rollback Stok In-Transit)
+internalOrdersRouter.delete("/shipments/:shipmentId", async (c) => {
+  try {
+    const actor = await resolveLogisticsActor(c);
+    const shipmentId = idSchema.parse(c.req.param("shipmentId"));
+    const sourceSchoolId = actor.schoolId || "school-warehouse";
+
+    const result = await cancelInternalShipment(db, shipmentId, sourceSchoolId);
+    if (!result.ok) {
+      return c.json({ success: false, message: result.message }, result.status);
+    }
+
+    return c.json({
+      success: true,
+      message: result.message,
     });
   } catch (err) {
     return accessErrorResponse(c, err);

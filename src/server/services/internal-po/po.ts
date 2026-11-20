@@ -11,6 +11,8 @@ import {
 } from "../../../db/schema";
 import { chunkRows, d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { documentNumber, epochTimeFragment, randomSerial } from "../../lib/document-number";
+import { SCHOOL_IDS } from "../../lib/school-constants";
+import { dispatchShipmentStock } from "./stock-sync";
 import type {
   CreateInternalPoInput,
   CreateInternalPoResult,
@@ -256,6 +258,14 @@ export async function fulfillInternalPo(
   })
     ? "completed"
     : "partial_fulfilled";
+
+  const originSchoolId = input.sourceSchoolId || SCHOOL_IDS.WAREHOUSE;
+
+  // 1. Validasi saldo dan debit stok gudang asal (fase in-transit) via stock-sync seam
+  const dispatchRes = await dispatchShipmentStock(database, originSchoolId, input.items);
+  if (!dispatchRes.ok) {
+    return { ok: false, status: 400, message: dispatchRes.message || "Stok paket di gudang asal tidak mencukupi" };
+  }
 
   try {
     await runWriteBatch(database, [

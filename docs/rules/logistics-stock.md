@@ -135,3 +135,17 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
 4. **Anti-Duplikasi Judul Katalog & Konsolidasi Relasi Buku Kanonik**:
    - Impor katalog buku (`importBookCatalog`) dan seeder supplier (`seedMasterSuppliers`) dilarang menciptakan duplikasi judul buku (*split book identity*). Pencocokan eksisting wajib memprioritaskan perbandingan judul ternormalisasi (`normalizeBookTitle`), dan jika terdapat baris duplikat, wajib mengutamakan ID buku yang terikat ke BOM paket (`book_package_items`).
    - Seeder supplier dan pemetaan `book_suppliers` wajib disaring hanya untuk buku kanonik (satu buku representatif per judul unik dengan prioritas buku BOM paket) agar modal pembuatan Purchase Order (`CreatePOModal`) tidak memunculkan baris duplikat yatim dengan demand siswa 0 dan stok fisik terpecah. Ditegakkan mekanis oleh gate `check:catalog-dedup`.
+
+---
+
+### §0.90. Sinkronisasi Stok Pengiriman Internal & Transisi In-Transit (§0.90)
+1. **Disiplin Debit In-Transit & Pre-Flight Check**:
+   - Penerbitan Surat Jalan Internal (`fulfillInternalPo`, `createManualShipment`) wajib mendebit stok paket gudang asal secara atomik menggunakan seam kanonik `moveInventoryStock` (`movementType: "transfer_dispatch"`).
+   - Validasi saldo ketersediaan seluruh baris wajib dieksekusi di muka (*pre-flight validation*) sebelum mutasi database dilakukan, guna mencegah mutasi parsial dan kegagalan kompensasi memori di tengah jalan.
+2. **Kredit Penerimaan Cabang & Audit Selisih**:
+   - Konfirmasi penerimaan Surat Jalan oleh cabang (`receiveInternalShipment`) wajib mengkredit saldo paket cabang tujuan (`movementType: "transfer_receive"` ke `package_stocks`) untuk baris berkondisi `good`.
+   - Baris berkondisi `damaged` atau `missing` dilarang menambah saldo siap serah cabang, melainkan wajib dicatat ke riwayat penyesuaian audit stok (`stock_adjustments`) dengan flag `updateStockBalance: false`.
+3. **Pembatalan Surat Jalan & Restorasi Saldo**:
+   - Pembatalan Surat Jalan internal berstatus `in_transit` (`DELETE /api/internal-orders/shipments/:shipmentId`) wajib mengembalikan saldo paket yang sedang berada di perjalanan kembali ke gudang asal via `moveInventoryStock` (`transfer_receive`) sebelum baris shipment dihapus.
+4. **Isolasi Lokasi UI Panel Stok Cabang**:
+   - Kartu ringkasan stok paket cabang (`BranchPackageStockCard`) pada tab "Terima Paket Dari Gudang" bersifat read-only dan lokasinya terkunci ke penugasan sekolah aktif pengguna (`activeSchool`), dilarang mengikuti filter sementara dari dropdown luar agar staf cabang selalu melihat stok riil cabang mereka sendiri.
