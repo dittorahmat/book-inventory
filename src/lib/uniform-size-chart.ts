@@ -7,14 +7,14 @@ export interface UniformSizeChartEntry {
   bottomLengthCm: number;
 }
 
-const TK_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+export const TK_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 4, size: "S", chestWidthCm: 36, bottomLengthCm: 57 },
   { chartNumber: 5, size: "M", chestWidthCm: 38, bottomLengthCm: 59 },
   { chartNumber: 6, size: "L", chestWidthCm: 40, bottomLengthCm: 63 },
   { chartNumber: 7, size: "XL", chestWidthCm: 42, bottomLengthCm: 75 },
 ];
 
-const SD_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+export const SD_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 7, size: "S", chestWidthCm: 42, bottomLengthCm: 76 },
   { chartNumber: 8, size: "M", chestWidthCm: 44, bottomLengthCm: 79 },
   { chartNumber: 9, size: "L", chestWidthCm: 46, bottomLengthCm: 82 },
@@ -24,7 +24,7 @@ const SD_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 16, size: "4XL", chestWidthCm: 54, bottomLengthCm: 97 },
 ];
 
-const SMP_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+export const SMP_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 13, size: "S", chestWidthCm: 48, bottomLengthCm: 89 },
   { chartNumber: 14, size: "M", chestWidthCm: 50, bottomLengthCm: 92 },
   { chartNumber: 15, size: "L", chestWidthCm: 52, bottomLengthCm: 94 },
@@ -35,7 +35,7 @@ const SMP_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 20, size: "5XL", chestWidthCm: 62, bottomLengthCm: 108 },
 ];
 
-const SMA_SIZE_CHART: readonly UniformSizeChartEntry[] = [
+export const SMA_SIZE_CHART: readonly UniformSizeChartEntry[] = [
   { chartNumber: 13, size: "S", chestWidthCm: 48, bottomLengthCm: 89 },
   { chartNumber: 14, size: "M", chestWidthCm: 50, bottomLengthCm: 92 },
   { chartNumber: 15, size: "L", chestWidthCm: 52, bottomLengthCm: 94 },

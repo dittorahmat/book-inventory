@@ -111,11 +111,8 @@ export function UniformItemStep({ order }: { order: UniformOrder }) {
                   })
                 ),
               ];
-              const sizeOptions = (rawSizes.length > 0
-                ? rawSizes.filter((s) => officialSportSizes.includes(s))
-                : officialSportSizes
-              ).filter((s) => officialSportSizes.includes(s));
-              const finalPackageSizes = sizeOptions.length > 0 ? sizeOptions : officialSportSizes;
+              const filteredPackageSizes = rawSizes.filter((s) => officialSportSizes.includes(s));
+              const finalPackageSizes = filteredPackageSizes.length > 0 ? filteredPackageSizes : officialSportSizes;
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-[#E4E6EB] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
