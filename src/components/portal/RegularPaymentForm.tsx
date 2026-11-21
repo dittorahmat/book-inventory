@@ -108,14 +108,22 @@ export function RegularPaymentForm({
 
         <div className="sm:col-span-2">
           <label className="block text-xs font-semibold text-[#050505] mb-1">
-            Tanggal Transfer Bank <span className="text-[#65676B] font-normal">(Opsional / Default: Hari ini)</span>
+            Tanggal Transfer Bank <span className="text-rose-600">*</span>
           </label>
           <input
             type="date"
             value={transferDate}
-            onChange={(e) => edit({ transferDate: e.target.value })}
-            className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+            onChange={(e) => {
+              edit({ transferDate: e.target.value });
+              if (attempted) {
+                setFieldErrors((prev) => ({ ...prev, transferDate: undefined }));
+              }
+            }}
+            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs text-[#050505] ${
+              attempted && fieldErrors.transferDate ? "border-rose-500 ring-1 ring-rose-500" : "border-[#CED0D4]"
+            }`}
           />
+          <FormFieldFeedback error={attempted ? fieldErrors.transferDate : undefined} />
         </div>
 
         <div>

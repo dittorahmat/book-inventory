@@ -48,7 +48,7 @@ export const cashierPaymentSchema = z
     bankName: z.string().optional(),
     referenceNumber: z.string().optional(),
     verifiedByUserId: z.string().optional(),
-    transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
+    transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD"),
     notes: z.string().optional(),
   })
   .refine(

@@ -4,6 +4,7 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
 import { RegularPaymentForm } from "./RegularPaymentForm";
 import {
+  validateDate,
   validatePhone,
   validateProofFile,
   validateRequiredSelect,
@@ -49,6 +50,7 @@ export function PaymentStep({
     transferAmount,
     bookAllocationAmount,
     bankName,
+    transferDate,
     paymentProofBase64,
     parentPhoneManual,
     notes,
@@ -76,6 +78,9 @@ export function PaymentStep({
 
       const bankCheck = validateRequiredSelect(bankName, "Bank Tujuan Transfer");
       if (!bankCheck.valid) errors.bankName = bankCheck.message;
+
+      const dateCheck = validateDate(transferDate, "Tanggal Transfer Bank");
+      if (!dateCheck.valid) errors.transferDate = dateCheck.message;
 
       const phoneCheck = validatePhone(parentPhoneManual);
       if (!phoneCheck.valid) errors.parentPhoneManual = phoneCheck.message;

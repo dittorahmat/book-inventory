@@ -53,13 +53,20 @@ export function UniformOrderPaymentSection({ order }: UniformOrderPaymentSection
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[#050505] mb-1">Tanggal Transfer Bank</label>
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Tanggal Transfer Bank {order.paymentProof && <span className="text-rose-600">*</span>}
+          </label>
           <input
             type="date"
             value={order.transferDate}
             onChange={(e) => order.setTransferDate(e.target.value)}
-            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm"
+            className={`w-full rounded-xl border px-3 py-2 text-sm ${
+              order.paymentProof && !order.transferDate ? "border-rose-500 ring-1 ring-rose-300" : "border-[#CED0D4]"
+            }`}
           />
+          {order.paymentProof && !order.transferDate && (
+            <p className="mt-1 text-[11px] font-semibold text-rose-600">Tanggal transfer wajib diisi bila melampirkan bukti transfer.</p>
+          )}
         </div>
       </div>
 

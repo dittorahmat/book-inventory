@@ -4,7 +4,7 @@ import { formatRupiah } from "../../lib/transfer-pricing";
 import { postJson } from "../../lib/api";
 import { todayWIB } from "../../lib/wib-time";
 import { FormFieldFeedback, FormSummaryAlert } from "../ui/FormFieldFeedback";
-import { validateRequiredText } from "../../lib/form-validation";
+import { validateDate, validateRequiredText } from "../../lib/form-validation";
 import { allocationViolation } from "../../lib/order-allocation";
 import type { StudentOrder } from "./order-types";
 
@@ -51,6 +51,9 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
 
     const bankCheck = validateRequiredText(bankName, "Nama Bank", 2);
     if (!bankCheck.valid) errors.bankName = bankCheck.message;
+
+    const dateCheck = validateDate(transferDate, "Tanggal Transfer Bank");
+    if (!dateCheck.valid) errors.transferDate = dateCheck.message;
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -170,13 +173,23 @@ export function CashierPaymentModal({ order, onClose, onSuccess }: CashierPaymen
             />
           </div>
           <div>
-            <label className="block font-semibold mb-1">Tanggal Transfer Bank</label>
+            <label className="block font-semibold mb-1">
+              Tanggal Transfer Bank <span className="text-rose-600">*</span>
+            </label>
             <input
               type="date"
               value={transferDate}
-              onChange={(e) => setTransferDate(e.target.value)}
-              className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl"
+              onChange={(e) => {
+                setTransferDate(e.target.value);
+                if (attempted) setFieldErrors((prev) => ({ ...prev, transferDate: undefined }));
+              }}
+              className={`w-full px-3 py-2 border rounded-xl transition-colors ${
+                attempted && fieldErrors.transferDate
+                  ? "border-rose-500 ring-1 ring-rose-200"
+                  : "border-[#CED0D4]"
+              }`}
             />
+            <FormFieldFeedback error={attempted ? fieldErrors.transferDate : undefined} />
           </div>
           <div className="pt-2 flex justify-end gap-2">
             <button

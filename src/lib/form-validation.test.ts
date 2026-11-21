@@ -3,6 +3,7 @@ import {
   validateEmail,
   validateNis,
   validatePhone,
+  validateDate,
   validateProofFile,
   validateRequiredSelect,
   validateRequiredText,
@@ -103,6 +104,25 @@ describe("form-validation helpers", () => {
 
     it("accepts valid email", () => {
       const res = validateEmail("ortu@alwildan.sch.id");
+      expect(res.valid).toBe(true);
+    });
+  });
+
+  describe("validateDate", () => {
+    it("rejects empty date", () => {
+      const res = validateDate("", "Tanggal transfer");
+      expect(res.valid).toBe(false);
+      expect(res.message).toBe("Tanggal transfer wajib diisi.");
+    });
+
+    it("rejects invalid date format", () => {
+      const res = validateDate("20-11-2026", "Tanggal transfer");
+      expect(res.valid).toBe(false);
+      expect(res.message).toBe("Tanggal transfer harus berformat YYYY-MM-DD.");
+    });
+
+    it("accepts valid date YYYY-MM-DD", () => {
+      const res = validateDate("2026-11-20", "Tanggal transfer");
       expect(res.valid).toBe(true);
     });
   });

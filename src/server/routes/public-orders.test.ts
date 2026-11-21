@@ -124,6 +124,7 @@ describe("Public Orders & Student Search API", () => {
           allocationAmount: 1500000,
           bankName: "Mandiri",
           referenceNumber: `TRX-MDR-${Date.now()}`,
+          transferDate: "2026-10-18",
           paymentProofBase64: "data:image/jpeg;base64,dGVzdC1sdW5hcy1wcm9vZg==",
         },
       }),
@@ -148,6 +149,7 @@ describe("Public Orders & Student Search API", () => {
           allocationAmount: 1500000,
           bankName: "Mandiri",
           referenceNumber: `TRX-MDR-OVERSIZED-${Date.now()}`,
+          transferDate: "2026-10-18",
           paymentProofBase64: oversizedBase64,
         },
       }),
@@ -313,6 +315,22 @@ describe("Public Orders & Student Search API", () => {
     expect(rejectedJson.success).toBe(false);
     expect(rejectedJson.message).toContain("Bukti transfer");
 
+    const noDate = await publicOrdersRouter.request("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        packageId: pkgId,
+        orderType: "regular",
+        payment: {
+          transferAmount: 500000,
+          bookAllocationAmount: 500000,
+          paymentProofBase64: "data:image/jpeg;base64,dGVzdC1yZWdwcm9vZg==",
+        },
+      }),
+    });
+    expect(noDate.status).toBe(400);
+
     const accepted = await publicOrdersRouter.request("/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -323,6 +341,7 @@ describe("Public Orders & Student Search API", () => {
         payment: {
           transferAmount: 500000,
           bookAllocationAmount: 500000,
+          transferDate: "2026-10-20",
           paymentProofBase64: "data:image/jpeg;base64,dGVzdC1yZWdwcm9vZg==",
         },
       }),
@@ -1754,14 +1773,14 @@ describe("Klaim bukti transfer = pending sampai verifikasi gudang", () => {
 
       const blocked = await publicOrdersRouter.request(`/confirm/tok-paid-${stamp}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000 }),
+        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, transferDate: "2026-10-18" }),
       });
       expect(blocked.status).toBe(400);
       expect((await blocked.json()).message).toMatch(/lunas/i);
 
       const claim = await publicOrdersRouter.request(`/confirm/tok-pending-${stamp}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, bankName: "BCA" }),
+        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, bankName: "BCA", transferDate: "2026-10-18" }),
       });
       expect(claim.status).toBe(201);
       const claimJson = await claim.json();
@@ -1813,6 +1832,7 @@ describe("Struk bayar ganda di intake publik", () => {
         bookAllocationAmount: 100000,
         bankName: "BCA",
         referenceNumber,
+        transferDate: "2026-10-18",
         paymentProofBase64: "data:image/jpeg;base64,ZHVwLXByb29m",
       },
     };
@@ -2005,6 +2025,7 @@ describe("Struk bayar ganda di intake publik", () => {
             allocationAmount: 150000,
             bankName: "BCA",
             referenceNumber: `REF-NEW-${stamp}`,
+            transferDate: "2026-10-18",
             paymentProofBase64: samplePng,
           },
         }),
@@ -2548,6 +2569,7 @@ describe("Struk bayar ganda di intake publik", () => {
           payment: {
             transferAmount: 450000,
             bookAllocationAmount: 450000,
+            transferDate: "2026-10-18",
             paymentProofBase64:
               "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
           },
