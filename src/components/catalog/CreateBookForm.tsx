@@ -234,9 +234,12 @@ export function CreateBookForm({ onClose, onCreate }: CreateBookFormProps) {
               options={packageOptions}
               values={formData.packageIds}
               onChange={(values) => setFormData({ ...formData, packageIds: values })}
-              placeholder="Pilih paket buku (opsional)..."
+              placeholder="Pilih paket kurikulum (bisa pilih >1 untuk buku lintas jenjang)..."
             />
             {packageError ? <p className="mt-1 text-[11px] text-red-600">{packageError}</p> : null}
+            <p className="mt-1 text-[10px] text-[#65676B]">
+              Buku yang dipakai bersama di beberapa jenjang cukup dibuat sekali di sini dan dikaitkan ke paket-paket terkait.
+            </p>
           </div>
 
           <div className="col-span-2">

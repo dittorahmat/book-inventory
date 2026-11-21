@@ -196,10 +196,10 @@ export async function calculateBookDemandSummary(
     const bId = row.bookId;
     const gLevel = row.gradeLevel || "Lainnya";
     const count = Number(row.studentCount || 0);
-    if (!studentCountMap.has(bId)) {
-      studentCountMap.set(bId, count);
-      gradeBreakdownMap.set(bId, { [gLevel]: count });
-    }
+    studentCountMap.set(bId, (studentCountMap.get(bId) ?? 0) + count);
+    if (!gradeBreakdownMap.has(bId)) gradeBreakdownMap.set(bId, {});
+    const bd = gradeBreakdownMap.get(bId)!;
+    bd[gLevel] = (bd[gLevel] ?? 0) + count;
   }
 
   const stockMap = new Map<string, number>();

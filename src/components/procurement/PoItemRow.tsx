@@ -66,16 +66,19 @@ export function PoItemRow({
           </div>
         </div>
 
-        {demand?.gradeBreakdown && Object.keys(demand.gradeBreakdown).length > 1 && (
+        {demand?.gradeBreakdown && Object.keys(demand.gradeBreakdown).length > 0 && (
           <div className="mt-1.5 pt-1.5 border-t border-[#E4E6EB] text-[9px] text-[#65676B] flex flex-wrap gap-1 items-center justify-center">
             <span className="font-semibold text-amber-700">Sub-Jenjang:</span>
             {Object.entries(demand.gradeBreakdown)
               .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-              .map(([grade, cnt]) => (
-                <span key={grade} className="bg-amber-50 text-amber-900 border border-amber-200 px-1 py-0.2 rounded font-mono">
-                  Kls {grade}: {cnt}
-                </span>
-              ))}
+              .map(([grade, cnt]) => {
+                const label = grade.startsWith("TK") || grade === "Lainnya" ? grade : `Kls ${grade}`;
+                return (
+                  <span key={grade} className="bg-amber-50 text-amber-900 border border-amber-200 px-1 py-0.2 rounded font-mono">
+                    {label}: {cnt}
+                  </span>
+                );
+              })}
           </div>
         )}
       </div>

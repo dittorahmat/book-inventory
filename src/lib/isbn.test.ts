@@ -47,6 +47,8 @@ describe("book isbn helper", () => {
     expect(coursebook).not.toBe(workbook);
     expect(coursebook).toContain("COUR");
     expect(workbook).toContain("WORK");
+    expect(coursebook).toContain("BK-SMA10-");
+    expect(workbook).toContain("BK-SMA10-");
 
     const reader3 = resolveBookIsbn(null, undefined, undefined, "MY PRESCHOOL WORLD - PHONICS READER 3", "2");
     const reader4 = resolveBookIsbn(null, undefined, undefined, "MY PRESCHOOL WORLD - PHONICS READER 4", "2");

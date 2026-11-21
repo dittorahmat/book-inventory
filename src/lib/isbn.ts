@@ -58,7 +58,19 @@ export const slugifyBookCode = (
     .slice(0, 36);
   const priceKey = typeof price === "number" && !Number.isNaN(price) && price > 0 ? `__P${price}` : "";
   const hash = shortHash(`${normalized}__${gradeLevel ?? ""}${priceKey}`);
-  const gradePrefix = gradeLevel ? `SD${gradeLevel}-` : "";
+  let gradePrefix = "";
+  if (gradeLevel) {
+    const gUpper = gradeLevel.trim().toUpperCase();
+    const gNum = parseInt(gUpper, 10);
+    if (!Number.isNaN(gNum)) {
+      if (gNum >= 1 && gNum <= 6) gradePrefix = `SD${gNum}-`;
+      else if (gNum >= 7 && gNum <= 9) gradePrefix = `SMP${gNum}-`;
+      else if (gNum >= 10 && gNum <= 12) gradePrefix = `SMA${gNum}-`;
+      else gradePrefix = `G${gNum}-`;
+    } else {
+      gradePrefix = `${gUpper}-`;
+    }
+  }
   return `BK-${gradePrefix}${cleanTitle}-${hash}`;
 };
 

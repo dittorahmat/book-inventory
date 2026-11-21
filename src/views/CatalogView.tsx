@@ -37,8 +37,10 @@ export function CatalogView({ userRole }: CatalogViewProps = {}) {
 
   const handleRemove = async (book: Book) => {
     const pkgCount = book.packages?.length ?? 0;
-    const warningMsg = pkgCount > 0
-      ? `PERINGATAN: Buku "${book.title}" terdaftar dalam ${pkgCount} paket kurikulum (lintas jenjang). Menghapus buku ini akan melepaskannya dari paket-paket tersebut.\n\nYakin tetap ingin menghapus dari katalog?`
+    const warningMsg = pkgCount > 1
+      ? `PERINGATAN: Buku "${book.title}" terdaftar dalam ${pkgCount} paket kurikulum (lintas jenjang). Menghapus buku ini akan melepaskannya dari seluruh paket tersebut.\n\nYakin tetap ingin menghapus dari katalog?`
+      : pkgCount === 1
+      ? `PERINGATAN: Buku "${book.title}" terdaftar dalam 1 paket kurikulum. Menghapus buku ini akan melepaskannya dari paket tersebut.\n\nYakin tetap ingin menghapus dari katalog?`
       : `Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`;
 
     if (!window.confirm(warningMsg)) return;
