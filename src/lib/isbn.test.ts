@@ -53,6 +53,18 @@ describe("book isbn helper", () => {
     expect(reader3).not.toBe(reader4);
   });
 
+  test("resolveBookIsbn membedakan buku dengan judul sama jika harga berbeda", () => {
+    const bookTk = resolveBookIsbn(undefined, undefined, undefined, "BAHASA ARAB", "K-1", 135000);
+    const bookSd = resolveBookIsbn(undefined, undefined, undefined, "BAHASA ARAB", "1", 125000);
+    expect(bookTk).not.toBe(bookSd);
+  });
+
+  test("resolveBookIsbn deterministik untuk input judul, kelas, dan harga yang sama persis", () => {
+    const codeA = resolveBookIsbn(null, 12345, "entropy-a", "QOIDAH NUROONIYAH", "1", 75000);
+    const codeB = resolveBookIsbn(null, 99999, "entropy-b", "QOIDAH NUROONIYAH", "1", 75000);
+    expect(codeA).toBe(codeB);
+  });
+
   test("normalizeBookTitle membersihkan spasi berlebih dan meratakan kapitalisasi", () => {
     expect(normalizeBookTitle("  Matematika   Dasar 1  ")).toBe("MATEMATIKA DASAR 1");
     expect(normalizeBookTitle("hafalan hadist pendek")).toBe("HAFALAN HADIST PENDEK");

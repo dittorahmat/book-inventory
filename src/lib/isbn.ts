@@ -39,11 +39,16 @@ export const shortHash = (input: string): string => {
 };
 
 /**
- * Menghasilkan slug kode internal dari judul buku dan tingkat kelas jika tersedia.
+ * Menghasilkan slug kode internal dari judul buku, tingkat kelas, dan harga jika tersedia.
  * Contoh: "Akidah Akhlak 1", grade "1" -> "BK-SD1-AKIDAH-AKHLAK-1-A1B2C3"
- * Dilengkapi hash deterministik agar judul panjang tidak saling bertabrakan akibat pemotongan karakter.
+ * Dilengkapi hash deterministik agar judul panjang tidak saling bertabrakan akibat pemotongan karakter
+ * dan membedakan buku dengan judul sama tetapi berbeda fisik/harga.
  */
-export const slugifyBookCode = (title: string, gradeLevel?: string): string => {
+export const slugifyBookCode = (
+  title: string,
+  gradeLevel?: string,
+  price?: number
+): string => {
   const normalized = title.trim();
   const cleanTitle = normalized
     .toUpperCase()
@@ -51,7 +56,8 @@ export const slugifyBookCode = (title: string, gradeLevel?: string): string => {
     .trim()
     .replace(/\s+/g, "-")
     .slice(0, 36);
-  const hash = shortHash(`${normalized}__${gradeLevel ?? ""}`);
+  const priceKey = typeof price === "number" && !Number.isNaN(price) && price > 0 ? `__P${price}` : "";
+  const hash = shortHash(`${normalized}__${gradeLevel ?? ""}${priceKey}`);
   const gradePrefix = gradeLevel ? `SD${gradeLevel}-` : "";
   return `BK-${gradePrefix}${cleanTitle}-${hash}`;
 };
@@ -61,10 +67,11 @@ export const generateFallbackIsbn = (
   now = Date.now(),
   entropy: string = crypto.randomUUID(),
   title?: string,
-  gradeLevel?: string
+  gradeLevel?: string,
+  price?: number
 ): string => {
   if (title && title.trim().length > 0) {
-    return slugifyBookCode(title, gradeLevel);
+    return slugifyBookCode(title, gradeLevel, price);
   }
   const stamp = now.toString(36).toUpperCase();
   const serial = entropy.replace(/-/g, "").slice(0, 4).toUpperCase();
@@ -77,9 +84,10 @@ export const resolveBookIsbn = (
   now?: number,
   entropy?: string,
   title?: string,
-  gradeLevel?: string
+  gradeLevel?: string,
+  price?: number
 ): string => {
   const trimmed = rawIsbn?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : generateFallbackIsbn(now, entropy, title, gradeLevel);
+  return trimmed && trimmed.length > 0 ? trimmed : generateFallbackIsbn(now, entropy, title, gradeLevel, price);
 };
 
