@@ -47,10 +47,24 @@ describe("book isbn helper", () => {
     expect(coursebook).not.toBe(workbook);
     expect(coursebook).toContain("COUR");
     expect(workbook).toContain("WORK");
+    expect(coursebook).toContain("BK-SMA10-");
+    expect(workbook).toContain("BK-SMA10-");
 
     const reader3 = resolveBookIsbn(null, undefined, undefined, "MY PRESCHOOL WORLD - PHONICS READER 3", "2");
     const reader4 = resolveBookIsbn(null, undefined, undefined, "MY PRESCHOOL WORLD - PHONICS READER 4", "2");
     expect(reader3).not.toBe(reader4);
+  });
+
+  test("resolveBookIsbn membedakan buku dengan judul sama jika harga berbeda", () => {
+    const bookTk = resolveBookIsbn(undefined, undefined, undefined, "BAHASA ARAB", "K-1", 135000);
+    const bookSd = resolveBookIsbn(undefined, undefined, undefined, "BAHASA ARAB", "1", 125000);
+    expect(bookTk).not.toBe(bookSd);
+  });
+
+  test("resolveBookIsbn deterministik untuk input judul, kelas, dan harga yang sama persis", () => {
+    const codeA = resolveBookIsbn(null, 12345, "entropy-a", "QOIDAH NUROONIYAH", "1", 75000);
+    const codeB = resolveBookIsbn(null, 99999, "entropy-b", "QOIDAH NUROONIYAH", "1", 75000);
+    expect(codeA).toBe(codeB);
   });
 
   test("normalizeBookTitle membersihkan spasi berlebih dan meratakan kapitalisasi", () => {

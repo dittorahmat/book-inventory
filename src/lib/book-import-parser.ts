@@ -249,7 +249,7 @@ function parseSingleSheet(
     }
 
     const rawIsbn = isbnIdx !== -1 && row[isbnIdx] ? String(row[isbnIdx]).trim() : undefined;
-    const isbn = resolveBookIsbn(rawIsbn, undefined, undefined, rawTitle, gradeLevel);
+    const isbn = resolveBookIsbn(rawIsbn, undefined, undefined, rawTitle, gradeLevel, price);
     const subject = subjIdx !== -1 && row[subjIdx] ? String(row[subjIdx]).trim() : "Umum";
 
     const publisher =

@@ -42,27 +42,45 @@ export function PoItemRow({
       </div>
 
       {/* 2. Rincian Angka Pembuktian Logistik (Siswa, Up Buffer, Stok Gudang) */}
-      <div className="col-span-12 sm:col-span-6 lg:col-span-3 grid grid-cols-3 gap-1.5 p-1.5 bg-white border border-[#E4E6EB] rounded-lg text-center">
-        <div>
-          <span className="block text-[9px] font-medium text-[#65676B]">Siswa</span>
-          <span className="text-xs font-bold text-[#050505] flex items-center justify-center gap-0.5" title={`${sCount} siswa membutuhkan buku ini`}>
-            <Users className="w-3 h-3 text-[#1877F2]" />
-            {sCount}
-          </span>
+      <div className="col-span-12 sm:col-span-6 lg:col-span-3 p-1.5 bg-white border border-[#E4E6EB] rounded-lg">
+        <div className="grid grid-cols-3 gap-1.5 text-center">
+          <div>
+            <span className="block text-[9px] font-medium text-[#65676B]">Siswa</span>
+            <span className="text-xs font-bold text-[#050505] flex items-center justify-center gap-0.5" title={`${sCount} siswa membutuhkan buku ini`}>
+              <Users className="w-3 h-3 text-[#1877F2]" />
+              {sCount}
+            </span>
+          </div>
+          <div className="border-x border-[#E4E6EB]">
+            <span className="block text-[9px] font-medium text-[#65676B]">Up {bufferPercent}%</span>
+            <span className="text-xs font-bold text-[#1877F2]" title={`Up ${bufferPercent}%: ${upBuffer} eksemplar`}>
+              {upBuffer}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-medium text-[#65676B]">Stok Gudang</span>
+            <span className="text-xs font-bold text-emerald-600 flex items-center justify-center gap-0.5" title={`Stok fisik lepas saat ini: ${wStock} unit`}>
+              <Warehouse className="w-3 h-3 text-emerald-600" />
+              {wStock}
+            </span>
+          </div>
         </div>
-        <div className="border-x border-[#E4E6EB]">
-          <span className="block text-[9px] font-medium text-[#65676B]">Up {bufferPercent}%</span>
-          <span className="text-xs font-bold text-[#1877F2]" title={`Up ${bufferPercent}%: ${upBuffer} eksemplar`}>
-            {upBuffer}
-          </span>
-        </div>
-        <div>
-          <span className="block text-[9px] font-medium text-[#65676B]">Stok Gudang</span>
-          <span className="text-xs font-bold text-emerald-600 flex items-center justify-center gap-0.5" title={`Stok fisik lepas saat ini: ${wStock} unit`}>
-            <Warehouse className="w-3 h-3 text-emerald-600" />
-            {wStock}
-          </span>
-        </div>
+
+        {demand?.gradeBreakdown && Object.keys(demand.gradeBreakdown).length > 0 && (
+          <div className="mt-1.5 pt-1.5 border-t border-[#E4E6EB] text-[9px] text-[#65676B] flex flex-wrap gap-1 items-center justify-center">
+            <span className="font-semibold text-amber-700">Sub-Jenjang:</span>
+            {Object.entries(demand.gradeBreakdown)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+              .map(([grade, cnt]) => {
+                const label = grade.startsWith("TK") || grade === "Lainnya" ? grade : `Kls ${grade}`;
+                return (
+                  <span key={grade} className="bg-amber-50 text-amber-900 border border-amber-200 px-1 py-0.2 rounded font-mono">
+                    {label}: {cnt}
+                  </span>
+                );
+              })}
+          </div>
+        )}
       </div>
 
       {/* 3. Input Qty Pesan */}

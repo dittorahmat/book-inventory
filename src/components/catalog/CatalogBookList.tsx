@@ -52,6 +52,11 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                 <div className="text-xs text-[#65676B] mt-0.5">{book.author}</div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   <span className="font-mono text-[10px] bg-[#F0F2F5] px-1.5 py-0.5 rounded text-[#65676B]">{book.isbn}</span>
+                  {book.packages && book.packages.length > 1 && (
+                    <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                      Lintas Jenjang ({book.packages.length} paket)
+                    </span>
+                  )}
                   {book.gradeLevel && (
                     <span className="text-[10px] font-bold bg-[#E7F3FF] text-[#1877F2] px-1.5 py-0.5 rounded">
                       Kelas {book.gradeLevel}
@@ -157,7 +162,14 @@ export function CatalogBookList({ books, isEmptyCatalog, onUploadCover, onRemove
                     )}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="font-bold text-[#050505] text-sm">{book.title}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-[#050505] text-sm">{book.title}</div>
+                      {book.packages && book.packages.length > 1 && (
+                        <span className="text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                          Lintas Jenjang ({book.packages.length})
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-[#65676B]">{book.author}</div>
                     {book.packages && book.packages.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
