@@ -35,7 +35,7 @@ export async function submitBooksInChunks(params: {
   const seenIsbn = new Set<string>();
   const uniqueBooks: ParsedBookRow[] = [];
   for (const b of params.books) {
-    const canonicalIsbn = resolveBookIsbn(b.isbn, undefined, undefined, b.title, b.gradeLevel);
+    const canonicalIsbn = resolveBookIsbn(b.isbn, undefined, undefined, b.title, b.gradeLevel, b.price);
     if (!seenIsbn.has(canonicalIsbn)) {
       seenIsbn.add(canonicalIsbn);
       uniqueBooks.push(b);

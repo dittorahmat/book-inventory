@@ -31,6 +31,7 @@ export interface BookDemandItem {
   warehouseStock: number;
   recommendedOrderQty: number;
   unitPrice?: number;
+  gradeBreakdown?: Record<string, number>;
 }
 
 export interface ProposedPOItem {
@@ -41,6 +42,7 @@ export interface ProposedPOItem {
   quantityOrdered: number;
   studentCount: number;
   warehouseStock: number;
+  gradeBreakdown?: Record<string, number>;
 }
 
 export interface BookDemandSummary {
@@ -98,6 +100,7 @@ export async function calculateBookDemandSummary(
   const pkgStudentCounts = await database
     .select({
       bookId: bookPackageItems.bookId,
+      gradeLevel: students.gradeLevel,
       studentCount: sql<number>`count(distinct ${students.id})`,
     })
     .from(students)
@@ -111,7 +114,7 @@ export async function calculateBookDemandSummary(
     )
     .innerJoin(bookPackageItems, eq(bookPackages.id, bookPackageItems.packageId))
     .where(and(...pkgConditions))
-    .groupBy(bookPackageItems.bookId);
+    .groupBy(bookPackageItems.bookId, students.gradeLevel);
 
   // 2. Hitung siswa aktif via school_grade_allowed_books (jika ada suplemen)
   const allowedConditions = [
@@ -125,6 +128,7 @@ export async function calculateBookDemandSummary(
   const allowedStudentCounts = await database
     .select({
       bookId: schoolGradeAllowedBooks.bookId,
+      gradeLevel: students.gradeLevel,
       studentCount: sql<number>`count(distinct ${students.id})`,
     })
     .from(students)
@@ -136,7 +140,7 @@ export async function calculateBookDemandSummary(
       )
     )
     .where(and(...allowedConditions))
-    .groupBy(schoolGradeAllowedBooks.bookId);
+    .groupBy(schoolGradeAllowedBooks.bookId, students.gradeLevel);
 
   // 3. Hitung stok fisik lepas di Gudang Logistik dari book_stocks (agregat)
   const aggrConditions = [];
@@ -177,12 +181,24 @@ export async function calculateBookDemandSummary(
     .groupBy(bookItems.bookId);
 
   const studentCountMap = new Map<string, number>();
+  const gradeBreakdownMap = new Map<string, Record<string, number>>();
+
   for (const row of pkgStudentCounts) {
-    studentCountMap.set(row.bookId, (studentCountMap.get(row.bookId) ?? 0) + Number(row.studentCount || 0));
+    const bId = row.bookId;
+    const gLevel = row.gradeLevel || "Lainnya";
+    const count = Number(row.studentCount || 0);
+    studentCountMap.set(bId, (studentCountMap.get(bId) ?? 0) + count);
+    if (!gradeBreakdownMap.has(bId)) gradeBreakdownMap.set(bId, {});
+    const bd = gradeBreakdownMap.get(bId)!;
+    bd[gLevel] = (bd[gLevel] ?? 0) + count;
   }
   for (const row of allowedStudentCounts) {
-    if (!studentCountMap.has(row.bookId)) {
-      studentCountMap.set(row.bookId, Number(row.studentCount || 0));
+    const bId = row.bookId;
+    const gLevel = row.gradeLevel || "Lainnya";
+    const count = Number(row.studentCount || 0);
+    if (!studentCountMap.has(bId)) {
+      studentCountMap.set(bId, count);
+      gradeBreakdownMap.set(bId, { [gLevel]: count });
     }
   }
 
@@ -207,11 +223,13 @@ export async function calculateBookDemandSummary(
     const sCount = studentCountMap.get(bId) ?? 0;
     const wStock = stockMap.get(bId) ?? 0;
     const rec = calcDemandQty(sCount, bufferPercentage, wStock);
+    const gradeBreakdown = gradeBreakdownMap.get(bId);
     items[bId] = {
       bookId: bId,
       studentCount: sCount,
       warehouseStock: wStock,
       recommendedOrderQty: rec,
+      ...(gradeBreakdown && Object.keys(gradeBreakdown).length > 0 ? { gradeBreakdown } : {}),
     };
   }
 
@@ -243,6 +261,7 @@ export async function calculateBookDemandSummary(
         quantityOrdered: initialQty,
         studentCount: sCount,
         warehouseStock: wStock,
+        gradeBreakdown: demand?.gradeBreakdown,
       };
     });
   }

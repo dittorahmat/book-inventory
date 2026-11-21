@@ -2,6 +2,15 @@
 Kebijakan operasional pemesanan buku dan seragam di portal publik di mana saldo stok fisik gudang bernilai nol (0) tidak lagi menjadi penghalang (*non-blocking / no-stopper*) bagi orang tua untuk menyelesaikan pesanan. Pesanan tetap tercatat sah dengan status pengiriman `belum_dikirim` (dan `waiting_preparation` untuk buku), dengan angka stok fisik aktual disembunyikan sepenuhnya dari publik dan diserahkan kepada koordinasi pemenuhan tim logistik.
 _Avoid_: Memblokir submit order dengan peringatan stok habis, mengekspos angka stok ke publik, menolak checkout karena shortage
 
+**Konsolidasi Master Buku Lintas Jenjang (Cross-Grade Shared Book Master)**:
+Penyatuan entitas buku fisik yang memiliki judul dan spesifikasi/harga sama menjadi satu baris master buku global (`books`), meskipun buku tersebut digunakan bersama oleh beberapa paket tingkat kelas atau jenjang yang berbeda (misalnya buku ibadah, dzikir, atau buku tulis/khat yang dipakai di SD, SMP, dan SMA). Saldo persediaan gudang fisik dihitung secara agregat, sedangkan pemetaannya ke jenjang dikelola via relasi Bill of Materials paket (`book_package_items`).
+_Avoid_: Membuat duplikasi judul buku dengan sufiks jenjang buatan (misal "Buku A SD", "Buku A SMP") saat fisik barangnya identik, memecah saldo stok fisik gudang untuk barang yang sama
+
+**Kode Buku Deterministik / Fallback ISBN (Deterministic Internal Book Code)**:
+Pengidentifikasi unik internal buku berformat standar (misalnya `BK-...-<HASH>`) yang digenerate secara deterministik dari judul ternormalisasi, tingkat kelas/harga, dan algoritma hash ketika input data katalog buku dari pengguna atau spreadsheet tidak memiliki nomor ISBN resmi fisik. Menjamin idempotensi impor berkala agar tidak menghasilkan baris buku baru yang duplikat di basis data.
+_Avoid_: Menggunakan UUID random tanpa identitas saat impor katalog tanpa ISBN, menghasilkan kode buku yang berbeda untuk judul yang sama di setiap impor ulang
+
+
 **Ambang Batas Peringatan Stok Menipis (Configurable Low Stock Threshold)**:
 Nilai batas minimum saldo persediaan yang dikonfigurasikan secara terpusat melalui `system_settings` untuk masing-masing kelompok inventaris: buku satuan (`low_stock_threshold_book`), paket buku (`low_stock_threshold_book_package`), varian seragam satuan/olahraga (`low_stock_threshold_uniform_variant`), dan paket seragam (`low_stock_threshold_uniform_package`). Digunakan untuk memicu tanda bahaya/warning operasional bagi staf logistik serta peringatan halus pada portal bila stok menipis.
 _Avoid_: Ambang batas hardcoded di kode sumber, angka stok publik, notifikasi alarm tanpa konfigurasi

@@ -65,11 +65,12 @@ export async function importBookCatalog(
     const resolvedCurriculum = item.curriculumType
       ? normalizeCanonicalCurriculum(item.curriculumType)
       : "INTER";
+    const effectivePrice = Math.round(item.sellPrice ?? item.price ?? 0);
     return {
       ...item,
       normalizedTitle: normTitle,
-      resolvedIsbn: resolveBookIsbn(item.isbn, undefined, undefined, item.title, item.gradeLevel),
-      effectivePrice: Math.round(item.sellPrice ?? item.price ?? 0),
+      resolvedIsbn: resolveBookIsbn(item.isbn, undefined, undefined, item.title, item.gradeLevel, effectivePrice),
+      effectivePrice,
       effectiveBuyPrice: Math.round(item.buyPrice ?? item.price ?? 0),
       gradeLevel: item.gradeLevel || "1",
       curriculumType: resolvedCurriculum,
