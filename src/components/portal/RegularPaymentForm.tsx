@@ -108,7 +108,7 @@ export function RegularPaymentForm({
 
         <div className="sm:col-span-2">
           <label className="block text-xs font-semibold text-[#050505] mb-1">
-            Tanggal Transfer Bank <span className="text-rose-600">*</span>
+            Tanggal Transfer Bank {financeProofBase64 ? <span className="text-[#65676B] font-normal">(Opsional jika ada dispensasi finance)</span> : <span className="text-rose-600">*</span>}
           </label>
           <input
             type="date"

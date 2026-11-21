@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Send, AlertCircle, Loader2 } from "lucide-react";
-import { api, postJson } from "../../lib/api";
+import { api, getJson, postJson } from "../../lib/api";
 import type { School } from "../../types";
 
 interface PushQuotaData {
@@ -43,14 +43,15 @@ export function PushDistributionModal({
     if (isOpen) {
       (async () => {
         try {
-          const res = await api<{ success: boolean; data: { deliveryNoteNumber: string } }>(
-            "/api/internal-orders/shipments/next-number"
+          const res = await getJson<{ deliveryNoteNumber: string }>(
+            "/api/internal-orders/shipments/next-number",
+            "Gagal memuat nomor surat jalan otomatis."
           );
-          if (!cancelled && res?.data?.deliveryNoteNumber) {
-            setDeliveryNoteNumber(res.data.deliveryNoteNumber);
+          if (!cancelled && res?.deliveryNoteNumber) {
+            setDeliveryNoteNumber(res.deliveryNoteNumber);
           }
-        } catch {
-          // Fallback jika belum tersedia
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Gagal memuat nomor surat jalan otomatis.");
         }
       })();
     }

@@ -60,13 +60,8 @@ export function UniformOrderPaymentSection({ order }: UniformOrderPaymentSection
             type="date"
             value={order.transferDate}
             onChange={(e) => order.setTransferDate(e.target.value)}
-            className={`w-full rounded-xl border px-3 py-2 text-sm ${
-              order.paymentProof && !order.transferDate ? "border-rose-500 ring-1 ring-rose-300" : "border-[#CED0D4]"
-            }`}
+            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white"
           />
-          {order.paymentProof && !order.transferDate && (
-            <p className="mt-1 text-[11px] font-semibold text-rose-600">Tanggal transfer wajib diisi bila melampirkan bukti transfer.</p>
-          )}
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-import { desc, like } from "drizzle-orm";
+import { like } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { internalShipments } from "../../../db/schema";
 import { documentNumber, randomSerial } from "../../lib/document-number";
+import { todayWIB } from "../../../lib/wib-time";
 
 /**
  * Membangkitkan nomor Surat Jalan internal pengiriman ke cabang dengan format:
@@ -13,31 +14,34 @@ export async function generateDeliveryNoteNumber(
 ): Promise<string> {
   const date = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
     ? dateStr
-    : new Date().toISOString().slice(0, 10);
+    : todayWIB();
   const prefix = `SJ-${date}-`;
 
   if (!database) {
-    return documentNumber("SJ", date, randomSerial(3));
+    return documentNumber("SJ", date, randomSerial(6));
   }
 
   try {
-    const [latest] = await database
+    const existing = await database
       .select({ deliveryNoteNumber: internalShipments.deliveryNoteNumber })
       .from(internalShipments)
-      .where(like(internalShipments.deliveryNoteNumber, `${prefix}%`))
-      .orderBy(desc(internalShipments.deliveryNoteNumber))
-      .limit(1);
+      .where(like(internalShipments.deliveryNoteNumber, `${prefix}%`));
 
-    if (latest?.deliveryNoteNumber) {
-      const match = latest.deliveryNoteNumber.match(new RegExp(`^${prefix}(\\d+)$`));
+    let maxSeq = 0;
+    for (const row of existing) {
+      if (!row.deliveryNoteNumber) continue;
+      const match = row.deliveryNoteNumber.match(new RegExp(`^${prefix}(\\d+)$`));
       if (match) {
-        const nextSeq = parseInt(match[1], 10) + 1;
-        return `${prefix}${String(nextSeq).padStart(3, "0")}`;
+        const seq = parseInt(match[1], 10);
+        if (seq > maxSeq) {
+          maxSeq = seq;
+        }
       }
     }
-  } catch {
-    return documentNumber("SJ", date, randomSerial(3));
-  }
 
-  return `${prefix}001`;
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${String(nextSeq).padStart(3, "0")}`;
+  } catch {
+    return documentNumber("SJ", date, randomSerial(6));
+  }
 }

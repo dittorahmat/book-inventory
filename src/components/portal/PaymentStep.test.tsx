@@ -132,4 +132,33 @@ describe("PaymentStep", () => {
     const dateErrors = screen.getAllByText(/Tanggal Transfer Bank wajib diisi/i);
     expect(dateErrors.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("permits regular submission without transferDate when finance dispensation proof is uploaded", () => {
+    let submitted = false;
+    render(
+      <PaymentStep
+        pkg={samplePkg}
+        draft={draft({
+          financeProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          paymentProofBase64: "",
+          transferDate: "",
+          bankName: "",
+        })}
+        actions={actions}
+        isSatuan={false}
+        isSubmitting={false}
+        onFileUpload={noop}
+        onBack={noop}
+        onSubmit={(_e) => {
+          submitted = true;
+        }}
+      />
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Konfirmasi & Kirim Pesanan/i });
+    fireEvent.click(submitBtn);
+
+    expect(submitted).toBe(true);
+    expect(screen.queryByText(/Formulir Belum Lengkap/i)).toBeNull();
+  });
 });

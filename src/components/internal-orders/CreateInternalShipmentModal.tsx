@@ -57,8 +57,8 @@ export function CreateInternalShipmentModal({
         if (!cancelled && res?.deliveryNoteNumber) {
           setDeliveryNoteNumber(res.deliveryNoteNumber);
         }
-      } catch {
-        // Fallback jika offline / endpoint belum siap
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Gagal memuat nomor surat jalan otomatis.");
       }
     })();
     return () => {

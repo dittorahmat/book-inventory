@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatRupiah } from "../lib/transfer-pricing";
 import { getJson, postJson } from "../lib/api";
+import { todayWIB } from "../lib/wib-time";
+import { validateDate } from "../lib/form-validation";
+import { FormFieldFeedback } from "../components/ui/FormFieldFeedback";
 import type { RawPaymentRow } from "../lib/payment-review-types";
 
 interface ConfirmData {
@@ -42,9 +45,12 @@ export function PaymentConfirmView({ kind, token }: Props) {
   const [allocation, setAllocation] = useState("");
   const [bank, setBank] = useState("BCA");
   const [reference, setReference] = useState("");
+  const [transferDate, setTransferDate] = useState(todayWIB());
   const [proof, setProof] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [dateError, setDateError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -77,12 +83,26 @@ export function PaymentConfirmView({ kind, token }: Props) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAttempted(true);
+    const dateCheck = validateDate(transferDate, "Tanggal Transfer Bank");
+    if (!dateCheck.valid) {
+      setDateError(dateCheck.message);
+      return;
+    }
+    setDateError(undefined);
     setSubmitting(true);
     setError(null);
     try {
       await postJson(
         `${base(kind)}/confirm/${token}`,
-        { transferAmount: parseInt(transfer) || 0, allocationAmount: parseInt(allocation) || 0, bankName: bank, referenceNumber: reference || undefined, paymentProofBase64: proof || undefined },
+        {
+          transferAmount: parseInt(transfer) || 0,
+          allocationAmount: parseInt(allocation) || 0,
+          bankName: bank,
+          referenceNumber: reference || undefined,
+          transferDate,
+          paymentProofBase64: proof || undefined,
+        },
         "Gagal menyimpan konfirmasi."
       );
       setDone(true);
@@ -153,6 +173,20 @@ export function PaymentConfirmView({ kind, token }: Props) {
                 <label className="block font-semibold mb-1">No. Referensi</label>
                 <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Opsional" className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl" />
               </div>
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">Tanggal Transfer <span className="text-red-500 font-bold">*</span></label>
+              <input
+                type="date"
+                required
+                value={transferDate}
+                onChange={(e) => {
+                  setTransferDate(e.target.value);
+                  if (attempted) setDateError(undefined);
+                }}
+                className={`w-full px-3 py-2 border rounded-xl ${attempted && dateError ? "border-rose-500 ring-1 ring-rose-300" : "border-[#CED0D4]"}`}
+              />
+              <FormFieldFeedback error={attempted ? dateError : undefined} />
             </div>
             <div>
               <label className="block font-semibold mb-1">Bukti Transfer (opsional)</label>

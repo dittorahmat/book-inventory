@@ -278,14 +278,16 @@ export function useUniformOrder() {
     isPostalCodeValid &&
     (structuredValidation.isValid || validateHomeAddress(combinedAddress).ok) &&
     (orderType === "regular" || scholarshipProof !== "") &&
-    !hasMissingOlahragaSize &&
-    isTransferDateValid;
+    !hasMissingOlahragaSize;
 
   const handleSubmit = async () => {
-    if (!student || !canSubmit) {
-      if (orderType === "regular" && paymentProof && (!transferDate || !/^\d{4}-\d{2}-\d{2}$/.test(transferDate.trim()))) {
-        setError("Tanggal transfer bank wajib diisi dengan format YYYY-MM-DD.");
-      }
+    if (!student) return;
+    if (!canSubmit) {
+      setError("Silakan lengkapi data pesanan dan alamat terlebih dahulu.");
+      return;
+    }
+    if (!isTransferDateValid) {
+      setError("Tanggal transfer bank wajib diisi dengan format YYYY-MM-DD.");
       return;
     }
     setSubmitting(true);

@@ -100,5 +100,10 @@ Seluruh intake pembatalan pesanan akibat murid mengundurkan diri (buku maupun se
 3. **Eksplisit Label Format Toolbar Multi-Ekspor**:
    - Tombol aksi pemicu modal ekspor di toolbar staf (`UniformShipmentToolbar.tsx`, dsb.) wajib mencantumkan secara eksplisit format file yang didukung (misal "Ekspor Excel & CSV") jika modal tersebut menyediakan opsi unduh ganda (`.xlsx` dan `.csv`), guna mencegah kerancuan ketersediaan fitur bagi tim logistik/finance.
 
+### §0.91. Mandat Validasi Tanggal Transfer & Penyelarasan Klien-Server
+1. **Mandatori Tanggal Transfer Jalur Bank**: Input `transferDate` wajib berformat valid `YYYY-MM-DD` untuk seluruh pembayaran pesanan buku dan seragam yang menggunakan metode transfer bank (baik saat pendaftaran portal reguler berbukti transfer, pelunasan kasir staf, maupun link konfirmasi pembayaran `/confirm/:token`).
+2. **Pengecualian Dispensasi & Beasiswa**: Pesanan dengan skema beasiswa penuh (`orderType === "scholarship"`) atau dispensasi pembiayaan finance (`financeProofBase64` / diskresi) dikecualikan dari kewajiban tanggal transfer agar proses pendaftaran murid tidak terhambat.
+3. **Penyelarasan Klien-Server (Anti Breaking Change)**: Menjadikan field skema server menjadi mandatory wajib menyinkronkan seluruh pemanggil antarmuka klien terkait (termasuk `PaymentConfirmView`) dan skenario pengujiannya dalam diff yang sama, guna mencegah kegagalan HTTP 400 runtime.
+
 
 
