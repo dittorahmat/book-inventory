@@ -20,6 +20,7 @@ export interface BookDemandItemInfo {
   studentCount: number;
   warehouseStock: number;
   recommendedOrderQty: number;
+  gradeBreakdown?: Record<string, number>;
 }
 
 export function buyPriceOfBook(catalogBooks: Book[], bookId: string, fallback = 0): number {
