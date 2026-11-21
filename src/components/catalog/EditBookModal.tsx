@@ -82,11 +82,24 @@ export function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
       setFormError("Judul buku wajib diisi.");
       return;
     }
+
+    const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
+    const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
+    const legacyPrice = effectiveSellPrice({ price: formData.price, buyPrice, sellPrice });
+
+    const isPriceChanged = (book.sellPrice ?? book.price) !== sellPrice;
+    const pkgCount = book.packages?.length ?? 0;
+    if (isPriceChanged && pkgCount > 1) {
+      const confirmChange = window.confirm(
+        `PERINGATAN: Buku ini terdaftar di ${pkgCount} paket kurikulum lintas jenjang.\n` +
+        `Perubahan harga jual menjadi ${sellPrice} akan memengaruhi seluruh paket terkait.\n\n` +
+        `Lanjutkan menyimpan perubahan harga?`
+      );
+      if (!confirmChange) return;
+    }
+
     setIsSubmitting(true);
     try {
-      const buyPrice = Math.max(0, Number(formData.buyPrice) || 0);
-      const sellPrice = Math.max(0, Number(formData.sellPrice) || 0);
-      const legacyPrice = effectiveSellPrice({ price: formData.price, buyPrice, sellPrice });
 
       await onSave(book.id, {
         isbn: formData.isbn.trim(),

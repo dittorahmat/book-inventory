@@ -36,7 +36,12 @@ export function CatalogView({ userRole }: CatalogViewProps = {}) {
   };
 
   const handleRemove = async (book: Book) => {
-    if (!window.confirm(`Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`)) return;
+    const pkgCount = book.packages?.length ?? 0;
+    const warningMsg = pkgCount > 0
+      ? `PERINGATAN: Buku "${book.title}" terdaftar dalam ${pkgCount} paket kurikulum (lintas jenjang). Menghapus buku ini akan melepaskannya dari paket-paket tersebut.\n\nYakin tetap ingin menghapus dari katalog?`
+      : `Hapus buku "${book.title}"? Data judul buku akan dihapus dari katalog.`;
+
+    if (!window.confirm(warningMsg)) return;
     try {
       await removeBook(book.id);
       alert(`Buku "${book.title}" berhasil dihapus.`);
