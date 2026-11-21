@@ -114,6 +114,9 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 5. **Disiplin Deklarasi Tipe Mock Variabel Uji & Wildcard Pencarian Shell**:
    - Variabel penampung hasil mock/spying pada closure test wajib dideklarasikan dengan tipe eksplisit (`let bumpedKey: string | null = null`) dan asersi `expect(bumpedKey as string | null).toBe(...)` guna mencegah type-checker `tsc` menolak pemanggilan akibat inferensi tipe literal `null` yang terlalu sempit.
    - Pemanggilan pencarian teks `rg` di shell Windows pwsh dilarang meneruskan karakter wildcard glob tanpa tanda kutip (misal `rg pattern src/seed*.ts` memicu os error 123); wajib gunakan argumen bertanda kutip tunggal literal atau flag `-g 'src/seed*.ts'`.
+6. **Disiplin Siklus Hidup Worktree & Larangan Cleanup Dini**:
+   - Worktree (`book1`, `book2`, `book3`) yang digunakan untuk implementasi tiket **dilarang dilepas / di-cleanup (`bun run worktree:remove`) sebelum Pull Request di-review, status CI checks hijau (`pass`), dan izin merge eksplisit diberikan oleh pengguna**. Melepaskan worktree prematur menghilangkan lingkungan kerja terisolasi dan menyulitkan iterasi perbaikan code-review.
+
 
 
 
