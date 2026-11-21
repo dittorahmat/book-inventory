@@ -50,6 +50,7 @@ const GENERATED_COLUMNS: DocColumn[] = [
   { prefix: "TGH", table: "branchCharges", column: "chargeNumber" },
   { prefix: "BA-RECON", table: "termReconciliations", column: "reconciliationNumber" },
   { prefix: "REG", table: "students", column: "nis" },
+  { prefix: "SJ", table: "internalShipments", column: "deliveryNoteNumber" },
   {
     prefix: "SJ-SERAH",
     table: "studentBookOrders",

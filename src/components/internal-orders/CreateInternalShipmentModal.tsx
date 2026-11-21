@@ -49,6 +49,27 @@ export function CreateInternalShipmentModal({
     let cancelled = false;
     (async () => {
       try {
+        const q = shippedDate ? `?date=${encodeURIComponent(shippedDate)}` : "";
+        const res = await getJson<{ deliveryNoteNumber: string }>(
+          `/api/internal-orders/shipments/next-number${q}`,
+          "Gagal memuat nomor surat jalan otomatis."
+        );
+        if (!cancelled && res?.deliveryNoteNumber) {
+          setDeliveryNoteNumber(res.deliveryNoteNumber);
+        }
+      } catch {
+        // Fallback jika offline / endpoint belum siap
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shippedDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
         setIsLoadingOutstanding(true);
         const list = await getJson<OutstandingPo[]>("/api/internal-orders/outstanding", "Gagal memuat PO terutang.");
         if (!cancelled) setOutstandingList(list);

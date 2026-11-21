@@ -34,8 +34,30 @@ export function PushDistributionModal({
   const [submitting, setSubmitting] = useState(false);
   const [quotaData, setQuotaData] = useState<PushQuotaData | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isOpen) {
+      (async () => {
+        try {
+          const res = await api<{ success: boolean; data: { deliveryNoteNumber: string } }>(
+            "/api/internal-orders/shipments/next-number"
+          );
+          if (!cancelled && res?.data?.deliveryNoteNumber) {
+            setDeliveryNoteNumber(res.data.deliveryNoteNumber);
+          }
+        } catch {
+          // Fallback jika belum tersedia
+        }
+      })();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && selectedSchoolId) {
@@ -90,6 +112,7 @@ export function PushDistributionModal({
     try {
       await postJson("/api/push-distribution", {
         schoolId: selectedSchoolId,
+        deliveryNoteNumber: deliveryNoteNumber.trim() || undefined,
         notes: notes.trim() || undefined,
         items,
       });
@@ -161,6 +184,19 @@ export function PushDistributionModal({
               >
               </input>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">
+              Nomor Surat Jalan (Otomatis)
+            </label>
+            <input
+              type="text"
+              value={deliveryNoteNumber}
+              onChange={(e) => setDeliveryNoteNumber(e.target.value)}
+              placeholder="Contoh: SJ-2026-11-20-001"
+              className="w-full px-3 py-2 bg-white border border-[#CED0D4] rounded-xl text-xs text-[#050505]"
+            />
           </div>
 
           <div>
