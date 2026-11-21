@@ -105,5 +105,15 @@ Seluruh intake pembatalan pesanan akibat murid mengundurkan diri (buku maupun se
 2. **Pengecualian Dispensasi & Beasiswa**: Pesanan dengan skema beasiswa penuh (`orderType === "scholarship"`) atau dispensasi pembiayaan finance (`financeProofBase64` / diskresi) dikecualikan dari kewajiban tanggal transfer agar proses pendaftaran murid tidak terhambat.
 3. **Penyelarasan Klien-Server (Anti Breaking Change)**: Menjadikan field skema server menjadi mandatory wajib menyinkronkan seluruh pemanggil antarmuka klien terkait (termasuk `PaymentConfirmView`) dan skenario pengujiannya dalam diff yang sama, guna mencegah kegagalan HTTP 400 runtime.
 
+---
+
+### §0.93. Batasan Pemisahan Domain Transaksi Buku & Seragam (Anti-Unification Guard)
+1. **Pemisahan Alur Fisik & Aturan Bisnis**: Domain pemesanan buku (`order-intake/public-order.ts`, ADR-0004) dan seragam (`uniform/orders.ts`, ADR-0006) memiliki siklus hidup dan pemenuhan fisik yang berbeda secara fundamental (buku: Bill of Materials kurikulum, suplemen sekolah, serah terima langsung di sekolah; seragam: ukuran size chart konveksi, partisi jenjang, pengiriman paket kurir ke alamat rumah).
+2. **Larangan Polymorphic Middle-Man**: Dilarang membuat wrapper / multiplexer buatan (seperti `submitOrder` yang mendispatch via `if (type === 'book') ... else if (type === 'uniform') ...`) yang hanya bertindak sebagai perantara tanpa menyatukan domain internal substantif.
+3. **Batas Unifikasi yang Sah**: Penyatuan modul lintas buku dan seragam hanya sah pada level infrastruktur bersama (*shared foundation*):
+   - Single-writer payment ledger (`payment-ledger.ts`) untuk mutasi kasir dan struk bank;
+   - Client HTTP adapter kanonik (`portal-api.ts`) untuk pemetaan endpoint publik;
+   - Modul helper murni (seperti `structured-address.ts`, `low-stock-threshold.ts`).
+
 
 

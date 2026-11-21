@@ -85,6 +85,15 @@ console.log(`[worktree-cleanup] Membersihkan worktree di '${targetDir}'...`);
 
 if (existsSync(targetDir)) {
   try {
+    // Pada Windows, bersihkan junction symlink di dalam targetDir terlebih dahulu agar git worktree remove lancar
+    if (process.platform === "win32") {
+      try {
+        const psUnlink = `Get-ChildItem -LiteralPath '${targetDir}' -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | ForEach-Object { [System.IO.Directory]::Delete($_.FullName, $false) }`;
+        execFileSync("powershell", ["-NoProfile", "-Command", psUnlink], { stdio: "ignore" });
+      } catch {
+        // Abaikan jika tidak ada reparse point
+      }
+    }
     execFileSync("git", ["worktree", "remove", targetDir, "--force"], {
       cwd: rootDir,
       stdio: "inherit",

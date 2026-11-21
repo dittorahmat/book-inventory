@@ -24,6 +24,12 @@ This command is _informed_ by the project's domain model and built on a shared d
 
 Read the project's domain glossary (`GLOSSARY.md`) and any ADRs in the area you're touching first.
 
+**Anti-Unification Sanity Check (Domain Reality Guard)**:
+Before proposing to unify or merge two separate domain transaction pipelines (e.g. Book Intake vs Uniform Intake, Physical Handover vs Courier Delivery):
+- Check if their physical fulfillment modes or operational lifecycles are fundamentally different (ADR-0004 vs ADR-0006).
+- If the domain rules diverge (different sizing, different delivery, different school approval requirements), DO NOT propose combining them into a single polymorphic function. That creates a *Middle Man / Shallow Facade* with repeated branching switches (`if (type === 'book') ...`).
+- Focus unification proposals strictly on genuinely shared infrastructure (like single-writer payment ledgers, canonical HTTP adapters, or shared math helpers) that truly pass the deletion test.
+
 Then spawn a sub-agent to walk the codebase. Don't follow rigid heuristics; explore organically and note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
