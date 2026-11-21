@@ -76,6 +76,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
           bookAllocationAmount: 1000000,
           bankName: "BCA",
           referenceNumber: "BCA-BIMO-001",
+          transferDate: "2026-10-18",
           paymentProofBase64: dummyProof,
         },
       }),
@@ -174,6 +175,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
         allocationAmount: 500000,
         bankName: "BCA",
         referenceNumber: "BCA-E2E-TEST-001",
+        transferDate: "2026-10-18",
         paymentProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });
@@ -190,6 +192,7 @@ describe("E2E Demo Scenario: Part 1 - Skenario 1 s.d. 5 (Portal Publik & Verifik
         allocationAmount: 500000,
         bankName: "BCA",
         referenceNumber: "BCA-E2E-TEST-001",
+        transferDate: "2026-10-18",
         paymentProofBase64: DUMMY_PROOF_IMAGE,
       }),
     });

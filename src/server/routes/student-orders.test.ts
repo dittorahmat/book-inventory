@@ -965,14 +965,14 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
 
       const partial = await publicOrdersRouter.request(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 50000, allocationAmount: 50000, bankName: "BCA" }),
+        body: JSON.stringify({ transferAmount: 50000, allocationAmount: 50000, bankName: "BCA", transferDate: "2026-10-18" }),
       });
       expect(partial.status).toBe(201);
       expect((await partial.json()).data.paymentStatus).toBe("unpaid");
 
       const second = await publicOrdersRouter.request(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 70000, allocationAmount: 70000, bankName: "BCA" }),
+        body: JSON.stringify({ transferAmount: 70000, allocationAmount: 70000, bankName: "BCA", transferDate: "2026-10-18" }),
       });
       expect(second.status).toBe(201);
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
@@ -993,7 +993,7 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
 
       const ghost = await publicOrdersRouter.request("/confirm/token-hantu", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 10000, allocationAmount: 10000 }),
+        body: JSON.stringify({ transferAmount: 10000, allocationAmount: 10000, transferDate: "2026-10-18" }),
       });
       expect(ghost.status).toBe(404);
 

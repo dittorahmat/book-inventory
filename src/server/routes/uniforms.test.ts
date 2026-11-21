@@ -832,14 +832,14 @@ describe("Uniform sales report & claims", () => {
 
       const first = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 30000, allocationAmount: 30000 }),
+        body: JSON.stringify({ transferAmount: 30000, allocationAmount: 30000, transferDate: "2026-10-18" }),
       });
       expect(first.status).toBe(201);
       expect((await first.json()).data.paymentStatus).toBe("unpaid");
 
       const second = await lookupPublic(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transferAmount: 20000, allocationAmount: 20000 }),
+        body: JSON.stringify({ transferAmount: 20000, allocationAmount: 20000, transferDate: "2026-10-18" }),
       });
       expect(second.status).toBe(201);
       expect((await second.json()).data.paymentStatus).toBe("unpaid");
