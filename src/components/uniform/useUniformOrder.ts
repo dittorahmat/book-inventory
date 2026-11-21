@@ -70,8 +70,9 @@ export function useUniformOrder() {
           setPendingUniformOrder(pending.uniformOrder);
           return;
         }
-      } catch {
-        // Fallback
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Gagal memeriksa status pesanan aktif murid.");
+        return;
       }
       selectStudent(s);
     },

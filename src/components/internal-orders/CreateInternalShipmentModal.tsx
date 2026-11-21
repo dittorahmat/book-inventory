@@ -90,8 +90,8 @@ export function CreateInternalShipmentModal({
       try {
         const pkgs = await getJson<PackageOption[]>("/api/packages", "Gagal memuat katalog paket.");
         if (!cancelled) setPackageCatalog(pkgs);
-      } catch {
-        // Abaikan jika katalog opsional
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Gagal memuat katalog paket.");
       }
     })();
     return () => {

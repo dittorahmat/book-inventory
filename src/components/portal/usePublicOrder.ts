@@ -73,8 +73,9 @@ export function usePublicOrder(initialTab: PortalTab = "order") {
           setPendingBookOrder(pending.bookOrder);
           return;
         }
-      } catch {
-        // Fallback: proceed normally if check fails
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : "Gagal memeriksa status pesanan aktif murid.");
+        return;
       }
       proceedWithSelectedStudent(st, null);
     },

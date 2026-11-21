@@ -154,7 +154,7 @@ export function PaymentConfirmView({ kind, token }: Props) {
           </div>
         )}
         {data && (
-          <form onSubmit={submit} className="space-y-3 text-xs">
+          <form onSubmit={submit} noValidate className="space-y-3 text-xs">
             <div>
               <label className="block font-semibold mb-1">Nominal Transfer (Rp)</label>
               <input type="number" min={1} required value={transfer} onChange={(e) => setTransfer(e.target.value)} placeholder="Sesuai struk" className="w-full px-3 py-2 border border-[#CED0D4] rounded-xl" />
@@ -175,8 +175,9 @@ export function PaymentConfirmView({ kind, token }: Props) {
               </div>
             </div>
             <div>
-              <label className="block font-semibold mb-1">Tanggal Transfer <span className="text-red-500 font-bold">*</span></label>
+              <label htmlFor="confirm-transfer-date" className="block font-semibold mb-1">Tanggal Transfer <span className="text-red-500 font-bold">*</span></label>
               <input
+                id="confirm-transfer-date"
                 type="date"
                 required
                 value={transferDate}

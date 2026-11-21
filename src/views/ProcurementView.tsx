@@ -51,6 +51,8 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
   const [detailPo, setDetailPo] = useState<PurchaseOrder | null>(null);
   const [printPo, setPrintPo] = useState<PrintablePo | null>(null);
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   // Refresh daftar + sinkronkan modal detail & pratinjau cetak dari data
   // segar (hindari stale closure: purchaseOrders state bisa basi saat
   // aksi workflow selesai).
@@ -66,8 +68,8 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
         });
         return;
       }
-    } catch {
-      // Abaikan, pengguna bisa muat ulang manual.
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Gagal memperbarui rincian PO.");
     }
     await loadData();
   }, [loadData, loadPurchaseOrders]);
@@ -208,6 +210,19 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
             className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
           >
             Coba Lagi
+          </button>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 flex items-center justify-between gap-3">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold hover:bg-red-100/50 active:scale-[0.98] shrink-0"
+          >
+            Tutup
           </button>
         </div>
       )}
