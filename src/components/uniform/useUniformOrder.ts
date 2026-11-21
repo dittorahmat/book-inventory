@@ -8,7 +8,7 @@ import {
   fetchUniformCatalog,
   fetchUniformSatuanStatus,
   submitUniformOrder,
-} from "./uniform-portal-api";
+} from "../portal/portal-api";
 import { validateHomeAddress } from "../../lib/home-address";
 import { useStudentSearch } from "../portal/useStudentSearch";
 import { findMatchingUniformSelection } from "../../lib/uniform-selection";
