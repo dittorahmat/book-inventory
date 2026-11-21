@@ -35,7 +35,5 @@ export type {
 export { submitPublicOrder } from "./public-order";
 export type { DirectSaleDeps, DirectSaleInput, DirectSaleItemInput, DirectSaleResult } from "./direct-sale";
 export { sellDirect } from "./direct-sale";
-export type { UnifiedOrderPayload, UnifiedOrderResult } from "./unified-intake";
-export { submitOrder } from "./unified-intake";
 
 

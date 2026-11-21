@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { db } from "../../../db";
-import { calculateBookDemandSummary, computeBookDemand } from "./demand";
+import { calculateBookDemandSummary } from "./demand";
 import { createTestSupplier, createTestBook, createTestPackage, createTestStudent } from "../../lib/test-fixtures";
 import { SCHOOL_IDS } from "../../lib/school-constants";
 import { bookPackageItems, bookSuppliers, students, bookPackages, books, suppliers } from "../../../db/schema";
@@ -79,14 +79,6 @@ describe("calculateBookDemandSummary unit tests (#530)", () => {
       // Net demand 1 + 10% buffer = ceil(1 * 1.1) = 2
       expect(item?.quantityOrdered).toBe(2);
       expect(item?.unitPrice).toBe(158880);
-
-      // Verifikasi alias computeBookDemand berfungsi identik di balik seam murni
-      const aliasSummary = await computeBookDemand(db, {
-        supplierId: sup.id,
-        academicYear: year,
-        bufferPercentage: 10,
-      });
-      expect(aliasSummary.proposedItems?.find((p) => p.bookId === b.id)?.quantityOrdered).toBe(2);
     } finally {
       await db.delete(students).where(eq(students.id, stu.id));
       await db.delete(bookPackageItems).where(eq(bookPackageItems.packageId, pkg.id));

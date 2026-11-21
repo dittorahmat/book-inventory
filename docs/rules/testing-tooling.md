@@ -95,9 +95,10 @@ Eksekusi otomasi demo (`demo:automate`) wajib dijalankan di atas server backend 
 ---
 
 ### §0.78. Disiplin Deep Modules, Anti-Shallow Wrappers & Gate Test Otomatis
-1. **Larangan Middle Man / Shallow Wrapper**: Dilarang membuat modul wrapper tipis yang hanya meneruskan argumen tanpa abstraksi nilai tambah nyata (seperti fungsi facade yang hanya memanggil fungsi lain satu baris). Setiap modul atau fungsi baru wajib menerapkan prinsip *Deep Module* (antarmuka sederhana menyembunyikan kompleksitas besar), bukan sekadar perantara (middle man) yang memicu duplikasi atau YAGNI.
+1. **Larangan Middle Man / Shallow Wrapper**: Dilarang membuat modul wrapper tipis yang hanya meneruskan argumen tanpa abstraksi nilai tambah nyata (seperti fungsi facade yang hanya memanggil fungsi lain satu baris atau menduplikasi pointer fungsi `export const foo = bar`). Setiap modul atau fungsi baru wajib menerapkan prinsip *Deep Module* (antarmuka sederhana menyembunyikan kompleksitas besar), bukan sekadar perantara (middle man) yang memicu duplikasi atau YAGNI.
 2. **Koneksi Wajib ke Pemanggil Nyata (Wired Up)**: Setiap pembuatan modul domain atau seam baru wajib langsung dihubungkan (*wired up*) ke route handler atau pemanggil nyata dalam PR yang sama. Dilarang menyisakan modul baru berstatus mengambang (unintegrated/dead-code) yang hanya diuji oleh unit test-nya sendiri tanpa integrasi ke alur transaksi sistem riil.
 3. **Eksekusi Otomatis Berkas Test yang Berubah pada Gate Pre-Commit (`check:fast`)**: Setiap berkas test unit/integrasi (`*.test.ts(x)`) yang mengalami perubahan wajib otomatis dieksekusi oleh runner `check-changed.ts` (`bun test <changed_test_files>`), menjamin kegagalan test atau cacat data/fixture terdeteksi seketika sebelum commit mendarat atau terkirim ke CI.
+4. **Disiplin Eliminasi Residu Debugging & Zero-Console-Log di Test**: Seluruh pemanggilan `console.log` / `console.error` sementara saat investigasi kegagalan test wajib dihapus bersih sebelum commit/staged; test assertions harus mengandalkan `expect(...)` murni tanpa meninggalkan jejak log di stdout runner CI.
 
 ---
 
