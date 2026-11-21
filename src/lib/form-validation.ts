@@ -113,6 +113,25 @@ export function validateEmail(email: string, required = true): ValidationRuleRes
 }
 
 /**
+ * Validasi tanggal format YYYY-MM-DD wajib diisi dan sesuai kalender.
+ */
+export function validateDate(value: string | undefined | null, fieldLabel = "Tanggal"): ValidationRuleResult {
+  const trimmed = (value || "").trim();
+  if (!trimmed) {
+    return { valid: false, message: `${fieldLabel} wajib diisi.` };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return { valid: false, message: `${fieldLabel} harus berformat YYYY-MM-DD.` };
+  }
+  const [y, m, d] = trimmed.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    return { valid: false, message: `${fieldLabel} tidak valid.` };
+  }
+  return { valid: true };
+}
+
+/**
  * Validasi berkas bukti (file base64).
  */
 export function validateProofFile(fileData: string | undefined | null, fileLabel: string): ValidationRuleResult {

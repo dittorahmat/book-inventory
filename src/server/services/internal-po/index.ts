@@ -39,3 +39,4 @@ export type {
 export type { ListInternalShipmentsResult } from "./types";
 export { createManualShipment, listIncomingInternalShipments, listInternalShipments, listOutstandingPOs } from "./shipment";
 export { cancelInternalShipment, dispatchShipmentStock, validateStockAvailability } from "./stock-sync";
+export { generateDeliveryNoteNumber } from "./delivery-note";

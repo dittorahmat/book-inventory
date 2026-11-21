@@ -110,5 +110,11 @@ describe("Push Distribution Routes", () => {
     const json = (await res.json()) as { success: boolean; data: { shipmentId: string } };
     expect(json.success).toBe(true);
     expect(json.data.shipmentId).toBeDefined();
+
+    const { internalShipments } = await import("../../db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [shipment] = await db.select().from(internalShipments).where(eq(internalShipments.id, json.data.shipmentId));
+    expect(shipment).toBeDefined();
+    expect(shipment.deliveryNoteNumber).toMatch(/^SJ-\d{4}-\d{2}-\d{2}-\d{3}$/);
   });
 });

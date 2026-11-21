@@ -92,8 +92,14 @@ describe("Payments & Cashier Verification API", () => {
     const [rcp1] = await db.select().from(paymentReceipts).where(eq(paymentReceipts.referenceNumber, "REF-MND-001"));
     expect(rcp1?.receivedAt).toBe("2026-10-15T00:00:00.000Z");
 
+    const payNoDate = await postJson(`/orders/${orderId}/pay`, {
+      transferAmount: 600000, bookAllocationAmount: 600000, bankName: "Mandiri", referenceNumber: "REF-MND-002",
+    });
+    expect(payNoDate.status).toBe(400);
+
     const pay2 = await postJson(`/orders/${orderId}/pay`, {
       transferAmount: 600000, bookAllocationAmount: 600000, bankName: "Mandiri", referenceNumber: "REF-MND-002",
+      transferDate: "2026-10-16",
     });
     expect(pay2.status).toBe(200);
     const pay2Json = await pay2.json();
@@ -133,11 +139,13 @@ describe("Payments & Cashier Verification API", () => {
     try {
       const first = await postJson(`/orders/${orderId}/pay`, {
         transferAmount: 500000, bookAllocationAmount: 500000, bankName: "BCA", referenceNumber: `DUP-${stamp}`,
+        transferDate: "2026-10-15",
       });
       expect(first.status).toBe(200);
 
       const duplicate = await postJson(`/orders/${orderId}/pay`, {
         transferAmount: 500000, bookAllocationAmount: 500000, bankName: "BCA", referenceNumber: `DUP-${stamp}`,
+        transferDate: "2026-10-15",
       });
       expect(duplicate.status).toBe(409);
       expect((await duplicate.json()).message).toContain("sudah pernah dicatat");
@@ -151,6 +159,7 @@ describe("Payments & Cashier Verification API", () => {
       mockActor("branch_finance", schoolId);
       const finMutate = await postJson(`/orders/${orderId}/pay`, {
         transferAmount: 100000, bookAllocationAmount: 100000, bankName: "BRI", referenceNumber: `FIN-${stamp}`,
+        transferDate: "2026-10-15",
       });
       expect(finMutate.status).toBe(403);
     } finally {
@@ -280,9 +289,15 @@ describe("Payments & Cashier Verification API", () => {
 
       // Unggah ulang via tautan yang sama -> struk pending BARU (order tetap unpaid).
       const token = (rejectJson.data.confirmUrl as string).split("/").pop() as string;
-      const reClaim = await publicOrdersRouter.request(`/confirm/${token}`, {
+      const reClaimNoDate = await publicOrdersRouter.request(`/confirm/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, bankName: "BCA" }),
+      });
+      expect(reClaimNoDate.status).toBe(400);
+
+      const reClaim = await publicOrdersRouter.request(`/confirm/${token}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferAmount: 100000, allocationAmount: 100000, bankName: "BCA", transferDate: "2026-10-17" }),
       });
       expect(reClaim.status).toBe(201);
       expect((await reClaim.json()).data.paymentStatus).toBe("unpaid");

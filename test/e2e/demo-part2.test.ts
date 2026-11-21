@@ -72,6 +72,7 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
         bookAllocationAmount: 1350000,
         bankName: "KASIR-TUNAI",
         referenceNumber: "CASH-E2E-HENDRA",
+        transferDate: "2026-10-18",
         notes: "Pembayaran lunas kasir sekolah",
       }),
     });
@@ -94,6 +95,7 @@ describe("E2E Demo Scenario: Part 2 - Skenario 6 s.d. 9 (Verifikasi Staf, Invoic
           bookAllocationAmount: 50000,
           bankName: "BCA",
           referenceNumber: "REF-LESS-E2E-001",
+          transferDate: "2026-10-18",
           paymentProofBase64: DUMMY_PROOF_IMAGE,
         },
       }),

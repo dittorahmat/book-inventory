@@ -70,8 +70,9 @@ export function useUniformOrder() {
           setPendingUniformOrder(pending.uniformOrder);
           return;
         }
-      } catch {
-        // Fallback
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Gagal memeriksa status pesanan aktif murid.");
+        return;
       }
       selectStudent(s);
     },
@@ -271,6 +272,8 @@ export function useUniformOrder() {
 
   const hasMissingOlahragaSize = missingOlahragaVariants.length > 0 || missingPackageOlahraga.length > 0;
 
+  const isTransferDateValid = orderType !== "regular" || !paymentProof || (transferDate.trim() !== "" && /^\d{4}-\d{2}-\d{2}$/.test(transferDate.trim()));
+
   const canSubmit =
     itemCount > 0 &&
     isPostalCodeValid &&
@@ -279,7 +282,15 @@ export function useUniformOrder() {
     !hasMissingOlahragaSize;
 
   const handleSubmit = async () => {
-    if (!student || !canSubmit) return;
+    if (!student) return;
+    if (!canSubmit) {
+      setError("Silakan lengkapi data pesanan dan alamat terlebih dahulu.");
+      return;
+    }
+    if (!isTransferDateValid) {
+      setError("Tanggal transfer bank wajib diisi dengan format YYYY-MM-DD.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {

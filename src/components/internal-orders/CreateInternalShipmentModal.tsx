@@ -49,6 +49,27 @@ export function CreateInternalShipmentModal({
     let cancelled = false;
     (async () => {
       try {
+        const q = shippedDate ? `?date=${encodeURIComponent(shippedDate)}` : "";
+        const res = await getJson<{ deliveryNoteNumber: string }>(
+          `/api/internal-orders/shipments/next-number${q}`,
+          "Gagal memuat nomor surat jalan otomatis."
+        );
+        if (!cancelled && res?.deliveryNoteNumber) {
+          setDeliveryNoteNumber(res.deliveryNoteNumber);
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Gagal memuat nomor surat jalan otomatis.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shippedDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
         setIsLoadingOutstanding(true);
         const list = await getJson<OutstandingPo[]>("/api/internal-orders/outstanding", "Gagal memuat PO terutang.");
         if (!cancelled) setOutstandingList(list);
@@ -69,8 +90,8 @@ export function CreateInternalShipmentModal({
       try {
         const pkgs = await getJson<PackageOption[]>("/api/packages", "Gagal memuat katalog paket.");
         if (!cancelled) setPackageCatalog(pkgs);
-      } catch {
-        // Abaikan jika katalog opsional
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Gagal memuat katalog paket.");
       }
     })();
     return () => {

@@ -444,6 +444,18 @@ describe("Portal retur seragam mandiri", () => {
     await seedPriorOrder(schoolId, studentId, stamp);
 
     const addr = "Jl. Melati Indah No. 12, RT 01 RW 02, Tangerang Selatan 15310";
+    const resNoDate = await postPublic("/orders", {
+      studentId,
+      academicYear: "2026/2027",
+      homeAddress: addr,
+      items: [{ variantId: kainId, quantity: 1 }],
+      paymentProofBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      bankName: "BCA",
+      referenceNumber: `REF-UNI-${stamp}`,
+      transferAmount: 150000,
+    });
+    expect(resNoDate.status).toBe(400);
+
     const res = await postPublic("/orders", {
       studentId,
       academicYear: "2026/2027",

@@ -53,12 +53,14 @@ export function UniformOrderPaymentSection({ order }: UniformOrderPaymentSection
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[#050505] mb-1">Tanggal Transfer Bank</label>
+          <label className="block text-xs font-semibold text-[#050505] mb-1">
+            Tanggal Transfer Bank {order.paymentProof && <span className="text-rose-600">*</span>}
+          </label>
           <input
             type="date"
             value={order.transferDate}
             onChange={(e) => order.setTransferDate(e.target.value)}
-            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-sm bg-white"
           />
         </div>
       </div>

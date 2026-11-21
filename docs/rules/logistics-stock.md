@@ -149,3 +149,8 @@ Role global (`central_admin` dan seluruh role logistik/gudang `LOGISTICS_ROLES`)
    - Pembatalan Surat Jalan internal berstatus `in_transit` (`DELETE /api/internal-orders/shipments/:shipmentId`) wajib mengembalikan saldo paket yang sedang berada di perjalanan kembali ke gudang asal via `moveInventoryStock` (`transfer_receive`) sebelum baris shipment dihapus.
 4. **Isolasi Lokasi UI Panel Stok Cabang**:
    - Kartu ringkasan stok paket cabang (`BranchPackageStockCard`) pada tab "Terima Paket Dari Gudang" bersifat read-only dan lokasinya terkunci ke penugasan sekolah aktif pengguna (`activeSchool`), dilarang mengikuti filter sementara dari dropdown luar agar staf cabang selalu melihat stok riil cabang mereka sendiri.
+
+### §0.92. Penomoran Otomatis Surat Jalan & Unboxing API Klien
+1. **Format Sekuensial Surat Jalan (`SJ-YYYY-MM-DD-001`)**: Generator nomor Surat Jalan pengiriman internal (`generateDeliveryNoteNumber`) wajib menggunakan tanggal operasional WIB (`todayWIB()`), menghitung sekuensial numerik harian terhadap seluruh nomor berprefix sama tanpa terdistorsi rekaman acak non-numerik, dan fallback ke format serial unik 6 karakter.
+2. **Disiplin Unboxing Helper API Klien**: Pemanggilan helper `api<T>` dan `getJson<T>` otomatis membongkar bungkus response `{ success: true, data: T }` menjadi `T`. Dilarang mengakses `.data` ganda pada hasil kembalian (`res.data.field`) yang berakibat nilai `undefined` dan input modal gagal terisi otomatis.
+3. **Penanganan Error Modal Tanpa Silent-Catch**: Pemanggilan generator nomor surat jalan di modal UI klien (`CreateInternalShipmentModal`, `PushDistributionModal`) dilarang menggunakan blok `catch {}` kosong; setiap kegagalan jaringan wajib dicatat ke error state komponen untuk visibilitas staf.

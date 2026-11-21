@@ -152,8 +152,8 @@ export function useUniformReturn() {
           try {
             const trk = await getSportsExchangeTracking(resp.data.id);
             setTracking(trk);
-          } catch {
-            // Abaikan jika tracking belum siap
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Gagal memuat status pelacakan tukar seragam.");
           }
         }
         setSuccess("Pengajuan tukar seragam olahraga terkirim — resi retur Anda tersimpan dan fisik seragam akan diverifikasi gudang.");

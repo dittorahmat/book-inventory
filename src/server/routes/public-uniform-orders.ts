@@ -59,6 +59,15 @@ const submitUniformOrderSchema = z
     transferAmount: z.number().int().min(1).optional(),
     replacePendingOrderId: idSchema.optional(),
   })
+  .refine(
+    (v) => {
+      if (v.orderType === "regular" && v.paymentProofBase64 && !v.transferDate) {
+        return false;
+      }
+      return true;
+    },
+    { message: "Tanggal transfer wajib diisi bila melampirkan bukti transfer", path: ["transferDate"] }
+  )
   .refine((v) => v.items.every((i) => (i.packageId ? 1 : 0) + (i.variantId ? 1 : 0) === 1), {
     message: "Tiap baris wajib paket atau satuan, bukan keduanya",
   });
@@ -158,7 +167,7 @@ const uniformConfirmSchema = z.object({
   allocationAmount: z.number().int().min(1, "Nominal alokasi minimal Rp 1"),
   bankName: z.string().optional(),
   referenceNumber: z.string().optional(),
-  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD").optional(),
+  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal transfer YYYY-MM-DD"),
   paymentProofBase64: base64UploadSchema,
 });
 

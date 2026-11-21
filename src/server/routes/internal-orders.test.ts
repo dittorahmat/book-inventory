@@ -409,15 +409,15 @@ describe("Penerimaan Surat Jalan Internal (spec-111)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         destinationSchoolId: branchId,
-        deliveryNoteNumber: `SJ-MANUAL-${stamp}`,
         notes: "Pengiriman darurat tanpa PO",
         items: [{ packageId, quantity: 2 }],
       }),
     });
     expect(manualShipRes.status).toBe(201);
-    const manualJson = (await manualShipRes.json()) as { success: boolean; data: { shipmentId: string } };
+    const manualJson = (await manualShipRes.json()) as { success: boolean; data: { shipmentId: string; deliveryNoteNumber?: string } };
     expect(manualJson.success).toBe(true);
     expect(manualJson.data.shipmentId).toBeDefined();
+    expect(manualJson.data.deliveryNoteNumber).toMatch(/^SJ-\d{4}-\d{2}-\d{2}-\d{3}$/);
   });
 
   it("menolak pesanan paket cabang yang melebihi jumlah siswa aktif jenjang tersebut", async () => {

@@ -4,7 +4,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const SILENT_CATCH_PATTERN = /\.catch\(\s*(\(\s*\)|\w+)?\s*=>\s*(\{\s*\}|undefined|null)\s*\)/;
+const SILENT_PROMISE_CATCH_PATTERN = /\.catch\(\s*(\(\s*\)|\w+)?\s*=>\s*(\{\s*\}|undefined|null)\s*\)/;
+const EMPTY_BLOCK_CATCH_PATTERN = /catch\s*(\([^)]*\))?\s*\{\s*(\/\/[^\n]*|\/\*[\s\S]*?\*\/)?\s*\}/;
 
 function walk(dir: string, fileList: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -34,15 +35,28 @@ for (const file of files) {
     // Abaikan operasi clipboard browser opsional
     if (lineText.includes("clipboard.writeText")) return;
 
-    const match = lineText.match(SILENT_CATCH_PATTERN);
-    if (match) {
+    const matchPromise = lineText.match(SILENT_PROMISE_CATCH_PATTERN);
+    if (matchPromise) {
       violations.push({
         file: file.replace(/\\/g, "/"),
         line: idx + 1,
-        match: match[0],
+        match: matchPromise[0],
       });
     }
   });
+
+  // Periksa try-catch block kosong (multi-line atau single-line)
+  const blockMatches = content.matchAll(new RegExp(EMPTY_BLOCK_CATCH_PATTERN, "g"));
+  for (const m of blockMatches) {
+    if (m.index !== undefined) {
+      const lineNum = content.slice(0, m.index).split(/\r?\n/).length;
+      violations.push({
+        file: file.replace(/\\/g, "/"),
+        line: lineNum,
+        match: m[0].replace(/\s+/g, " ").slice(0, 50),
+      });
+    }
+  }
 }
 
 if (violations.length > 0) {

@@ -122,8 +122,12 @@ export function UniformCashierPayModal({
       transferInputRef.current?.focus();
       return;
     }
+    if (!transferDate || !/^\d{4}-\d{2}-\d{2}$/.test(transferDate)) {
+      setError("Tanggal transfer bank wajib diisi dengan format valid.");
+      return;
+    }
     setError(null);
-    onSave(transfer, allocation || transfer, bank, transferDate || undefined);
+    onSave(transfer, allocation || transfer, bank, transferDate);
   };
 
   return (
@@ -179,11 +183,16 @@ export function UniformCashierPayModal({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#050505] mb-1">Tanggal Transfer Bank</label>
+            <label className="block text-xs font-semibold text-[#050505] mb-1">
+              Tanggal Transfer Bank <span className="text-rose-600">*</span>
+            </label>
             <input
               type="date"
               value={transferDate}
-              onChange={(e) => setTransferDate(e.target.value)}
+              onChange={(e) => {
+                setTransferDate(e.target.value);
+                setError(null);
+              }}
               className="w-full rounded-xl border border-[#CED0D4] px-3 py-2 text-xs focus:outline-none focus:border-[#1877F2]"
             />
           </div>

@@ -1,8 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import { bookPackages, students } from "../../db/schema";
-import { createManualShipment, type CreateManualShipmentResult } from "./internal-po/shipment";
-import { documentNumber, epochTimeFragment, randomSerial } from "../lib/document-number";
+import { createManualShipment, generateDeliveryNoteNumber, type CreateManualShipmentResult } from "./internal-po";
 
 export interface StudentCapRow {
   grade: string;
@@ -98,7 +97,7 @@ export async function createPushDistributionShipment(
 ): Promise<CreateManualShipmentResult> {
   const deliveryNoteNumber =
     input.deliveryNoteNumber?.trim() ||
-    documentNumber("TRF", epochTimeFragment(Date.now(), 6), randomSerial(6));
+    (await generateDeliveryNoteNumber(database, input.shippedDate));
   
   const items = input.items.map((it) => ({
     packageId: it.packageId,

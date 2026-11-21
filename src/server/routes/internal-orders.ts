@@ -21,6 +21,7 @@ import {
   createManualShipment,
   receiveInternalShipment,
   cancelInternalShipment,
+  generateDeliveryNoteNumber,
 } from "../services/internal-po";
 import { idSchema } from "../lib/validators";
 import { isLogisticsRole } from "../../lib/staff-roles";
@@ -43,7 +44,7 @@ const createInternalPoSchema = z.object({
 });
 
 const baseShipmentHeaderSchema = z.object({
-  deliveryNoteNumber: z.string().min(1, "Nomor Surat Jalan pengiriman internal wajib diisi"),
+  deliveryNoteNumber: z.string().optional(),
   sourceSchoolId: idSchema.optional(),
   shippedDate: z.string().optional(),
   notes: z.string().optional(),
@@ -145,14 +146,27 @@ const createManualShipmentSchema = baseShipmentHeaderSchema.extend({
   ).min(1, "Minimal 1 item yang dikirim"),
 });
 
+// 2b. GET next generated delivery note number
+internalOrdersRouter.get("/shipments/next-number", async (c) => {
+  try {
+    await resolveLogisticsActor(c);
+    const dateStr = c.req.query("date")?.trim();
+    const deliveryNoteNumber = await generateDeliveryNoteNumber(db, dateStr);
+    return c.json({ success: true, data: { deliveryNoteNumber } });
+  } catch (err) {
+    return accessErrorResponse(c, err);
+  }
+});
+
 // 4. POST create Manual Shipment without PO
 internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualShipmentSchema), async (c) => {
   try {
     const actor = await resolveLogisticsActor(c);
     const body = c.req.valid("json");
     const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
+    const deliveryNoteNumber = body.deliveryNoteNumber?.trim() || (await generateDeliveryNoteNumber(db, body.shippedDate));
 
-    const result = await createManualShipment(db, { ...body, sourceSchoolId });
+    const result = await createManualShipment(db, { ...body, deliveryNoteNumber, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
@@ -160,8 +174,8 @@ internalOrdersRouter.post("/shipments/manual", zValidator("json", createManualSh
     return c.json(
       {
         success: true,
-        message: `Surat Jalan Pengiriman Manual ${body.deliveryNoteNumber} berhasil dibuat`,
-        data: { shipmentId: result.data.shipmentId },
+        message: `Surat Jalan Pengiriman Manual ${deliveryNoteNumber} berhasil dibuat`,
+        data: { shipmentId: result.data.shipmentId, deliveryNoteNumber },
       },
       201
     );
@@ -177,16 +191,17 @@ internalOrdersRouter.post("/:id/shipments", zValidator("json", createShipmentSch
     const poId = c.req.param("id");
     const body = c.req.valid("json");
     const sourceSchoolId = body.sourceSchoolId || actor.schoolId || undefined;
+    const deliveryNoteNumber = body.deliveryNoteNumber?.trim() || (await generateDeliveryNoteNumber(db, body.shippedDate));
 
-    const result = await fulfillInternalPo(db, poId, { ...body, sourceSchoolId });
+    const result = await fulfillInternalPo(db, poId, { ...body, deliveryNoteNumber, sourceSchoolId });
     if (!result.ok) {
       return c.json({ success: false, message: result.message }, result.status);
     }
 
     return c.json({
       success: true,
-      message: `Surat Jalan Pengiriman ${body.deliveryNoteNumber} berhasil dibuat`,
-      data: { shipmentId: result.data.shipmentId, status: result.data.status },
+      message: `Surat Jalan Pengiriman ${deliveryNoteNumber} berhasil dibuat`,
+      data: { shipmentId: result.data.shipmentId, status: result.data.status, deliveryNoteNumber },
     });
   } catch (err) {
     return accessErrorResponse(c, err);
