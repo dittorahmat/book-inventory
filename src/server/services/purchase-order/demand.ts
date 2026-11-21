@@ -21,6 +21,7 @@ import { effectiveBookPrice } from "../../../lib/book-pricing";
 import { sqlNormalizeCurriculum } from "../../../lib/curriculum";
 
 export { calcBufferQty, calcDemandQty, resolveInitialOrderQty };
+export const computeBookDemand = calculateBookDemandSummary;
 
 export const PO_BUFFER_PERCENTAGE_KEY = "po_buffer_percentage";
 export const DEFAULT_PO_BUFFER_PERCENTAGE = 10;
