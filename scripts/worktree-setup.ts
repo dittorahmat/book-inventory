@@ -25,9 +25,13 @@ console.log(`[worktree-setup] Menyiapkan worktree '${branchName}' di '${targetDi
 if (existsSync(targetDir) && !existsSync(resolve(targetDir, ".git"))) {
   console.log(`[worktree-setup] Direktori ${targetDir} ada tetapi bukan worktree git valid, membersihkan...`);
   try {
-    execFileSync(process.platform === "win32" ? "cmd" : "rm", process.platform === "win32" ? ["/c", "rd", "/s", "/q", targetDir] : ["-rf", targetDir], {
-      stdio: "inherit",
-    });
+    if (process.platform === "win32") {
+      // Hapus junction symlink (node_modules, data) terlebih dahulu secara native agar tidak Access is denied
+      const psCleanup = `Get-ChildItem -LiteralPath '${targetDir}' -Force | ForEach-Object { if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Recurse -Force } }; Remove-Item -LiteralPath '${targetDir}' -Recurse -Force`;
+      execFileSync("powershell", ["-NoProfile", "-Command", psCleanup], { stdio: "inherit" });
+    } else {
+      execFileSync("rm", ["-rf", targetDir], { stdio: "inherit" });
+    }
   } catch (err) {
     console.warn(`[worktree-setup] Gagal membersihkan folder kotor ${targetDir}:`, err);
   }

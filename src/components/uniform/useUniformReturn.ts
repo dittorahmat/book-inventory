@@ -12,7 +12,7 @@ import {
   getSportsExchangeTracking,
   type UniformLookupOrder,
   type UniformLookupItem,
-} from "./uniform-portal-api";
+} from "../portal/portal-api";
 
 export type UniformReturnStep = 1 | 2 | 3;
 
