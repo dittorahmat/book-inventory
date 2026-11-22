@@ -1,54 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Download, Printer, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { BarChart3, Download, Printer, RefreshCw, Loader2, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { School } from "../types";
-import { formatRupiah } from "../lib/transfer-pricing";
 import { buildQuery, getJson } from "../lib/api";
 import { SalesReportFilters } from "../components/reports/SalesReportFilters";
-import { SalesHandoverSection, type HandoverData } from "../components/reports/SalesHandoverSection";
-
-interface ChannelBreakdown {
-  orderCount: number;
-  quantity: number;
-  revenue: number;
-  collected: number;
-  outstanding: number;
-}
-
-interface SchoolRow {
-  schoolId: string;
-  schoolName: string;
-  revenue: number;
-  collected: number;
-  outstanding: number;
-  orderCount: number;
-  packageOrderCount: number;
-  looseOrderCount: number;
-  scholarshipOrderCount: number;
-}
-
-interface SalesReportPayload {
-  period: { from: string; to: string };
-  totals: ChannelBreakdown & {
-    packageOrderCount: number;
-    looseOrderCount: number;
-    scholarshipOrderCount: number;
-    scholarshipRevenue: number;
-    shippingTotal: number;
-    invoicedCount: number;
-    rejectedItems: number;
-  };
-  byChannel: { package: ChannelBreakdown; loose: ChannelBreakdown };
-  bySchool: SchoolRow[];
-  byCategory: Array<{ category: string; orderCount: number; quantity: number; revenue: number; collected: number; outstanding: number }>;
-  byProgram: Array<{ program: string; orderCount: number; revenue: number; collected: number; outstanding: number }>;
-  handover: HandoverData;
-}
+import { SalesReportSummaryContent, type SalesReportSummaryPayload } from "../components/reports/SalesReportSummaryContent";
+import { FinanceTransferReconciliationSection } from "../components/reports/FinanceTransferReconciliationSection";
 
 interface SalesReportViewProps {
   schools: School[];
   /** Terisi bila peran bukan central admin agar sekolah terkunci. */
   lockedSchoolId?: string | null;
 }
+
+export const SALES_REPORT_SUB_TABS = [
+  { id: "sales_summary", label: "Ringkasan Penjualan", icon: BarChart3 },
+  { id: "finance_reconciliation", label: "Rekonsiliasi Transfer Bank (Finance)", icon: FileSpreadsheet },
+] as const;
+
+export type SalesReportSubTabId = typeof SALES_REPORT_SUB_TABS[number]["id"];
 
 function firstDayOfMonth(): string {
   const d = new Date();
@@ -59,25 +28,9 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function MetricTile({ label, value, tone }: { label: string; value: string; tone?: "accent" | "positive" | "warning" }) {
-  const toneClass =
-    tone === "accent"
-      ? "text-[#1877F2]"
-      : tone === "positive"
-        ? "text-emerald-600"
-        : tone === "warning"
-          ? "text-amber-600"
-          : "text-[#050505]";
-  return (
-    <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs px-4 py-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-[#65676B]">{label}</p>
-      <p className={`text-lg font-bold mt-0.5 ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
-/** Laporan penjualan per periode, sekolah, dan tipe paket-vs-satuan (spec: sales-report). */
+/** Laporan penjualan & konsolidasi rekonsiliasi transfer finance (spec: sales-report & ADR 0026). */
 export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProps) {
+  const [activeSubTab, setActiveSubTab] = useState<SalesReportSubTabId>("sales_summary");
   const [from, setFrom] = useState(firstDayOfMonth);
   const [to, setTo] = useState(today);
   const [schoolId, setSchoolId] = useState("");
@@ -85,7 +38,7 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   const [gender, setGender] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [fulfillmentStatus, setFulfillmentStatus] = useState("");
-  const [report, setReport] = useState<SalesReportPayload | null>(null);
+  const [report, setReport] = useState<SalesReportSummaryPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +47,7 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
     setError(null);
     try {
       setReport(
-        await getJson<SalesReportPayload>(
+        await getJson<SalesReportSummaryPayload>(
           buildQuery("/api/sales-report", {
             from,
             to,
@@ -115,8 +68,10 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   }, [from, to, schoolId, gradeLevel, gender, paymentStatus, fulfillmentStatus]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (activeSubTab === "sales_summary") {
+      load();
+    }
+  }, [load, activeSubTab]);
 
   const downloadCsv = () => {
     const params = new URLSearchParams({ from, to });
@@ -129,251 +84,106 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
   };
 
   return (
-    <div className="space-y-5">
-      <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-[#050505] tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[#1877F2]" />
-              Laporan Penjualan
-            </h1>
-            <p className="text-xs text-[#65676B] mt-0.5">
-              Rekap omzet, penerimaan, dan piutang per periode — per cabang, per program, per kategori buku.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      {/* Sub-Navigasi Tab Laporan Data-Driven */}
+      <div className="flex border-b border-[#E4E6EB] gap-4">
+        {SALES_REPORT_SUB_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
             <button
+              key={tab.id}
               type="button"
-              onClick={load}
-              title="Muat ulang"
-              className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`pb-2.5 text-xs font-bold transition-all border-b-2 inline-flex items-center gap-1.5 active:scale-[0.98] ${
+                isActive
+                  ? "border-[#1877F2] text-[#1877F2]"
+                  : "border-transparent text-[#65676B] hover:text-[#050505]"
+              }`}
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
             </button>
-            <button
-              type="button"
-              onClick={downloadCsv}
-              disabled={isLoading}
-              className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5 text-[#65676B]" />
-              <span>Unduh CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
-            >
-              <Printer className="w-3.5 h-3.5 text-[#65676B]" />
-              <span>Cetak / PDF</span>
-            </button>
-          </div>
-        </div>
-
-        <SalesReportFilters
-          from={from} setFrom={setFrom}
-          to={to} setTo={setTo}
-          schoolId={schoolId} setSchoolId={setSchoolId}
-          schools={schools} lockedSchoolId={lockedSchoolId}
-          gradeLevel={gradeLevel} setGradeLevel={setGradeLevel}
-          gender={gender} setGender={setGender}
-          paymentStatus={paymentStatus} setPaymentStatus={setPaymentStatus}
-          fulfillmentStatus={fulfillmentStatus} setFulfillmentStatus={setFulfillmentStatus}
-        />
+          );
+        })}
       </div>
 
-      {error && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 inline-flex items-center gap-1.5">
-          <AlertCircle className="w-3.5 h-3.5" />
-          {error}
-        </p>
-      )}
+      {activeSubTab === "finance_reconciliation" ? (
+        <FinanceTransferReconciliationSection
+          schools={schools}
+          lockedSchoolId={lockedSchoolId}
+        />
+      ) : (
+        <div className="space-y-5">
+          <div className="bg-white rounded-2xl p-5 border border-[#E4E6EB] shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-bold text-[#050505] tracking-tight flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-[#1877F2]" />
+                  Laporan Penjualan
+                </h1>
+                <p className="text-xs text-[#65676B] mt-0.5">
+                  Rekap omzet, penerimaan, dan piutang per periode — per cabang, per program, per kategori buku.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={load}
+                  title="Muat ulang"
+                  className="p-2.5 rounded-xl border border-[#CED0D4] hover:bg-[#F0F2F5] text-[#65676B] transition-colors active:scale-[0.98]"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadCsv}
+                  disabled={isLoading}
+                  className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#65676B]" />
+                  <span>Unduh CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 rounded-xl border border-[#CED0D4] bg-white hover:bg-[#F0F2F5] text-[#050505] font-semibold text-xs transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#65676B]" />
+                  <span>Cetak / PDF</span>
+                </button>
+              </div>
+            </div>
 
-      {isLoading && !report ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-xs text-[#65676B]">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Menghitung laporan...</span>
+            <SalesReportFilters
+              from={from} setFrom={setFrom}
+              to={to} setTo={setTo}
+              schoolId={schoolId} setSchoolId={setSchoolId}
+              schools={schools} lockedSchoolId={lockedSchoolId}
+              gradeLevel={gradeLevel} setGradeLevel={setGradeLevel}
+              gender={gender} setGender={setGender}
+              paymentStatus={paymentStatus} setPaymentStatus={setPaymentStatus}
+              fulfillmentStatus={fulfillmentStatus} setFulfillmentStatus={setFulfillmentStatus}
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 inline-flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {error}
+            </p>
+          )}
+
+          {isLoading && !report ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-xs text-[#65676B]">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Menghitung laporan...</span>
+            </div>
+          ) : report ? (
+            <SalesReportSummaryContent report={report} />
+          ) : null}
         </div>
-      ) : report ? (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <MetricTile label="Omzet" value={formatRupiah(report.totals.revenue)} tone="accent" />
-            <MetricTile label="Terkumpul" value={formatRupiah(report.totals.collected)} tone="positive" />
-            <MetricTile label="Piutang" value={formatRupiah(report.totals.outstanding)} tone="warning" />
-            <MetricTile label="Total Order" value={String(report.totals.orderCount)} />
-            <MetricTile label="Penerima Beasiswa" value={String(report.totals.scholarshipOrderCount)} />
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <MetricTile label="Ongkir Terkumpul" value={formatRupiah(report.totals.shippingTotal)} />
-            <MetricTile label="Invoice Terkirim" value={String(report.totals.invoicedCount)} />
-            <MetricTile label="Diserahkan (Finance)" value={String(report.handover.orderCount)} tone="positive" />
-            <MetricTile label="Eksemplar Reject" value={String(report.totals.rejectedItems)} tone="warning" />
-          </div>
-
-          <SalesHandoverSection handover={report.handover} />
-
-          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
-            <header className="px-5 py-3 border-b border-[#E4E6EB]">
-              <h2 className="text-sm font-bold text-[#050505]">Paket vs Satuan</h2>
-            </header>
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-2.5 px-4">Kanal</th>
-                  <th className="py-2.5 px-4 text-right">Order</th>
-                  <th className="py-2.5 px-4 text-right">Kuantitas</th>
-                  <th className="py-2.5 px-4 text-right">Omzet</th>
-                  <th className="py-2.5 px-4 text-right">Terkumpul</th>
-                  <th className="py-2.5 px-4 text-right">Piutang</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E4E6EB]">
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#050505]">Paket</td>
-                  <td className="py-3 px-4 text-right">{report.byChannel.package.orderCount}</td>
-                  <td className="py-3 px-4 text-right">{report.byChannel.package.quantity}</td>
-                  <td className="py-3 px-4 text-right font-semibold">{formatRupiah(report.byChannel.package.revenue)}</td>
-                  <td className="py-3 px-4 text-right">{formatRupiah(report.byChannel.package.collected)}</td>
-                  <td className="py-3 px-4 text-right">{formatRupiah(report.byChannel.package.outstanding)}</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#050505]">Satuan</td>
-                  <td className="py-3 px-4 text-right">{report.byChannel.loose.orderCount}</td>
-                  <td className="py-3 px-4 text-right">{report.byChannel.loose.quantity}</td>
-                  <td className="py-3 px-4 text-right font-semibold">{formatRupiah(report.byChannel.loose.revenue)}</td>
-                  <td className="py-3 px-4 text-right">{formatRupiah(report.byChannel.loose.collected)}</td>
-                  <td className="py-3 px-4 text-right">{formatRupiah(report.byChannel.loose.outstanding)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-
-          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
-            <header className="px-5 py-3 border-b border-[#E4E6EB]">
-              <h2 className="text-sm font-bold text-[#050505]">Rincian per Sekolah</h2>
-            </header>
-            {report.bySchool.length === 0 ? (
-              <p className="px-5 py-8 text-xs text-[#65676B] text-center">
-                Tidak ada penjualan pada periode {report.period.from} sampai {report.period.to}.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-4">Sekolah</th>
-                      <th className="py-2.5 px-4 text-right">Paket</th>
-                      <th className="py-2.5 px-4 text-right">Satuan</th>
-                      <th className="py-2.5 px-4 text-right">Beasiswa</th>
-                      <th className="py-2.5 px-4 text-right">Omzet</th>
-                      <th className="py-2.5 px-4 text-right">Terkumpul</th>
-                      <th className="py-2.5 px-4 text-right">Piutang</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E6EB]">
-                    {report.bySchool.map((row) => (
-                      <tr key={row.schoolId} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="py-3 px-4 font-semibold text-[#050505]">{row.schoolName}</td>
-                        <td className="py-3 px-4 text-right">{row.packageOrderCount}</td>
-                        <td className="py-3 px-4 text-right">{row.looseOrderCount}</td>
-                        <td className="py-3 px-4 text-right">{row.scholarshipOrderCount}</td>
-                        <td className="py-3 px-4 text-right font-semibold">{formatRupiah(row.revenue)}</td>
-                        <td className="py-3 px-4 text-right text-emerald-700">{formatRupiah(row.collected)}</td>
-                        <td className="py-3 px-4 text-right text-amber-700">{formatRupiah(row.outstanding)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-[#F7F8FA] border-t border-[#CED0D4] font-bold text-[#050505]">
-                      <td className="py-3 px-4">TOTAL</td>
-                      <td className="py-3 px-4 text-right">{report.totals.packageOrderCount}</td>
-                      <td className="py-3 px-4 text-right">{report.totals.looseOrderCount}</td>
-                      <td className="py-3 px-4 text-right">{report.totals.scholarshipOrderCount}</td>
-                      <td className="py-3 px-4 text-right">{formatRupiah(report.totals.revenue)}</td>
-                      <td className="py-3 px-4 text-right">{formatRupiah(report.totals.collected)}</td>
-                      <td className="py-3 px-4 text-right">{formatRupiah(report.totals.outstanding)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
-            <header className="px-5 py-3 border-b border-[#E4E6EB]">
-              <h2 className="text-sm font-bold text-[#050505]">Per Program &amp; Jenjang</h2>
-            </header>
-            {(report.byProgram ?? []).length === 0 ? (
-              <p className="px-5 py-8 text-xs text-[#65676B] text-center">
-                Belum ada order pada periode {report.period.from} sampai {report.period.to}.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-4">Program</th>
-                      <th className="py-2.5 px-4 text-right">Order</th>
-                      <th className="py-2.5 px-4 text-right">Omzet</th>
-                      <th className="py-2.5 px-4 text-right">Terkumpul</th>
-                      <th className="py-2.5 px-4 text-right">Piutang</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E6EB]">
-                    {(report.byProgram ?? []).map((row) => (
-                      <tr key={row.program} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="py-3 px-4 font-semibold text-[#050505]">{row.program}</td>
-                        <td className="py-3 px-4 text-right">{row.orderCount}</td>
-                        <td className="py-3 px-4 text-right font-semibold">{formatRupiah(row.revenue)}</td>
-                        <td className="py-3 px-4 text-right text-emerald-700">{formatRupiah(row.collected)}</td>
-                        <td className="py-3 px-4 text-right text-amber-700">{formatRupiah(row.outstanding)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
-            <header className="px-5 py-3 border-b border-[#E4E6EB]">
-              <h2 className="text-sm font-bold text-[#050505]">Per Kategori Buku</h2>
-            </header>
-            {(report.byCategory ?? []).length === 0 ? (
-              <p className="px-5 py-8 text-xs text-[#65676B] text-center">
-                Belum ada atribusi kategori pada periode {report.period.from} sampai {report.period.to}.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-4">Kategori</th>
-                      <th className="py-2.5 px-4 text-right">Order</th>
-                      <th className="py-2.5 px-4 text-right">Qty</th>
-                      <th className="py-2.5 px-4 text-right">Omzet</th>
-                      <th className="py-2.5 px-4 text-right">Terkumpul</th>
-                      <th className="py-2.5 px-4 text-right">Piutang</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E6EB]">
-                    {(report.byCategory ?? []).map((row) => (
-                      <tr key={row.category} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="py-3 px-4 font-semibold text-[#050505]">{row.category}</td>
-                        <td className="py-3 px-4 text-right">{row.orderCount}</td>
-                        <td className="py-3 px-4 text-right">{row.quantity}</td>
-                        <td className="py-3 px-4 text-right font-semibold">{formatRupiah(row.revenue)}</td>
-                        <td className="py-3 px-4 text-right text-emerald-700">{formatRupiah(row.collected)}</td>
-                        <td className="py-3 px-4 text-right text-amber-700">{formatRupiah(row.outstanding)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      ) : null}
+      )}
     </div>
   );
 }

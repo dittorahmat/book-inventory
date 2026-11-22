@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { and, eq, gte, isNotNull, isNull, lt, inArray } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
   paymentReceipts,
@@ -12,16 +12,17 @@ import { periodBounds } from "../lib/period";
 
 export interface BankTransferReconciliationRow {
   receiptId: string;
-  allocationId: string;
   studentName: string;
   nis: string;
   schoolName: string;
   transferDate: string;
   totalTransfer: number;
-  allocationAmount: number;
-  transferTarget: "Buku" | "Seragam";
+  bookAllocation: number;
+  uniformAllocation: number;
+  unallocatedAmount: number;
   bankName: string;
   referenceNumber: string | null;
+  verificationStatus: "verified" | "pending";
 }
 
 export async function fetchBankTransferReconciliation(
@@ -29,13 +30,12 @@ export async function fetchBankTransferReconciliation(
   input: { period: string; schoolId?: string }
 ): Promise<BankTransferReconciliationRow[]> {
   const { start, end } = periodBounds(input.period);
-  const schoolScope = input.schoolId;
+  const schoolScope = input.schoolId && input.schoolId !== "all" ? input.schoolId : undefined;
 
   const receiptConditions = [
     eq(paymentReceipts.direction, "in"),
     gte(paymentReceipts.receivedAt, start),
     lt(paymentReceipts.receivedAt, end),
-    isNotNull(paymentReceipts.verifiedAt),
     isNull(paymentReceipts.rejectedAt),
     schoolScope ? eq(paymentReceipts.schoolId, schoolScope) : undefined,
   ];
@@ -49,6 +49,7 @@ export async function fetchBankTransferReconciliation(
       bankName: paymentReceipts.bankName,
       referenceNumber: paymentReceipts.referenceNumber,
       receivedAt: paymentReceipts.receivedAt,
+      verifiedAt: paymentReceipts.verifiedAt,
     })
     .from(paymentReceipts)
     .where(and(...receiptConditions));
@@ -95,34 +96,50 @@ export async function fetchBankTransferReconciliation(
   );
   const schoolMap = new Map(schoolRows.map((s) => [s.id, s.name]));
 
-  const receiptMap = new Map(receipts.map((r) => [r.id, r]));
+  // Agregasi alokasi per receiptId
+  const allocMap = new Map<string, { book: number; uniform: number }>();
+  for (const alloc of allocations) {
+    const existing = allocMap.get(alloc.receiptId) ?? { book: 0, uniform: 0 };
+    if (alloc.kind === "buku") {
+      existing.book += alloc.amount;
+    } else if (alloc.kind === "seragam") {
+      existing.uniform += alloc.amount;
+    }
+    allocMap.set(alloc.receiptId, existing);
+  }
 
   const rows: BankTransferReconciliationRow[] = [];
 
-  for (const alloc of allocations) {
-    const rc = receiptMap.get(alloc.receiptId);
-    if (!rc) continue;
-
+  for (const rc of receipts) {
     const st = studentMap.get(rc.studentId);
     const schoolName = schoolMap.get(rc.schoolId) || rc.schoolId;
     const dateFormatted = rc.receivedAt ? rc.receivedAt.slice(0, 10) : "";
+    const alloc = allocMap.get(rc.id) ?? { book: 0, uniform: 0 };
+    const allocatedSum = alloc.book + alloc.uniform;
+    const unallocatedAmount = Math.max(0, rc.amount - allocatedSum);
 
     rows.push({
       receiptId: rc.id,
-      allocationId: alloc.id,
       studentName: st?.name || "—",
       nis: st?.nis || "—",
       schoolName,
       transferDate: dateFormatted,
       totalTransfer: rc.amount,
-      allocationAmount: alloc.amount,
-      transferTarget: alloc.kind === "buku" ? "Buku" : "Seragam",
+      bookAllocation: alloc.book,
+      uniformAllocation: alloc.uniform,
+      unallocatedAmount,
       bankName: rc.bankName,
       referenceNumber: rc.referenceNumber,
+      verificationStatus: rc.verifiedAt ? "verified" : "pending",
     });
   }
 
-  return rows;
+  // Urutkan berdasarkan tanggal transfer menurun lalu nama siswa
+  return rows.sort((a, b) => {
+    const dateCmp = b.transferDate.localeCompare(a.transferDate);
+    if (dateCmp !== 0) return dateCmp;
+    return a.studentName.localeCompare(b.studentName);
+  });
 }
 
 export function buildReconciliationExcelBuffer(
@@ -131,26 +148,30 @@ export function buildReconciliationExcelBuffer(
 ): Uint8Array {
   const wb = XLSX.utils.book_new();
   const headers = [
+    "Tanggal Transfer",
     "Nama Siswa",
     "NIS",
     "Sekolah",
-    "Tanggal Transfer",
-    "Total Transfer (Rp)",
-    "Alokasi Transfer (Rp)",
-    "Tujuan Transfer",
     "Bank",
     "No Referensi",
+    "Total Transfer (Rp)",
+    "Alokasi Buku (Rp)",
+    "Alokasi Seragam (Rp)",
+    "Sisa / Unallocated (Rp)",
+    "Status Verifikasi",
   ];
   const data = rows.map((r) => [
+    r.transferDate,
     r.studentName,
     r.nis,
     r.schoolName,
-    r.transferDate,
-    r.totalTransfer,
-    r.allocationAmount,
-    r.transferTarget,
     r.bankName,
     r.referenceNumber || "—",
+    r.totalTransfer,
+    r.bookAllocation,
+    r.uniformAllocation,
+    r.unallocatedAmount,
+    r.verificationStatus,
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   XLSX.utils.book_append_sheet(wb, ws, `Rekon-${period}`);

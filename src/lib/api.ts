@@ -102,6 +102,25 @@ export const patchJson = <T>(url: string, body: unknown, fallback = "Request gag
 export const delJson = <T>(url: string, fallback = "Request gagal."): Promise<T> =>
   api<T>(url, { method: "DELETE" }, fallback);
 
+/**
+ * Ekstraksi pesan error dari respons Response gagal (termasuk download file / binary / CSV / Excel).
+ * Menangani format JSON { message }, { error }, atau fallback teks status HTTP.
+ */
+export const readResponseErrorMessage = async (res: Response, fallback = "Operasi gagal."): Promise<string> => {
+  try {
+    const text = await res.text();
+    if (!text) return `${fallback} (${res.status})`;
+    try {
+      const parsed = JSON.parse(text);
+      return formatApiErrorMessage(parsed, fallback);
+    } catch {
+      return text.length > 200 ? `${fallback} (${res.status})` : text;
+    }
+  } catch {
+    return `${fallback} (${res.status})`;
+  }
+};
+
 /** Upload FormData (dokumen TTD, bukti transfer, cover) — tanpa header JSON manual. */
 export const postForm = <T>(url: string, form: FormData, fallback = "Upload gagal."): Promise<T> =>
   api<T>(url, { method: "POST", body: form }, fallback);

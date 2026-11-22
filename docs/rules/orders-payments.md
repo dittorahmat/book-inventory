@@ -115,5 +115,14 @@ Seluruh intake pembatalan pesanan akibat murid mengundurkan diri (buku maupun se
    - Client HTTP adapter kanonik (`portal-api.ts`) untuk pemetaan endpoint publik;
    - Modul helper murni (seperti `structured-address.ts`, `low-stock-threshold.ts`).
 
+---
+
+### §0.94. Mandat Rekonsiliasi Finansial Transfer Bank & Navigasi Terpadu (ADR-0026)
+1. **Inklusivitas Struk Transfer Masuk**: Layanan rekonsiliasi transfer bank (`fetchBankTransferReconciliation`) wajib mengikutsertakan seluruh transfer bank (`payment_receipts.direction = 'in'`) yang tidak berstatus ditolak (`rejectedAt IS NULL`), termasuk yang berstatus pending verifikasi kasir (`verifiedAt IS NULL`), agar tim Finance dapat memverifikasi mutasi rekening koran secara utuh sebelum maupun sesudah kasir menyelesaikan verifikasi.
+2. **Pivot Resi & Kolom Status Verifikasi**: Penyajian tabel rekonsiliasi finance (baik di antarmuka web maupun ekspor Excel) wajib menyajikan format pivot per Struk Bayar (1 baris per resi unik dengan rincian alokasi buku, alokasi seragam, sisa unallocated) dan secara eksplisit menampilkan kolom `Status Verifikasi` (`verified` / `pending`).
+3. **Sub-Navigasi Data-Driven & Anti-Silent Fetch**:
+   - Sub-navigasi laporan finansial di antarmuka staf (`SalesReportView.tsx`) wajib menggunakan definisi array konstan data-driven (`SALES_REPORT_SUB_TABS`) dengan tactile micro-interaction (`active:scale-[0.98]`).
+   - Seluruh pemanggilan ekspor file binary (`fetch` pada unduh Excel/CSV) wajib menyertakan ekstraksi pesan error respons server yang ramah pengguna saat status `!res.ok`.
+
 
 
