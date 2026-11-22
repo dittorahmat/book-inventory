@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { and, eq, gte, isNotNull, isNull, lt, inArray } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../db";
 import {
   paymentReceipts,
@@ -36,7 +36,6 @@ export async function fetchBankTransferReconciliation(
     eq(paymentReceipts.direction, "in"),
     gte(paymentReceipts.receivedAt, start),
     lt(paymentReceipts.receivedAt, end),
-    isNotNull(paymentReceipts.verifiedAt),
     isNull(paymentReceipts.rejectedAt),
     schoolScope ? eq(paymentReceipts.schoolId, schoolScope) : undefined,
   ];

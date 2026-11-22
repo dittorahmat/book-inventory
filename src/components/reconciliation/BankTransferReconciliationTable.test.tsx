@@ -56,6 +56,7 @@ describe("BankTransferReconciliationTable", () => {
     expect(screen.getByText("Al-Wildan 1")).toBeDefined();
     expect(screen.getByText("Al-Wildan 2")).toBeDefined();
     expect(screen.getByText("REF-BCA-100")).toBeDefined();
+    expect(screen.getAllByText("Terverifikasi").length).toBe(2);
 
     // Verifikasi tombol ekspor excel
     const exportBtn = screen.getByText("Ekspor Excel (.xlsx)");

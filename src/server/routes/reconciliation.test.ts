@@ -164,6 +164,7 @@ describe("Rekonsiliasi API", () => {
       const allTransfersData = await allTransfers.json();
       expect(allTransfersData.success).toBe(true);
       expect(allTransfersData.data.length).toBeGreaterThanOrEqual(1);
+      expect(allTransfersData.data[0].verificationStatus).toBeDefined();
 
       const transfersExport = await reconciliationRouter.request(`/transfers/export?schoolId=${schoolB}&period=${period}`);
       expect(transfersExport.status).toBe(200);

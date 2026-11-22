@@ -12,6 +12,13 @@ interface SalesReportViewProps {
   lockedSchoolId?: string | null;
 }
 
+export const SALES_REPORT_SUB_TABS = [
+  { id: "sales_summary", label: "Ringkasan Penjualan", icon: BarChart3 },
+  { id: "finance_reconciliation", label: "Rekonsiliasi Transfer Bank (Finance)", icon: FileSpreadsheet },
+] as const;
+
+export type SalesReportSubTabId = typeof SALES_REPORT_SUB_TABS[number]["id"];
+
 function firstDayOfMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -23,7 +30,7 @@ function today(): string {
 
 /** Laporan penjualan & konsolidasi rekonsiliasi transfer finance (spec: sales-report & ADR 0026). */
 export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"sales_summary" | "finance_reconciliation">("sales_summary");
+  const [activeSubTab, setActiveSubTab] = useState<SalesReportSubTabId>("sales_summary");
   const [from, setFrom] = useState(firstDayOfMonth);
   const [to, setTo] = useState(today);
   const [schoolId, setSchoolId] = useState("");
@@ -78,32 +85,27 @@ export function SalesReportView({ schools, lockedSchoolId }: SalesReportViewProp
 
   return (
     <div className="space-y-4">
-      {/* Sub-Navigasi Tab Laporan */}
+      {/* Sub-Navigasi Tab Laporan Data-Driven */}
       <div className="flex border-b border-[#E4E6EB] gap-4">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("sales_summary")}
-          className={`pb-2.5 text-xs font-bold transition-colors border-b-2 inline-flex items-center gap-1.5 ${
-            activeSubTab === "sales_summary"
-              ? "border-[#1877F2] text-[#1877F2]"
-              : "border-transparent text-[#65676B] hover:text-[#050505]"
-          }`}
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          <span>Ringkasan Penjualan</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("finance_reconciliation")}
-          className={`pb-2.5 text-xs font-bold transition-colors border-b-2 inline-flex items-center gap-1.5 ${
-            activeSubTab === "finance_reconciliation"
-              ? "border-[#1877F2] text-[#1877F2]"
-              : "border-transparent text-[#65676B] hover:text-[#050505]"
-          }`}
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5" />
-          <span>Rekonsiliasi Transfer Bank (Finance)</span>
-        </button>
+        {SALES_REPORT_SUB_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`pb-2.5 text-xs font-bold transition-all border-b-2 inline-flex items-center gap-1.5 active:scale-[0.98] ${
+                isActive
+                  ? "border-[#1877F2] text-[#1877F2]"
+                  : "border-transparent text-[#65676B] hover:text-[#050505]"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {activeSubTab === "finance_reconciliation" ? (

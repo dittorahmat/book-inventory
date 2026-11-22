@@ -109,12 +109,13 @@ export function BankTransferReconciliationTable({
               <th className="px-3 py-2.5 text-right whitespace-nowrap">Alokasi Buku</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap">Alokasi Seragam</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap">Sisa Unallocated</th>
+              <th className="px-3 py-2.5 text-center whitespace-nowrap">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-[#65676B]">
+                <td colSpan={10} className="px-4 py-8 text-center text-[#65676B]">
                   Tidak ada data transfer pada periode terpilih.
                 </td>
               </tr>
@@ -146,6 +147,17 @@ export function BankTransferReconciliationTable({
                     ) : (
                       <span className="text-[#65676B]">Rp 0</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        row.verificationStatus === "verified"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {row.verificationStatus === "verified" ? "Terverifikasi" : "Pending"}
+                    </span>
                   </td>
                 </tr>
               ))

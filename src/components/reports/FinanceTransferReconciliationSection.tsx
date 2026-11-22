@@ -52,7 +52,18 @@ export function FinanceTransferReconciliationSection({
         schoolId: effectiveSchoolId !== "all" ? effectiveSchoolId : undefined,
       });
       const res = await fetch(query);
-      if (!res.ok) throw new Error("Gagal mengunduh file Excel rekonsiliasi.");
+      if (!res.ok) {
+        let msg = "Gagal mengunduh file Excel rekonsiliasi.";
+        try {
+          const errData = await res.json();
+          if (errData && typeof errData === "object" && "message" in errData && typeof errData.message === "string") {
+            msg = errData.message;
+          }
+        } catch (jsonErr) {
+          msg = `Gagal mengunduh file Excel (${res.status}): ${jsonErr instanceof Error ? jsonErr.message : "respons server tidak valid"}`;
+        }
+        throw new Error(msg);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

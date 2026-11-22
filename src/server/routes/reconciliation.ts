@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { db } from "../../db";
 import { PERIOD_RE } from "../lib/period";
 import { accessErrorResponse, requireScopedActor } from "../services/access-scope";
@@ -9,6 +9,18 @@ import {
 } from "../services/reconciliation-excel";
 
 export const reconciliationRouter = new Hono();
+
+async function resolveReconciliationScope(c: Context) {
+  const rawRequested = c.req.query("schoolId");
+  const requested = rawRequested === "all" ? undefined : rawRequested;
+  const { scope } = await requireScopedActor(db, c, requested);
+  const schoolId = scope.length === 1 ? scope[0] : requested;
+  const period = c.req.query("period") ?? "";
+  if (!PERIOD_RE.test(period)) {
+    throw new Error("Periode wajib format YYYY-MM.");
+  }
+  return { schoolId, period };
+}
 
 /** Rekonsiliasi per sekolah + periode: uang masuk wali ↔ tagihan cabang ↔ klaim. */
 reconciliationRouter.get("/", async (c) => {
@@ -29,17 +41,13 @@ reconciliationRouter.get("/", async (c) => {
 /** Laporan tabular transfer bank & alokasi untuk finance. */
 reconciliationRouter.get("/transfers", async (c) => {
   try {
-    const rawRequested = c.req.query("schoolId");
-    const requested = rawRequested === "all" ? undefined : rawRequested;
-    const { scope } = await requireScopedActor(db, c, requested);
-    const schoolId = scope.length === 1 ? scope[0] : requested;
-    const period = c.req.query("period") ?? "";
-    if (!PERIOD_RE.test(period)) {
-      return c.json({ success: false, message: "Periode wajib format YYYY-MM." }, 400);
-    }
+    const { schoolId, period } = await resolveReconciliationScope(c);
     const rows = await fetchBankTransferReconciliation(db, { period, schoolId });
     return c.json({ success: true, data: rows });
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Periode wajib")) {
+      return c.json({ success: false, message: err.message }, 400);
+    }
     return accessErrorResponse(c, err);
   }
 });
@@ -47,14 +55,7 @@ reconciliationRouter.get("/transfers", async (c) => {
 /** Ekspor Excel (.xlsx) laporan rekonsiliasi transfer bank untuk finance. */
 reconciliationRouter.get("/transfers/export", async (c) => {
   try {
-    const rawRequested = c.req.query("schoolId");
-    const requested = rawRequested === "all" ? undefined : rawRequested;
-    const { scope } = await requireScopedActor(db, c, requested);
-    const schoolId = scope.length === 1 ? scope[0] : requested;
-    const period = c.req.query("period") ?? "";
-    if (!PERIOD_RE.test(period)) {
-      return c.json({ success: false, message: "Periode wajib format YYYY-MM." }, 400);
-    }
+    const { schoolId, period } = await resolveReconciliationScope(c);
     const rows = await fetchBankTransferReconciliation(db, { period, schoolId });
     const buffer = buildReconciliationExcelBuffer(rows, period);
     const filename = `rekonsiliasi-finance-${period}${schoolId ? `-${schoolId}` : "-nasional"}.xlsx`;
@@ -65,6 +66,9 @@ reconciliationRouter.get("/transfers/export", async (c) => {
       },
     });
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Periode wajib")) {
+      return c.json({ success: false, message: err.message }, 400);
+    }
     return accessErrorResponse(c, err);
   }
 });
