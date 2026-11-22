@@ -153,12 +153,28 @@ describe("Rekonsiliasi API", () => {
       expect(transfers.status).toBe(200);
       const transfersData = await transfers.json();
       expect(transfersData.success).toBe(true);
+      expect(Array.isArray(transfersData.data)).toBe(true);
+      expect(transfersData.data[0].bookAllocation).toBeDefined();
+      expect(transfersData.data[0].uniformAllocation).toBeDefined();
+      expect(transfersData.data[0].unallocatedAmount).toBeDefined();
+
+      // Test konsolidasi nasional (schoolId=all atau tanpa schoolId) oleh central admin
+      const allTransfers = await reconciliationRouter.request(`/transfers?schoolId=all&period=${period}`);
+      expect(allTransfers.status).toBe(200);
+      const allTransfersData = await allTransfers.json();
+      expect(allTransfersData.success).toBe(true);
+      expect(allTransfersData.data.length).toBeGreaterThanOrEqual(1);
 
       const transfersExport = await reconciliationRouter.request(`/transfers/export?schoolId=${schoolB}&period=${period}`);
       expect(transfersExport.status).toBe(200);
       expect(transfersExport.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
       const exportBuf = await transfersExport.arrayBuffer();
       expect(exportBuf.byteLength).toBeGreaterThan(100);
+
+      const nationalExport = await reconciliationRouter.request(`/transfers/export?schoolId=all&period=${period}`);
+      expect(nationalExport.status).toBe(200);
+      expect(nationalExport.headers.get("Content-Disposition")).toContain("rekonsiliasi-finance-");
+      expect(nationalExport.headers.get("Content-Disposition")).toContain("-nasional.xlsx");
     } finally {
       await db.delete(paymentReceipts).where(inArray(paymentReceipts.id, [receiptB]));
       await db.delete(schools).where(inArray(schools.id, [schoolA, schoolB]));

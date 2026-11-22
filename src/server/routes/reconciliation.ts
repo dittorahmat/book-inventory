@@ -29,7 +29,8 @@ reconciliationRouter.get("/", async (c) => {
 /** Laporan tabular transfer bank & alokasi untuk finance. */
 reconciliationRouter.get("/transfers", async (c) => {
   try {
-    const requested = c.req.query("schoolId");
+    const rawRequested = c.req.query("schoolId");
+    const requested = rawRequested === "all" ? undefined : rawRequested;
     const { scope } = await requireScopedActor(db, c, requested);
     const schoolId = scope.length === 1 ? scope[0] : requested;
     const period = c.req.query("period") ?? "";
@@ -46,7 +47,8 @@ reconciliationRouter.get("/transfers", async (c) => {
 /** Ekspor Excel (.xlsx) laporan rekonsiliasi transfer bank untuk finance. */
 reconciliationRouter.get("/transfers/export", async (c) => {
   try {
-    const requested = c.req.query("schoolId");
+    const rawRequested = c.req.query("schoolId");
+    const requested = rawRequested === "all" ? undefined : rawRequested;
     const { scope } = await requireScopedActor(db, c, requested);
     const schoolId = scope.length === 1 ? scope[0] : requested;
     const period = c.req.query("period") ?? "";
@@ -55,7 +57,7 @@ reconciliationRouter.get("/transfers/export", async (c) => {
     }
     const rows = await fetchBankTransferReconciliation(db, { period, schoolId });
     const buffer = buildReconciliationExcelBuffer(rows, period);
-    const filename = `rekonsiliasi-finance-${period}${schoolId ? `-${schoolId}` : ""}.xlsx`;
+    const filename = `rekonsiliasi-finance-${period}${schoolId ? `-${schoolId}` : "-nasional"}.xlsx`;
     return new Response(buffer.buffer as ArrayBuffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
