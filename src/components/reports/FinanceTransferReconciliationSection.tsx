@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
-import { buildQuery, getJson } from "../../lib/api";
+import { buildQuery, getJson, readResponseErrorMessage } from "../../lib/api";
 import { BankTransferReconciliationTable } from "../reconciliation/BankTransferReconciliationTable";
 import type { BankTransferReconciliationItem } from "../reconciliation/recon-transfers-types";
 import type { School } from "../../types";
@@ -53,16 +53,7 @@ export function FinanceTransferReconciliationSection({
       });
       const res = await fetch(query);
       if (!res.ok) {
-        let msg = "Gagal mengunduh file Excel rekonsiliasi.";
-        try {
-          const errData = await res.json();
-          if (errData && typeof errData === "object" && "message" in errData && typeof errData.message === "string") {
-            msg = errData.message;
-          }
-        } catch (jsonErr) {
-          msg = `Gagal mengunduh file Excel (${res.status}): ${jsonErr instanceof Error ? jsonErr.message : "respons server tidak valid"}`;
-        }
-        throw new Error(msg);
+        throw new Error(await readResponseErrorMessage(res, "Gagal mengunduh file Excel rekonsiliasi."));
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

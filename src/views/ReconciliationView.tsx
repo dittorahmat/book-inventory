@@ -13,6 +13,13 @@ interface ReconciliationViewProps {
   isCentralAdmin: boolean;
 }
 
+/**
+ * CATATAN NAVIGASI / ARSITEKTUR (AGENTS.md & ADR-0026):
+ * Tab utama 'reconciliation' dinonaktifkan dari navigasi staf (staff-tabs.ts visible: () => false).
+ * Laporan konsolidasi transfer bank untuk Finance telah disatukan secara kanonik ke dalam
+ * Tab LAPORAN ('reports' -> SalesReportView.tsx -> sub-tab 'Rekonsiliasi Transfer Bank (Finance)').
+ * View ini dipertahankan khusus untuk kebutuhan sub-modul audit internal/legacy (TermReconciliationTab).
+ */
 export function ReconciliationView({ activeSchool, schools = [], isCentralAdmin }: ReconciliationViewProps) {
   const [activeSubTab, setActiveSubTab] = useState<"finance" | "term_stock">("finance");
   const recon = useReconciliation(isCentralAdmin ? null : activeSchool?.id ?? null);
