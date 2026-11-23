@@ -1037,4 +1037,56 @@ describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () =>
     await db.delete(students).where(eq(students.id, studentId));
     await db.delete(schools).where(eq(schools.id, schoolId));
   });
+
+  it("mendukung query pagination pada endpoint GET /orders", async () => {
+    const stamp = Date.now();
+    const schoolId = `sch-uord-pg-${stamp}`;
+    const studentId = `stu-uord-pg-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({
+      id: schoolId, name: "Sch Uniform Pg", code: `SUP-${stamp}`.slice(0, 20),
+      type: "branch", createdAt: now, updatedAt: now,
+    }).onConflictDoNothing();
+
+    await db.insert(students).values({
+      id: studentId, schoolId, nis: `NIS-UPG-${stamp}`.slice(0, 20),
+      name: "Uniform Pg Stu", gradeLevel: "1", curriculumType: "international",
+      academicYear: "2026/2027", status: "active", createdAt: now, updatedAt: now,
+    });
+
+    const ord1 = `uord-pg1-${stamp}`;
+    const ord2 = `uord-pg2-${stamp}`;
+    await db.insert(uniformOrders).values([
+      {
+        id: ord1, orderNumber: `UO-PG1-${stamp}`, studentId, schoolId,
+        academicYear: "2026/2027", shipmentStatus: "belum_dikirim",
+        homeAddressSnapshot: "Jl. Test 1",
+        totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+      },
+      {
+        id: ord2, orderNumber: `UO-PG2-${stamp}`, studentId, schoolId,
+        academicYear: "2026/2027", shipmentStatus: "belum_dikirim",
+        homeAddressSnapshot: "Jl. Test 2",
+        totalAmount: 150000, paidAmount: 0, createdAt: new Date(Date.now() + 1000).toISOString(), updatedAt: now,
+      },
+    ]);
+
+    try {
+      const res = await uniformsRouter.request(`/orders?schoolId=${schoolId}&page=1&limit=1`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { success: boolean; data: unknown[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveLength(1);
+      expect(body.pagination).toBeDefined();
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(1);
+      expect(body.pagination.total).toBe(2);
+      expect(body.pagination.totalPages).toBe(2);
+    } finally {
+      await db.delete(uniformOrders).where(eq(uniformOrders.schoolId, schoolId));
+      await db.delete(students).where(eq(students.id, studentId));
+      await db.delete(schools).where(eq(schools.id, schoolId));
+    }
+  });
 });

@@ -2,7 +2,8 @@
  * Adapter tipis staf seragam di atas fetch kanonik (`lib/api`).
  * Tanpa state — hanya pemetaan endpoint dengan pesan Indonesia.
  */
-import { buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
+import { apiEnvelope, buildQuery, delJson, getJson, postJson, putJson } from "../../lib/api";
+import type { PaginationMeta } from "../ui/useTablePagination";
 import {
   isPendingPayment,
   normalizePaymentRow,
@@ -39,8 +40,24 @@ export interface UniformOrderRow {
   createdAt: string;
 }
 
-export const fetchUniformOrders = (params: { schoolId?: string; shipmentStatus?: string; search?: string }): Promise<UniformOrderRow[]> =>
-  getJson<UniformOrderRow[]>(buildQuery("/api/uniforms/orders", params), "Gagal memuat order seragam.");
+export interface UniformOrdersResult {
+  orders: UniformOrderRow[];
+  pagination?: PaginationMeta;
+}
+
+export const fetchUniformOrders = async (
+  params: { schoolId?: string; shipmentStatus?: string; search?: string; page?: number; limit?: number }
+): Promise<UniformOrdersResult> => {
+  const envelope = await apiEnvelope<{ data: UniformOrderRow[]; pagination?: PaginationMeta }>(
+    buildQuery("/api/uniforms/orders", params),
+    undefined,
+    "Gagal memuat order seragam."
+  );
+  return {
+    orders: Array.isArray(envelope.data) ? envelope.data : [],
+    pagination: envelope.pagination,
+  };
+};
 
 export const markUniformShipped = (
   id: string,
