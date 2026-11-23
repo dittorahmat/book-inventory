@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useCatalogData } from "../components/catalog/useCatalogData";
 import { CatalogToolbar } from "../components/catalog/CatalogToolbar";
 import { CreateBookForm } from "../components/catalog/CreateBookForm";
@@ -8,6 +8,8 @@ import { BookBulkUploadModal } from "../components/books/BookBulkUploadModal";
 import { isBookWarehouseStaffRole, isCentralRole, type StaffRole } from "../lib/staff-roles";
 import type { NewBookPayload } from "../components/catalog/catalog-intent";
 import type { Book } from "../types";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
 
 interface CatalogViewProps {
   userRole?: StaffRole;
@@ -18,9 +20,22 @@ export function CatalogView({ userRole }: CatalogViewProps = {}) {
   const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook, updateBook } = useCatalogData();
   const canManageCatalog = !userRole || isCentralRole(userRole) || isBookWarehouseStaffRole(userRole);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const handleCreate = async (payload: NewBookPayload, coverFile: File | null) => {
     await createBook(payload, coverFile);
@@ -52,16 +67,22 @@ export function CatalogView({ userRole }: CatalogViewProps = {}) {
     }
   };
 
-  const filteredBooks = books.filter((book) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      book.title.toLowerCase().includes(q) ||
-      book.isbn.toLowerCase().includes(q) ||
-      book.author.toLowerCase().includes(q) ||
-      (book.publisher && book.publisher.toLowerCase().includes(q))
-    );
-  });
+  const filteredBooks = useMemo(() => {
+    const q = debouncedSearch.toLowerCase().trim();
+    if (!q) return books;
+    return books.filter((book) => {
+      return (
+        book.title.toLowerCase().includes(q) ||
+        book.isbn.toLowerCase().includes(q) ||
+        book.author.toLowerCase().includes(q) ||
+        (book.publisher && book.publisher.toLowerCase().includes(q))
+      );
+    });
+  }, [books, debouncedSearch]);
+
+  const paginatedBooks = useMemo(() => {
+    return paginateItems(filteredBooks, page, 25);
+  }, [filteredBooks, page]);
 
   return (
     <div className="space-y-5">
@@ -114,11 +135,20 @@ export function CatalogView({ userRole }: CatalogViewProps = {}) {
       )}
 
       <CatalogBookList
-        books={filteredBooks}
+        books={paginatedBooks.items}
         isEmptyCatalog={books.length === 0}
         onUploadCover={handleUploadCover}
         onRemove={canManageCatalog ? handleRemove : undefined}
         onEdit={canManageCatalog ? (book) => setEditingBook(book) : undefined}
+      />
+
+      <TablePagination
+        page={paginatedBooks.page}
+        limit={paginatedBooks.limit}
+        total={paginatedBooks.total}
+        totalPages={paginatedBooks.totalPages}
+        onPageChange={setPage}
+        itemName="buku"
       />
     </div>
   );

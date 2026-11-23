@@ -31,8 +31,16 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const loadOverview = useCallback(async () => {
     if (!effectiveSchoolId) return;
@@ -71,17 +79,17 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
 
   const looseRows = useMemo(() => {
     const rows = overview?.loose ?? [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => r.title.toLowerCase().includes(q) || r.isbn.toLowerCase().includes(q));
-  }, [overview, search]);
+  }, [overview, debouncedSearch]);
 
   const packageRows = useMemo(() => {
     const rows = overview?.packages ?? [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
-  }, [overview, search]);
+  }, [overview, debouncedSearch]);
 
   const transferLines = useMemo<TransferLinePreview[]>(() => {
     const lines: TransferLinePreview[] = [];
