@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, RefreshCw, Send, Truck } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Plus, RefreshCw, Search, Send, Truck } from "lucide-react";
 import type { School } from "../types";
 import type { StaffRole } from "../lib/staff-roles";
 import { isCentralRole, isLogisticsRole } from "../lib/staff-roles";
@@ -13,6 +13,8 @@ import { CreateInternalOrderModal } from "../components/internal-orders/CreateIn
 import { ReceiveInternalShipmentModal } from "../components/internal-orders/ReceiveInternalShipmentModal";
 import { BranchPackageStockCard } from "../components/internal-orders/BranchPackageStockCard";
 import type { InternalShipment } from "../lib/internal-orders-types";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
 
 interface InternalProcurementViewProps {
   activeSchool: School | null;
@@ -55,6 +57,35 @@ export function InternalProcurementView({
   const [notice, setNotice] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<{ orderId: string; shipment: InternalShipment } | null>(null);
   const [createSchoolId, setCreateSchoolId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterSchoolId]);
+
+  const filteredOrders = useMemo(() => {
+    const q = debouncedSearch.toLowerCase().trim();
+    if (!q) return orders;
+    return orders.filter(
+      (o) =>
+        o.poNumber.toLowerCase().includes(q) ||
+        o.schoolName?.toLowerCase().includes(q) ||
+        o.items.some((it) => it.packageName.toLowerCase().includes(q))
+    );
+  }, [orders, debouncedSearch]);
+
+  const paginatedOrders = useMemo(() => {
+    return paginateItems(filteredOrders, page, 25);
+  }, [filteredOrders, page]);
   const effectiveCreateSchoolId = isCentral
     ? (createSchoolId ?? activeSchool?.id ?? schools[0]?.id ?? "")
     : (userSchoolId ?? activeSchool?.id ?? "");
@@ -200,8 +231,19 @@ export function InternalProcurementView({
         />
       )}
 
+      <div className="flex items-center gap-2 rounded-xl border border-[#CED0D4] bg-white px-3 py-2 text-xs shadow-2xs">
+        <Search className="h-4 w-4 text-[#65676B]" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Cari nomor PO, sekolah cabang, atau nama paket..."
+          className="w-full bg-transparent text-xs text-[#050505] placeholder-[#8A8D91] focus:outline-none"
+        />
+      </div>
+
       <InternalOrdersTable
-        orders={orders}
+        orders={paginatedOrders.items}
         isLoading={isLoading}
         shipmentsByOrder={shipmentsByOrder}
         shipmentsLoading={shipmentsLoading}
@@ -222,6 +264,15 @@ export function InternalProcurementView({
             setNotice(err instanceof Error ? err.message : "Gagal menghapus PO Internal.");
           }
         }}
+      />
+
+      <TablePagination
+        page={paginatedOrders.page}
+        limit={paginatedOrders.limit}
+        total={paginatedOrders.total}
+        totalPages={paginatedOrders.totalPages}
+        onPageChange={setPage}
+        itemName="PO internal"
       />
 
       {receiveTarget && (
