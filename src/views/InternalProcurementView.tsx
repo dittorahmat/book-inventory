@@ -15,6 +15,7 @@ import { BranchPackageStockCard } from "../components/internal-orders/BranchPack
 import type { InternalShipment } from "../lib/internal-orders-types";
 import { TablePagination } from "../components/ui/TablePagination";
 import { paginateItems } from "../components/ui/useTablePagination";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 interface InternalProcurementViewProps {
   activeSchool: School | null;
@@ -57,16 +58,8 @@ export function InternalProcurementView({
   const [notice, setNotice] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<{ orderId: string; shipment: InternalShipment } | null>(null);
   const [createSchoolId, setCreateSchoolId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
 
   useEffect(() => {
     setPage(1);

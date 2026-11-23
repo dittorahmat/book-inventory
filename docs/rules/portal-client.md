@@ -119,6 +119,12 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. **Pre-seleksi & Default Qty Khimar SD**: Siswi SD kelas 1 & 2 wajib ter-preseleksi ukuran Khimar SD **Size 1**, dan siswi SD kelas 3 s/d 6 ter-preseleksi **Size 4** via `getDefaultKhimarSdSize` (`src/lib/khimar-sd.ts`), sekaligus menginisialisasi kuantitas default 1 untuk setiap varian Khimar SD akhwat di tab Paket Lengkap. Normalisasi tingkat kelas wajib robust terhadap prefix seperti "SD", "Kelas", atau suffix rombel. Dropdown ukuran di portal tetap fleksibel dapat diganti oleh orang tua, dan kuantitas yang telah dipilih wajib dimigrasikan ke kunci ukuran baru tanpa me-reset ke 0.
 4. **Partisi Ukuran Olahraga Sesuai Jenjang**: Dropdown pilihan ukuran seragam olahraga dan modal panduan ukuran (*size chart guide*) wajib difilter ketat hanya menampilkan rentang ukuran resmi jenjang siswa (`getOfficialSportSizesForJenjang` di `src/lib/uniform-size-chart.ts`: TK: S–XL, SD: S–4XL, SMP: S–5XL, SMA: S–5XL). Siswa SD dilarang melihat opsi 5XL, dan siswa TK dilarang melihat ukuran di atas XL. Pada paket BOM dengan seragam olahraga, opsi ukuran wajib memprioritaskan irisan ukuran resmi jenjang siswa tanpa fallback yang membocorkan ukuran luar jenjang. Konstanta size chart dideklarasikan mandiri per jenjang (`TK_SIZE_CHART`, `SD_SIZE_CHART`, `SMP_SIZE_CHART`, `SMA_SIZE_CHART`).
 
+### §0.95. Standarisasi Paginasi & Pencarian Ter-Debounce pada Tampilan Tabular (ADR-0027)
+1. **Navigasi Halaman Kanonik**: Seluruh tampilan tabular dan list data transaksional/operasional bervolume tinggi (`StudentOrdersView`, `UniformShipmentSection`, `ProcurementView`, `InternalProcurementView`, `BookReturnsView`, `CatalogView`, `PackagesView`) wajib menggunakan komponen UI kanonik `TablePagination` (`src/components/ui/TablePagination.tsx`). Dilarang membuat tombol paginasi inline atau navigasi Previous/Next ad-hoc.
+2. **Helper Pemotong Data Klien**: Paginasi di sisi klien yang menerima array utuh wajib menggunakan fungsi pemotong kanonik `paginateItems` (`src/components/ui/useTablePagination.ts`), bukan slice manual tersebar.
+3. **Pencarian Ter-Debounce & Auto-Reset Halaman**: Seluruh input pencarian pada tabel yang dipaginasi wajib memanfaatkan custom hook kanonik `useDebouncedSearch` (`src/lib/useDebouncedSearch.ts`) dengan jeda ~300ms, dan wajib mereset halaman aktif kembali ke `page = 1` setiap kali kata kunci pencarian atau filter status/sekolah berubah untuk mencegah bug pointer halaman di luar batas total halaman.
+
+
 
 
 

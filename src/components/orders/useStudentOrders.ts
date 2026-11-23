@@ -2,12 +2,12 @@ import { useState, useCallback, useEffect } from "react";
 import { buildQuery, apiEnvelope, delJson, postJson } from "../../lib/api";
 import type { StudentOrder } from "./order-types";
 import type { PaginationMeta } from "../ui/useTablePagination";
+import { useDebouncedSearch } from "../../lib/useDebouncedSearch";
 
 export function useStudentOrders(schoolId?: string | null) {
   const [orders, setOrders] = useState<StudentOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -18,14 +18,6 @@ export function useStudentOrders(schoolId?: string | null) {
     total: 0,
     totalPages: 1,
   });
-
-  // Debounce search input (~300ms)
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
 
   // Reset page ke 1 setiap kali filter atau debounced query berubah
   useEffect(() => {

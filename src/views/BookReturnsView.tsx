@@ -13,6 +13,7 @@ import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect"
 import { FinanceRefundQueueSection } from "../components/orders/FinanceRefundQueueSection";
 import { TablePagination } from "../components/ui/TablePagination";
 import { paginateItems } from "../components/ui/useTablePagination";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 type BookReturn = StaffBookReturn;
 
@@ -23,20 +24,12 @@ interface BookReturnsViewProps {
 export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
   const [returns, setReturns] = useState<BookReturn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [activeReturn, setActiveReturn] = useState<BookReturn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
 
   useEffect(() => {
     setPage(1);

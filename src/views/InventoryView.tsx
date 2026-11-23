@@ -10,6 +10,7 @@ import { useDemoMode } from "../lib/useDemoMode";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useRoamingLocation } from "../lib/location-helpers";
 import type { StaffRole } from "../lib/staff-roles";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 interface InventoryViewProps {
   activeSchool: School | null;
@@ -30,17 +31,9 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [search]);
 
   const loadOverview = useCallback(async () => {
     if (!effectiveSchoolId) return;

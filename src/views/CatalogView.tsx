@@ -10,6 +10,7 @@ import type { NewBookPayload } from "../components/catalog/catalog-intent";
 import type { Book } from "../types";
 import { TablePagination } from "../components/ui/TablePagination";
 import { paginateItems } from "../components/ui/useTablePagination";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 interface CatalogViewProps {
   userRole?: StaffRole;
@@ -19,19 +20,11 @@ interface CatalogViewProps {
 export function CatalogView({ userRole }: CatalogViewProps = {}) {
   const { books, isLoading, loadError, loadCatalog, createBook, uploadCover, removeBook, updateBook } = useCatalogData();
   const canManageCatalog = !userRole || isCentralRole(userRole) || isBookWarehouseStaffRole(userRole);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [page, setPage] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
 
   useEffect(() => {
     setPage(1);

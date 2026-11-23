@@ -18,6 +18,7 @@ import {
 import { UniformShippingBatchModal } from "./UniformShippingBatchModal";
 import { BulkResiModal } from "./BulkResiModal";
 import { useUniformShippingBatch } from "./useUniformShippingBatch";
+import { useDebouncedSearch } from "../../lib/useDebouncedSearch";
 import { UniformOrderCard } from "./UniformOrderCard";
 import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
 import { UniformShipModal, UniformConfirmReceiptModal } from "./UniformShipModal";
@@ -34,8 +35,7 @@ interface Props {
 export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [schoolId, setSchoolId] = useState(lockedSchoolId ?? "");
   const [status, setStatus] = useState("belum_dikirim");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
@@ -46,14 +46,6 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [rows, setRows] = useState<UniformOrderRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Debounce search input (~300ms)
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [search]);
 
   // Reset page saat filter atau debounced query berubah
   useEffect(() => {
