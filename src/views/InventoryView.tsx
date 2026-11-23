@@ -10,6 +10,7 @@ import { useDemoMode } from "../lib/useDemoMode";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useRoamingLocation } from "../lib/location-helpers";
 import type { StaffRole } from "../lib/staff-roles";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 interface InventoryViewProps {
   activeSchool: School | null;
@@ -30,7 +31,7 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
 
@@ -71,17 +72,17 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
 
   const looseRows = useMemo(() => {
     const rows = overview?.loose ?? [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => r.title.toLowerCase().includes(q) || r.isbn.toLowerCase().includes(q));
-  }, [overview, search]);
+  }, [overview, debouncedSearch]);
 
   const packageRows = useMemo(() => {
     const rows = overview?.packages ?? [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
-  }, [overview, search]);
+  }, [overview, debouncedSearch]);
 
   const transferLines = useMemo<TransferLinePreview[]>(() => {
     const lines: TransferLinePreview[] = [];

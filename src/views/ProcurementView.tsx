@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { School } from "../types";
 import type { StaffRole } from "../lib/staff-roles";
 import { isSchoolRole } from "../lib/staff-roles";
@@ -13,6 +13,9 @@ import { VendorReturnsSection } from "../components/procurement/VendorReturnsSec
 import { CreateVendorReturnModal } from "../components/procurement/CreateVendorReturnModal";
 import { toPrintablePo, type PurchaseOrder } from "../components/procurement/procurement-types";
 import { useProcurementData } from "../components/procurement/useProcurementData";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 import {
   Search,
   RefreshCw,
@@ -40,8 +43,13 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
     loadVendorReturns,
   } = useProcurementData();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
 
   // Modal orchestration (data holder; isi + logika tinggal di sub-modul)
   const [isCreatePOModalOpen, setIsCreatePOModalOpen] = useState(false);
@@ -75,8 +83,10 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
   }, [loadData, loadPurchaseOrders]);
 
   // Filter Purchase Orders
-  const filteredPOs = purchaseOrders.filter((po) => {    const q = searchQuery.toLowerCase();
+  const filteredPOs = purchaseOrders.filter((po) => {
+    const q = debouncedSearch.toLowerCase().trim();
     const matchesSearch =
+      !q ||
       po.poNumber.toLowerCase().includes(q) ||
       po.supplierName.toLowerCase().includes(q) ||
       po.items.some((i) => i.title.toLowerCase().includes(q));
@@ -86,6 +96,10 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
 
     return matchesSearch && matchesStatus;
   });
+
+  const paginatedResult = useMemo(() => {
+    return paginateItems(filteredPOs, page, 25);
+  }, [filteredPOs, page]);
 
   // Mode cetak terisolasi: saat pratinjau dibuka, DOM hanya berisi dokumen PO
   // sehingga window.print() mencetak dokumen saja, bukan seluruh aplikasi.
@@ -229,12 +243,20 @@ export function ProcurementView({ activeSchool, userRole }: ProcurementViewProps
 
       {/* PO List Table */}
       <PurchaseOrdersTable
-        purchaseOrders={filteredPOs}
+        purchaseOrders={paginatedResult.items}
         isLoading={isLoading}
         onSelectDetail={(po) => setDetailPo(po)}
         onPrint={(printable) => setPrintPo(printable)}
         onReceive={(po) => setActiveReceivingPO(po)}
         onChanged={refreshAfterWorkflow}
+      />
+      <TablePagination
+        page={paginatedResult.page}
+        limit={paginatedResult.limit}
+        total={paginatedResult.total}
+        totalPages={paginatedResult.totalPages}
+        onPageChange={setPage}
+        itemName="PO"
       />
 
       {/* Retur ke Supplier (Vendor Returns) */}

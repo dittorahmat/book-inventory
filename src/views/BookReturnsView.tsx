@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { School } from "../types";
 import { getJson, postJson, buildQuery } from "../lib/api";
 import type { StaffBookReturn } from "../lib/portal-types";
@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { FinanceRefundQueueSection } from "../components/orders/FinanceRefundQueueSection";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
+import { useDebouncedSearch } from "../lib/useDebouncedSearch";
 
 type BookReturn = StaffBookReturn;
 
@@ -21,11 +24,16 @@ interface BookReturnsViewProps {
 export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
   const [returns, setReturns] = useState<BookReturn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [activeReturn, setActiveReturn] = useState<BookReturn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
 
   const loadReturns = useCallback(async () => {
     setIsLoading(true);
@@ -85,7 +93,8 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
   };
 
   const filtered = returns.filter((r) => {
-    const q = searchQuery.toLowerCase();
+    const q = debouncedSearch.toLowerCase().trim();
+    if (!q) return true;
     return (
       r.studentName.toLowerCase().includes(q) ||
       r.bookTitle.toLowerCase().includes(q) ||
@@ -93,6 +102,10 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
       r.nis.toLowerCase().includes(q)
     );
   });
+
+  const paginatedResult = useMemo(() => {
+    return paginateItems(filtered, page, 25);
+  }, [filtered, page]);
 
   return (
     <div className="space-y-5">
@@ -196,14 +209,14 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
                     Memuat data retur...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : paginatedResult.items.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-[#65676B]">
                     Tidak ada laporan buku retur yang ditemukan.
                   </td>
                 </tr>
               ) : (
-                filtered.map((r) => (
+                paginatedResult.items.map((r) => (
                   <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-[#050505]">{r.studentName}</div>
@@ -265,6 +278,14 @@ export function BookReturnsView({ activeSchool }: BookReturnsViewProps) {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={paginatedResult.page}
+          limit={paginatedResult.limit}
+          total={paginatedResult.total}
+          totalPages={paginatedResult.totalPages}
+          onPageChange={setPage}
+          itemName="retur"
+        />
       </div>
 
       {/* RESOLVE RETURN MODAL */}

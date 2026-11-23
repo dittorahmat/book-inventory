@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../../db";
 import {
   studentBookOrders,
@@ -48,64 +48,104 @@ studentOrdersRouter.get("/", async (c) => {
     // Scoped actors are locked to their location; central/warehouse may filter or see all.
     const schoolId = !isGlobal && scope.length === 1 ? scope[0] : c.req.query("schoolId");
     const paymentStatus = c.req.query("paymentStatus");
-  const fulfillmentStatus = c.req.query("fulfillmentStatus");
-  const search = c.req.query("search");
+    const fulfillmentStatus = c.req.query("fulfillmentStatus");
+    const search = c.req.query("search");
+    const pageParam = c.req.query("page");
+    const limitParam = c.req.query("limit");
+    const isPaginated = Boolean(pageParam || limitParam);
+    const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(limitParam || "50", 10) || 50));
+    const offset = (page - 1) * limit;
 
-  const conditions = [];
-  if (schoolId) conditions.push(eq(studentBookOrders.schoolId, schoolId));
-  if (paymentStatus && paymentStatus !== "all") conditions.push(eq(studentBookOrders.paymentStatus, paymentStatus as any));
-  if (fulfillmentStatus && fulfillmentStatus !== "all") conditions.push(eq(studentBookOrders.fulfillmentStatus, fulfillmentStatus as any));
-  // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
-  if (search?.trim()) {
-    const matched = matchAnyLower([students.name, students.nis, studentBookOrders.orderNumber], search);
-    if (matched) conditions.push(matched);
-  }
+    const conditions = [];
+    if (schoolId) conditions.push(eq(studentBookOrders.schoolId, schoolId));
+    if (paymentStatus && paymentStatus !== "all") {
+      conditions.push(eq(studentBookOrders.paymentStatus, paymentStatus as (typeof studentBookOrders.$inferSelect)["paymentStatus"]));
+    }
+    if (fulfillmentStatus && fulfillmentStatus !== "all") {
+      conditions.push(eq(studentBookOrders.fulfillmentStatus, fulfillmentStatus as (typeof studentBookOrders.$inferSelect)["fulfillmentStatus"]));
+    }
+    // Pencarian Partisi (§11): substring hanya di dalam partisi terindeks.
+    if (search?.trim()) {
+      const matched = matchAnyLower([students.name, students.nis, studentBookOrders.orderNumber], search);
+      if (matched) conditions.push(matched);
+    }
 
-  const filtered = await db
-    .select({
-      id: studentBookOrders.id,
-      orderNumber: studentBookOrders.orderNumber,
-      studentId: studentBookOrders.studentId,
-      studentName: students.name,
-      nis: students.nis,
-      gradeLevel: students.gradeLevel,
-      parentName: students.parentName,
-      parentEmail: students.parentEmail,
-      parentPhone: students.parentPhone,
-      schoolId: studentBookOrders.schoolId,
-      schoolName: schools.name,
-      packageId: studentBookOrders.packageId,
-      packageName: bookPackages.name,
-      packageCode: bookPackages.code,
-      orderType: studentBookOrders.orderType,
-      paymentStatus: studentBookOrders.paymentStatus,
-      fulfillmentStatus: studentBookOrders.fulfillmentStatus,
-      totalAmount: studentBookOrders.totalAmount,
-      paidAmount: studentBookOrders.paidAmount,
-      handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
-      handoverDate: studentBookOrders.handoverDate,
-      handoverRecipient: studentBookOrders.handoverRecipient,
-      homeAddressSnapshot: studentBookOrders.homeAddressSnapshot,
-      satuanShipmentStatus: studentBookOrders.satuanShipmentStatus,
-      satuanShippedAt: studentBookOrders.satuanShippedAt,
-      shippingCost: studentBookOrders.shippingCost,
-      shippingResi: studentBookOrders.shippingResi,
-      invoiceSentAt: studentBookOrders.invoiceSentAt,
-      scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
-      supersededByOrderId: studentBookOrders.supersededByOrderId,
-      notes: studentBookOrders.notes,
-      createdAt: studentBookOrders.createdAt,
-    })
-    .from(studentBookOrders)
-    .innerJoin(students, eq(studentBookOrders.studentId, students.id))
-    .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
-    .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(studentBookOrders.createdAt))
-    .limit(50);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const pending = await pendingPaymentCounts(db, "buku", filtered.map((r) => r.id));
-  return c.json({ success: true, data: filtered.map((r) => ({ ...r, pendingCount: pending.get(r.id) ?? 0 })) });
+    let total = 0;
+    if (isPaginated) {
+      const [totalRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(studentBookOrders)
+        .innerJoin(students, eq(studentBookOrders.studentId, students.id))
+        .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
+        .where(whereClause)
+        .limit(1);
+      total = Number(totalRow?.count ?? 0);
+    }
+
+    const filtered = await db
+      .select({
+        id: studentBookOrders.id,
+        orderNumber: studentBookOrders.orderNumber,
+        studentId: studentBookOrders.studentId,
+        studentName: students.name,
+        nis: students.nis,
+        gradeLevel: students.gradeLevel,
+        parentName: students.parentName,
+        parentEmail: students.parentEmail,
+        parentPhone: students.parentPhone,
+        schoolId: studentBookOrders.schoolId,
+        schoolName: schools.name,
+        packageId: studentBookOrders.packageId,
+        packageName: bookPackages.name,
+        packageCode: bookPackages.code,
+        orderType: studentBookOrders.orderType,
+        paymentStatus: studentBookOrders.paymentStatus,
+        fulfillmentStatus: studentBookOrders.fulfillmentStatus,
+        totalAmount: studentBookOrders.totalAmount,
+        paidAmount: studentBookOrders.paidAmount,
+        handoverDeliveryNumber: studentBookOrders.handoverDeliveryNumber,
+        handoverDate: studentBookOrders.handoverDate,
+        handoverRecipient: studentBookOrders.handoverRecipient,
+        homeAddressSnapshot: studentBookOrders.homeAddressSnapshot,
+        satuanShipmentStatus: studentBookOrders.satuanShipmentStatus,
+        satuanShippedAt: studentBookOrders.satuanShippedAt,
+        shippingCost: studentBookOrders.shippingCost,
+        shippingResi: studentBookOrders.shippingResi,
+        invoiceSentAt: studentBookOrders.invoiceSentAt,
+        scholarshipProofUrl: studentBookOrders.scholarshipProofUrl,
+        supersededByOrderId: studentBookOrders.supersededByOrderId,
+        notes: studentBookOrders.notes,
+        createdAt: studentBookOrders.createdAt,
+      })
+      .from(studentBookOrders)
+      .innerJoin(students, eq(studentBookOrders.studentId, students.id))
+      .innerJoin(schools, eq(studentBookOrders.schoolId, schools.id))
+      .leftJoin(bookPackages, eq(studentBookOrders.packageId, bookPackages.id))
+      .where(whereClause)
+      .orderBy(desc(studentBookOrders.createdAt))
+      .limit(limit)
+      .offset(isPaginated ? offset : 0);
+
+    const pending = await pendingPaymentCounts(db, "buku", filtered.map((r) => r.id));
+    const responseData = filtered.map((r) => ({ ...r, pendingCount: pending.get(r.id) ?? 0 }));
+
+    if (isPaginated) {
+      return c.json({
+        success: true,
+        data: responseData,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      });
+    }
+
+    return c.json({ success: true, data: responseData });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

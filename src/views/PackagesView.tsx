@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { School } from "../types";
 import { isBookWarehouseStaffRole, type StaffRole } from "../lib/staff-roles";
 import { usePackagesData, type PackageRow } from "../components/packages/usePackagesData";
@@ -11,6 +11,8 @@ import { Boxes, Plus, RefreshCw, Search } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
 import { useRoamingLocation } from "../lib/location-helpers";
 import { useDemoMode } from "../lib/useDemoMode";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
 
 type BookPackage = PackageRow;
 
@@ -42,9 +44,18 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
     updatePackage,
     deletePackage,
   } = usePackagesData(effectiveSchool);
-  const { searchQuery, setSearchQuery, selectedCurriculum, setSelectedCurriculum, filteredPackages } =
+  const { searchQuery, setSearchQuery, selectedCurriculum, setSelectedCurriculum, filteredPackages, debouncedSearch } =
     usePackagesFilter(packages);
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedCurriculum, effectiveSchoolId]);
+
+  const paginatedPackages = useMemo(() => {
+    return paginateItems(filteredPackages, page, 24);
+  }, [filteredPackages, page]);
 
   // Bundling / Unbundling Modal State
   const [modalPkg, setModalPkg] = useState<BookPackage | null>(null);
@@ -175,28 +186,38 @@ export function PackagesView({ activeSchool, schools = [], userRole }: PackagesV
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {filteredPackages.map((pkg) => (
-            <PackageCard
-              key={pkg.id}
-              pkg={pkg}
-              stock={stockMap[pkg.id]}
-              catalogBooks={catalogBooks}
-              isExpanded={expandedPackageId === pkg.id}
-              isBranchLocation={effectiveSchool?.type === "branch"}
-              isDemoMode={isDemoMode}
-              schoolId={effectiveSchoolId}
-              onStockOverridden={loadPackagesData}
-              onToggleExpand={() => setExpandedPackageId(expandedPackageId === pkg.id ? null : pkg.id)}
-              onOpenBundling={(mode) => {
-                setModalPkg(pkg);
-                setModalMode(mode);
-              }}
-              onOpenEdit={canManagePackages ? () => setEditingPkg(pkg) : undefined}
-              deletePackage={deletePackage}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4">
+            {paginatedPackages.items.map((pkg) => (
+              <PackageCard
+                key={pkg.id}
+                pkg={pkg}
+                stock={stockMap[pkg.id]}
+                catalogBooks={catalogBooks}
+                isExpanded={expandedPackageId === pkg.id}
+                isBranchLocation={effectiveSchool?.type === "branch"}
+                isDemoMode={isDemoMode}
+                schoolId={effectiveSchoolId}
+                onStockOverridden={loadPackagesData}
+                onToggleExpand={() => setExpandedPackageId(expandedPackageId === pkg.id ? null : pkg.id)}
+                onOpenBundling={(mode) => {
+                  setModalPkg(pkg);
+                  setModalMode(mode);
+                }}
+                onOpenEdit={canManagePackages ? () => setEditingPkg(pkg) : undefined}
+                deletePackage={deletePackage}
+              />
+            ))}
+          </div>
+          <TablePagination
+            page={paginatedPackages.page}
+            limit={paginatedPackages.limit}
+            total={paginatedPackages.total}
+            totalPages={paginatedPackages.totalPages}
+            onPageChange={setPage}
+            itemName="paket"
+          />
+        </>
       )}
 
       {/* EDIT PACKAGE MODAL */}

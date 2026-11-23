@@ -29,6 +29,19 @@ Inventaris buku B2B untuk logistik pendidikan: melacak eksemplar fisik antar sek
 
 ## Language
 
+**Paginasi Bertingkat (Tiered Table Pagination)**:
+Strategi pembagian tampilan data tabular menjadi dua pendekatan: server-side pagination untuk tabel transaksi bervolume tinggi di Cloudflare D1 (`orders`, `uniform_orders`, dsb.) dengan parameter `page` dan `limit`, serta client-side pagination untuk daftar data yang di-cache lokal (`packages`, `book_stocks`, dsb.) menggunakan pemotong array terpadu.
+_Avoid_: Merender ribuan baris tabel sekaligus ke DOM, infinite scroll tanpa nomor halaman di tabel audit, query D1 tanpa LIMIT untuk transaksi publik
+
+**Navigasi Halaman Kanonik (Canonical Table Pagination UI)**:
+Komponen UI standar (`TablePagination.tsx`) yang menampilkan indikator rentang baris data aktif ("Menampilkan X - Y dari Z data"), tombol Previous/Next berstatus disabled sesuai batas, serta nomor halaman aktif. Terintegrasi dengan auto-reset ke halaman 1 saat filter atau pencarian diubah.
+_Avoid_: Navigasi pagination yang diimplementasikan ulang berbeda-beda di setiap view, UI pagination tanpa rincian jumlah total baris
+
+**Pencarian Ter-debounce (Debounced Search Input)**:
+Pola input pencarian teks di mana eksekusi pemfilteran atau query server ditunda selama ~300ms setelah pengetikan terakhir pengguna, dan secara otomatis mereset pointer halaman aktif kembali ke halaman 1.
+_Avoid_: Memicu query/filter pada setiap keystroke tanpa jeda, membiarkan pointer halaman menggantung di luar total halaman hasil pencarian baru
+
+
 **PO Konveksi Multi-Ukuran (Matrix Uniform PO Line)**:
 Struktur baris pesanan produksi seragam ke mitra konveksi di mana satu model seragam (`UniformVariant`) dipesan sekaligus untuk beberapa ukuran via matriks kuantitas per ukuran (`sizeQuantities: Record<string, number>`), dengan harga satuan konveksi flat per model, yang saat dikirim ke sistem dipecah menjadi baris rincian PO per ukuran (`variantId`, `size`, `quantityOrdered`, `unitPrice`).
 _Avoid_: Menggelar ratusan tombol chip seragam tanpa pencarian, input ukuran manual teks bebas yang rentan typo, baris duplikat untuk model seragam yang sama dalam satu PO

@@ -9,8 +9,6 @@ import {
   sendUniformShippingNotification,
   confirmUniformReceipt,
   resolveUniformScholarship,
-  downloadUniformCsv,
-  importUniformShipping,
   fetchUniformOrderPayments,
   verifyUniformPayment,
   rejectUniformPayment,
@@ -19,11 +17,15 @@ import {
 } from "./uniform-admin-api";
 import { UniformShippingBatchModal } from "./UniformShippingBatchModal";
 import { BulkResiModal } from "./BulkResiModal";
+import { useUniformShippingBatch } from "./useUniformShippingBatch";
+import { useDebouncedSearch } from "../../lib/useDebouncedSearch";
 import { UniformOrderCard } from "./UniformOrderCard";
 import { UniformOngkirModal, UniformCashierPayModal } from "./UniformShipmentActionModals";
 import { UniformShipModal, UniformConfirmReceiptModal } from "./UniformShipModal";
 import { UniformShipmentToolbar } from "./UniformShipmentToolbar";
 import { canDispatchUniformOrder } from "../../lib/order-handover-guard";
+import { TablePagination } from "../ui/TablePagination";
+import type { PaginationMeta } from "../ui/useTablePagination";
 
 interface Props {
   schools: Array<{ id: string; name: string }>;
@@ -33,20 +35,28 @@ interface Props {
 export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [schoolId, setSchoolId] = useState(lockedSchoolId ?? "");
   const [status, setStatus] = useState("belum_dikirim");
-  const [search, setSearch] = useState("");
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 1,
+  });
   const [rows, setRows] = useState<UniformOrderRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset page saat filter atau debounced query berubah
+  useEffect(() => {
+    setPage(1);
+  }, [schoolId, status, debouncedSearch]);
 
   // Modals & sub-form states
   const [shippingId, setShippingId] = useState<string | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showBulkResiModal, setShowBulkResiModal] = useState(false);
   const [paidOnly, setPaidOnly] = useState(true);
-  const [importText, setImportText] = useState("");
-  const [importShipped, setImportShipped] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
 
   // Modal Contextual Actions
   const [ongkirOrder, setOngkirOrder] = useState<UniformOrderRow | null>(null);
@@ -62,19 +72,32 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setRows(
-        await fetchUniformOrders({
-          schoolId: schoolId || undefined,
-          shipmentStatus: status || undefined,
-          search: search.trim() || undefined,
-        })
-      );
+      const res = await fetchUniformOrders({
+        schoolId: schoolId || undefined,
+        shipmentStatus: status || undefined,
+        search: debouncedSearch.trim() || undefined,
+        page,
+        limit: 50,
+      });
+      setRows(res.orders);
+      if (res.pagination) {
+        setPagination(res.pagination);
+      } else {
+        setPagination({
+          page: 1,
+          limit: 50,
+          total: res.orders.length,
+          totalPages: 1,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat order seragam.");
     } finally {
       setLoading(false);
     }
-  }, [schoolId, status, search]);
+  }, [schoolId, status, debouncedSearch, page]);
+
+  const batch = useUniformShippingBatch(schoolId, paidOnly, load);
 
   useEffect(() => {
     load();
@@ -165,42 +188,14 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
 
   const handleExport = async (type: "packing" | "ekspedisi" | "excel-ekspedisi" | "excel-internal") => {
     try {
-      await downloadUniformCsv({ schoolId: schoolId || "", format: type, paidOnly });
+      await batch.handleExport(type);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mengunduh data.");
     }
   };
 
   const handleImport = async () => {
-    const lines = importText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const rawRows = lines[0]?.toLowerCase().startsWith("nis") ? lines.slice(1) : lines;
-    const parsed = rawRows
-      .map((line) => {
-        const [nis = "", resi = "", ongkir = ""] = line.split(/[;\t,]/).map((c) => c.trim());
-        return { nis, resi: resi || undefined, ongkir: ongkir ? Number(ongkir) || 0 : 0 };
-      })
-      .filter((r) => r.nis);
-
-    if (parsed.length === 0 || !schoolId) {
-      setError("Isi data CSV (nis;resi;ongkir) dan pilih sekolah.");
-      return;
-    }
-    setImportBusy(true);
-    setError(null);
-    setImportResult(null);
-    try {
-      const res = await importUniformShipping({ schoolId, markShipped: importShipped, rows: parsed });
-      setImportResult(
-        `${res.updated.length} diperbarui, ${res.rejected.length} ditolak${
-          res.rejected.length > 0 ? `: ${res.rejected.map((r) => `${r.nis} (${r.reason})`).join("; ")}` : ""
-        }.`
-      );
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengimpor data.");
-    } finally {
-      setImportBusy(false);
-    }
+    await batch.handleImport(setError);
   };
 
   const handlePay = async (transfer: string, allocation: string, bank: string, transferDate?: string) => {
@@ -278,6 +273,14 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
               }}
             />
           ))}
+        <TablePagination
+          page={pagination.page}
+          limit={pagination.limit}
+          total={pagination.total}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          itemName="pesanan"
+        />
       </div>
 
       {/* Modal Pengiriman Seragam Ber-Resi */}
@@ -347,12 +350,12 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         onExport={handleExport}
         paidOnly={paidOnly}
         onPaidOnlyChange={setPaidOnly}
-        importText={importText}
-        onImportTextChange={setImportText}
-        importShipped={importShipped}
-        onImportShippedChange={setImportShipped}
-        importBusy={importBusy}
-        importResult={importResult}
+        importText={batch.importText}
+        onImportTextChange={batch.setImportText}
+        importShipped={batch.importShipped}
+        onImportShippedChange={batch.setImportShipped}
+        importBusy={batch.importBusy}
+        importResult={batch.importResult}
         onImport={handleImport}
         hasSchoolSelected={!!schoolId}
       />

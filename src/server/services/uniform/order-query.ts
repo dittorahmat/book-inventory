@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
 import { schools, students, uniformOrders } from "../../../db/schema";
 import { AccessHttpError } from "../access-scope";
@@ -14,6 +14,8 @@ export interface UniformOrderListFilters {
   paymentStatus?: string;
   stage?: string;
   search?: string;
+  page?: number;
+  limit?: number;
 }
 
 /** Gerbang scope order seragam: 403 bila order ada di luar penugasan aktor. */
@@ -54,6 +56,24 @@ export async function listUniformOrders(database: AppDatabase, filters: UniformO
     const matched = matchAnyLower([students.name, students.nis, uniformOrders.orderNumber], filters.search);
     if (matched) conditions.push(matched);
   }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.max(1, Math.min(100, filters.limit ?? 50));
+  const offset = (page - 1) * limit;
+
+  let total = 0;
+  if (isPaginated) {
+    const [totalRow] = await database
+      .select({ count: sql<number>`count(*)` })
+      .from(uniformOrders)
+      .innerJoin(students, eq(uniformOrders.studentId, students.id))
+      .innerJoin(schools, eq(uniformOrders.schoolId, schools.id))
+      .where(whereClause)
+      .limit(1);
+    total = Number(totalRow?.count ?? 0);
+  }
+
   const rows = await database
     .select({
       id: uniformOrders.id,
@@ -79,9 +99,25 @@ export async function listUniformOrders(database: AppDatabase, filters: UniformO
     .from(uniformOrders)
     .innerJoin(students, eq(uniformOrders.studentId, students.id))
     .innerJoin(schools, eq(uniformOrders.schoolId, schools.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(whereClause)
     .orderBy(desc(uniformOrders.createdAt))
-    .limit(50);
+    .limit(limit)
+    .offset(isPaginated ? offset : 0);
+
   const pending = await pendingPaymentCounts(database, "seragam", rows.map((r) => r.id));
-  return rows.map((r) => ({ ...r, stage: uniformOrderStage(r), pendingCount: pending.get(r.id) ?? 0 }));
+  const items = rows.map((r) => ({ ...r, stage: uniformOrderStage(r), pendingCount: pending.get(r.id) ?? 0 }));
+
+  if (isPaginated) {
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  return items;
 }

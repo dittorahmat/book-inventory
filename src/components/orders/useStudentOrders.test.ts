@@ -51,7 +51,10 @@ describe("useStudentOrders", () => {
       await new Promise((r) => setTimeout(r, 10));
     });
 
-    expect(requestedUrl).toBe("/api/student-orders");
+    expect(requestedUrl).toContain("/api/student-orders");
+    expect(requestedUrl).toContain("page=1");
+    expect(requestedUrl).toContain("limit=50");
+    expect(requestedUrl).not.toContain("schoolId=");
     expect(result.current.orders).toHaveLength(1);
     expect(result.current.orders[0].studentName).toBe("Budi");
   });

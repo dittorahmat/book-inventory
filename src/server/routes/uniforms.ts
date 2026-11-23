@@ -6,17 +6,9 @@ import { db } from "../../db";
 import { uniformOrders, uniformOrderItems, uniformPos, uniformExchanges } from "../../db/schema";
 import { base64UploadSchema } from "../lib/validators";
 import {
-  assembleSchema,
-  exchangeSchema,
-  receiveSchema,
-  refundSchema,
-  resolveExchangeSchema,
-  resolveRefundSchema,
-  uniformPackageSchema,
-  uniformPoSchema,
-  updateUniformPackageSchema,
-  updateVariantSchema,
-  variantSchema,
+  assembleSchema, exchangeSchema, receiveSchema, refundSchema,
+  resolveExchangeSchema, resolveRefundSchema, uniformPackageSchema,
+  uniformPoSchema, updateUniformPackageSchema, updateVariantSchema, variantSchema,
 } from "../lib/uniform-schemas";
 import {
   accessErrorResponse,
@@ -211,14 +203,24 @@ uniformsRouter.get("/orders", async (c) => {
     if (search && !schoolId && !isGlobal) {
       return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
     }
-    const data = await listUniformOrders(db, {
+    const pageParam = c.req.query("page");
+    const limitParam = c.req.query("limit");
+    const isPaginated = Boolean(pageParam || limitParam);
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : (isPaginated ? 1 : undefined);
+    const limit = limitParam ? Math.max(1, Math.min(100, parseInt(limitParam, 10) || 50)) : (isPaginated ? 50 : undefined);
+
+    const result = await listUniformOrders(db, {
       schoolId,
       shipmentStatus: c.req.query("shipmentStatus"),
       paymentStatus: c.req.query("paymentStatus"),
       stage: c.req.query("stage"),
       search,
+      page,
+      limit,
     });
-    return c.json({ success: true, data });
+
+    if (Array.isArray(result)) return c.json({ success: true, data: result });
+    return c.json({ success: true, data: result.items, pagination: result.pagination });
   } catch (err) {
     return accessErrorResponse(c, err);
   }

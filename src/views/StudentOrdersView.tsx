@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { School } from "../types";
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect";
+import { TablePagination } from "../components/ui/TablePagination";
 import { isBranchFinanceRole, isCentralRole, isLogisticsRole, type StaffRole } from "../lib/staff-roles";
 import { isWarehouseLocation } from "../lib/location-helpers";
 import { useStudentOrders } from "../components/orders/useStudentOrders";
@@ -39,6 +40,8 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
     setPaymentFilter,
     fulfillmentFilter,
     setFulfillmentFilter,
+    setPage,
+    pagination,
     errorMsg,
     loadOrders,
     removeOrder,
@@ -141,20 +144,30 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
           Memuat data pesanan buku siswa...
         </div>
       ) : (
-        <StudentOrdersTable
-          orders={filteredOrders}
-          showSchoolColumn={selectedSchoolId === "all"}
-          readOnly={isBranchFinanceRole(userRole)}
-          onOpenPayment={setActivePaymentOrder}
-          onOpenScholarship={setActiveScholarshipOrder}
-          onOpenHandover={setActiveHandoverOrder}
-          onOpenDiscretion={setActiveDiscretionOrder}
-          onDeleteOrder={removeOrder}
-          onMarkSatuanShipped={markSatuanShipped}
-          onOpenShipping={setActiveShippingOrder}
-          onSendInvoice={sendInvoice}
-          onReviewPayments={setActiveReviewOrder}
-        />
+        <>
+          <StudentOrdersTable
+            orders={filteredOrders}
+            showSchoolColumn={selectedSchoolId === "all"}
+            readOnly={isBranchFinanceRole(userRole)}
+            onOpenPayment={setActivePaymentOrder}
+            onOpenScholarship={setActiveScholarshipOrder}
+            onOpenHandover={setActiveHandoverOrder}
+            onOpenDiscretion={setActiveDiscretionOrder}
+            onDeleteOrder={removeOrder}
+            onMarkSatuanShipped={markSatuanShipped}
+            onOpenShipping={setActiveShippingOrder}
+            onSendInvoice={sendInvoice}
+            onReviewPayments={setActiveReviewOrder}
+          />
+          <TablePagination
+            page={pagination.page}
+            limit={pagination.limit}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={setPage}
+            itemName="pesanan"
+          />
+        </>
       )}
 
       {activeShippingOrder && (

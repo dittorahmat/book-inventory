@@ -81,7 +81,8 @@ export function UniformReturnsSection({ schools, lockedSchoolId, logistics }: Pr
     setBusy(true);
     setError(null);
     try {
-      setFound(await fetchUniformOrders({ schoolId: schoolId || undefined, search: keyword.trim() || undefined }));
+      const res = await fetchUniformOrders({ schoolId: schoolId || undefined, search: keyword.trim() || undefined });
+      setFound(res.orders);
       setDetail(null);
       try {
         await reloadQueues(schoolId);
