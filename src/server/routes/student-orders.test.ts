@@ -1230,4 +1230,45 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       await db.delete(schools).where(eq(schools.id, sch));
     }
   });
+
+  it("supports pagination params on GET /", async () => {
+    const stamp = Date.now();
+    const sch = `sch-pg-${stamp}`;
+    const stu = `stu-pg-${stamp}`;
+    const ord1 = `ord-pg1-${stamp}`;
+    const ord2 = `ord-pg2-${stamp}`;
+    const now = new Date().toISOString();
+
+    await db.insert(schools).values({ id: sch, name: "Pg Sch", code: `PGS-${stamp}`.slice(0, 20), type: "branch", createdAt: now, updatedAt: now });
+    await db.insert(students).values({ id: stu, schoolId: sch, nis: `NIS-PG-${stamp}`.slice(0, 20), name: "Pg Stu", gradeLevel: "1", curriculumType: "national", academicYear: "2026/2027", createdAt: now, updatedAt: now });
+    await db.insert(studentBookOrders).values([
+      {
+        id: ord1, orderNumber: `ORD-PG1-${stamp}`, studentId: stu, schoolId: sch,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 100000, paidAmount: 0, createdAt: now, updatedAt: now,
+      },
+      {
+        id: ord2, orderNumber: `ORD-PG2-${stamp}`, studentId: stu, schoolId: sch,
+        orderType: "regular", paymentStatus: "unpaid", fulfillmentStatus: "waiting_preparation",
+        totalAmount: 150000, paidAmount: 0, createdAt: new Date(Date.now() + 1000).toISOString(), updatedAt: now,
+      },
+    ]);
+
+    try {
+      const res = await studentOrdersRouter.request(`/?schoolId=${sch}&page=1&limit=1`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { success: boolean; data: unknown[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveLength(1);
+      expect(body.pagination).toBeDefined();
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(1);
+      expect(body.pagination.total).toBe(2);
+      expect(body.pagination.totalPages).toBe(2);
+    } finally {
+      await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [ord1, ord2]));
+      await db.delete(students).where(eq(students.id, stu));
+      await db.delete(schools).where(eq(schools.id, sch));
+    }
+  });
 });
