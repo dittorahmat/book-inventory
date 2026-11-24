@@ -11,6 +11,8 @@ import { SearchableSingleSelect } from "../components/ui/SearchableSingleSelect"
 import { useRoamingLocation } from "../lib/location-helpers";
 import type { StaffRole } from "../lib/staff-roles";
 import { useDebouncedSearch } from "../lib/useDebouncedSearch";
+import { TablePagination } from "../components/ui/TablePagination";
+import { paginateItems } from "../components/ui/useTablePagination";
 
 interface InventoryViewProps {
   activeSchool: School | null;
@@ -31,9 +33,18 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
   const [overview, setOverview] = useState<StockOverviewPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
+  const [page, setPage] = useState(1);
+  const handleDebouncedChange = useCallback(() => {
+    setPage(1);
+  }, []);
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("", 300, handleDebouncedChange);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isDirectSaleOpen, setIsDirectSaleOpen] = useState(false);
+
+  const handleLocationChange = (newSchoolId: string) => {
+    setSelectedSchoolId(newSchoolId);
+    setPage(1);
+  };
 
   const loadOverview = useCallback(async () => {
     if (!effectiveSchoolId) return;
@@ -103,6 +114,10 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
   const totalTransferQty = transferLines.reduce((s, l) => s + l.quantity, 0);
   const totalTransferValue = transferLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
 
+  const paginatedLoose = useMemo(() => {
+    return paginateItems(looseRows, page, 25);
+  }, [looseRows, page]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] shadow-xs">
@@ -126,7 +141,7 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
                 label="Pilih Lokasi Stok"
                 options={schools.map((s) => ({ value: s.id, label: s.name }))}
                 value={effectiveSchoolId}
-                onChange={setSelectedSchoolId}
+                onChange={handleLocationChange}
                 placeholder="Pilih lokasi stok..."
               />
             </div>
@@ -185,15 +200,25 @@ export function InventoryView({ activeSchool, schools = [], userRole }: Inventor
         </div>
       )}
 
-      <StockSummaryTable
-        looseRows={looseRows}
-        packageRows={packageRows}
-        quantities={quantities}
-        onQuantityChange={(key, value) => setQuantities((prev) => ({ ...prev, [key]: value }))}
-        isDemoMode={isDemoMode}
-        schoolId={effectiveSchoolId}
-        onStockOverridden={loadOverview}
-      />
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] shadow-xs overflow-hidden">
+        <StockSummaryTable
+          looseRows={paginatedLoose.items}
+          packageRows={packageRows}
+          quantities={quantities}
+          onQuantityChange={(key, value) => setQuantities((prev) => ({ ...prev, [key]: value }))}
+          isDemoMode={isDemoMode}
+          schoolId={effectiveSchoolId}
+          onStockOverridden={loadOverview}
+        />
+        <TablePagination
+          page={paginatedLoose.page}
+          limit={paginatedLoose.limit}
+          total={paginatedLoose.total}
+          totalPages={paginatedLoose.totalPages}
+          onPageChange={setPage}
+          itemName="judul buku"
+        />
+      </div>
 
       <DirectSaleModal
         open={isDirectSaleOpen}

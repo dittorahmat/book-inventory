@@ -5,6 +5,7 @@ import { AccessHttpError } from "../access-scope";
 import { matchAnyLower } from "../../lib/partitioned-search";
 import { pendingPaymentCounts } from "../order-payment-review";
 import { uniformOrderStage, uniformStageFilter } from "./report";
+import { parsePaginationParams } from "../../lib/validators";
 
 /** Baca daftar/scope order seragam — dipisah dari tulis order agar tiap modul < 400 baris. */
 
@@ -58,9 +59,10 @@ export async function listUniformOrders(database: AppDatabase, filters: UniformO
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const isPaginated = filters.page !== undefined || filters.limit !== undefined;
-  const page = Math.max(1, filters.page ?? 1);
-  const limit = Math.max(1, Math.min(100, filters.limit ?? 50));
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePaginationParams({
+    page: filters.page,
+    limit: filters.limit,
+  });
 
   let total = 0;
   if (isPaginated) {

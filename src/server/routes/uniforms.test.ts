@@ -1083,6 +1083,13 @@ describe("Aturan seragam: wajib paket pertama + toggle satuan + beasiswa", () =>
       expect(body.pagination.limit).toBe(1);
       expect(body.pagination.total).toBe(2);
       expect(body.pagination.totalPages).toBe(2);
+
+      // Verifikasi sanitasi parameter pagination via parsePaginationParams
+      const resSanitized = await uniformsRouter.request(`/orders?schoolId=${schoolId}&page=-3&limit=999`);
+      expect(resSanitized.status).toBe(200);
+      const bodySanitized = (await resSanitized.json()) as { pagination: { page: number; limit: number } };
+      expect(bodySanitized.pagination.page).toBe(1);
+      expect(bodySanitized.pagination.limit).toBe(100);
     } finally {
       await db.delete(uniformOrders).where(eq(uniformOrders.schoolId, schoolId));
       await db.delete(students).where(eq(students.id, studentId));

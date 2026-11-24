@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { uniformOrders, uniformOrderItems, uniformPos, uniformExchanges } from "../../db/schema";
-import { base64UploadSchema } from "../lib/validators";
+import { base64UploadSchema, idSchema, parsePaginationParams } from "../lib/validators";
 import {
   assembleSchema, exchangeSchema, receiveSchema, refundSchema,
   resolveExchangeSchema, resolveRefundSchema, uniformPackageSchema,
@@ -16,7 +16,6 @@ import {
   resolveLogisticsActor,
   LOGISTICS_ROLES,
 } from "../services/access-scope";
-import { idSchema } from "../lib/validators";
 import {
   assembleUniformPackages,
   createUniformPackage,
@@ -203,11 +202,10 @@ uniformsRouter.get("/orders", async (c) => {
     if (search && !schoolId && !isGlobal) {
       return c.json({ success: false, message: "Pencarian wajib disertai filter sekolah." }, 400);
     }
-    const pageParam = c.req.query("page");
-    const limitParam = c.req.query("limit");
-    const isPaginated = Boolean(pageParam || limitParam);
-    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : (isPaginated ? 1 : undefined);
-    const limit = limitParam ? Math.max(1, Math.min(100, parseInt(limitParam, 10) || 50)) : (isPaginated ? 50 : undefined);
+    const isPaginated = Boolean(c.req.query("page") || c.req.query("limit"));
+    const parsed = isPaginated
+      ? parsePaginationParams({ page: c.req.query("page"), limit: c.req.query("limit") })
+      : undefined;
 
     const result = await listUniformOrders(db, {
       schoolId,
@@ -215,8 +213,8 @@ uniformsRouter.get("/orders", async (c) => {
       paymentStatus: c.req.query("paymentStatus"),
       stage: c.req.query("stage"),
       search,
-      page,
-      limit,
+      page: parsed?.page,
+      limit: parsed?.limit,
     });
 
     if (Array.isArray(result)) return c.json({ success: true, data: result });

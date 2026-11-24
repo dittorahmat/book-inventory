@@ -105,6 +105,22 @@ describe("TablePagination", () => {
     );
     expect(container.firstChild).toBeNull();
   });
+
+  it("mencegah rentang terbalik jika pointer page lebih besar dari totalPages", () => {
+    render(
+      <TablePagination
+        page={4}
+        limit={10}
+        total={25}
+        totalPages={3}
+        onPageChange={() => {}}
+      />
+    );
+
+    // effectivePage = 3, start: 21, end: 25
+    expect(screen.getByText("21 - 25")).toBeDefined();
+    expect(screen.getByText("25")).toBeDefined();
+  });
 });
 
 describe("paginateItems", () => {

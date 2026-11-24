@@ -23,6 +23,7 @@ import { guardScopedOrderMutation, transitionOrder } from "../services/order-ope
 import { matchAnyLower } from "../lib/partitioned-search";
 import { pendingPaymentCounts } from "../services/order-payment-review";
 import { deriveStatus } from "../services/payment-ledger";
+import { parsePaginationParams } from "../lib/validators";
 import { formatRupiah } from "../../lib/transfer-pricing";
 
 import { bookReturnsRouter } from "./book-returns";
@@ -50,12 +51,11 @@ studentOrdersRouter.get("/", async (c) => {
     const paymentStatus = c.req.query("paymentStatus");
     const fulfillmentStatus = c.req.query("fulfillmentStatus");
     const search = c.req.query("search");
-    const pageParam = c.req.query("page");
-    const limitParam = c.req.query("limit");
-    const isPaginated = Boolean(pageParam || limitParam);
-    const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
-    const limit = Math.max(1, Math.min(100, parseInt(limitParam || "50", 10) || 50));
-    const offset = (page - 1) * limit;
+    const isPaginated = Boolean(c.req.query("page") || c.req.query("limit"));
+    const { page, limit, offset } = parsePaginationParams({
+      page: c.req.query("page"),
+      limit: c.req.query("limit"),
+    });
 
     const conditions = [];
     if (schoolId) conditions.push(eq(studentBookOrders.schoolId, schoolId));
