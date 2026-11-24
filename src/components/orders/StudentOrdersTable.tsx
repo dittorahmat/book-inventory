@@ -38,13 +38,13 @@ export function StudentOrdersTable({
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] font-semibold">
-              <th className="py-3 px-4">No. Order</th>
-              {showSchoolColumn && <th className="py-3 px-4">Sekolah / Cabang</th>}
-              <th className="py-3 px-4">Nama Murid</th>
-              <th className="py-3 px-4">Paket Buku</th>
-              <th className="py-3 px-4">Jalur & Status Bayar</th>
-              <th className="py-3 px-4">Status Buku</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
+              <th className="py-3 px-4 whitespace-nowrap">No. Order</th>
+              {showSchoolColumn && <th className="py-3 px-4 whitespace-nowrap">Sekolah / Cabang</th>}
+              <th className="py-3 px-4 whitespace-nowrap">Nama Murid</th>
+              <th className="py-3 px-4 whitespace-nowrap">Paket Buku</th>
+              <th className="py-3 px-4 whitespace-nowrap">Jalur & Status Bayar</th>
+              <th className="py-3 px-4 whitespace-nowrap">Status Buku</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-[#F7F8FA]">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
@@ -60,10 +60,10 @@ export function StudentOrdersTable({
                 const isPickedUp = o.fulfillmentStatus === "picked_up";
 
                 return (
-                  <tr key={o.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-[#050505]">{o.orderNumber}</td>
+                  <tr key={o.id} className="group hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-[#050505] whitespace-nowrap">{o.orderNumber}</td>
                     {showSchoolColumn && (
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                           {o.schoolName || o.schoolId}
                         </span>
@@ -208,7 +208,7 @@ export function StudentOrdersTable({
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right sticky right-0 bg-white group-hover:bg-gray-50/60 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                       {readOnly ? (
                         <span className="text-[11px] text-[#65676B] italic">Hanya lihat</span>
                       ) : (

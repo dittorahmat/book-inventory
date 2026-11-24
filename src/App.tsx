@@ -190,7 +190,7 @@ export function App() {
       {seedNotice && <SeedNotice message={seedNotice} />}
 
       {/* Main Content Area — satu renderer per tab dari registry kanonik. */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-24 md:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 pb-28 md:pb-10">
         {STAFF_TAB_RENDERERS[activeTab]({
           activeSchool: selectedSchool,
           schools,

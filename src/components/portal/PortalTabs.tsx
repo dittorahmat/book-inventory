@@ -10,7 +10,7 @@ interface PortalTabsProps {
 export function PortalTabs({ activeTab, onSelect }: PortalTabsProps) {
   return (
     <div className="flex justify-center mb-6">
-      <div className="flex flex-wrap justify-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1">
+      <div className="flex flex-wrap sm:flex-nowrap justify-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1 max-w-full overflow-x-auto">
         {PUBLIC_TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -20,12 +20,12 @@ export function PortalTabs({ activeTab, onSelect }: PortalTabsProps) {
               type="button"
               aria-current={isActive ? "page" : undefined}
               onClick={() => onSelect(tab.id)}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 active:scale-[0.98] ${
+              className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 active:scale-[0.98] ${
                 isActive ? "bg-white text-[#1877F2] shadow-xs" : "text-[#65676B] hover:text-[#050505]"
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">{tab.label}</span>
             </button>
           );
         })}

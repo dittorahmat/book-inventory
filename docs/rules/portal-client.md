@@ -125,6 +125,13 @@ View yang memiliki sub-seksi bertingkat (seperti Seragam dan Gudang Buku):
 3. **Pencarian Ter-Debounce & Anti-Race Condition**: Seluruh input pencarian pada tabel yang dipaginasi wajib memanfaatkan custom hook kanonik `useDebouncedSearch` (`src/lib/useDebouncedSearch.ts`) dengan jeda ~300ms. Perubahan debounced query atau filter status/sekolah wajib langsung mereset `page = 1` tanpa memicu double fetch atau race condition respon usang.
 4. **Sanitasi Parameter Paginasi Server-Side**: Endpoint server yang mendukung paginasi wajib memanfaatkan helper kanonik `parsePaginationParams` (`src/server/lib/validators.ts`) untuk memastikan batasan `page >= 1` dan `1 <= limit <= 100` seragam tanpa duplikasi manual.
 
+### §0.96. Ergonomi UI, Anti-Occlusion Navigasi, & Responsivitas Desktop
+1. **Anti-Occlusion Bottom Navigation**: Seluruh kontainer halaman/view utama yang memiliki navigasi bawah fixed (`AppMobileNavigation`) wajib memiliki padding-bottom yang cukup (`pb-28` atau minimal `pb-24` di layar mobile, dan `pb-8` atau `pb-10` di desktop) agar konten terbawah (seperti kartu ringkasan, tombol submit, atau baris tabel terakhir) tidak pernah tertutup atau terpotong oleh bilah navigasi.
+2. **Label Menu Anti-Truncate**: Elemen tombol pada navigasi mobile wajib menjaga whitespace label (`whitespace-nowrap`) dengan kontainer scroll horizontal yang mulus (`overflow-x-auto scrollbar-none`) dan padding seimbang, dilarang membatasi lebar kaku yang memicu pemotongan teks nama modul (`truncate`) yang membingungkan staf.
+3. **Lebar Konten Desktop (Fluid Layout)**: Area konten utama antarmuka staf pada layar monitor/laptop desktop (breakpoint `>= md` atau `1280px+`) wajib memanfaatkan lebar yang proporsional (`max-w-7xl` atau fluid) dan dilarang dikompresi ke dalam container mobile sempit (`max-w-md` atau `max-w-xl`) yang memicu kompresi kolom dan pergeseran tombol aksi ke luar layar.
+4. **Resiliensi Tabel & Sticky Actions**: Kolom kunci identitas (seperti No. Order) dan kolom aksi pada tabel padat data wajib menerapkan `whitespace-nowrap`. Kolom aksi pada tabel lebar wajib dibuat `sticky right-0` dengan background solid dan bayangan pemisah lembut agar staf tidak kehilangan akses tombol aksi operasional saat melakukan scroll horizontal.
+5. **Anti-Wrap Tab Navigasi Publik**: Baris tab navigasi portal publik (`PortalTabs`) wajib mendukung penataan rapi horizontal di desktop dan scroll mendatar di layar sempit (`flex-wrap sm:flex-nowrap overflow-x-auto`) sehingga tidak membungkus item tab ke baris baru sendirian.
+
 
 
 
