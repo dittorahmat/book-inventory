@@ -1265,6 +1265,13 @@ describe("Student Order scope seam (T1: loadScopedOrder)", () => {
       expect(body.pagination.limit).toBe(1);
       expect(body.pagination.total).toBe(2);
       expect(body.pagination.totalPages).toBe(2);
+
+      // Verifikasi sanitasi pagination via parsePaginationParams
+      const resSanitized = await studentOrdersRouter.request(`/?schoolId=${sch}&page=-5&limit=999`);
+      expect(resSanitized.status).toBe(200);
+      const bodySanitized = (await resSanitized.json()) as { pagination: { page: number; limit: number } };
+      expect(bodySanitized.pagination.page).toBe(1);
+      expect(bodySanitized.pagination.limit).toBe(100);
     } finally {
       await db.delete(studentBookOrders).where(inArray(studentBookOrders.id, [ord1, ord2]));
       await db.delete(students).where(eq(students.id, stu));

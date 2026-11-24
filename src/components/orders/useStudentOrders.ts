@@ -7,7 +7,6 @@ import { useDebouncedSearch } from "../../lib/useDebouncedSearch";
 export function useStudentOrders(schoolId?: string | null) {
   const [orders, setOrders] = useState<StudentOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -19,10 +18,21 @@ export function useStudentOrders(schoolId?: string | null) {
     totalPages: 1,
   });
 
-  // Reset page ke 1 setiap kali filter atau debounced query berubah
-  useEffect(() => {
+  const handleDebouncedChange = useCallback(() => {
     setPage(1);
-  }, [schoolId, paymentFilter, fulfillmentFilter, debouncedSearch]);
+  }, []);
+
+  const { searchQuery, setSearchQuery, debouncedSearch } = useDebouncedSearch("", 300, handleDebouncedChange);
+
+  const handlePaymentFilterChange = useCallback((filter: string) => {
+    setPaymentFilter(filter);
+    setPage(1);
+  }, []);
+
+  const handleFulfillmentFilterChange = useCallback((filter: string) => {
+    setFulfillmentFilter(filter);
+    setPage(1);
+  }, []);
 
   const loadOrders = useCallback(async () => {
     setIsLoading(true);
@@ -120,14 +130,13 @@ export function useStudentOrders(schoolId?: string | null) {
 
   return {
     orders,
-    filteredOrders: orders,
     isLoading,
     searchQuery,
     setSearchQuery,
     paymentFilter,
-    setPaymentFilter,
+    setPaymentFilter: handlePaymentFilterChange,
     fulfillmentFilter,
-    setFulfillmentFilter,
+    setFulfillmentFilter: handleFulfillmentFilterChange,
     page,
     setPage,
     pagination,

@@ -24,4 +24,25 @@ describe("useDebouncedSearch", () => {
 
     expect(result.current.debouncedSearch).toBe("al-wildan");
   });
+
+  it("memanggil callback onDebouncedChange saat debounce selesai", async () => {
+    let changedVal = "";
+    const { result } = renderHook(() =>
+      useDebouncedSearch("", 50, (v) => {
+        changedVal = v;
+      })
+    );
+
+    act(() => {
+      result.current.setSearchQuery("buku");
+    });
+
+    expect(changedVal).toBe("");
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+
+    expect(changedVal).toBe("buku");
+  });
 });

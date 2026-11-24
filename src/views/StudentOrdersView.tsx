@@ -32,7 +32,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
   const effectiveSchoolId = selectedSchoolId === "all" ? null : selectedSchoolId;
 
   const {
-    filteredOrders,
+    orders,
     isLoading,
     searchQuery,
     setSearchQuery,
@@ -146,7 +146,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
       ) : (
         <>
           <StudentOrdersTable
-            orders={filteredOrders}
+            orders={orders}
             showSchoolColumn={selectedSchoolId === "all"}
             readOnly={isBranchFinanceRole(userRole)}
             onOpenPayment={setActivePaymentOrder}

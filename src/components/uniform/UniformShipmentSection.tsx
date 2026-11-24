@@ -35,8 +35,11 @@ interface Props {
 export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [schoolId, setSchoolId] = useState(lockedSchoolId ?? "");
   const [status, setStatus] = useState("belum_dikirim");
-  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("");
   const [page, setPage] = useState(1);
+  const handleDebouncedChange = useCallback(() => {
+    setPage(1);
+  }, []);
+  const { searchQuery: search, setSearchQuery: setSearch, debouncedSearch } = useDebouncedSearch("", 300, handleDebouncedChange);
   const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
     limit: 50,
@@ -47,10 +50,15 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset page saat filter atau debounced query berubah
-  useEffect(() => {
+  const handleSchoolChange = (newSchoolId: string) => {
+    setSchoolId(newSchoolId);
     setPage(1);
-  }, [schoolId, status, debouncedSearch]);
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    setStatus(newStatus);
+    setPage(1);
+  };
 
   // Modals & sub-form states
   const [shippingId, setShippingId] = useState<string | null>(null);
@@ -223,9 +231,9 @@ export function UniformShipmentSection({ schools, lockedSchoolId }: Props) {
         schools={schools}
         lockedSchoolId={lockedSchoolId}
         schoolId={schoolId}
-        setSchoolId={setSchoolId}
+        setSchoolId={handleSchoolChange}
         status={status}
-        setStatus={setStatus}
+        setStatus={handleStatusChange}
         search={search}
         setSearch={setSearch}
         loading={loading}

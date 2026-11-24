@@ -21,8 +21,9 @@ export function TablePagination({
     return null;
   }
 
-  const start = total === 0 ? 0 : (page - 1) * limit + 1;
-  const end = Math.min(page * limit, total);
+  const effectivePage = Math.min(Math.max(1, page), totalPages);
+  const start = total === 0 ? 0 : (effectivePage - 1) * limit + 1;
+  const end = Math.min(effectivePage * limit, total);
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-[#F0F2F5] border-t border-[#CED0D4] text-xs text-[#65676B]">
@@ -35,7 +36,7 @@ export function TablePagination({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="px-3 py-1.5 rounded-lg border border-[#CED0D4] bg-white text-[#050505] font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F2F3F5] transition"
+          className="px-3 py-1.5 rounded-lg border border-[#CED0D4] bg-white text-[#050505] font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F2F3F5] active:scale-[0.98] transition"
         >
           Sebelumnya
         </button>
@@ -46,7 +47,7 @@ export function TablePagination({
           type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="px-3 py-1.5 rounded-lg border border-[#CED0D4] bg-white text-[#050505] font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F2F3F5] transition"
+          className="px-3 py-1.5 rounded-lg border border-[#CED0D4] bg-white text-[#050505] font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F2F3F5] active:scale-[0.98] transition"
         >
           Selanjutnya
         </button>
