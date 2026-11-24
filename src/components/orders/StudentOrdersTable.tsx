@@ -44,7 +44,7 @@ export function StudentOrdersTable({
               <th className="py-3 px-4 whitespace-nowrap min-w-[180px]">Paket Buku</th>
               <th className="py-3 px-4 whitespace-nowrap min-w-[190px]">Jalur & Status Bayar</th>
               <th className="py-3 px-4 whitespace-nowrap min-w-[180px]">Status Buku</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-[#F7F8FA] min-w-[140px] z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Aksi</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap bg-[#F7F8FA] min-w-[140px]">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
@@ -208,7 +208,7 @@ export function StudentOrdersTable({
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-3.5 px-4 text-right sticky right-0 z-10 bg-white group-hover:bg-gray-50/60 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
+                    <td className="py-3.5 px-4 text-right bg-white group-hover:bg-gray-50/60">
                       {readOnly ? (
                         <span className="text-[11px] text-[#65676B] italic">Hanya lihat</span>
                       ) : (
