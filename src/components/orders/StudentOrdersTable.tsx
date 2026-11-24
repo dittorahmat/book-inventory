@@ -38,13 +38,13 @@ export function StudentOrdersTable({
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-[#F7F8FA] border-b border-[#E4E6EB] text-[#65676B] font-semibold">
-              <th className="py-3 px-4">No. Order</th>
-              {showSchoolColumn && <th className="py-3 px-4">Sekolah / Cabang</th>}
-              <th className="py-3 px-4">Nama Murid</th>
-              <th className="py-3 px-4">Paket Buku</th>
-              <th className="py-3 px-4">Jalur & Status Bayar</th>
-              <th className="py-3 px-4">Status Buku</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[130px]">No. Order</th>
+              {showSchoolColumn && <th className="py-3 px-4 whitespace-nowrap min-w-[150px]">Sekolah / Cabang</th>}
+              <th className="py-3 px-4 whitespace-nowrap min-w-[160px]">Nama Murid</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[180px]">Paket Buku</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[190px]">Jalur & Status Bayar</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[180px]">Status Buku</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-[#F7F8FA] min-w-[140px] z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E6EB]">
@@ -60,26 +60,26 @@ export function StudentOrdersTable({
                 const isPickedUp = o.fulfillmentStatus === "picked_up";
 
                 return (
-                  <tr key={o.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-[#050505]">{o.orderNumber}</td>
+                  <tr key={o.id} className="group hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-[#050505] whitespace-nowrap">{o.orderNumber}</td>
                     {showSchoolColumn && (
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap min-w-[150px]">
                         <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                           {o.schoolName || o.schoolId}
                         </span>
                       </td>
                     )}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 min-w-[160px]">
                       <div className="font-bold text-[#050505]">{o.studentName}</div>
                       <div className="text-[11px] text-[#65676B]">NIS: {o.nis} &bull; Kelas {o.gradeLevel}</div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 min-w-[180px]">
                       <div className="font-semibold text-[#050505]">{o.packageName || "-"}</div>
                       <div className="text-[11px] text-[#1877F2] font-semibold">
                         Tagihan: {formatRupiah(o.totalAmount)}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 min-w-[190px]">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {o.orderType === "scholarship" ? (
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
@@ -151,7 +151,7 @@ export function StudentOrdersTable({
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 min-w-[180px]">
                       {o.fulfillmentStatus === "superseded" ? (
                         <div>
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700">
@@ -208,7 +208,7 @@ export function StudentOrdersTable({
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right sticky right-0 z-10 bg-white group-hover:bg-gray-50/60 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                       {readOnly ? (
                         <span className="text-[11px] text-[#65676B] italic">Hanya lihat</span>
                       ) : (

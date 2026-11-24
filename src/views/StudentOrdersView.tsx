@@ -79,9 +79,9 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col md:flex-row gap-2">
         {isGlobalUser && (
-          <div className="w-full sm:w-56">
+          <div className="w-full md:w-56 shrink-0">
             <SearchableSingleSelect
               options={[
                 { value: "all", label: "🏢 Semua Cabang" },
@@ -93,7 +93,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
             />
           </div>
         )}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-[240px]">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input
             type="text"
@@ -103,7 +103,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E4E6EB] rounded-xl text-xs text-[#050505]"
           />
         </div>
-        <div className="w-full sm:w-52">
+        <div className="w-full sm:w-auto md:w-52 shrink-0">
           <SearchableSingleSelect
             options={[
               { value: "all", label: "Semua Status Bayar" },
@@ -117,7 +117,7 @@ export function StudentOrdersView({ activeSchool, schools = [], userRole }: Stud
             placeholder="Filter bayar..."
           />
         </div>
-        <div className="w-full sm:w-52">
+        <div className="w-full sm:w-auto md:w-52 shrink-0">
           <SearchableSingleSelect
             options={[
               { value: "all", label: "Semua Status Buku" },

@@ -12,7 +12,7 @@ export function AppTabsNavigation({ activeTab, onSelectTab, role }: AppTabsNavig
 
   return (
     <div className="bg-white border-b border-[#E4E6EB]">
-      <div className="hidden md:flex max-w-6xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
+      <div className="hidden md:flex max-w-7xl mx-auto px-6 gap-1 text-sm overflow-x-auto">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -49,7 +49,7 @@ export function AppMobileNavigation({ activeTab, onSelectTab, role }: AppMobileN
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-      <div className="flex items-center gap-1 overflow-x-auto py-1">
+      <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -59,14 +59,14 @@ export function AppMobileNavigation({ activeTab, onSelectTab, role }: AppMobileN
               type="button"
               aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectTab(tab.id)}
-              className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-xl transition-colors shrink-0 min-w-[64px] active:scale-[0.98] ${
+              className={`flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors shrink-0 active:scale-[0.98] ${
                 isActive
                   ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                   : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
               }`}
             >
-              <Icon className="w-5 h-5 mb-1" />
-              <span className="text-[11px] font-semibold truncate max-w-[72px]">{tab.label(role)}</span>
+              <Icon className="w-5 h-5 mb-1 shrink-0" />
+              <span className="text-[11px] font-semibold whitespace-nowrap">{tab.label(role)}</span>
             </button>
           );
         })}
