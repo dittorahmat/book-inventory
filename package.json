@@ -9,7 +9,7 @@
     "dev:client": "vite",
     "dev:server": "bun run --hot src/server/index.ts",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "node --max-old-space-size=4096 node_modules/eslint/bin/eslint.js .",
     "check:file-size": "bun scripts/check-file-size.ts",
     "check:imports": "bun scripts/check-import-depth.ts",
     "check:api-contract": "bun scripts/check-api-contract.ts",
