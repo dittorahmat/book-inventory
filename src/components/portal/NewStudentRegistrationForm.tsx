@@ -17,6 +17,7 @@ interface NewStudentRegistrationFormProps {
   setNewStudent: React.Dispatch<React.SetStateAction<NewStudentForm>>;
   isSubmitting: boolean;
   onRegister: (e: React.FormEvent) => void;
+  onCancel?: () => void;
   registerAttempted: boolean;
   setRegisterAttempted: (val: boolean) => void;
   registerErrors: Record<string, string | undefined>;
@@ -29,6 +30,7 @@ export function NewStudentRegistrationForm({
   setNewStudent,
   isSubmitting,
   onRegister,
+  onCancel,
   registerAttempted,
   setRegisterAttempted,
   registerErrors,
@@ -325,7 +327,17 @@ export function NewStudentRegistrationForm({
         </div>
       </div>
 
-      <div className="pt-4 flex justify-end">
+      <div className={`pt-4 flex items-center gap-3 border-t border-[#E4E6EB] mt-4 ${onCancel ? "justify-between" : "justify-end"}`}>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="px-4 py-2.5 bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] active:scale-[0.98] text-[#050505] rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+          >
+            &larr; Kembali ke Pencarian
+          </button>
+        )}
         <button
           type="submit"
           disabled={isSubmitting}

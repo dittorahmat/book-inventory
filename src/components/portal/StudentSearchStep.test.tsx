@@ -232,4 +232,37 @@ describe("StudentSearchStep eligibility matrix (T5: UI reflects server flag)", (
     // For Grade 10, stream selection should now be visible
     expect(screen.getByText(/Peminatan \/ Jurusan \(SMA\)/i)).toBeDefined();
   });
+
+  it("handles cancel button in footer to return from new student mode", () => {
+    let mode = true;
+    render(
+      <StudentSearchStep
+        schools={[{ id: "sch-1", name: "Al-Wildan 1", code: "AW1" }]}
+        searchSchoolId=""
+        setSearchSchoolId={noop}
+        searchQuery=""
+        setSearchQuery={noop}
+        isSearching={false}
+        searchResults={[]}
+        isNewStudentMode={mode}
+        setIsNewStudentMode={(val) => {
+          mode = val;
+        }}
+        newStudent={EMPTY_NEW_STUDENT}
+        setNewStudent={noopDispatch}
+        isSubmitting={false}
+        onSearch={noopSubmit}
+        onSelectStudent={noop}
+        onRegister={noopSubmit}
+      />
+    );
+
+    // Header and footer cancel buttons
+    const cancelButtons = screen.getAllByRole("button", { name: /Kembali ke Pencarian/i });
+    expect(cancelButtons.length).toBe(2);
+
+    // Click footer cancel button
+    fireEvent.click(cancelButtons[1]);
+    expect(mode).toBe(false);
+  });
 });

@@ -270,6 +270,7 @@ export function StudentSearchStep({
             setNewStudent={setNewStudent}
             isSubmitting={isSubmitting}
             onRegister={onRegister}
+            onCancel={() => setIsNewStudentMode(false)}
             registerAttempted={registerAttempted}
             setRegisterAttempted={setRegisterAttempted}
             registerErrors={registerErrors}

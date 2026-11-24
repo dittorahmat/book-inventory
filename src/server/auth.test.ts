@@ -8,7 +8,11 @@ describe("Better-Auth security configuration", () => {
 
     const allowed = Array.isArray(trusted) ? trusted : [];
     expect(allowed).toContain("http://localhost:5173");
+    expect(allowed).toContain("http://127.0.0.1:5173");
+    expect(allowed).toContain("http://localhost:5174");
+    expect(allowed).toContain("http://127.0.0.1:5174");
     expect(allowed).toContain("http://localhost:3000");
+    expect(allowed).toContain("http://127.0.0.1:3000");
     expect(allowed).toContain("https://book-inventory.tech1solusi.workers.dev");
     expect(allowed).toContain("https://inv-aw.tech1solusi.workers.dev");
 
@@ -27,6 +31,14 @@ describe("Better-Auth security configuration", () => {
     ];
     for (const untrusted of untrustedOrigins) {
       expect(allowed).not.toContain(untrusted);
+    }
+
+    // Deterministic loopback symmetry: every http://localhost:<port> must have an exact http://127.0.0.1:<port> twin
+    for (const origin of allowed) {
+      if (typeof origin === "string" && origin.startsWith("http://localhost:")) {
+        const port = origin.replace("http://localhost:", "");
+        expect(allowed).toContain(`http://127.0.0.1:${port}`);
+      }
     }
   });
 
