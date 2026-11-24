@@ -208,7 +208,7 @@ export function StudentOrdersTable({
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-3.5 px-4 text-right sticky right-0 bg-white group-hover:bg-gray-50/60 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
+                    <td className="py-3.5 px-4 text-right sticky right-0 z-10 bg-white group-hover:bg-gray-50/60 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                       {readOnly ? (
                         <span className="text-[11px] text-[#65676B] italic">Hanya lihat</span>
                       ) : (

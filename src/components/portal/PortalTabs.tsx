@@ -10,7 +10,7 @@ interface PortalTabsProps {
 export function PortalTabs({ activeTab, onSelect }: PortalTabsProps) {
   return (
     <div className="flex justify-center mb-6">
-      <div className="flex flex-wrap sm:flex-nowrap justify-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1 max-w-full overflow-x-auto">
+      <div className="flex flex-nowrap items-center p-1 bg-[#E4E6EB]/70 rounded-2xl gap-1 max-w-full overflow-x-auto scrollbar-none">
         {PUBLIC_TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
