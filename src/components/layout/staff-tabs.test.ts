@@ -10,6 +10,7 @@ describe("staff-tabs", () => {
       "uniforms",
       "student_orders",
       "internal_orders",
+      "teacher_handbooks",
       "packages",
       "procurement",
       "returns",
@@ -42,14 +43,15 @@ describe("staff-tabs", () => {
       "students",
       "uniforms",
       "student_orders",
+      "teacher_handbooks",
       "reports",
       "settings",
     ]);
   });
 
   test("cabang melihat pesan ke gudang, data siswa, dan pesanan siswa", () => {
-    expect(getVisibleTabsForRole("branch_admin")).toEqual(["students", "student_orders", "internal_orders"]);
-    expect(getVisibleTabsForRole("school_admin")).toEqual(["students", "student_orders", "internal_orders"]);
+    expect(getVisibleTabsForRole("branch_admin")).toEqual(["students", "student_orders", "internal_orders", "teacher_handbooks"]);
+    expect(getVisibleTabsForRole("school_admin")).toEqual(["students", "student_orders", "internal_orders", "teacher_handbooks"]);
     expect(getVisibleTabsForRole("branch_finance")).toEqual(["student_orders", "reports"]);
     const internalTab = DESKTOP_TABS.find((t) => t.id === "internal_orders");
     expect(internalTab?.label("branch_admin")).toBe("Terima Paket Dari Gudang");
@@ -63,12 +65,14 @@ describe("staff-tabs", () => {
       "students",
       "uniforms",
       "student_orders",
+      "teacher_handbooks",
       "reports",
     ]);
     expect(getVisibleTabsForRole("warehouse_books_admin")).toEqual([
       "book_warehouse",
       "students",
       "student_orders",
+      "teacher_handbooks",
       "reports",
     ]);
   });
