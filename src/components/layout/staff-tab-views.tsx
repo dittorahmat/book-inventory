@@ -10,6 +10,7 @@ import { StudentOrdersView } from "../../views/StudentOrdersView";
 import { StudentsView } from "../../views/StudentsView";
 import { UniformView } from "../../views/UniformView";
 import { BookWarehouseView } from "../../views/BookWarehouseView";
+import { TeacherHandbooksView } from "../../views/TeacherHandbooksView";
 
 const DashboardView = lazy(() => import("../../views/DashboardView").then((m) => ({ default: m.DashboardView })));
 
@@ -69,6 +70,7 @@ export const STAFF_TAB_RENDERERS: Record<ActiveTab, (context: StaffShellContext)
     />
   ),
   procurement: (context) => <BookWarehouseView context={context} defaultSection="procurement" />,
+  teacher_handbooks: (context) => <TeacherHandbooksView context={context} />,
   internal_orders: (context) => (
     <InternalProcurementView
       activeSchool={context.activeSchool}

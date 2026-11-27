@@ -35,6 +35,7 @@ export const TAB_IDS = [
   "uniforms",
   "student_orders",
   "internal_orders",
+  "teacher_handbooks",
   "catalog",
   "packages",
   "inventory",
@@ -90,6 +91,12 @@ export const DESKTOP_TABS: DesktopTabItem[] = [
     label: (r) => (isSchoolRole(r) ? "Terima Paket Dari Gudang" : "Kirim Paket Ke Cabang"),
     icon: Warehouse,
     visible: (r) => isSchoolRole(r),
+  },
+  {
+    id: "teacher_handbooks",
+    label: () => "Pegangan Guru",
+    icon: BookOpen,
+    visible: (r) => isSchoolRole(r) || isCentralRole(r) || isBookWarehouseStaffRole(r),
   },
   {
     id: "packages",

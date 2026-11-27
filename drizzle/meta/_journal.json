@@ -351,6 +351,13 @@
       "when": 1794925303036,
       "tag": "0049_clever_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1795773311474,
+      "tag": "0050_safe_strong_guy",
+      "breakpoints": true
     }
   ]
 }
