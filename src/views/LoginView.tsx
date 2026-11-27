@@ -175,18 +175,18 @@ export function LoginView({ onLoginSuccess, onNavigateToPublicPortal }: LoginVie
                     key={demoEmail}
                     type="button"
                     onClick={() => handleQuickDemo(demoEmail)}
-                    className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between group active:scale-[0.98]"
+                    className="w-full text-left p-2.5 rounded-xl border border-[#E4E6EB] hover:border-[#1877F2] hover:bg-[#E7F3FF]/40 transition-all flex items-center justify-between gap-2 group active:scale-[0.98]"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-full bg-[#E7F3FF] text-[#1877F2] shrink-0">
                         <Icon className="w-4 h-4 text-[#1877F2]" />
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-[#050505]">{label}</div>
-                        <div className="text-[11px] text-[#65676B]">{demoEmail}</div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-[#050505] truncate">{label}</div>
+                        <div className="text-[11px] text-[#65676B] truncate">{demoEmail}</div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
+                    <span className="text-[10px] font-bold bg-[#F0F2F5] px-2 py-0.5 rounded-full text-[#050505] group-hover:bg-[#1877F2] group-hover:text-white transition-colors shrink-0 whitespace-nowrap">
                       {tag}
                     </span>
                   </button>
