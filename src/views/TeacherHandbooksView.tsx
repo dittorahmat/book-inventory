@@ -156,6 +156,45 @@ export function TeacherHandbooksView({ context }: { context: StaffShellContext }
     }
   };
 
+  const handleDispatchOrder = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/teacher-handbooks/${orderId}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(await readResponseErrorMessage(res));
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengirim pesanan.");
+    }
+  };
+
+  const handleReceiveOrder = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/teacher-handbooks/${orderId}/receive`, { method: "POST" });
+      if (!res.ok) throw new Error(await readResponseErrorMessage(res));
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengonfirmasi penerimaan.");
+    }
+  };
+
+  const handleHandover = async (allocationId: string, remaining: number) => {
+    if (remaining < 1) return;
+    try {
+      const res = await fetch(`/api/teacher-handbooks/allocations/${allocationId}/handover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: remaining }),
+      });
+      if (!res.ok) throw new Error(await readResponseErrorMessage(res));
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mencatat serah terima.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -228,6 +267,15 @@ export function TeacherHandbooksView({ context }: { context: StaffShellContext }
                 </div>
                 {order.status === "pending" && (
                   <div className="flex items-center gap-2">
+                    {context.isCentralAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleDispatchOrder(order.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-700"
+                      >
+                        Kirim Surat Jalan
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEditForm(order)}
@@ -245,6 +293,15 @@ export function TeacherHandbooksView({ context }: { context: StaffShellContext }
                       Batalkan
                     </button>
                   </div>
+                )}
+                {order.status === "in_transit" && (
+                  <button
+                    type="button"
+                    onClick={() => handleReceiveOrder(order.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 text-xs font-medium text-white hover:bg-blue-700"
+                  >
+                    Konfirmasi Terima
+                  </button>
                 )}
               </div>
 
@@ -266,7 +323,18 @@ export function TeacherHandbooksView({ context }: { context: StaffShellContext }
                         <td className="py-1.5 pr-3 text-slate-500">
                           {[a.gradeLevel, a.rombel, a.subject].filter(Boolean).join(" / ") || "-"}
                         </td>
-                        <td className="py-1.5 text-right font-medium">{a.quantity}</td>
+                        <td className="py-1.5 text-right font-medium">
+                          {a.quantity}
+                          {order.status === "received" && a.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleHandover(a.id!, a.quantity)}
+                              className="ml-2 text-emerald-700 hover:underline"
+                            >
+                              Serah Terima
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

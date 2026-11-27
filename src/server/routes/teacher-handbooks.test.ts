@@ -113,4 +113,67 @@ describe("teacherHandbooksRouter", () => {
     expect(editAfterCancel.status).toBe(400);
     sessionSpy.mockRestore();
   });
+
+  it("supports dispatch (Surat Jalan), branch receive, teacher reassign, and handover to completion", async () => {
+    const school = await createTestSchool(db, { name: "Cabang Test PG 2" });
+    createdSchoolIds.push(school.id);
+    const book = await createTestBook(db, { title: "Buku Pegangan IPA", price: 60000 });
+    createdBookIds.push(book.id);
+
+    const sessionSpy = spyOn(auth.api, "getSession").mockResolvedValue({
+      user: { id: "user-pg-central", role: "central_admin", schoolId: null } as never,
+      session: { id: "sess-pg-central" } as never,
+    });
+
+    const headers = { "Content-Type": "application/json" };
+    const createRes = await app.request("/api/teacher-handbooks", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        schoolId: school.id,
+        allocations: [{ bookId: book.id, teacherName: "Ustadzah Fatimah", quantity: 2 }],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as {
+      data: { id: string; allocations: Array<{ id: string }> };
+    };
+    createdOrderIds.push(created.data.id);
+    const allocId = created.data.allocations[0]!.id;
+
+    const dispatchRes = await app.request(`/api/teacher-handbooks/${created.data.id}/dispatch`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    expect(dispatchRes.status).toBe(200);
+    const dispatched = (await dispatchRes.json()) as { data: { status: string } };
+    expect(dispatched.data.status).toBe("in_transit");
+
+    const receiveRes = await app.request(`/api/teacher-handbooks/${created.data.id}/receive`, {
+      method: "POST",
+      headers,
+    });
+    expect(receiveRes.status).toBe(200);
+    const received = (await receiveRes.json()) as { data: { status: string } };
+    expect(received.data.status).toBe("received");
+
+    const reassignRes = await app.request(`/api/teacher-handbooks/allocations/${allocId}/reassign`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ teacherName: "Ustadzah Aisyah" }),
+    });
+    expect(reassignRes.status).toBe(200);
+
+    const handoverRes = await app.request(`/api/teacher-handbooks/allocations/${allocId}/handover`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ quantity: 2 }),
+    });
+    expect(handoverRes.status).toBe(200);
+    const completed = (await handoverRes.json()) as { data: { status: string } };
+    expect(completed.data.status).toBe("completed");
+
+    sessionSpy.mockRestore();
+  });
 });

@@ -999,6 +999,7 @@ export const teacherHandbookOrders = sqliteTable("teacher_handbook_orders", {
   status: text("status", {
     enum: ["pending", "in_transit", "received", "completed", "cancelled"],
   }).notNull().default("pending"),
+  shipmentId: text("shipment_id").references(() => internalShipments.id, { onDelete: "set null" }),
   notes: text("notes"),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull(),
