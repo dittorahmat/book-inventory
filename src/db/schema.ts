@@ -988,3 +988,55 @@ export const termReconciliationItems = sqliteTable("term_reconciliation_items", 
   index("term_reconciliation_items_book_idx").on(t.bookId),
 ]);
 
+/**
+ * Pesanan Pegangan Guru (Teacher Handbook Order):
+ * Permintaan buku satuan oleh staf cabang untuk kebutuhan mengajar guru di cabang tersebut.
+ */
+export const teacherHandbookOrders = sqliteTable("teacher_handbook_orders", {
+  id: text("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  schoolId: text("school_id").notNull().references(() => schools.id),
+  status: text("status", {
+    enum: ["pending", "in_transit", "received", "completed", "cancelled"],
+  }).notNull().default("pending"),
+  shipmentId: text("shipment_id").references(() => internalShipments.id, { onDelete: "set null" }),
+  settlementStatus: text("settlement_status", {
+    enum: ["unpaid", "partial", "paid"],
+  }).notNull().default("unpaid"),
+  settlementAmount: integer("settlement_amount").notNull().default(0),
+  paidAmount: integer("paid_amount").notNull().default(0),
+  paymentProofUrl: text("payment_proof_url"),
+  settledAt: text("settled_at"),
+  notes: text("notes"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("teacher_handbook_orders_school_idx").on(t.schoolId),
+  index("teacher_handbook_orders_status_idx").on(t.status),
+]);
+
+/**
+ * Alokasi Guru (Teacher Allocation):
+ * Rincian peruntukan buku pada Pesanan Pegangan Guru (nama guru, jenjang/kelas/rombel, mapel, jumlah).
+ */
+export const teacherHandbookAllocations = sqliteTable("teacher_handbook_allocations", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => teacherHandbookOrders.id, { onDelete: "cascade" }),
+  bookId: text("book_id").notNull().references(() => books.id),
+  teacherName: text("teacher_name").notNull(),
+  gradeLevel: text("grade_level"),
+  rombel: text("rombel"),
+  subject: text("subject"),
+  quantity: integer("quantity").notNull(),
+  deliveredQuantity: integer("delivered_quantity").notNull().default(0),
+  handedOverQuantity: integer("handed_over_quantity").notNull().default(0),
+  handedOverAt: text("handed_over_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("teacher_handbook_allocations_order_idx").on(t.orderId),
+  index("teacher_handbook_allocations_book_idx").on(t.bookId),
+]);
+
+

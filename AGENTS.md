@@ -22,7 +22,7 @@ Aturan anti-kambuh domain (§0.1 s/d §0.56) telah dimodularisasi ke dalam dokum
 ## 1. Post-Modification Quality Checklist
 
 1. **Loop per tiket**: `bun test <file> -t "..."` untuk umpan balik cepat terfilter, periksa staged diff (`bun x eslint <staged>` & nol `any`), lalu `bun run check:fast` sebelum commit. `check:fast` menjalankan `scripts/check-changed.ts` untuk seluruh file berubah (gate yang sama dengan pre-commit, termasuk `check:dead` dan `check:single-writer`). Jangan menjalankan `check:all` setiap commit — suite penuh sekali per PR.
-2. **Skema & Master Katalog D1** → Skema berubah: `bun run db:push` (lokal) & `bun run db:generate` → migrasi D1 remote `book-inventory-db`. Cek drift skema: `bun run check:d1-drift`. Drizzle mengelola DDL struktur skema; sinkronisasi data master katalog D1 diverifikasi oleh `bun run check:d1-catalog` (wajib memastikan tidak ada master kosong di remote). Baca data lokal via `bun run db:query`.
+2. **Skema & Master Katalog D1** → Skema berubah: `bun run db:push` (lokal) & `bun run db:generate` (wajib sebelum `bun test` karena `test/setup.ts` membaca `drizzle/*.sql`) → migrasi D1 remote `book-inventory-db`. Cek drift skema: `bun run check:d1-drift`. Drizzle mengelola DDL struktur skema; sinkronisasi data master katalog D1 diverifikasi oleh `bun run check:d1-catalog` (wajib memastikan tidak ada master kosong di remote). Baca data lokal via `bun run db:query`.
 3. **Migrasi destruktif** (`DROP`, ubah kolom breaking) dilarang diterapkan ke remote sebelum PR merge **dan** deploy (pola expand-contract dua PR). Sebut perubahan destruktif di deskripsi PR (ADR-0013).
 4. **Tipe** — `bun run type-check` nol error. `AppDatabase` schema-aware: biarkan inferensi, jangan anotasi `$inferSelect` manual pada JOIN, jangan tutup celah dengan `any`/cast baru.
 5. **API & validator** — identifier entity memakai `idSchema` (`src/server/lib/validators.ts`), bukan `z.string().uuid()`. Setiap file route wajib berpasangan `*.test.ts`, dan setiap modifikasi file route wajib menambah skenario di sana (`check:route-tests --diff` menegakkan kegagalan keras exit 1; ubah `*.test.ts` pendamping dalam diff yang sama sebelum memicu `check:fast`).
@@ -106,7 +106,7 @@ Setiap file `src/**/*.ts(x)` maksimal **400 baris** (kecuali `*.test.ts(x)`, `sr
 
 ## 10. Cloudflare D1 & Search Discipline
 
-- **Aturan Tulis D1**: Chunking maksimal 10 baris per `INSERT` (maksimal 5 baris untuk tabel lebar seperti `students`), dilarang `Promise.all` untuk tulis, mutasi induk-anak atomik via `db.batch()`, error constraint dipetakan lewat `d1WriteErrorStatus()`. Detail lengkap di [`docs/rules/database-d1.md`](./docs/rules/database-d1.md).
+- **Aturan Tulis D1**: Chunking maksimal 10 baris per `INSERT` (maksimal 5 baris untuk tabel lebar ≥10 kolom seperti `students`, `teacher_handbook_allocations`), dilarang `Promise.all` untuk tulis, mutasi induk-anak atomik via `db.batch()`, error constraint dipetakan lewat `d1WriteErrorStatus()`. Detail lengkap di [`docs/rules/database-d1.md`](./docs/rules/database-d1.md).
 - **Aturan Baca D1**: Query `inArray(col, ids)` berpotensi meluap di production (>100 params); wajib pakai `selectInChunks` (`d1-write.ts`). Cold-start worker dilarang melempar error saat bundling (`wrangler deploy --dry-run`).
 - **Search Discipline**: Dilarang `SELECT`-all + filter JS (filter wajib di `WHERE` SQL). Substring `%q%` publik wajib terpartisi `school_id = ?` + `LIMIT 10–50` + indeks komposit (`check:plans`). Detail teknis di `CODING_STANDARDS.md` §6.
 

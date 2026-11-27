@@ -1,0 +1,1 @@
+ALTER TABLE `teacher_handbook_orders` ADD `shipment_id` text REFERENCES internal_shipments(id);
