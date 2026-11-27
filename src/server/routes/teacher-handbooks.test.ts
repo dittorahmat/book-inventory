@@ -199,6 +199,12 @@ describe("teacherHandbooksRouter", () => {
     expect(summaryJson.data.totalPaidAmount).toBeGreaterThanOrEqual(120000);
     expect(summaryJson.data.paidCount).toBeGreaterThanOrEqual(1);
 
+    const demandRes = await app.request(`/api/teacher-handbooks/branch-demand?schoolId=${school.id}`, { headers });
+    expect(demandRes.status).toBe(200);
+    const demandJson = (await demandRes.json()) as { success: boolean; data: Array<{ bookId: string; estimatedStudents: number }> };
+    expect(demandJson.success).toBe(true);
+    expect(Array.isArray(demandJson.data)).toBe(true);
+
     sessionSpy.mockRestore();
   });
 });

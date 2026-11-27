@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db";
+import { studentBookOrders, studentOrderItems } from "../../db/schema";
 import { d1WriteErrorStatus } from "../lib/d1-write";
 import { idSchema } from "../lib/validators";
 import {
@@ -89,6 +91,37 @@ teacherHandbooksRouter.get("/summary", async (c) => {
     paidCount: active.filter((o) => o.settlementStatus === "paid").length,
   };
   return c.json({ success: true, data: summary });
+});
+
+teacherHandbooksRouter.get("/branch-demand", async (c) => {
+  const actor = await resolveRequestActor(c);
+  if (!actor) return c.json({ success: false, error: "Unauthorized" }, 401);
+  if (!isCentralRole(actor.role) && !isBookWarehouseStaffRole(actor.role) && !isSchoolRole(actor.role)) {
+    return c.json({ success: false, error: "Forbidden" }, 403);
+  }
+
+  const schoolId = isSchoolRole(actor.role) ? actor.schoolId : c.req.query("schoolId");
+  if (!schoolId) {
+    return c.json({ success: false, error: "schoolId wajib diisi." }, 400);
+  }
+
+  const rows = await db
+    .select({
+      bookId: studentOrderItems.bookId,
+      estimatedStudents: sql<number>`coalesce(sum(${studentOrderItems.quantity}), 0)`,
+    })
+    .from(studentOrderItems)
+    .innerJoin(studentBookOrders, eq(studentOrderItems.orderId, studentBookOrders.id))
+    .where(
+      and(
+        eq(studentBookOrders.schoolId, schoolId),
+        ne(studentBookOrders.fulfillmentStatus, "superseded"),
+        ne(studentBookOrders.fulfillmentStatus, "picked_up")
+      )
+    )
+    .groupBy(studentOrderItems.bookId);
+
+  return c.json({ success: true, data: rows });
 });
 
 teacherHandbooksRouter.post("/", async (c) => {
