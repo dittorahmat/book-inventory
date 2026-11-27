@@ -190,6 +190,15 @@ describe("teacherHandbooksRouter", () => {
     const verified = (await verifyRes.json()) as { data: { settlementStatus?: string } };
     expect(verified.data.settlementStatus).toBe("paid");
 
+    const summaryRes = await app.request("/api/teacher-handbooks/summary", { headers });
+    expect(summaryRes.status).toBe(200);
+    const summaryJson = (await summaryRes.json()) as {
+      data: { totalSettlementAmount: number; totalPaidAmount: number; paidCount: number };
+    };
+    expect(summaryJson.data.totalSettlementAmount).toBeGreaterThanOrEqual(120000);
+    expect(summaryJson.data.totalPaidAmount).toBeGreaterThanOrEqual(120000);
+    expect(summaryJson.data.paidCount).toBeGreaterThanOrEqual(1);
+
     sessionSpy.mockRestore();
   });
 });

@@ -68,6 +68,29 @@ teacherHandbooksRouter.get("/", async (c) => {
   return c.json({ success: true, data });
 });
 
+teacherHandbooksRouter.get("/summary", async (c) => {
+  const actor = await resolveRequestActor(c);
+  if (!actor) return c.json({ success: false, error: "Unauthorized" }, 401);
+  const allowed = isSchoolRole(actor.role) || isCentralRole(actor.role) || isBookWarehouseStaffRole(actor.role);
+  if (!allowed) return c.json({ success: false, error: "Forbidden" }, 403);
+
+  const schoolId = isSchoolRole(actor.role)
+    ? actor.schoolId ?? undefined
+    : c.req.query("schoolId") || undefined;
+  const orders = await listTeacherHandbookOrders(db, { schoolId });
+  const active = orders.filter((o) => o.status !== "cancelled");
+
+  const summary = {
+    totalOrders: active.length,
+    totalSettlementAmount: active.reduce((s, o) => s + (o.settlementAmount ?? 0), 0),
+    totalPaidAmount: active.reduce((s, o) => s + (o.paidAmount ?? 0), 0),
+    unpaidCount: active.filter((o) => o.settlementStatus === "unpaid").length,
+    partialCount: active.filter((o) => o.settlementStatus === "partial").length,
+    paidCount: active.filter((o) => o.settlementStatus === "paid").length,
+  };
+  return c.json({ success: true, data: summary });
+});
+
 teacherHandbooksRouter.post("/", async (c) => {
   const actor = await resolveRequestActor(c);
   if (!actor) {
