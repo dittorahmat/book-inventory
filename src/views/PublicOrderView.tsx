@@ -26,13 +26,13 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
       {/* Editorial Navigation Header */}
       <header className="border-b border-[#E4E6EB] bg-white sticky top-0 z-40 shadow-xs">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#1877F2] flex items-center justify-center text-white shadow-xs shrink-0">
               <BookOpen className="w-4 h-4 text-white" />
             </div>
-            <div className="truncate">
-              <span className="text-sm sm:text-base font-bold text-[#050505] truncate">
-                Portal Orang Tua & Siswa
+            <div className="min-w-0">
+              <span className="text-[13px] sm:text-base font-bold text-[#050505] whitespace-nowrap">
+                Portal Orang Tua &amp; Siswa
               </span>
               <span className="hidden sm:inline-block ml-2 text-[10px] font-semibold text-[#1877F2] bg-[#E7F3FF] px-2 py-0.5 rounded-full">
                 Al Wildan Islamic School
@@ -45,9 +45,10 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
               <button
                 type="button"
                 onClick={onNavigateToStaffLogin}
-                className="px-3.5 py-1.5 text-xs font-semibold text-[#1877F2] bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] rounded-full transition-all flex items-center gap-1.5"
+                className="px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold text-[#1877F2] bg-[#E7F3FF] hover:bg-[#D8ECFF] active:scale-[0.98] rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap"
               >
-                <span>Login Staf / Admin &rarr;</span>
+                <span className="sm:hidden">Login Staf &rarr;</span>
+                <span className="hidden sm:inline">Login Staf / Admin &rarr;</span>
               </button>
             )}
           </div>
@@ -78,23 +79,23 @@ export function PublicOrderView({ onNavigateToStaffLogin, initialTab }: PublicOr
               </p>
 
               {/* Breadcrumb Steps */}
-              <div className="flex items-center justify-center gap-2 mt-5">
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-1.5 sm:gap-2 mt-5">
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                   step === 1 ? "bg-[#1877F2] text-white" : "bg-[#E4E6EB] text-[#65676B]"
                 }`}>
                   <span>1</span> Identitas Siswa
                 </div>
-                <div className="w-4 h-px bg-[#CED0D4]" />
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                <div className="hidden sm:block w-4 h-px bg-[#CED0D4]" />
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                   step === 2 ? "bg-[#1877F2] text-white" : "bg-[#E4E6EB] text-[#65676B]"
                 }`}>
                   <span>2</span> Detail Paket
                 </div>
-                <div className="w-4 h-px bg-[#CED0D4]" />
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                <div className="hidden sm:block w-4 h-px bg-[#CED0D4]" />
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                   step === 3 ? "bg-[#1877F2] text-white" : "bg-[#E4E6EB] text-[#65676B]"
                 }`}>
-                  <span>3</span> Cek Pembayaran & Beasiswa
+                  <span>3</span> Cek Pembayaran &amp; Beasiswa
                 </div>
               </div>
             </div>

@@ -31,8 +31,8 @@ export function AppHeader({
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shadow-xs shrink-0">
             <BookOpen className="w-5 h-5 text-white" />
           </div>
-          <div className="truncate">
-            <span className="text-base sm:text-lg tracking-tight font-bold text-white truncate block sm:inline">
+          <div className="min-w-0">
+            <span className="text-sm sm:text-lg tracking-tight font-bold text-white whitespace-nowrap block sm:inline">
               School Logistics
             </span>
             <span className="hidden sm:inline-block ml-2 text-[11px] font-semibold text-white bg-white/15 border border-white/30 px-2 py-0.5 rounded-full">
@@ -43,9 +43,9 @@ export function AppHeader({
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Assigned location badge (read-only invariant per AGENTS.md §3.4) */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/15 rounded-full text-xs font-semibold text-white border border-white/30">
             <SchoolIcon className="w-3.5 h-3.5 text-white shrink-0" />
-            <span className="truncate max-w-[110px] sm:max-w-none">
+            <span>
               {selectedSchool?.name || "Assigned Branch"}
             </span>
           </div>

@@ -110,7 +110,7 @@ export function StudentSearchStep({
               />
             </div>
             <div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
                   <input
@@ -134,7 +134,7 @@ export function StudentSearchStep({
                 <button
                   type="submit"
                   disabled={isSearching}
-                  className="px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all shrink-0 disabled:opacity-50"
                 >
                   {isSearching ? "Mencari..." : "Cari Data"}
                 </button>

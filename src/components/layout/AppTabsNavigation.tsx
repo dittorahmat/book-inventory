@@ -48,8 +48,8 @@ export function AppMobileNavigation({ activeTab, onSelectTab, role }: AppMobileN
   const visibleTabs = DESKTOP_TABS.filter((tab) => tab.visible(role));
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-3">
-      <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E4E6EB] shadow-lg pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-2">
+      <div className="grid grid-cols-4 gap-1 py-0.5">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -59,14 +59,14 @@ export function AppMobileNavigation({ activeTab, onSelectTab, role }: AppMobileN
               type="button"
               aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectTab(tab.id)}
-              className={`flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors shrink-0 active:scale-[0.98] ${
+              className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-center transition-colors active:scale-[0.98] ${
                 isActive
                   ? "text-[#1877F2] font-bold bg-[#E7F3FF]"
                   : "text-[#65676B] hover:text-[#050505] hover:bg-[#F0F2F5]"
               }`}
             >
-              <Icon className="w-5 h-5 mb-1 shrink-0" />
-              <span className="text-[11px] font-semibold whitespace-nowrap">{tab.label(role)}</span>
+              <Icon className="w-4 h-4 mb-0.5 shrink-0" />
+              <span className="text-[10px] leading-tight font-semibold">{tab.label(role)}</span>
             </button>
           );
         })}
