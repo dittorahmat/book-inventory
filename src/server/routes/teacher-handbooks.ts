@@ -1,8 +1,6 @@
 import { Hono } from "hono";
-import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db";
-import { studentBookOrders, studentOrderItems } from "../../db/schema";
 import { d1WriteErrorStatus } from "../lib/d1-write";
 import { idSchema } from "../lib/validators";
 import {
@@ -18,6 +16,10 @@ import {
   listTeacherHandbookOrders,
   updateTeacherHandbookOrder,
 } from "../services/teacher-handbooks";
+import {
+  getBranchStudentDemand,
+  getTeacherHandbookSummary,
+} from "../services/teacher-handbooks/reports";
 import {
   dispatchTeacherHandbookOrder,
   handoverTeacherAllocation,
@@ -79,17 +81,7 @@ teacherHandbooksRouter.get("/summary", async (c) => {
   const schoolId = isSchoolRole(actor.role)
     ? actor.schoolId ?? undefined
     : c.req.query("schoolId") || undefined;
-  const orders = await listTeacherHandbookOrders(db, { schoolId });
-  const active = orders.filter((o) => o.status !== "cancelled");
-
-  const summary = {
-    totalOrders: active.length,
-    totalSettlementAmount: active.reduce((s, o) => s + (o.settlementAmount ?? 0), 0),
-    totalPaidAmount: active.reduce((s, o) => s + (o.paidAmount ?? 0), 0),
-    unpaidCount: active.filter((o) => o.settlementStatus === "unpaid").length,
-    partialCount: active.filter((o) => o.settlementStatus === "partial").length,
-    paidCount: active.filter((o) => o.settlementStatus === "paid").length,
-  };
+  const summary = await getTeacherHandbookSummary(db, schoolId);
   return c.json({ success: true, data: summary });
 });
 
@@ -101,26 +93,12 @@ teacherHandbooksRouter.get("/branch-demand", async (c) => {
   }
 
   const schoolId = isSchoolRole(actor.role) ? actor.schoolId : c.req.query("schoolId");
-  if (!schoolId) {
-    return c.json({ success: false, error: "schoolId wajib diisi." }, 400);
+  const parsedSchool = idSchema.safeParse(schoolId);
+  if (!parsedSchool.success) {
+    return c.json({ success: false, error: "schoolId tidak valid." }, 400);
   }
 
-  const rows = await db
-    .select({
-      bookId: studentOrderItems.bookId,
-      estimatedStudents: sql<number>`coalesce(sum(${studentOrderItems.quantity}), 0)`,
-    })
-    .from(studentOrderItems)
-    .innerJoin(studentBookOrders, eq(studentOrderItems.orderId, studentBookOrders.id))
-    .where(
-      and(
-        eq(studentBookOrders.schoolId, schoolId),
-        ne(studentBookOrders.fulfillmentStatus, "superseded"),
-        ne(studentBookOrders.fulfillmentStatus, "picked_up")
-      )
-    )
-    .groupBy(studentOrderItems.bookId);
-
+  const rows = await getBranchStudentDemand(db, parsedSchool.data);
   return c.json({ success: true, data: rows });
 });
 

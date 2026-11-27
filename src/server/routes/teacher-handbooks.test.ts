@@ -193,11 +193,13 @@ describe("teacherHandbooksRouter", () => {
     const summaryRes = await app.request("/api/teacher-handbooks/summary", { headers });
     expect(summaryRes.status).toBe(200);
     const summaryJson = (await summaryRes.json()) as {
-      data: { totalSettlementAmount: number; totalPaidAmount: number; paidCount: number };
+      data: { totalSettlementAmount: number; totalPaidAmount: number; paidCount: number; totalOrderedQty: number; totalHandedOverQty: number };
     };
     expect(summaryJson.data.totalSettlementAmount).toBeGreaterThanOrEqual(120000);
     expect(summaryJson.data.totalPaidAmount).toBeGreaterThanOrEqual(120000);
     expect(summaryJson.data.paidCount).toBeGreaterThanOrEqual(1);
+    expect(summaryJson.data.totalOrderedQty).toBeGreaterThanOrEqual(2);
+    expect(summaryJson.data.totalHandedOverQty).toBeGreaterThanOrEqual(2);
 
     const demandRes = await app.request(`/api/teacher-handbooks/branch-demand?schoolId=${school.id}`, { headers });
     expect(demandRes.status).toBe(200);

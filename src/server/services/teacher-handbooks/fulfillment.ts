@@ -5,26 +5,9 @@ import {
   teacherHandbookAllocations,
   teacherHandbookOrders,
 } from "../../../db/schema";
-import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { generateDeliveryNoteNumber } from "../internal-po/delivery-note";
-import { TeacherHandbookError, getTeacherHandbookOrderById } from "./index";
+import { TeacherHandbookError, execBatch, getTeacherHandbookOrderById } from "./index";
 import { computeAndSaveSettlementAmount } from "./settlement";
-
-async function execBatch(
-  db: AppDatabase,
-  stmts: Parameters<typeof runWriteBatch>[1],
-  fallbackMsg: string
-) {
-  try {
-    await runWriteBatch(db, stmts);
-  } catch (err) {
-    const mapped = d1WriteErrorStatus(err, fallbackMsg);
-    if (mapped) {
-      throw new TeacherHandbookError(mapped.message, mapped.status);
-    }
-    throw err;
-  }
-}
 
 /**
  * Mengirim Pesanan Pegangan Guru dari Gudang Pusat ke Cabang:
@@ -176,7 +159,13 @@ export async function handoverTeacherAllocation(
   if (schoolScope && order.schoolId !== schoolScope) {
     throw new TeacherHandbookError("Tidak memiliki akses ke pesanan cabang lain.", 403);
   }
-  if (order.status !== "received" && order.status !== "completed") {
+  if (order.status === "cancelled" || order.status === "completed") {
+    throw new TeacherHandbookError("Alokasi pada pesanan yang dibatalkan atau selesai tidak dapat dialihkan.", 400);
+  }
+  if (alloc.handedOverQuantity > 0 && alloc.handedOverQuantity >= alloc.deliveredQuantity) {
+    throw new TeacherHandbookError("Buku untuk alokasi ini sudah diserahkan seluruhnya.", 400);
+  }
+  if (order.status !== "received") {
     throw new TeacherHandbookError("Buku harus diterima cabang terlebih dahulu sebelum diserahkan ke guru.", 400);
   }
 
@@ -200,7 +189,7 @@ export async function handoverTeacherAllocation(
     .from(teacherHandbookAllocations)
     .where(eq(teacherHandbookAllocations.orderId, order.id));
   const allDone = allAllocs.every((a) => a.handedOverQuantity >= a.deliveredQuantity);
-  if (allDone && order.status !== "completed") {
+  if (allDone) {
     await db
       .update(teacherHandbookOrders)
       .set({ status: "completed", updatedAt: isoNow })
@@ -242,6 +231,12 @@ export async function reassignTeacherAllocation(
   }
   if (schoolScope && order.schoolId !== schoolScope) {
     throw new TeacherHandbookError("Tidak memiliki akses ke pesanan cabang lain.", 403);
+  }
+  if (order.status === "cancelled" || order.status === "completed") {
+    throw new TeacherHandbookError("Alokasi pada pesanan yang dibatalkan atau selesai tidak dapat dialihkan.", 400);
+  }
+  if (alloc.handedOverQuantity > 0 && alloc.handedOverQuantity >= alloc.deliveredQuantity) {
+    throw new TeacherHandbookError("Buku untuk alokasi ini sudah diserahkan seluruhnya.", 400);
   }
 
   await db

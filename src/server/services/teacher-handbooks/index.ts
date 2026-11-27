@@ -1,7 +1,12 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "../../../db";
-import { books, schools, teacherHandbookAllocations, teacherHandbookOrders } from "../../../db/schema";
-import { d1WriteErrorStatus, runWriteBatch, selectInChunks } from "../../lib/d1-write";
+import {
+  books,
+  schools,
+  teacherHandbookAllocations,
+  teacherHandbookOrders,
+} from "../../../db/schema";
+import { chunkRows, d1WriteErrorStatus, runWriteBatch, selectInChunks } from "../../lib/d1-write";
 
 export interface TeacherAllocationInput {
   bookId: string;
@@ -33,7 +38,7 @@ export class TeacherHandbookError extends Error {
   }
 }
 
-async function execBatch(
+export async function execBatch(
   db: AppDatabase,
   stmts: Parameters<typeof runWriteBatch>[1],
   fallbackMsg: string
@@ -55,14 +60,6 @@ function generateOrderNumber(now: Date): string {
   const d = String(now.getDate()).padStart(2, "0");
   const rand = crypto.randomUUID().slice(0, 4).toUpperCase();
   return `PG-${y}${m}${d}-${rand}`;
-}
-
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
 }
 
 export async function createTeacherHandbookOrder(
@@ -122,7 +119,8 @@ export async function createTeacherHandbookOrder(
     updatedAt: isoNow,
   });
 
-  const allocChunks = chunkArray(allocationRows, 10);
+  // teacherHandbookAllocations has 13 columns -> max 5 rows per INSERT (65 params <= 100 D1 limit)
+  const allocChunks = chunkRows(allocationRows, 5);
   await execBatch(
     db,
     [
@@ -315,7 +313,8 @@ export async function updateTeacherHandbookOrder(
     updatedAt: isoNow,
   }));
 
-  const allocChunks = chunkArray(allocationRows, 10);
+  // teacherHandbookAllocations has 13 columns -> max 5 rows per INSERT (65 params <= 100 D1 limit)
+  const allocChunks = chunkRows(allocationRows, 5);
   await execBatch(
     db,
     [

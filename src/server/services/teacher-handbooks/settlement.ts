@@ -84,14 +84,18 @@ export async function verifyTeacherHandbookSettlement(
   if (order.status !== "received" && order.status !== "completed") {
     throw new TeacherHandbookError("Pesanan belum diterima cabang.", 400);
   }
+  if (!order.paymentProofUrl) {
+    throw new TeacherHandbookError("Bukti transfer belum diunggah oleh cabang.", 400);
+  }
   if (paidAmount < 0) {
     throw new TeacherHandbookError("Nominal pembayaran tidak boleh negatif.", 400);
   }
 
+  const nextPaid = order.paidAmount + paidAmount;
   const nextStatus: "unpaid" | "partial" | "paid" =
-    paidAmount >= order.settlementAmount && order.settlementAmount > 0
+    nextPaid >= order.settlementAmount && order.settlementAmount > 0
       ? "paid"
-      : paidAmount > 0
+      : nextPaid > 0
         ? "partial"
         : "unpaid";
 
@@ -99,7 +103,7 @@ export async function verifyTeacherHandbookSettlement(
   await db
     .update(teacherHandbookOrders)
     .set({
-      paidAmount,
+      paidAmount: nextPaid,
       settlementStatus: nextStatus,
       settledAt: nextStatus === "paid" ? isoNow : null,
       updatedAt: isoNow,
