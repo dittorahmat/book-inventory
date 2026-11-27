@@ -1000,6 +1000,13 @@ export const teacherHandbookOrders = sqliteTable("teacher_handbook_orders", {
     enum: ["pending", "in_transit", "received", "completed", "cancelled"],
   }).notNull().default("pending"),
   shipmentId: text("shipment_id").references(() => internalShipments.id, { onDelete: "set null" }),
+  settlementStatus: text("settlement_status", {
+    enum: ["unpaid", "partial", "paid"],
+  }).notNull().default("unpaid"),
+  settlementAmount: integer("settlement_amount").notNull().default(0),
+  paidAmount: integer("paid_amount").notNull().default(0),
+  paymentProofUrl: text("payment_proof_url"),
+  settledAt: text("settled_at"),
   notes: text("notes"),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull(),

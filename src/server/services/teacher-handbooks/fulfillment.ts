@@ -8,6 +8,7 @@ import {
 import { d1WriteErrorStatus, runWriteBatch } from "../../lib/d1-write";
 import { generateDeliveryNoteNumber } from "../internal-po/delivery-note";
 import { TeacherHandbookError, getTeacherHandbookOrderById } from "./index";
+import { computeAndSaveSettlementAmount } from "./settlement";
 
 async function execBatch(
   db: AppDatabase,
@@ -141,6 +142,8 @@ export async function receiveTeacherHandbookOrder(
     ],
     "Gagal mengonfirmasi penerimaan Pegangan Guru."
   );
+
+  await computeAndSaveSettlementAmount(db, orderId, now);
 
   return getTeacherHandbookOrderById(db, orderId);
 }

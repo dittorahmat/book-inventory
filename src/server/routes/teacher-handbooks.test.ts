@@ -174,6 +174,22 @@ describe("teacherHandbooksRouter", () => {
     const completed = (await handoverRes.json()) as { data: { status: string } };
     expect(completed.data.status).toBe("completed");
 
+    const proofRes = await app.request(`/api/teacher-handbooks/${created.data.id}/payment-proof`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paymentProofUrl: "https://example.com/bukti-pg.jpg" }),
+    });
+    expect(proofRes.status).toBe(200);
+
+    const verifyRes = await app.request(`/api/teacher-handbooks/${created.data.id}/verify-settlement`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paidAmount: 120000 }),
+    });
+    expect(verifyRes.status).toBe(200);
+    const verified = (await verifyRes.json()) as { data: { settlementStatus?: string } };
+    expect(verified.data.settlementStatus).toBe("paid");
+
     sessionSpy.mockRestore();
   });
 });

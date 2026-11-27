@@ -22,6 +22,10 @@ import {
   reassignTeacherAllocation,
   receiveTeacherHandbookOrder,
 } from "../services/teacher-handbooks/fulfillment";
+import {
+  submitTeacherHandbookPaymentProof,
+  verifyTeacherHandbookSettlement,
+} from "../services/teacher-handbooks/settlement";
 
 const allocationSchema = z.object({
   bookId: idSchema,
@@ -257,5 +261,58 @@ teacherHandbooksRouter.patch("/allocations/:allocationId/reassign", async (c) =>
       return c.json({ success: false, error: err.message }, err.statusCode as 400 | 403 | 404);
     }
     return c.json({ success: false, error: err instanceof Error ? err.message : "Gagal mengalihkan guru" }, 500);
+  }
+});
+
+teacherHandbooksRouter.post("/:id/payment-proof", async (c) => {
+  const actor = await resolveRequestActor(c);
+  if (!actor) return c.json({ success: false, error: "Unauthorized" }, 401);
+  if (!isSchoolRole(actor.role) && !isCentralRole(actor.role)) {
+    return c.json({ success: false, error: "Forbidden" }, 403);
+  }
+
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => null);
+  const parsed = z
+    .object({ paymentProofUrl: z.string().trim().min(1, "URL bukti transfer wajib diisi") })
+    .safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, 400);
+  }
+
+  try {
+    const schoolScope = isSchoolRole(actor.role) ? actor.schoolId : null;
+    const data = await submitTeacherHandbookPaymentProof(db, id, parsed.data.paymentProofUrl, schoolScope);
+    return c.json({ success: true, data });
+  } catch (err) {
+    if (err instanceof TeacherHandbookError) {
+      return c.json({ success: false, error: err.message }, err.statusCode as 400 | 403 | 404);
+    }
+    return c.json({ success: false, error: err instanceof Error ? err.message : "Gagal mengunggah bukti" }, 500);
+  }
+});
+
+teacherHandbooksRouter.post("/:id/verify-settlement", async (c) => {
+  const actor = await resolveRequestActor(c);
+  if (!actor) return c.json({ success: false, error: "Unauthorized" }, 401);
+  if (!isCentralRole(actor.role)) {
+    return c.json({ success: false, error: "Hanya Finance Pusat yang dapat memverifikasi pelunasan." }, 403);
+  }
+
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => null);
+  const parsed = z.object({ paidAmount: z.number().int().min(0) }).safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Nominal pembayaran tidak valid" }, 400);
+  }
+
+  try {
+    const data = await verifyTeacherHandbookSettlement(db, id, parsed.data.paidAmount);
+    return c.json({ success: true, data });
+  } catch (err) {
+    if (err instanceof TeacherHandbookError) {
+      return c.json({ success: false, error: err.message }, err.statusCode as 400 | 403 | 404);
+    }
+    return c.json({ success: false, error: err instanceof Error ? err.message : "Gagal verifikasi pelunasan" }, 500);
   }
 });
